@@ -89,10 +89,10 @@ export default function Today() {
             </div>
           ) : null}
         </a>
-      ) : null}
+      ) : market.loading ? <div class="card glass skeleton" style={{ minHeight: '6.75rem' }} role="status" aria-busy="true" aria-label="載入大盤資料" /> : null}
       {ai.data && ai.data.date === m?.date ? (
         <div class="card">
-          <div class="row between"><span class="headline">盤後摘要</span><span class="flag" aria-label="此段由 AI 生成">AI 生成</span></div>
+          <div class="row between"><span class="headline">盤後摘要</span><span class="flag">AI 生成</span></div>
           <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>
             {ai.data.lines.map((l) => <li key={l} class="small">{l}</li>)}
           </ul>

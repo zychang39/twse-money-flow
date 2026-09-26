@@ -46,7 +46,7 @@ export default function Health() {
                           {st.text} · 最後成功 {s.last_success ?? '—'}{s.rows !== null && s.rows !== undefined ? ` · ${s.rows} 筆` : ''}
                           {s.verified === 'unverified' ? ' · 未以真實樣本驗證' : ''}
                         </div>
-                        {s.last_message && s.last_status !== 'ok' ? <div class="tiny" style={{ color: 'var(--danger)' }}>{s.last_message}</div> : null}
+                        {s.last_message && s.last_status !== 'ok' ? <div class="tiny" style={{ color: 'var(--danger-text)' }}>{s.last_message}</div> : null}
                       </div>
                     </div>
                   );
@@ -61,7 +61,7 @@ export default function Health() {
                 <span class="badge">{r.task}</span>
                 <div class="grow small">
                   <div>{r.at.replace('T', ' ').slice(0, 16)} · {r.requests} 次請求 · 成功 {r.ok}</div>
-                  {r.failed.length ? <div class="tiny" style={{ color: 'var(--danger)' }}>失敗：{r.failed.slice(0, 5).join('；')}</div> : null}
+                  {r.failed.length ? <div class="tiny" style={{ color: 'var(--danger-text)' }}>失敗：{r.failed.slice(0, 5).join('；')}</div> : null}
                 </div>
               </div>
             ))}

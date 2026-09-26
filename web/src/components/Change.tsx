@@ -4,7 +4,8 @@ import { arrow, changeLabel, direction, fmtNum, fmtPct, fmtPrice } from '../lib/
 export function Change({ change, pct, showPrice }: { change: number | null | undefined; pct?: number | null; showPrice?: number | null }) {
   const d = direction(change);
   return (
-    <span class={`num ${d}`} aria-label={changeLabel(change, pct)}>
+    <span class={`num ${d}`}>
+      <span class="sr-only">{changeLabel(change, pct)}</span>
       {showPrice !== undefined ? <span class="bold">{fmtPrice(showPrice)} </span> : null}
       <span aria-hidden="true">
         {arrow(change)} {fmtNum(change === null || change === undefined ? null : Math.abs(change))}
@@ -19,7 +20,8 @@ export function Signed({ value, format, label }: { value: number | null | undefi
   const d = direction(value);
   const word = d === 'up' ? '增加' : d === 'down' ? '減少' : '持平';
   return (
-    <span class={`num ${d}`} aria-label={`${label ?? ''}${word} ${format(value === null || value === undefined ? value : Math.abs(value))}`}>
+    <span class={`num ${d}`}>
+      <span class="sr-only">{`${label ?? ''}${word} ${format(value === null || value === undefined ? value : Math.abs(value))}`}</span>
       <span aria-hidden="true">{format(value)}</span>
     </span>
   );

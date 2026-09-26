@@ -18,7 +18,8 @@ export function ScoreRow({ row }: { row: Partial<StockRow> }) {
         const v = row[id] as number | null | undefined;
         const label = scoresConfig.categories[id].label.replace('分', '');
         return (
-          <div key={id} class={`score ${cls(v)}`} aria-label={`${label}分數 ${scoreText(v)}`}>
+          <div key={id} class={`score ${cls(v)}`}>
+            <span class="sr-only">{`${label}分數 ${scoreText(v)}`}</span>
             <div class="val" aria-hidden="true">{scoreText(v)}</div>
             <div class="lbl" aria-hidden="true">{label}</div>
           </div>
@@ -30,7 +31,8 @@ export function ScoreRow({ row }: { row: Partial<StockRow> }) {
 
 export function Composite({ value }: { value: number | null | undefined }) {
   return (
-    <div style={{ textAlign: 'right' }} aria-label={`綜合分 ${scoreText(value)}`}>
+    <div style={{ textAlign: 'right' }}>
+      <span class="sr-only">{`綜合分 ${scoreText(value)}`}</span>
       <div class={`composite ${value !== null && value !== undefined && value >= 65 ? 'up' : value !== null && value !== undefined && value <= 35 ? 'down' : ''}`} aria-hidden="true">
         {scoreText(value)}
       </div>
