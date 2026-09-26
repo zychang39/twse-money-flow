@@ -202,8 +202,8 @@ sources:
     label: 上櫃注意累計次數可能達處置標準
     market: tpex
     tier: core
-    frequency: daily
-    url: https://www.tpex.org.tw/www/zh-tw/bulletin/warning?date={date_slash}&response=json
+    frequency: snapshot   # 實測：date 參數無效，只回傳最新一日
+    url: https://www.tpex.org.tw/www/zh-tw/bulletin/warning?response=json
     status: verified
   tpex_revenue:
     label: 上櫃月營收（最新一期）

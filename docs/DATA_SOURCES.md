@@ -60,7 +60,7 @@
 | tpex_capreduce | 上櫃減資恢復買賣 | `…/bulletin/revivt?startDate=…&endDate=…&response=json` | 事件 | ✅ |
 | tpex_attention | 上櫃注意股 | `…/bulletin/attention?startDate=…&endDate=…&response=json` | 約 17:00 | ✅ |
 | tpex_disposition | 上櫃處置股 | `…/bulletin/disposal?startDate=…&endDate=…&response=json` | 約 17:00 | ✅ |
-| tpex_attention_accum | 上櫃注意累計可能達處置 | `…/bulletin/warning?date=…&response=json` | 每日 | ✅ |
+| tpex_attention_accum | 上櫃注意累計可能達處置 | `…/bulletin/warning?response=json`（實測 date 參數無效，只有最新） | 每日 | ✅ |
 | tpex_revenue | 上櫃月營收（最新） | `www.tpex.org.tw/openapi/v1/mopsfin_t187ap05_O` | 每月 10 日前陸續 | ✅ |
 | tpex_company | 上櫃基本資料 | `www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O` | 每日 | ✅ |
 | mops_revenue | 月營收歷史（上市／上櫃） | `mopsov.twse.com.tw/nas/t21/{sii|otc}/t21sc03_{民國年}_{月}_0.html`（Big5） | 每月 | ✅ |

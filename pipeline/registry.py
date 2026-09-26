@@ -96,7 +96,6 @@ SPECS: dict[str, Spec] = {
             extras_keys={"tpex_margin_total": ("item",)},
         ),
         Spec("tpex_valuation", "daily", tpex.parse_valuation, "daily", numeric=("pb",), min_rows=300),
-        Spec("tpex_attention_accum", "daily", tpex.parse_attention_accum, "daily", min_rows=0),
         # ---- 區間查詢（事件型，依月份存檔）
         Spec("twse_exright", "range", twse.parse_exright, "monthly", keys=("date", "code"), min_rows=0),
         Spec("tpex_exright", "range", tpex.parse_exright, "monthly", keys=("date", "code"), min_rows=0),
@@ -126,6 +125,7 @@ SPECS: dict[str, Spec] = {
         Spec("tpex_index", "month_query", tpex.parse_index, "monthly", keys=("date", "name"), min_rows=0),
         # ---- 快照（只提供最新，內容變動才存）
         Spec("twse_attention_accum", "snapshot", twse.parse_attention_accum, "snapshot", min_rows=0),
+        Spec("tpex_attention_accum", "snapshot", tpex.parse_attention_accum, "snapshot", min_rows=0),
         Spec(
             "twse_exright_notice", "snapshot", twse.parse_exright_notice, "snapshot", keys=("date", "code"), min_rows=0
         ),
@@ -150,7 +150,6 @@ CORE_DAILY = [
     "tpex_insti",
     "tpex_margin",
     "tpex_valuation",
-    "tpex_attention_accum",
 ]
 CORE_RANGE = [
     "twse_exright",
@@ -164,6 +163,7 @@ CORE_RANGE = [
 ]
 CORE_SNAPSHOT = [
     "twse_attention_accum",
+    "tpex_attention_accum",
     "twse_exright_notice",
     "tpex_exright_notice",
     "twse_company",
