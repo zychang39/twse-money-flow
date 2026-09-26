@@ -24,6 +24,8 @@ from pipeline.core.http import CircuitOpenError, FetchError, PoliteClient
 from pipeline.core.store import DataStore, record
 from pipeline.core.validate import validate_frame
 from pipeline.registry import (
+    ADVANCED_DAILY,
+    ADVANCED_SNAPSHOT,
     BACKFILL_DEFAULT,
     CORE_DAILY,
     CORE_RANGE,
@@ -297,7 +299,7 @@ def task_daily(ctx: RunContext, sources: list[str] | None = None, heal_days: int
     target = target_trading_date(ctx)
     ctx.manifest["last_target_date"] = target.isoformat()
     recent = [d for d in ctx.calendar.trading_days(target - timedelta(days=heal_days * 2), target)][-heal_days:]
-    wanted = sources or (CORE_DAILY + CORE_RANGE + CORE_SNAPSHOT + ["tpex_index"])
+    wanted = sources or (CORE_DAILY + ADVANCED_DAILY + CORE_RANGE + CORE_SNAPSHOT + ADVANCED_SNAPSHOT + ["tpex_index"])
     # 1) 每日型：收盤行情優先（無行情 → 臨時休市，略過其他來源）
     daily = [s for s in wanted if s in SPECS and SPECS[s].kind == "daily"]
     for d in recent:
@@ -316,6 +318,22 @@ def task_daily(ctx: RunContext, sources: list[str] | None = None, heal_days: int
     # 4) 快照
     for sid in [s for s in wanted if s in SPECS and SPECS[s].kind == "snapshot"]:
         run_snapshot(ctx, SPECS[sid], target)
+    # 5) 期交所、匯率、美債（sources 未指定時）
+    if not sources:
+        from pipeline import tasks_advanced
+
+        tasks_advanced.run_taifex(ctx, target - timedelta(days=10), target)
+        tasks_advanced.run_ust(ctx, target.year)
+
+
+def _after_financial_deadline(today: date) -> bool:
+    """季報法定期限後的 1–5 天（對應 data.yml 的季報排程）。"""
+    for md in config.thresholds()["backtest"]["financial_deadlines"].values():
+        m, d = (int(x) for x in str(md).split("-"))
+        deadline = date(today.year, m, d)
+        if timedelta(days=1) <= today - deadline <= timedelta(days=5):
+            return True
+    return False
 
 
 def task_periodic(ctx: RunContext, sources: list[str] | None = None) -> None:
@@ -326,6 +344,14 @@ def task_periodic(ctx: RunContext, sources: list[str] | None = None) -> None:
         run_mops_revenue(ctx, prev_month(ctx.today))
     if ctx.today.month == 1 or "twse_holidays" in wanted:
         load_calendar(ctx, [ctx.today.year + 1])
+    from pipeline import tasks_advanced
+
+    if "tdcc_holders" in wanted or (not wanted and ctx.today.weekday() in (5, 6)):
+        tasks_advanced.run_tdcc(ctx)
+    if "financials" in wanted or (not wanted and _after_financial_deadline(ctx.today)):
+        from pipeline import financials
+
+        financials.run_latest(ctx)
 
 
 def _months_desc(start: date, end: date) -> list[date]:
@@ -345,6 +371,25 @@ def task_backfill(ctx: RunContext, sources: list[str] | None, start: date, end: 
     sources = sources or BACKFILL_DEFAULT
     load_calendar(ctx, list(range(start.year, end.year + 1)))
     remaining: dict[str, int] = {}
+    # 0) 期交所／匯率／美債／財報（自訂來源）
+    custom = [s for s in sources if s in ("taifex", "ust_10y", "financials")]
+    sources = [s for s in sources if s not in custom]
+    if custom:
+        from pipeline import tasks_advanced
+
+        if "taifex" in custom:
+            for m in _months_desc(start, end):
+                if ctx.out_of_time():
+                    remaining["taifex"] = remaining.get("taifex", 0) + 1
+                    continue
+                tasks_advanced.run_taifex(ctx, max(m, start), min(next_month(m) - timedelta(days=1), end))
+        if "ust_10y" in custom:
+            for y in range(start.year, end.year + 1):
+                tasks_advanced.run_ust(ctx, y)
+        if "financials" in custom:
+            from pipeline import financials
+
+            financials.run_history(ctx, start, end)
     # 1) 非每日型（區間、月查詢、MOPS 月營收）：以月為單位，由近到遠
     for sid in [s for s in sources if s == "mops_revenue" or SPECS[s].kind != "daily"]:
         months = _months_desc(start, end)

@@ -215,6 +215,183 @@ def sector_rotation(p: Any) -> list[dict[str, Any]]:
     return rows
 
 
+def _light(lid: str, label: str, state: str, value: str, basis: str) -> dict[str, Any]:
+    return {"id": lid, "label": label, "state": state, "value": value, "basis": basis}
+
+
+def futures_net_oi(ti: pd.DataFrame) -> pd.Series:
+    """外資台指期淨未平倉（大台約當口數 = 大台 + 小台/4 + 微台/20）。"""
+    if ti.empty:
+        return pd.Series(dtype=float)
+    f = ti[ti["party"] == "外資及陸資"]
+    w = {"TXF": 1.0, "MXF": 0.25, "TMF": 0.05}
+    f = f.assign(eq=[n * w.get(c, 0) for n, c in zip(f["net_oi"], f["contract"], strict=True)])
+    return f.groupby("date")["eq"].sum().sort_index()
+
+
+def retail_ratio(ti: pd.DataFrame, oi: pd.DataFrame, fut_contract: str, oi_contract: str) -> pd.Series:
+    """散戶多空比 = (散戶多 − 散戶空) ÷ 全市場未平倉；散戶多 = 全市場 − 法人多、散戶空 = 全市場 − 法人空。"""
+    if ti.empty or oi.empty:
+        return pd.Series(dtype=float)
+    inst = ti[ti["contract"] == fut_contract].groupby("date")[["long_oi", "short_oi"]].sum()
+    total = oi[oi["contract"] == oi_contract].set_index("date")["total_oi"]
+    df = inst.join(total, how="inner")
+    df = df[df["total_oi"] > 0]
+    long_r = df["total_oi"] - df["long_oi"]
+    short_r = df["total_oi"] - df["short_oi"]
+    return ((long_r - short_r) / df["total_oi"] * 100).sort_index()
+
+
+def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
+    env = config.thresholds()["market_env"]
+    temp = config.thresholds()["market_temperature"]
+    lights = []
+    # 1) 外資台指期淨未平倉
+    net = futures_net_oi(ds.table("taifex_insti"))
+    if len(net):
+        v = float(net.iloc[-1])
+        st = (
+            "green"
+            if v >= env["futures_net_oi"]["bullish_above"]
+            else "red"
+            if v <= env["futures_net_oi"]["bearish_below"]
+            else "yellow"
+        )
+        lights.append(
+            _light(
+                "futures",
+                "外資台指期淨未平倉",
+                st,
+                f"{v:,.0f} 口（{net.index[-1]}）",
+                f"大台約當口數（大台 + 小台/4 + 微台/20）；≥ {env['futures_net_oi']['bullish_above']:,} 偏多、≤ {env['futures_net_oi']['bearish_below']:,} 偏空",
+            )
+        )
+    else:
+        lights.append(_light("futures", "外資台指期淨未平倉", "gray", "資料源待處理", "期交所三大法人期貨資料尚未取得"))
+    # 2) 台幣匯率趨勢
+    fx = ds.table("fx")
+    if not fx.empty and len(fx) > 20:
+        s = fx.drop_duplicates("date").set_index("date")["usd_twd"].sort_index().dropna()
+        chg = float(s.iloc[-1] / s.iloc[-21] - 1) * 100
+        c = env["usd_twd_change_20d_pct"]
+        st = "green" if chg <= c["inflow_below"] else "red" if chg >= c["outflow_above"] else "yellow"
+        lights.append(
+            _light(
+                "fx",
+                "台幣匯率趨勢",
+                st,
+                f"USD/TWD {s.iloc[-1]:.3f}（20 日 {chg:+.2f}%）",
+                f"美元兌台幣 20 日變化；≤ {c['inflow_below']}%（台幣升值、資金流入）偏多、≥ +{c['outflow_above']}% 偏空",
+            )
+        )
+    else:
+        lights.append(_light("fx", "台幣匯率趨勢", "gray", "資料源待處理", "期交所每日匯率資料不足 20 日"))
+    # 3) 大盤與年線
+    ma = taiex.rolling(240, min_periods=240).mean()
+    if taiex.notna().any() and ma.notna().any():
+        gap = float(taiex.iloc[-1] / ma.iloc[-1] - 1) * 100
+        band = env["index_vs_ma240_pct"]["neutral_band"]
+        st = "green" if gap > band else "red" if gap < -band else "yellow"
+        lights.append(
+            _light("ma240", "大盤與年線", st, f"{gap:+.1f}%", f"加權指數相對 240 日均線；±{band}% 內視為年線附近")
+        )
+    else:
+        lights.append(_light("ma240", "大盤與年線", "gray", "歷史不足 240 日", "回補完成後顯示"))
+    # 4) M1B／M2
+    money = ds.table("cbc_money") if hasattr(ds, "table") else pd.DataFrame()
+    if not money.empty:
+        r = money.sort_values("ym").iloc[-1]
+        gap = float(r["m1b_yoy"] - r["m2_yoy"])
+        st = "green" if gap > env["m1b_m2_gap"]["bullish_above"] else "red"
+        lights.append(
+            _light(
+                "m1b",
+                "M1B／M2 年增率",
+                st,
+                f"M1B {r['m1b_yoy']:.2f}%、M2 {r['m2_yoy']:.2f}%（{r['ym']}）",
+                "M1B 年增率高於 M2（黃金交叉）視為資金動能偏多",
+            )
+        )
+    else:
+        lights.append(_light("m1b", "M1B／M2 年增率", "gray", "資料源待處理", "央行貨幣總計數（選配資料）"))
+    # 5) 美國 10 年期殖利率
+    ust = ds.table("ust")
+    if not ust.empty and len(ust) > 20:
+        s = ust.drop_duplicates("date").set_index("date")["y10"].sort_index().dropna()
+        bp = float(s.iloc[-1] - s.iloc[-21]) * 100
+        c = env["us10y_change_20d_bp"]
+        st = "red" if bp >= c["tightening_above"] else "green" if bp <= c["easing_below"] else "yellow"
+        lights.append(
+            _light(
+                "ust",
+                "美國 10 年期殖利率",
+                st,
+                f"{s.iloc[-1]:.2f}%（20 日 {bp:+.0f}bp）",
+                f"20 日變化 ≥ +{c['tightening_above']}bp 偏緊、≤ {c['easing_below']}bp 偏鬆",
+            )
+        )
+    else:
+        lights.append(_light("ust", "美國 10 年期殖利率", "gray", "資料源待處理", "美國財政部 Par Yield Curve"))
+    score = sum({"green": 1, "red": -1}.get(li["state"], 0) for li in lights)
+    known = sum(1 for li in lights if li["state"] != "gray")
+    summary = f"{sum(li['state'] == 'green' for li in lights)} 綠 {sum(li['state'] == 'yellow' for li in lights)} 黃 {sum(li['state'] == 'red' for li in lights)} 紅"
+    # ---- 市場溫度
+    tl = []
+    rr = retail_ratio(ds.table("taifex_insti"), ds.table("taifex_oi"), "MXF", "MTX")
+    rr_tmf = retail_ratio(ds.table("taifex_insti"), ds.table("taifex_oi"), "TMF", "TMF")
+    if len(rr):
+        v = float(rr.iloc[-1])
+        c = temp["retail_ratio_pct"]
+        st = "red" if v >= c["hot_above"] else "green" if v <= c["cold_below"] else "yellow"
+        extra = f"；微台 {float(rr_tmf.iloc[-1]):+.1f}%" if len(rr_tmf) else ""
+        tl.append(
+            _light(
+                "retail",
+                "散戶多空比（小台）",
+                st,
+                f"{v:+.1f}%{extra}",
+                f"(散戶多 − 散戶空) ÷ 全市場未平倉；≥ +{c['hot_above']}% 過熱、≤ {c['cold_below']}% 過冷（反向參考）",
+            )
+        )
+    else:
+        tl.append(_light("retail", "散戶多空比（小台）", "gray", "資料源待處理", "期交所未平倉資料"))
+    mt = ds.margin_total
+    if not mt.empty:
+        amt = mt[mt["item"].astype(str).str.contains("金額|融資金")].groupby("date")["balance"].sum().sort_index()
+        if len(amt) > 5:
+            chg = float(amt.iloc[-1] / amt.iloc[-6] - 1) * 100
+            c = temp["margin_change_5d_pct"]
+            st = "red" if chg >= c["hot_above"] else "green" if chg <= c["cold_below"] else "yellow"
+            tl.append(
+                _light(
+                    "margin",
+                    "大盤融資餘額變化",
+                    st,
+                    f"5 日 {chg:+.2f}%（{amt.iloc[-1] / 1e5:,.0f} 億）",
+                    f"上市＋上櫃融資金額 5 日變化；≥ +{c['hot_above']}% 過熱、≤ {c['cold_below']}% 降溫",
+                )
+            )
+    value = p.value.sum(axis=1)
+    if len(value) > 20:
+        ratio = float(value.iloc[-1] / value.iloc[-21:-1].mean())
+        c = temp["volume_vs_ma20"]
+        st = "red" if ratio >= c["hot_above"] else "green" if ratio <= c["cold_below"] else "yellow"
+        tl.append(
+            _light(
+                "volume",
+                "成交量相對 20 日平均",
+                st,
+                f"{ratio:.2f} 倍（{value.iloc[-1] / 1e8:,.0f} 億）",
+                f"上市＋上櫃成交金額 ÷ 前 20 日平均；≥ {c['hot_above']} 過熱、≤ {c['cold_below']} 冷清",
+            )
+        )
+    retail_series = [{"date": d, "mtx": clean(v, 2), "tmf": clean(rr_tmf.get(d), 2)} for d, v in rr.iloc[-60:].items()]
+    return {
+        "env": {"summary": summary, "score": score, "known": known, "lights": lights},
+        "temperature": {"lights": tl, "retail": retail_series},
+    }
+
+
 def market_file(ds: Any, p: Any, mp: Any, out: Path) -> dict[str, Any]:
     taiex = index_series(ds, TAIEX, p.dates)
     k = min(len(p.dates), 60)
@@ -241,15 +418,72 @@ def market_file(ds: Any, p: Any, mp: Any, out: Path) -> dict[str, Any]:
         "breadth": {"up": int((chg > 0).sum()), "down": int((chg < 0).sum()), "flat": int((chg == 0).sum())},
         "flows": flows,
         "sectors": sector_rotation(p),
+        **market_env(ds, p, taiex),
     }
     write_json(out / "market.json", data)
     return data
+
+
+def calendar_file(ds: Any, p: Any, out: Path) -> int:
+    """行事曆：除權息、融券最後回補日、處置期間、月營收與財報期限、休市日、法說會。"""
+    from datetime import date as _date
+    from datetime import timedelta as _td
+
+    last = _date.fromisoformat(p.dates[-1])
+    lo, hi = (last - _td(days=14)).isoformat(), (last + _td(days=75)).isoformat()
+    ev: list[dict[str, Any]] = []
+
+    def add(d: Any, typ: str, text: str, code: str | None = None) -> None:
+        if isinstance(d, str) and lo <= d <= hi:
+            ev.append(
+                {"date": d, "type": typ, "code": code, "name": p.names.get(code, code) if code else None, "text": text}
+            )
+
+    for _, r in ds.exright_notice.iterrows() if not ds.exright_notice.empty else []:
+        cash = r.get("cash_dividend")
+        add(
+            r["date"],
+            "除權息",
+            f"除{r.get('kind', '')}" + (f"，現金股利 {cash:g} 元" if cash == cash and cash else ""),
+            r["code"],
+        )
+    sh = ds.table("short_halt")
+    for _, r in sh.iterrows() if not sh.empty else []:
+        add(
+            r.get("last_cover_date"),
+            "融券回補",
+            f"融券最後回補日（停券至 {r.get('end')}，{r.get('reason') or ''}）",
+            r["code"],
+        )
+    for _, r in ds.disposition.dropna(subset=["start"]).iterrows() if not ds.disposition.empty else []:
+        add(r["start"], "處置", f"處置開始（至 {r.get('end')}）", r["code"])
+        add(r.get("end"), "處置", "處置最後一日", r["code"])
+    conf = ds.table("conference")
+    for _, r in conf.iterrows() if not conf.empty else []:
+        add(r["date"], "法說會", str(r.get("text", ""))[:80], r["code"])
+    d = last.replace(day=1)
+    for _ in range(4):
+        add(d.replace(day=10).isoformat(), "月營收", "上月營收公布期限（各公司陸續公布）")
+        d = (d + _td(days=32)).replace(day=1)
+    for q, md in config.thresholds()["backtest"]["financial_deadlines"].items():
+        m, dd = (int(x) for x in str(md).split("-"))
+        for y in (last.year, last.year + 1):
+            add(_date(y, m, dd).isoformat(), "財報", f"{'年報' if q == 'Q4' else q + ' 季報'}申報期限")
+    hol = ds.store.read("twse_holidays", _date(last.year, 1, 1))
+    if hol is not None:
+        for _, r in hol.iterrows():
+            if "開始交易" not in str(r["name"]) and "最後交易" not in str(r["name"]):
+                add(r["date"], "休市", str(r["name"]))
+    ev.sort(key=lambda e: (e["date"], e["type"], e["code"] or ""))
+    write_json(out / "calendar.json", {"date": p.dates[-1], "events": ev})
+    return len(ev)
 
 
 def build_extras(ds: Any, p: Any, mp: Any, sc: Any, fv: Any, out: Path) -> dict[str, Any]:
     report: dict[str, Any] = {}
     index_file(ds, p, out)
     market_file(ds, p, mp, out)
+    report["calendar_events"] = calendar_file(ds, p, out)
     report.update(preset_backtests(ds, p, mp, sc, out))
     report.update(custom_panel(ds, p, mp, sc, out))
     return report

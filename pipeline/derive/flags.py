@@ -109,17 +109,19 @@ def build_flags(ds: Any, p: Any, mp: MetricPanels, at: int = -1) -> dict[str, li
         if m == m and m > rf["margin_usage_high"]["pct"]:
             add(code, "margin_usage_high", "warn", f"融資使用率 {m:.1f}%")
     # 內部人申報轉讓（有效期間內）
-    insider = ds.extra.get("insider")
-    if insider:
-        for df in insider:
-            for _, r in df.iterrows():
-                if str(r.get("start", "")) <= last <= str(r.get("end", "9999")):
-                    add(
-                        r["code"],
-                        "insider_transfer",
-                        "warn",
-                        f"{r.get('holder_type', '')} 申報轉讓 {r.get('shares', '')} 股",
-                    )
+    insider = ds.table("insider") if hasattr(ds, "table") else pd.DataFrame()
+    if not insider.empty:
+        for _, r in insider.iterrows():
+            if str(r.get("start") or "") <= last <= str(r.get("end") or "9999"):
+                shares = r.get("shares")
+                amount = f"{int(shares):,} 股" if shares == shares and shares else ""
+                who = r.get("holder_type") or "內部人"
+                add(
+                    r["code"],
+                    "insider_transfer",
+                    "warn",
+                    f"{who} 申報轉讓 {amount}（{r.get('start')}～{r.get('end')}）",
+                )
     # 資料過期
     max_lag = int(rf["stale_data"]["max_lag_days"])
     upto = p.close.iloc[: n + 1]

@@ -246,6 +246,8 @@ def summary_columns() -> list[str]:
         "fair_position",
         *[f"{c}_chg" for c in SCORE_COLUMNS],
         "short_change",
+        "composite_chg_5d",
+        "new_flags_5d",
         "new_flags",
         "flags",
     ]
@@ -254,8 +256,19 @@ def summary_columns() -> list[str]:
 SUMMARY_COLUMNS = summary_columns()
 
 
+def short_halt_for(ds: Dataset, code: str) -> dict[str, Any] | None:
+    sh = ds.table("short_halt")
+    if sh.empty:
+        return None
+    hit = sh[sh["code"] == code]
+    if hit.empty:
+        return None
+    r = hit.iloc[0]
+    return {"last_cover_date": r.get("last_cover_date"), "end": r.get("end"), "reason": r.get("reason")}
+
+
 def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
-    from pipeline.derive import fairvalue, metrics, scores, stockdetail
+    from pipeline.derive import fairvalue, fundamentals, metrics, scores, stockdetail
     from pipeline.derive import flags as flagmod
 
     p = build_panels(ds)
@@ -263,15 +276,15 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
     # 合理價（逐日），供估值因子使用
     divs = fairvalue.dividend_panel(ds.exright, p.dates, p.codes)
     fv = fairvalue.fair_value_panels(p.close, p.pe, p.pb, divs)
-    extra = (
-        {"fair_value_position": fv["position"], **ds.extra_panels}
-        if hasattr(ds, "extra_panels")
-        else {"fair_value_position": fv["position"]}
-    )
+    from pipeline.derive.advanced_panels import advanced_panels
+
+    adv = advanced_panels(ds, p)
+    extra = {"fair_value_position": fv["position"], **adv}
     mp = metrics.build_metrics(p, ds.revenue, extra)
     sc = scores.compute_scores(mp)
     flags = flagmod.build_flags(ds, p, mp)
     flags_prev = flagmod.build_flags(ds, p, mp, at=-2) if len(p.dates) >= 2 else {}
+    flags_week = flagmod.build_flags(ds, p, mp, at=-6) if len(p.dates) >= 6 else {}
     cols = SUMMARY_COLUMNS
     rows: list[list[Any]] = []
     written = 0
@@ -293,9 +306,13 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
         m["flags"] = flags.get(code, [])
         prev_ids = {f["id"] for f in flags_prev.get(code, [])}
         m["new_flags"] = [f["id"] for f in m["flags"] if f["id"] not in prev_ids]
+        week_ids = {f["id"] for f in flags_week.get(code, [])}
+        m["new_flags_5d"] = [f["id"] for f in m["flags"] if f["id"] not in week_ids]
         for cat in SCORE_COLUMNS:
             series = sc[cat][code]
             m[f"{cat}_chg"] = clean(series.iloc[-1] - series.iloc[-2], 0) if len(series) >= 2 else None
+        comp = sc["composite"][code]
+        m["composite_chg_5d"] = clean(comp.iloc[-1] - comp.iloc[-6], 0) if len(comp) >= 6 else None
         sbal = p.short_balance[code]
         m["short_change"] = clean(sbal.diff().iloc[-1] if len(sbal.dropna()) >= 2 else None, 0)
         m.update(
@@ -319,6 +336,18 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
                 for k in ("rs_percentile", "pe_percentile", "pb_percentile")
                 if k in mp.panels
             },
+            **{
+                key: arr((mp.get(name)[code].reindex(idx) / scale).to_numpy(), 2)
+                for key, name, scale in (
+                    ("sbl", "sbl_balance", 1000),
+                    ("whale", "whale_pct", 1),
+                    ("qfii", "foreign_hold_pct", 1),
+                    ("dt", "daytrade_pct", 1),
+                )
+                if name in mp.panels and mp.get(name)[code].notna().any()
+            },
+            "quarters": fundamentals.latest_table(ds.table("financials"), code),
+            "short_halt": short_halt_for(ds, code),
         }
         write_json(out / "stocks" / f"{code}.json", stock_file(p, code, m, extra_file))
         written += 1

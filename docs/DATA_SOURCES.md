@@ -98,8 +98,10 @@
 | taifex_insti | 三大法人期貨（TXF/MXF/TMF） | POST `www.taifex.com.tw/cht/3/futContractsDateDown`（Big5 CSV） | 約 15:00 | ✅ |
 | taifex_oi | 各契約全市場未平倉 | POST `www.taifex.com.tw/cht/3/futDataDown`（Big5 CSV，依到期月份，取「一般」時段加總） | 約 15:00 | ✅ |
 | fx_usdtwd | 美元兌台幣 | POST `www.taifex.com.tw/cht/3/dailyFXRateDown`（Big5 CSV） | 每日 | ✅ |
-| twse_financials / tpex_financials | 季財報 | `t187ap06_L_ci`（損益）、`t187ap17_L`（營益分析）、`t187ap07_L_ci`（資產負債）；上櫃 `mopsfin_*_O` | 最新一季 | ✅（僅一般業；金融業等另有端點，暫以 EPS／營益分析為主） |
+| financials | 季財報（上市＋上櫃） | MOPS `ajax_t163sb04`（綜合損益彙總）、`ajax_t163sb05`（資產負債彙總），GET 帶 `TYPEK=sii/otc&year=民國年&season=季`；一次涵蓋一般業、金融、證券、保險等所有格式 | 法定期限後 | ✅（Actions 實測；OpenAPI t187ap06／07 只有最新一季且依產業分檔，改用 MOPS） |
 | active_etf | 主動式 ETF 每日持股 | 各投信官網 PCF（無集中端點） | 每日 | ⛔ 資料源待處理（見 DECISIONS） |
+
+其他：`twse_insider`／`tpex_insider`（內部人轉讓事前申報，OpenAPI t187ap12_L／mopsfin_t187ap12_O）列為選配資料並用於風險旗標。
 
 集保欄位：`資料日期, 證券代號, 持股分級, 人數, 股數, 占集保庫存數比例%`；證券代號右側補空白（如 `2330  `）。分級 1–15 為持股區間，16 為差異數調整，17 為合計。
 

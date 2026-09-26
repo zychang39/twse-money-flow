@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from pipeline.core import config
 from pipeline.core.dates import roc_year, slash, ymd
-from pipeline.sources import mops, tpex, twse
+from pipeline.sources import advanced, mops, tpex, twse
 from pipeline.sources.base import ParseResult
 
 Granularity = Literal["daily", "monthly", "yearly", "snapshot"]
@@ -96,6 +96,63 @@ SPECS: dict[str, Spec] = {
             extras_keys={"tpex_margin_total": ("item",)},
         ),
         Spec("tpex_valuation", "daily", tpex.parse_valuation, "daily", numeric=("pb",), min_rows=300),
+        # ---- 進階：每日
+        Spec(
+            "twse_sbl",
+            "daily",
+            advanced.parse_twse_sbl,
+            "daily",
+            numeric=("sbl_balance",),
+            min_rows=500,
+            tier="advanced",
+        ),
+        Spec(
+            "tpex_sbl",
+            "daily",
+            advanced.parse_tpex_sbl,
+            "daily",
+            numeric=("sbl_balance",),
+            min_rows=300,
+            tier="advanced",
+        ),
+        Spec(
+            "twse_qfii",
+            "daily",
+            advanced.parse_twse_qfii,
+            "daily",
+            numeric=("foreign_pct",),
+            min_rows=500,
+            tier="advanced",
+        ),
+        Spec(
+            "tpex_qfii",
+            "daily",
+            advanced.parse_tpex_qfii,
+            "daily",
+            numeric=("foreign_pct",),
+            min_rows=300,
+            tier="advanced",
+        ),
+        Spec(
+            "twse_daytrade",
+            "daily",
+            advanced.parse_twse_daytrade,
+            "daily",
+            numeric=("dt_volume",),
+            min_rows=300,
+            tier="advanced",
+            extras=("twse_daytrade_total",),
+        ),
+        Spec(
+            "tpex_daytrade",
+            "daily",
+            advanced.parse_tpex_daytrade,
+            "daily",
+            numeric=("dt_volume",),
+            min_rows=200,
+            tier="advanced",
+            extras=("tpex_daytrade_total",),
+        ),
         # ---- 區間查詢（事件型，依月份存檔）
         Spec("twse_exright", "range", twse.parse_exright, "monthly", keys=("date", "code"), min_rows=0),
         Spec("tpex_exright", "range", tpex.parse_exright, "monthly", keys=("date", "code"), min_rows=0),
@@ -140,6 +197,42 @@ SPECS: dict[str, Spec] = {
         Spec("tpex_company", "snapshot", tpex.parse_company, "snapshot", min_rows=300),
         Spec("twse_revenue", "snapshot", _rev_twse, "snapshot", keys=("code", "ym"), min_rows=0),
         Spec("tpex_revenue", "snapshot", _rev_tpex, "snapshot", keys=("code", "ym"), min_rows=0),
+        Spec(
+            "twse_short_halt",
+            "snapshot",
+            advanced.parse_twse_short_halt,
+            "snapshot",
+            keys=("code", "last_cover_date"),
+            min_rows=0,
+            tier="advanced",
+        ),
+        Spec(
+            "tpex_short_halt",
+            "snapshot",
+            advanced.parse_tpex_short_halt,
+            "snapshot",
+            keys=("code", "last_cover_date"),
+            min_rows=0,
+            tier="advanced",
+        ),
+        Spec(
+            "twse_insider",
+            "snapshot",
+            advanced.parse_insider,
+            "snapshot",
+            keys=("code", "holder", "start"),
+            min_rows=0,
+            tier="optional",
+        ),
+        Spec(
+            "tpex_insider",
+            "snapshot",
+            advanced.parse_insider,
+            "snapshot",
+            keys=("code", "holder", "start"),
+            min_rows=0,
+            tier="optional",
+        ),
         # ---- 年度
         Spec("twse_holidays", "yearly", twse.parse_holidays, "yearly", keys=("date",), min_rows=5),
     ]
@@ -179,6 +272,8 @@ CORE_SNAPSHOT = [
     "twse_revenue",
     "tpex_revenue",
 ]
+ADVANCED_DAILY = ["twse_sbl", "tpex_sbl", "twse_qfii", "tpex_qfii", "twse_daytrade", "tpex_daytrade"]
+ADVANCED_SNAPSHOT = ["twse_short_halt", "tpex_short_halt", "twse_insider", "tpex_insider"]
 BACKFILL_DEFAULT = [
     "twse_quotes",
     "tpex_quotes",

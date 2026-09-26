@@ -372,27 +372,15 @@ sources:
     form: { queryStartDate: "{start_slash}", queryEndDate: "{end_slash}" }
     encoding: big5
     status: verified
-  twse_financials:
-    label: 上市季財報（EPS、毛利率、權益）
-    market: twse
+  financials:
+    label: 季財報（上市＋上櫃；損益＋資產負債彙總）
+    market: both
     tier: advanced
     frequency: quarterly
     urls:
-      income: https://openapi.twse.com.tw/v1/opendata/t187ap06_L_ci
-      margin: https://openapi.twse.com.tw/v1/opendata/t187ap17_L
-      balance: https://openapi.twse.com.tw/v1/opendata/t187ap07_L_ci
-      eps: https://openapi.twse.com.tw/v1/opendata/t187ap14_L
-    status: verified
-  tpex_financials:
-    label: 上櫃季財報（EPS、毛利率、權益）
-    market: tpex
-    tier: advanced
-    frequency: quarterly
-    urls:
-      income: https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap06_O_ci
-      margin: https://www.tpex.org.tw/openapi/v1/mopsfin_187ap17_O
-      balance: https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap07_O_ci
-      eps: https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap14_O
+      income: https://mopsov.twse.com.tw/mops/web/ajax_t163sb04?encodeURIComponent=1&step=1&firstin=1&off=1&isQuery=Y&TYPEK={sii|otc}&year={民國年}&season={季}
+      balance: https://mopsov.twse.com.tw/mops/web/ajax_t163sb05?encodeURIComponent=1&step=1&firstin=1&off=1&isQuery=Y&TYPEK={sii|otc}&year={民國年}&season={季}
+    publish: "法定期限：Q1 5/15、Q2 8/14、Q3 11/14、年報 3/31"
     status: verified
   active_etf:
     label: 主動式 ETF 清單與每日持股揭露
