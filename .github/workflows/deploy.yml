@@ -42,6 +42,7 @@ jobs:
       - name: Build derived data
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
         run: python -m pipeline build-web --data-dir data --out web/public/data
       - uses: actions/upload-artifact@v4
         with:

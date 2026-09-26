@@ -85,3 +85,43 @@ def run_tdcc(ctx: RunContext) -> None:
         return
     ctx.store.write("tdcc_holders", res.response_date, res.df)
     ctx.note("tdcc_holders", "ok", data_date=res.response_date, rows=len(res.df))
+
+
+# ------------------------------------------------------------------ 選配：央行貨幣總計數、法說會
+def run_cbc_money(ctx: RunContext) -> None:
+    """央行 M1B／M2（日平均，月資料）：整份 CSV 以最新月份存成一份快照。"""
+    from pipeline.sources import optional
+
+    try:
+        df = optional.parse_cbc_money(_fetch(ctx, str(config.source("cbc_money")["url"]))).df
+    except (FetchError, ParseError) as exc:
+        ctx.note("cbc_money", "failed", message=str(exc)[:300])
+        return
+    latest = df.dropna(subset=["m1b_yoy", "m2_yoy"]).iloc[-1]
+    key = date(int(latest["ym"][:4]), int(latest["ym"][5:7]), 1)
+    if ctx.store.exists("cbc_money", key):
+        ctx.note("cbc_money", "ok", data_date=key, rows=len(df), message="本月已存在")
+        return
+    ctx.store.write("cbc_money", key, df)
+    ctx.note("cbc_money", "ok", data_date=key, rows=len(df))
+
+
+def run_conference(ctx: RunContext, month: date) -> None:
+    """公開資訊觀測站法人說明會（上市＋上櫃），依召開月份存檔。"""
+    from pipeline.sources import optional
+
+    tmpl = str(config.source("investor_conference")["url"])
+    frames = []
+    try:
+        for typek in ("sii", "otc"):
+            url = tmpl.format(typek=typek, roc=month.year - 1911, month=f"{month.month:02d}")
+            frames.append(optional.parse_conference(_fetch(ctx, url)).df)
+    except (FetchError, ParseError) as exc:
+        ctx.note("investor_conference", "failed", data_date=month, message=str(exc)[:300])
+        return
+    df = pd.concat(frames, ignore_index=True).drop_duplicates(["date", "code", "time"])
+    if df.empty:
+        ctx.note("investor_conference", "no_data", data_date=month, message="該月尚無法說會")
+        return
+    ctx.store.upsert("conference", month_start(month), df, ["date", "code", "time"])
+    ctx.note("investor_conference", "ok", data_date=month, rows=len(df))

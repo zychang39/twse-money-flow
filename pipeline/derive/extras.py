@@ -477,7 +477,8 @@ def calendar_file(ds: Any, p: Any, out: Path) -> int:
         add(r.get("end"), "處置", "處置最後一日", r["code"])
     conf = ds.table("conference")
     for _, r in conf.iterrows() if not conf.empty else []:
-        add(r["date"], "法說會", str(r.get("text", ""))[:80], r["code"])
+        when = str(r.get("time") or "").strip()
+        add(r["date"], "法說會", f"{when + ' ' if when else ''}{str(r.get('text') or '')[:80]}", r["code"])
     d = last.replace(day=1)
     for _ in range(4):
         add(d.replace(day=10).isoformat(), "月營收", "上月營收公布期限（各公司陸續公布）")

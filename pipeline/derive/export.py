@@ -128,6 +128,10 @@ def build_web(data_dir: Path, out: Path, *, demo: bool = False) -> dict[str, Any
 
     report = build_all(ds, out, meta)
     meta.update(report.get("meta", {}))
+    if not demo:
+        from pipeline.derive import ai_summary
+
+        meta["ai_summary"] = ai_summary.generate(out) is not None
     write_json(out / "meta.json", meta)
     summary_path = out / "summary.json"
     size = len(gzip.compress(summary_path.read_bytes())) if summary_path.exists() else 0

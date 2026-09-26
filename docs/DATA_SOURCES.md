@@ -113,9 +113,9 @@
 |---|---|---|---|
 | ust_10y | 美國 10 年期公債殖利率 | `home.treasury.gov/.../daily-treasury-rates.csv/{年}/all?type=daily_treasury_yield_curve&field_tdr_date_value={年}&page&_format=csv` | ✅ |
 | twse_insider / tpex_insider | 內部人持股轉讓事前申報 | `openapi t187ap12_L`、`mopsfin_t187ap12_O` | ✅ |
-| cbc_money | 央行 M1B／M2 | 政府開放資料 dataset 6024（見 M10） | ⛔ 待處理 |
+| cbc_money | 央行 M1B／M2（日平均，月資料） | `www.cbc.gov.tw/public/data/OpenData/經研處/EF15M01.csv`（data.gov.tw dataset 6024，政府資料開放授權第 1 版） | ✅ 本環境實測（DECISIONS #25） |
 | fred_dtwexbgs | FRED 美元指數 | `fred.stlouisfed.org/graph/fredgraph.csv?id=DTWEXBGS` | ⛔ Actions 實測連線失敗，依規則不加入 |
-| investor_conference | 法說會日期 | MOPS（需 POST 查詢） | ⛔ 待處理 |
+| investor_conference | 法說會日期 | `mopsov.twse.com.tw/mops/web/ajax_t100sb02_1?…&TYPEK={sii\|otc}&year={民國年}&month={MM}`（GET） | ✅ Actions 實測（DECISIONS #26） |
 | intraday | 盤中即時報價（盤中到價提醒用，每 15 分鐘一次批次請求） | `mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_2330.tw\|otc_6488.tw&json=1&delay=0` | ✅ Actions 可用（`pipeline/alerts.py`） |
 
 ## 爬取禮節
@@ -123,3 +123,11 @@
 - 同一網域連續失敗 5 次觸發斷路器，本輪停止對該網域的請求並記錄於 manifest。
 - 休市日以證交所休市日曆判斷（時區 Asia/Taipei）；週末與休市日不請求。
 - 嚴禁繞過驗證碼或違反網站使用條款；User-Agent 標示專案網址。
+
+## 評估後不採用
+
+| 資料 | 原因 |
+|---|---|
+| 分點券商進出 | 證交所買賣日報表、櫃買券商買賣日報表皆需驗證碼；無官方開放資料（DECISIONS #28） |
+| 主動式 ETF 持股 | 僅各投信官網揭露、無集中來源（DECISIONS #22，框架已完成） |
+| FRED 美元指數 | Actions 與本環境皆連線失敗 |

@@ -1,5 +1,5 @@
 /** 讀取 pipeline 產生的衍生資料（./data/*.json）。記憶體快取；離線時由 service worker 提供快取。 */
-import type { Health, Meta, StockHistory, StockRow, Summary } from './types';
+import type { AiSummary, Health, Meta, StockHistory, StockRow, Summary } from './types';
 
 const BASE = `${import.meta.env.BASE_URL}data/`;
 const cache = new Map<string, Promise<unknown>>();
@@ -28,6 +28,8 @@ export function rowsToObjects<T = StockRow>(summary: Pick<Summary, 'columns' | '
 
 export const loadMeta = () => getJson<Meta>('meta.json');
 export const loadHealth = () => getJson<Health>('health.json');
+/** 選配 AI 摘要：meta.ai_summary 為 true 才讀取，避免 404。 */
+export const loadAiSummary = () => loadMeta().then((m) => (m.ai_summary ? getJson<AiSummary>('ai_summary.json') : null));
 
 let summaryIndex: Promise<{ date: string; rows: StockRow[]; byCode: Map<string, StockRow> }> | null = null;
 export function loadSummary() {

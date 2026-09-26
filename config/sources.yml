@@ -412,11 +412,13 @@ sources:
     url: https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all?type=daily_treasury_yield_curve&field_tdr_date_value={year}&page&_format=csv
     status: verified
   cbc_money:
-    label: 央行 M1B／M2 年增率
+    label: 央行貨幣總計數 M1B／M2（日平均，月資料）
     market: macro
     tier: optional
     frequency: monthly
-    status: pending
+    url: https://www.cbc.gov.tw/public/data/OpenData/經研處/EF15M01.csv
+    license: 政府資料開放授權條款第 1 版（data.gov.tw dataset 6024）
+    status: verified   # 本環境實測 200（偶有連線重置，重試即可）
   fred_dtwexbgs:
     label: FRED 美元指數 DTWEXBGS
     market: macro
@@ -425,8 +427,9 @@ sources:
     url: https://fred.stlouisfed.org/graph/fredgraph.csv?id=DTWEXBGS
     status: pending   # 2026-09-26 從 Actions 與本環境實測皆連線失敗 → 不加入
   investor_conference:
-    label: 法說會日期
+    label: 法人說明會（公開資訊觀測站）
     market: both
     tier: optional
-    frequency: monthly
-    status: pending
+    frequency: weekly
+    url: https://mopsov.twse.com.tw/mops/web/ajax_t100sb02_1?encodeURIComponent=1&step=1&firstin=1&off=1&TYPEK={typek}&year={roc}&month={month}
+    status: verified   # Actions 實測 200（GET）

@@ -352,6 +352,13 @@ def task_periodic(ctx: RunContext, sources: list[str] | None = None) -> None:
         from pipeline import financials
 
         financials.run_latest(ctx)
+    # 選配：央行貨幣總計數（每週檢查一次，約每月下旬公布上月）、法說會（本月與下月）
+    weekly = not wanted and ctx.today.weekday() in (5, 6)
+    if "cbc_money" in wanted or weekly:
+        tasks_advanced.run_cbc_money(ctx)
+    if "investor_conference" in wanted or weekly:
+        for m in (month_start(ctx.today), next_month(ctx.today)):
+            tasks_advanced.run_conference(ctx, m)
 
 
 def _months_desc(start: date, end: date) -> list[date]:
@@ -372,7 +379,7 @@ def task_backfill(ctx: RunContext, sources: list[str] | None, start: date, end: 
     load_calendar(ctx, list(range(start.year, end.year + 1)))
     remaining: dict[str, int] = {}
     # 0) 期交所／匯率／美債／財報（自訂來源）
-    custom = [s for s in sources if s in ("taifex", "ust_10y", "financials")]
+    custom = [s for s in sources if s in ("taifex", "ust_10y", "financials", "cbc_money", "investor_conference")]
     sources = [s for s in sources if s not in custom]
     if custom:
         from pipeline import tasks_advanced
@@ -390,6 +397,12 @@ def task_backfill(ctx: RunContext, sources: list[str] | None, start: date, end: 
             from pipeline import financials
 
             financials.run_history(ctx, start, end)
+        if "cbc_money" in custom:
+            tasks_advanced.run_cbc_money(ctx)
+        if "investor_conference" in custom:
+            for m in _months_desc(start, end):
+                if not ctx.out_of_time():
+                    tasks_advanced.run_conference(ctx, m)
     # 1) 非每日型（區間、月查詢、MOPS 月營收）：以月為單位，由近到遠
     for sid in [s for s in sources if s == "mops_revenue" or SPECS[s].kind != "daily"]:
         months = _months_desc(start, end)
