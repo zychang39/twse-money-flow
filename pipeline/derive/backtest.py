@@ -211,7 +211,7 @@ def summarize(
             "regime_down": stats([t for t in trades if not t.regime_up]),
             "oos_cut": cut,
         }
-    detail = result["trades"].get(detail_horizon) or next(iter(result["trades"].values()), [])
+    detail: list[Trade] = result["trades"].get(detail_horizon) or next(iter(result["trades"].values()), [])
     out["detail_horizon"] = detail_horizon
     out["trades"] = [
         {
