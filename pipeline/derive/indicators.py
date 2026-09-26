@@ -158,7 +158,7 @@ def margin_quadrant(margin_change_pct: float | None, price_change_pct: float | N
 
 
 # ------------------------------------------------------------------ 月營收
-def revenue_metrics(rev: pd.Series) -> dict[str, float | int | bool | None]:
+def revenue_metrics(rev: pd.Series) -> dict[str, float | int | bool | str | None]:
     """rev：index 為 'YYYY-MM'（遞增）、值為月營收。回傳最新月份的各項指標（百分比單位）。"""
     rev = rev.dropna().sort_index()
     if rev.empty:

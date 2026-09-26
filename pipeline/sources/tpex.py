@@ -31,6 +31,7 @@ from pipeline.sources.twse import (
     MARGIN_COLS,
     NOTICE_COLS,
     QUOTE_COLS,
+    SPLIT_COLS,
     VALUATION_COLS,
 )
 
@@ -445,3 +446,26 @@ def parse_company(payload: bytes | str | list[dict[str, Any]]) -> ParseResult:
     )
     df = finalize(df, numeric=["capital", "shares"], dates=["listing_date"])
     return ParseResult(df.reset_index(drop=True))
+
+
+# ---------------------------------------------------------------- 上櫃 ETF 分割／反分割結果
+def parse_etf_split(payload: bytes | str | dict[str, Any]) -> ParseResult:
+    obj = load_json(payload)
+    if _tpex_no_data(obj):
+        return _empty(SPLIT_COLS, obj)
+    t = _first_table(obj)
+    df = frame_from_fields(
+        t["fields"],
+        t.get("data", []),
+        {
+            "date": "恢復買賣日期",
+            "code": "證券代號",
+            "name": "證券名稱",
+            "pre_close": "最後交易日之收盤價格",
+            "ref_price": "恢復買賣開始參考價",
+        },
+    )
+    df = finalize(df, numeric=["pre_close", "ref_price"], dates=["date"])
+    df["kind"] = "分割"
+    df["factor"] = df["ref_price"] / df["pre_close"]
+    return ParseResult(df[SPLIT_COLS].reset_index(drop=True))

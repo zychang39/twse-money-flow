@@ -110,15 +110,15 @@
 "rtcode": "0000",
 "queryTime": {
 "sysDate": "20260926",
-"stockInfoItem": 47054,
-"stockInfo": 5389,
+"stockInfoItem": 37272,
+"stockInfo": 1454,
 "sessionStr": "UserSession",
-"sysTime": "22:59:25",
+"sysTime": "22:10:30",
 "showChart": false,
 "sessionFromTime": -1,
 "sessionLatestTime": -1
 },
 "rtmessage": "OK",
 "exKey": "if_tse_2330.tw|otc_6488.tw_zh-tw.null",
-"cachedAlive": 6877848
+"cachedAlive": 12618501
 }

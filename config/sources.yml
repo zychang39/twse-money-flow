@@ -78,6 +78,20 @@ sources:
     frequency: range
     url: https://www.twse.com.tw/rwd/zh/reducation/TWTAUU?startDate={start}&endDate={end}&response=json
     status: verified
+  twse_parchange:
+    label: 上市變更面額恢復買賣參考價
+    market: twse
+    tier: core
+    frequency: range
+    url: https://www.twse.com.tw/rwd/zh/change/TWTB8U?startDate={start}&endDate={end}&response=json
+    status: verified
+  twse_etfsplit:
+    label: 上市 ETF 分割／反分割恢復買賣參考價
+    market: twse
+    tier: core
+    frequency: range
+    url: https://www.twse.com.tw/rwd/zh/split/TWTCAU?startDate={start}&endDate={end}&response=json
+    status: verified
   twse_attention:
     label: 上市注意股
     market: twse
@@ -183,6 +197,20 @@ sources:
     tier: core
     frequency: range
     url: https://www.tpex.org.tw/www/zh-tw/bulletin/revivt?startDate={start_slash}&endDate={end_slash}&response=json
+    status: verified
+  tpex_etfsplit:
+    label: 上櫃 ETF 分割恢復買賣參考價
+    market: tpex
+    tier: core
+    frequency: range
+    url: https://www.tpex.org.tw/www/zh-tw/bulletin/etfSplitRslt?startDate={start_slash}&endDate={end_slash}&response=json
+    status: verified
+  tpex_etfrevsplit:
+    label: 上櫃 ETF 反分割恢復買賣參考價
+    market: tpex
+    tier: core
+    frequency: range
+    url: https://www.tpex.org.tw/www/zh-tw/bulletin/etfRvsRslt?startDate={start_slash}&endDate={end_slash}&response=json
     status: verified
   tpex_attention:
     label: 上櫃注意股

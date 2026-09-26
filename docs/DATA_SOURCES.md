@@ -29,6 +29,8 @@
 - 期交所 OpenAPI 只有最新一日；歷史用網站下載（POST，Big5 CSV），約 3 年。
 - MOPS 月營收彙總表為 Big5 編碼 HTML。
 - 櫃買中心網站已改版：端點統一為 `https://www.tpex.org.tw/www/zh-tw/{action}?…&response=json`，action 由各頁面原始碼的 `action:"…"` 取得（實測列於下表）。
+- 櫃買「變更面額」端點在新版網站找不到對應 action（舊網址未轉址）→ 以價格跳空推估補足（見 METHODOLOGY 還原價）。
+- MOPS 財報彙總（ajax_t163sb04 損益、t163sb05 資產負債、t163sb06 營益分析）與法說會（ajax_t100sb02_1）以 GET 帶參數即可取得（Actions 實測），用於季財報回補與法說會行事曆。
 - 2026-09-25（中秋節）、09-28（教師節）休市；休市日查詢會回傳「很抱歉，沒有符合條件的資料!」。
 
 ## 核心資料
@@ -42,6 +44,8 @@
 | twse_exright | 上市除權息結果 | `…/rwd/zh/exRight/TWT49U?startDate=…&endDate=…&response=json` | 除權息日 | ✅ |
 | twse_exright_notice | 上市除權息預告 | `…/rwd/zh/exRight/TWT48U?response=json` | 隨時 | ✅ |
 | twse_capreduce | 上市減資恢復買賣 | `…/rwd/zh/reducation/TWTAUU?startDate=…&endDate=…&response=json` | 事件 | ✅ |
+| twse_parchange | 上市變更面額恢復買賣參考價 | `…/rwd/zh/change/TWTB8U?startDate=…&endDate=…&response=json` | 事件 | ✅ |
+| twse_etfsplit | 上市 ETF 分割／反分割 | `…/rwd/zh/split/TWTCAU?startDate=…&endDate=…&response=json`（含 0050 於 2025-06-18 一拆四） | 事件 | ✅ |
 | twse_attention | 上市注意股 | `…/rwd/zh/announcement/notice?querytype=1&startDate=…&endDate=…&response=json` | 約 17:00 | ✅ |
 | twse_disposition | 上市處置股 | `…/rwd/zh/announcement/punish?startDate=…&endDate=…&response=json` | 約 17:00 | ✅ |
 | twse_attention_accum | 注意累計可能達處置 | `openapi.twse.com.tw/v1/announcement/notetrans` | 每日 | ✅ |
@@ -58,6 +62,7 @@
 | tpex_exright | 上櫃除權息結果 | `…/bulletin/exDailyQ?startDate=…&endDate=…&response=json` | 除權息日 | ✅ |
 | tpex_exright_notice | 上櫃除權息預告 | `www.tpex.org.tw/openapi/v1/tpex_exright_prepost` | 隨時 | ✅ |
 | tpex_capreduce | 上櫃減資恢復買賣 | `…/bulletin/revivt?startDate=…&endDate=…&response=json` | 事件 | ✅ |
+| tpex_etfsplit / tpex_etfrevsplit | 上櫃 ETF 分割／反分割 | `…/bulletin/etfSplitRslt`、`…/bulletin/etfRvsRslt`（2020 年至今實測 0 筆） | 事件 | ✅ |
 | tpex_attention | 上櫃注意股 | `…/bulletin/attention?startDate=…&endDate=…&response=json` | 約 17:00 | ✅ |
 | tpex_disposition | 上櫃處置股 | `…/bulletin/disposal?startDate=…&endDate=…&response=json` | 約 17:00 | ✅ |
 | tpex_attention_accum | 上櫃注意累計可能達處置 | `…/bulletin/warning?response=json`（實測 date 參數無效，只有最新） | 每日 | ✅ |

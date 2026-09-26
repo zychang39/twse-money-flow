@@ -76,6 +76,8 @@ def load(store: DataStore) -> Dataset:
     ds.disposition = _concat(store, ["twse_disposition", "tpex_disposition"], ["twse", "tpex"])
     ds.margin_total = _concat(store, ["twse_margin_total", "tpex_margin_total"], ["twse", "tpex"])
     ds.revenue = store.read_range("revenue")
+    splits = [store.read_range(s) for s in ("twse_parchange", "twse_etfsplit", "tpex_etfsplit", "tpex_etfrevsplit")]
+    ds.extra["splits"] = [s for s in splits if not s.empty]
     # 快照：取最新一份
     for sid, attr in [("twse_attention_accum", None), ("tpex_attention_accum", None)]:
         latest = store.latest(sid)

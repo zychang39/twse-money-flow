@@ -34,3 +34,4 @@ taifex_futDataDown_MTX.csv|POST down_type=1&commodity_id=MTX&commodity_id2=&quer
 taifex_futDataDown_TMF.csv|POST down_type=1&commodity_id=TMF&commodity_id2=&queryStartDate=2026%2F09%2F23&queryEndDate=2026%2F09%2F24|https://www.taifex.com.tw/cht/3/futDataDown|200 5720
 taifex_dailyFXRate.csv|POST queryStartDate=2026%2F09%2F01&queryEndDate=2026%2F09%2F24|https://www.taifex.com.tw/cht/3/dailyFXRateDown|200 1720
 taifex_openapi_insti_fut.json|GET|https://openapi.taifex.com.tw/v1/MarketDataOfMajorInstitutionalTradersDetailsOfFuturesContractsBytheDate|200 33967
+tpex_etfSplitRslt.json|GET|https://www.tpex.org.tw/www/zh-tw/bulletin/etfSplitRslt?startDate=2020%2F01%2F01&endDate=2026%2F09%2F24&response=json|200

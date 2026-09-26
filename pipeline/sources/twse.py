@@ -384,6 +384,53 @@ def parse_capreduce(payload: bytes | str | dict[str, Any]) -> ParseResult:
     return ParseResult(df[CAPRED_COLS].reset_index(drop=True))
 
 
+# ---------------------------------------------------------------- 變更面額（TWTB8U）、ETF 分割／反分割（TWTCAU）
+SPLIT_COLS = ["date", "code", "name", "kind", "pre_close", "ref_price", "factor"]
+
+
+def parse_parchange(payload: bytes | str | dict[str, Any]) -> ParseResult:
+    obj = load_json(payload)
+    if is_no_data(obj):
+        return ParseResult(pd.DataFrame(columns=SPLIT_COLS), no_data=True, message=str(obj.get("stat")))
+    df = frame_from_fields(
+        obj["fields"],
+        obj.get("data", []),
+        {
+            "date": "恢復買賣日期",
+            "code": "股票代號",
+            "name": "名稱",
+            "pre_close": "停止買賣前收盤價格",
+            "ref_price": "恢復買賣參考價",
+        },
+    )
+    df = finalize(df, numeric=["pre_close", "ref_price"], dates=["date"])
+    df["kind"] = "面額變更"
+    df["factor"] = df["ref_price"] / df["pre_close"]
+    return ParseResult(df[SPLIT_COLS].reset_index(drop=True))
+
+
+def parse_etf_split(payload: bytes | str | dict[str, Any]) -> ParseResult:
+    obj = load_json(payload)
+    if is_no_data(obj):
+        return ParseResult(pd.DataFrame(columns=SPLIT_COLS), no_data=True, message=str(obj.get("stat")))
+    df = frame_from_fields(
+        obj["fields"],
+        obj.get("data", []),
+        {
+            "date": "恢復買賣日期",
+            "code": "ETF代號",
+            "name": "名稱",
+            "kind": "分割(反分割)",
+            "pre_close": "停止買賣前收盤價格",
+            "ref_price": "恢復買賣參考價",
+        },
+    )
+    df = finalize(df, numeric=["pre_close", "ref_price"], dates=["date"])
+    df["kind"] = [strip_tags(v) for v in df["kind"]]
+    df["factor"] = df["ref_price"] / df["pre_close"]
+    return ParseResult(df[SPLIT_COLS].reset_index(drop=True))
+
+
 # ---------------------------------------------------------------- 注意股（announcement/notice）
 ATTENTION_COLS = ["date", "code", "name", "count", "reason"]
 

@@ -121,6 +121,10 @@ SPECS: dict[str, Spec] = {
             date_col="announce_date",
             min_rows=0,
         ),
+        Spec("twse_parchange", "range", twse.parse_parchange, "monthly", keys=("date", "code"), min_rows=0),
+        Spec("twse_etfsplit", "range", twse.parse_etf_split, "monthly", keys=("date", "code"), min_rows=0),
+        Spec("tpex_etfsplit", "range", tpex.parse_etf_split, "monthly", keys=("date", "code"), min_rows=0),
+        Spec("tpex_etfrevsplit", "range", tpex.parse_etf_split, "monthly", keys=("date", "code"), min_rows=0),
         # ---- 月查詢
         Spec("tpex_index", "month_query", tpex.parse_index, "monthly", keys=("date", "name"), min_rows=0),
         # ---- 快照（只提供最新，內容變動才存）
@@ -152,6 +156,10 @@ CORE_DAILY = [
     "tpex_valuation",
 ]
 CORE_RANGE = [
+    "twse_parchange",
+    "twse_etfsplit",
+    "tpex_etfsplit",
+    "tpex_etfrevsplit",
     "twse_exright",
     "tpex_exright",
     "twse_capreduce",

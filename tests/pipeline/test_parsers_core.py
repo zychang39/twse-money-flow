@@ -225,3 +225,15 @@ def test_tpex_index_and_company():
     assert set(rw["kind"]) == {"price", "return"}
     comp = tpex.parse_company(sample("tpex_openapi_t187ap03_O.json")).df
     assert row(comp, "1240")["industry_code"] == "33"
+
+
+def test_twse_parchange_and_etf_split():
+    pc = twse.parse_parchange(sample("twse_rwd_TWTB8U.json")).df
+    r = row(pc, "8070")
+    assert r["date"] == "2020-08-17" and r["factor"] == pytest.approx(19 / 190)
+    sp = twse.parse_etf_split(sample("twse_rwd_TWTCAU.json")).df
+    r = row(sp, "0050")
+    assert r["date"] == "2025-06-18" and r["kind"] == "分割" and r["factor"] == pytest.approx(47.16 / 188.65)
+    assert row(sp, "00632R")["kind"] == "反分割"
+    empty = tpex.parse_etf_split(sample("tpex_etfSplitRslt.json"))
+    assert empty.df.empty
