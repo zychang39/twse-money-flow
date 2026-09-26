@@ -31,7 +31,8 @@ DEMO_STOCKS = [
 
 
 def _trading_days(end: date, n: int) -> list[date]:
-    out, d = [], end
+    out: list[date] = []
+    d = end
     while len(out) < n:
         if d.weekday() < 5:
             out.append(d)

@@ -79,3 +79,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python -m pipeline keepalive
+
+  deploy:
+    needs: data
+    if: always() && needs.data.outputs.deploy == 'true'
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit

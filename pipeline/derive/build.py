@@ -122,43 +122,58 @@ def _sum_last(s: pd.Series, n: int) -> float | None:
     return float(tail.sum()) if tail.notna().any() else None
 
 
+def _f(v: Any) -> float | None:
+    """轉成 float；None／NaN → None。"""
+    if v is None:
+        return None
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return None
+    return x if x == x else None
+
+
+def _div(a: float | None, b: float | None, scale: float = 1.0) -> float | None:
+    return a / b * scale if a is not None and b else None
+
+
 def stock_metrics(p: Panels, code: str) -> dict[str, Any]:
-    """單檔最新一日的基本指標（M2：行情、法人、信用、估值）。"""
+    """單檔最新一日的基本指標（行情、法人、信用、估值）。"""
     c = p.close[code]
     last_i = c.last_valid_index()
     if last_i is None:
         return {}
     close = float(c[last_i])
-    chg = p.change[code].get(last_i)
-    prev_close = close - chg if chg == chg and chg is not None else None
-    vol = p.volume[code].get(last_i)
-    val = p.value[code].get(last_i)
+    chg = _f(p.change[code].get(last_i))
+    prev_close = close - chg if chg is not None else None
+    vol = _f(p.volume[code].get(last_i))
+    val = _f(p.value[code].get(last_i))
     mb = p.margin_balance[code]
-    m: dict[str, Any] = {
+    fn5 = _sum_last(p.foreign_net[code], 5)
+    tn5 = _sum_last(p.trust_net[code], 5)
+    avg20 = _f(p.value[code].iloc[-21:-1].mean())
+    return {
         "date": last_i,
         "close": close,
         "change": clean(chg),
-        "change_pct": clean(chg / prev_close * 100 if prev_close else None, 2),
-        "volume_lots": clean(vol / 1000 if vol == vol else None, 0),
-        "value_million": clean(val / 1e6 if val == val else None, 1),
+        "change_pct": clean(_div(chg, prev_close, 100), 2),
+        "volume_lots": clean(_div(vol, 1000), 0),
+        "value_million": clean(_div(val, 1e6), 1),
+        "foreign_net_lots": clean((_last_valid(p.foreign_net[code].loc[:last_i]) or 0) / 1000, 0),
         "trust_net_lots": clean((_last_valid(p.trust_net[code].loc[:last_i]) or 0) / 1000, 0),
         "dealer_net_lots": clean((_last_valid(p.dealer_net[code].loc[:last_i]) or 0) / 1000, 0),
         "foreign_streak": ind.streak_last(p.foreign_net[code].to_numpy(dtype=float)),
         "trust_streak": ind.streak_last(p.trust_net[code].to_numpy(dtype=float)),
+        "foreign_net_5d": clean(_div(fn5, 1000), 0),
+        "trust_net_5d": clean(_div(tn5, 1000), 0),
         "margin_balance": clean(_last_valid(mb)),
         "margin_change": clean(mb.diff().iloc[-1] if len(mb.dropna()) >= 2 else None, 0),
         "short_balance": clean(_last_valid(p.short_balance[code])),
         "pe": clean(p.pe[code].get(last_i), 2),
         "pb": clean(p.pb[code].get(last_i), 2),
         "dividend_yield": clean(p.dy[code].get(last_i), 2),
+        "volume_ratio_20": clean(_div(val, avg20), 2),
     }
-    fn = _sum_last(p.foreign_net[code], 5)
-    tn = _sum_last(p.trust_net[code], 5)
-    m["foreign_net_5d"] = clean(fn / 1000 if fn is not None else None, 0)
-    m["trust_net_5d"] = clean(tn / 1000 if tn is not None else None, 0)
-    m["foreign_net_lots"] = clean((_last_valid(p.foreign_net[code].loc[:last_i]) or 0) / 1000, 0)
-    m["volume_ratio_20"] = clean(val / p.value[code].iloc[-21:-1].mean() if val == val else None, 2)
-    return m
 
 
 def stock_file(p: Panels, code: str, metrics: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
