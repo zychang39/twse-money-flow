@@ -244,6 +244,9 @@ def summary_columns() -> list[str]:
         "turnover",
         "price_change_5d",
         "fair_position",
+        *[f"{c}_chg" for c in SCORE_COLUMNS],
+        "short_change",
+        "new_flags",
         "flags",
     ]
 
@@ -268,6 +271,7 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
     mp = metrics.build_metrics(p, ds.revenue, extra)
     sc = scores.compute_scores(mp)
     flags = flagmod.build_flags(ds, p, mp)
+    flags_prev = flagmod.build_flags(ds, p, mp, at=-2) if len(p.dates) >= 2 else {}
     cols = SUMMARY_COLUMNS
     rows: list[list[Any]] = []
     written = 0
@@ -287,6 +291,13 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
             else:
                 m[name] = clean(mp.last(name, code), 2)
         m["flags"] = flags.get(code, [])
+        prev_ids = {f["id"] for f in flags_prev.get(code, [])}
+        m["new_flags"] = [f["id"] for f in m["flags"] if f["id"] not in prev_ids]
+        for cat in SCORE_COLUMNS:
+            series = sc[cat][code]
+            m[f"{cat}_chg"] = clean(series.iloc[-1] - series.iloc[-2], 0) if len(series) >= 2 else None
+        sbal = p.short_balance[code]
+        m["short_change"] = clean(sbal.diff().iloc[-1] if len(sbal.dropna()) >= 2 else None, 0)
         m.update(
             {"code": code, "name": p.names.get(code), "market": p.markets.get(code), "industry": p.industries.get(code)}
         )

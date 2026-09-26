@@ -107,3 +107,24 @@ test('備份：匯出按鈕存在', async ({ page }) => {
   await page.goto('#/more/backup');
   await expect(page.getByRole('button', { name: '匯出全部資料（JSON）' })).toBeVisible();
 });
+
+test('市場：產業熱力圖可點進個股清單', async ({ page }) => {
+  await page.goto('#/market');
+  const tile = page.getByRole('button', { name: /半導體業：法人淨買超/ });
+  await expect(tile).toBeVisible();
+  await page.getByRole('button', { name: '20 日' }).click();
+  await tile.click();
+  await expect(page.locator('h1.large-title')).toHaveText('半導體業');
+  await expect(page.getByRole('link', { name: /台積電/ })).toBeVisible();
+});
+
+test('今日：加入自選後出現日報卡片', async ({ page }) => {
+  await page.goto('#/watchlist');
+  await page.getByRole('button', { name: '新增自選股' }).first().click();
+  await page.getByRole('searchbox', { name: '搜尋股票' }).fill('1101');
+  await page.getByRole('option', { name: /1101/ }).click();
+  await page.getByRole('button', { name: '完成' }).click();
+  await page.goto('#/');
+  await expect(page.getByRole('link', { name: '台泥 日報' })).toBeVisible();
+  await expect(page.getByText('全市場法人買超（外資＋投信，金額）')).toBeVisible();
+});

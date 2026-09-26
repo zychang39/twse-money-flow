@@ -45,11 +45,14 @@ def disposition_active(disposition: pd.DataFrame, day: str) -> pd.DataFrame:
     return d[(d["start"] <= day) & (d["end"] >= day)]
 
 
-def build_flags(ds: Any, p: Any, mp: MetricPanels) -> dict[str, list[dict[str, Any]]]:
+def build_flags(ds: Any, p: Any, mp: MetricPanels, at: int = -1) -> dict[str, list[dict[str, Any]]]:
+    """at：第幾個交易日（預設最新）。前一日的旗標用於找出「新出現的風險旗標」。"""
     th = config.thresholds()
     rf = th["risk_flags"]
     dw = th["disposition_warning"]
-    last = p.dates[-1]
+    n = len(p.dates) + at if at < 0 else at
+    last = p.dates[n]
+    is_latest = n == len(p.dates) - 1
     flags: dict[str, list[dict[str, Any]]] = {}
 
     def add(code: str, fid: str, level: str = "warn", detail: str | None = None) -> None:
@@ -69,8 +72,8 @@ def build_flags(ds: Any, p: Any, mp: MetricPanels) -> dict[str, list[dict[str, A
             detail += f"，約每 {int(interval)} 分鐘撮合"
         add(r["code"], "disposition", "danger", detail)
     # 處置風險：官方名單 + 自行累計
-    official = set(ds.attention_accum["code"]) if not ds.attention_accum.empty else set()
-    counts = attention_counts(ds.attention, p.dates)
+    official = set(ds.attention_accum["code"]) if (is_latest and not ds.attention_accum.empty) else set()
+    counts = attention_counts(ds.attention, p.dates[: n + 1])
     in_disp = set(disposition_active(ds.disposition, last)["code"]) if not ds.disposition.empty else set()
     for code in official - in_disp:
         sit = ds.attention_accum[ds.attention_accum["code"] == code]["situation"].iloc[0]
@@ -90,19 +93,19 @@ def build_flags(ds: Any, p: Any, mp: MetricPanels) -> dict[str, list[dict[str, A
             add(code, "disposition_risk", "warn", "、".join(reasons))
     # 週轉率、當沖、融資使用率
     turnover = mp.get("turnover")
-    t5 = turnover.iloc[-5:].mean()
+    t5 = turnover.iloc[max(0, n - 4) : n + 1].mean()
     dt = mp.get("daytrade_pct")
     mu = mp.get("margin_usage")
     for code in p.codes:
-        t1 = turnover[code].iloc[-1]
+        t1 = turnover[code].iloc[n]
         if (t1 == t1 and t1 > rf["turnover_hot"]["daily_pct"]) or (
             t5[code] == t5[code] and t5[code] > rf["turnover_hot"]["avg5_pct"]
         ):
             add(code, "turnover_hot", "warn", f"當日週轉率 {t1:.1f}%、5 日平均 {t5[code]:.1f}%")
-        d = dt[code].iloc[-1]
+        d = dt[code].iloc[n]
         if d == d and d > rf["daytrade_high"]["pct"]:
             add(code, "daytrade_high", "warn", f"當沖比率 {d:.1f}%")
-        m = mu[code].iloc[-1]
+        m = mu[code].iloc[n]
         if m == m and m > rf["margin_usage_high"]["pct"]:
             add(code, "margin_usage_high", "warn", f"融資使用率 {m:.1f}%")
     # 內部人申報轉讓（有效期間內）
@@ -119,10 +122,11 @@ def build_flags(ds: Any, p: Any, mp: MetricPanels) -> dict[str, list[dict[str, A
                     )
     # 資料過期
     max_lag = int(rf["stale_data"]["max_lag_days"])
-    last_idx = {c: p.close[c].last_valid_index() for c in p.codes}
+    upto = p.close.iloc[: n + 1]
+    last_idx = {c: upto[c].last_valid_index() for c in p.codes}
     pos = {d: i for i, d in enumerate(p.dates)}
     for code, d in last_idx.items():
-        if d is not None and len(p.dates) - 1 - pos[d] > max_lag:
+        if d is not None and n - pos[d] > max_lag:
             add(code, "stale_data", "warn", f"最新資料 {d}")
     return flags
 
