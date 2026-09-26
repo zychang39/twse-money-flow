@@ -1,0 +1,10 @@
+# 交易成本（單一事實來源；pipeline 回測與前端日誌／回測共用）
+version: 1
+commission:
+  rate: 0.001425        # 手續費率，買賣各收一次
+  discount: 0.6         # 券商折扣（0.6 = 六折）
+  minimum: 20           # 每筆最低手續費（元）
+  minimum_enabled: true # 可在設定頁關閉（零股／電子下單常見低消不同）
+tax:                    # 證交稅，只在賣出時收
+  stock: 0.003
+  etf: 0.001

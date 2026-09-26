@@ -1,0 +1,118 @@
+# 門檻與計算參數（單一事實來源）
+version: 1
+
+# 風險旗標：獨立顯示，不併入分數
+risk_flags:
+  attention:
+    label: 注意股
+    description: 當日被證交所／櫃買中心公布為注意股。
+  disposition:
+    label: 處置股
+    description: 目前處於處置期間（分盤撮合、預收款券）。
+  disposition_risk:
+    label: 處置風險
+    description: 注意股累計次數接近處置標準，或出現在官方「注意累計次數可能達處置標準」名單。
+  insider_transfer:
+    label: 內部人申報轉讓
+    description: 內部人（董監、經理人、大股東）已申報持股轉讓且仍在有效轉讓期間。
+  turnover_hot:
+    label: 週轉率過熱
+    description: 當日週轉率（成交股數 ÷ 發行股數）或近 5 日平均週轉率超過門檻。
+    daily_pct: 10
+    avg5_pct: 5
+  daytrade_high:
+    label: 當沖比率過高
+    description: 當日沖銷成交股數 ÷ 成交股數超過門檻。
+    pct: 40
+  margin_usage_high:
+    label: 融資使用率過高
+    description: 融資餘額 ÷ 融資限額超過門檻。
+    pct: 30
+  stale_data:
+    label: 資料過期
+    description: 個股最新資料日期落後市場最新交易日超過門檻（交易日）。
+    max_lag_days: 2
+
+# 處置風險預警（依公開的注意／處置標準簡化，官方名單優先）
+disposition_warning:
+  consecutive_days: 2      # 已連續 2 日注意 → 再 1 日即達「連續三個營業日」
+  within_10_days: 5        # 近 10 日已 5 次 → 再 1 次即達「10 日內 6 次」
+  within_30_days: 11       # 近 30 日已 11 次 → 再 1 次即達「30 日內 12 次」
+
+# 資料驗證
+validation:
+  row_change_tolerance: 0.25   # 與前一交易日筆數差距超過 25% 視為異常
+  min_parse_ratio: 0.9         # 關鍵欄位可解析比例下限
+
+# 指標參數
+indicators:
+  rs:
+    windows: [63, 126, 189, 252]      # 約 3、6、9、12 個月（交易日）
+    weights: [0.4, 0.2, 0.2, 0.2]
+  valuation_percentile:
+    lookback_days: 756                # 約 3 年
+    min_observations: 120
+  high_52w_days: 252
+  moving_averages: [20, 60, 240]
+  cost_line_windows: [20, 60]
+  correlation:
+    window: 60
+    min_observations: 40
+  whale:
+    level_1000: [15]                  # 千張大戶：分級 15
+    level_400: [12, 13, 14, 15]       # 400 張以上：分級 12–15
+    excluded_levels: [16, 17]         # 16 差異數調整、17 合計
+
+# 合理價區間
+fair_value:
+  pe_quantiles: [20, 50, 80]          # 本益比河流：便宜／合理／昂貴分位
+  pb_quantiles: [20, 50, 80]
+  yield_multiples: [15, 20, 30]       # 殖利率法：近 5 年平均現金股利 × 15／20／30
+  dividend_years: 5
+
+# 回測
+backtest:
+  horizons: [5, 10, 20]
+  decay_days: 20
+  min_samples: 30                     # 樣本數低於此值標示「參考性低」
+  limit_up_pct: 9.5                   # 進場日開盤漲幅 ≥ 9.5% 視為開盤即漲停（排除）
+  oos_split: 0.6667                   # 前 2/3 樣本內、後 1/3 樣本外
+  revenue_fallback_day: 10            # 月營收取不到公布日時，保守假設次月 10 日收盤後生效
+  financial_deadlines:                # 財報法定期限（收盤後生效）
+    Q1: "05-15"
+    Q2: "08-14"
+    Q3: "11-14"
+    Q4: "03-31"
+
+# 市場環境燈號
+market_env:
+  futures_net_oi:            # 外資台指期淨未平倉（大台約當口數 = 大台 + 小台/4 + 微台/20）
+    bullish_above: 0
+    bearish_below: -30000
+  usd_twd_change_20d_pct:    # 美元兌台幣 20 日變化；台幣升值（數值下降）視為資金流入
+    inflow_below: -1
+    outflow_above: 1
+  index_vs_ma240_pct:        # 加權指數相對年線
+    neutral_band: 2
+  m1b_m2_gap:                # M1B 年增率 − M2 年增率（百分點）
+    bullish_above: 0
+  us10y_change_20d_bp:       # 美國 10 年期殖利率 20 日變化（基點）
+    tightening_above: 25
+    easing_below: -25
+
+market_temperature:
+  retail_ratio_pct:          # 散戶多空比（小台）
+    hot_above: 20
+    cold_below: -20
+  margin_change_5d_pct:      # 大盤融資金額 5 日變化
+    hot_above: 3
+    cold_below: -3
+  volume_vs_ma20:            # 成交金額 ÷ 20 日平均
+    hot_above: 1.5
+    cold_below: 0.7
+
+# 日誌與風控
+portfolio:
+  default_risk_pct: 1
+  min_reward_risk: 2
+  backup_reminder_days: 14

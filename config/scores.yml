@@ -1,0 +1,164 @@
+# 分數系統（單一事實來源）
+# - 每個因子先算出原始值（raw），再用 mapping 轉成 0–100 的子分數。
+# - 類別分 = 可用因子子分數的加權平均（缺資料的因子不計入，權重重新正規化，並在明細標示）。
+# - 綜合分 = 類別分的加權平均；預設四項等權重，可在 App 設定頁調整。
+# - 不以全部樣本最佳化權重（避免過度擬合），權重與映射參數皆為事前設定的透明規則。
+#
+# mapping 類型：
+#   linear:        score = 100 × clamp((x − x0) / (x1 − x0), 0, 1)；x0 > x1 代表數值越小越好
+#   identity:      score = clamp(x, 0, 100)（x 本身就是 0–100 的百分位）
+#   inverse:       score = 100 − clamp(x, 0, 100)（百分位越低越好）
+#   margin_matrix: 依「融資變化 × 股價變化」四象限給分（見 params）
+version: 1
+composite:
+  label: 綜合分
+  description: 四項類別分的加權平均；權重可在設定頁調整，預設等權重。
+  weights:
+    chip: 25
+    momentum: 25
+    fundamental: 25
+    valuation: 25
+
+categories:
+  chip:
+    label: 籌碼分
+    description: 觀察法人、信用交易、大戶與借券的資金動向。
+    factors:
+      - id: foreign_streak
+        label: 外資連買天數
+        unit: 日
+        weight: 1
+        description: 外資及陸資（不含外資自營商）連續淨買超天數；連續淨賣超以負數表示。
+        mapping: { type: linear, x0: -5, x1: 5 }
+      - id: trust_streak
+        label: 投信連買天數
+        unit: 日
+        weight: 1
+        description: 投信連續淨買超天數；連續淨賣超以負數表示。
+        mapping: { type: linear, x0: -5, x1: 5 }
+      - id: margin_change
+        label: 融資變化
+        unit: "%"
+        weight: 1
+        description: 近 5 日融資餘額變化率與股價變化的組合。融資增加而股價下跌視為負面（散戶接刀）；融資減少而股價上漲視為正面（籌碼沉澱）。
+        mapping:
+          type: margin_matrix
+          threshold_pct: 2
+          scores: { up_price_down: 15, up_price_up: 40, flat: 50, down_price_down: 55, down_price_up: 80 }
+      - id: whale_change
+        label: 千張大戶持股比週變化
+        unit: 百分點
+        weight: 1
+        description: 集保持股分級 15（1,000 張以上）占集保庫存比例，與前一週相比的變化。注意：外資託管帳戶也算在大戶內。
+        mapping: { type: linear, x0: -1, x1: 1 }
+      - id: sbl_change
+        label: 借券賣出變化
+        unit: 百分點
+        weight: 1
+        description: 近 5 日借券賣出餘額變化占發行股數的比例；增加視為負面。
+        mapping: { type: linear, x0: 0.5, x1: -0.5 }
+      - id: foreign_hold_change
+        label: 外資持股比變化
+        unit: 百分點
+        weight: 1
+        description: 近 20 個交易日外資及陸資持股比率的變化。
+        mapping: { type: linear, x0: -2, x1: 2 }
+
+  momentum:
+    label: 動能分
+    description: 觀察相對強弱與趨勢位置（一律使用還原價）。
+    factors:
+      - id: rs_percentile
+        label: RS 百分位
+        unit: 百分位
+        weight: 2
+        description: 近 3、6、9、12 個月還原報酬以 40/20/20/20 加權後，在全市場普通股中的百分位。
+        mapping: { type: identity }
+      - id: dist_52w_high
+        label: 距 52 週高點
+        unit: "%"
+        weight: 1
+        description: 還原收盤價相對近 252 個交易日最高還原收盤價的距離；位於高點為 0%。
+        mapping: { type: linear, x0: -30, x1: 0 }
+      - id: ma20_gap
+        label: 股價相對 20 日均線
+        unit: "%"
+        weight: 1
+        description: 還原收盤價 ÷ 20 日還原均線 − 1。
+        mapping: { type: linear, x0: -10, x1: 10 }
+      - id: ma60_gap
+        label: 股價相對 60 日均線
+        unit: "%"
+        weight: 1
+        description: 還原收盤價 ÷ 60 日還原均線 − 1。
+        mapping: { type: linear, x0: -15, x1: 15 }
+      - id: ma240_gap
+        label: 股價相對 240 日均線（年線）
+        unit: "%"
+        weight: 1
+        description: 還原收盤價 ÷ 240 日還原均線 − 1。
+        mapping: { type: linear, x0: -20, x1: 20 }
+
+  fundamental:
+    label: 基本面分
+    description: 觀察營收成長、獲利能力與其趨勢。
+    factors:
+      - id: revenue_yoy_3m
+        label: 近 3 月營收年增率
+        unit: "%"
+        weight: 1
+        description: 最近 3 個月單月營收年增率的平均。
+        mapping: { type: linear, x0: -30, x1: 30 }
+      - id: revenue_yoy_trend
+        label: 營收年增率趨勢
+        unit: 百分點
+        weight: 1
+        description: 近 3 月平均年增率 − 近 12 月平均年增率；正值代表成長加速。
+        mapping: { type: linear, x0: -20, x1: 20 }
+      - id: revenue_high_ratio
+        label: 營收相對 12 個月高點
+        unit: "%"
+        weight: 1
+        description: 最新月營收 ÷ 近 12 個月最高月營收；100% 即創 12 個月新高。
+        mapping: { type: linear, x0: 70, x1: 100 }
+      - id: gross_margin_change
+        label: 毛利率趨勢
+        unit: 百分點
+        weight: 1
+        description: 最新一季毛利率 − 去年同季毛利率（無去年同季時改用上一季）。
+        mapping: { type: linear, x0: -5, x1: 5 }
+      - id: roe
+        label: ROE（年化）
+        unit: "%"
+        weight: 1
+        description: 近四季歸屬母公司淨利 ÷ 最新一季歸屬母公司權益；不足四季時以已知季數年化。
+        mapping: { type: linear, x0: 0, x1: 20 }
+
+  valuation:
+    label: 估值分
+    description: 分數越高代表相對自身歷史越便宜。
+    factors:
+      - id: pe_percentile
+        label: 本益比歷史百分位
+        unit: 百分位
+        weight: 1
+        description: 目前本益比在自身近 3 年日資料中的百分位；虧損（無本益比）時不計算。
+        mapping: { type: inverse }
+      - id: pb_percentile
+        label: 淨值比歷史百分位
+        unit: 百分位
+        weight: 1
+        description: 目前股價淨值比在自身近 3 年日資料中的百分位。
+        mapping: { type: inverse }
+      - id: dividend_yield
+        label: 殖利率
+        unit: "%"
+        weight: 1
+        description: 交易所公布的殖利率（前一年度股利 ÷ 收盤價）。
+        mapping: { type: linear, x0: 0, x1: 6 }
+      - id: fair_value_position
+        label: 合理價區間位置
+        unit: "%"
+        weight: 1
+        description: 股價在「便宜價–昂貴價」區間中的位置（0% = 便宜價，100% = 昂貴價），取各估值法平均區間。
+        mapping: { type: linear, x0: 100, x1: 0 }

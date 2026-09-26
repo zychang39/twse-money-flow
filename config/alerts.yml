@@ -1,0 +1,7 @@
+# 盤中到價提醒（由 App「匯出提醒設定」產生後貼上，commit 到 main）
+# above：盤中成交價 ≥ 此價推送；below：≤ 此價推送；note：備註
+version: 1
+alerts: []
+# 範例：
+# alerts:
+#   - { code: "2330", above: 2600, below: 2300, note: 前高／停損 }

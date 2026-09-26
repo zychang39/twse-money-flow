@@ -1,0 +1,71 @@
+# 選股條件欄位與內建預設組合（單一事實來源）
+# 條件：{ field, op, value }；op 可為 >, >=, <, <=, ==, between（value 為 [min, max]）
+# 同一組合內的條件皆須成立（AND）。
+version: 1
+fields:
+  composite:            { label: 綜合分, unit: 分, group: 分數 }
+  chip:                 { label: 籌碼分, unit: 分, group: 分數 }
+  momentum:             { label: 動能分, unit: 分, group: 分數 }
+  fundamental:          { label: 基本面分, unit: 分, group: 分數 }
+  valuation:            { label: 估值分, unit: 分, group: 分數 }
+  foreign_streak:       { label: 外資連買天數, unit: 日, group: 籌碼 }
+  trust_streak:         { label: 投信連買天數, unit: 日, group: 籌碼 }
+  foreign_net_5d:       { label: 外資近 5 日買賣超, unit: 張, group: 籌碼 }
+  trust_net_5d:         { label: 投信近 5 日買賣超, unit: 張, group: 籌碼 }
+  margin_change_5d:     { label: 融資 5 日變化, unit: "%", group: 籌碼 }
+  whale_pct:            { label: 千張大戶持股比, unit: "%", group: 籌碼 }
+  whale_change:         { label: 千張大戶週變化, unit: 百分點, group: 籌碼 }
+  foreign_hold_pct:     { label: 外資持股比, unit: "%", group: 籌碼 }
+  rs_percentile:        { label: RS 百分位, unit: 百分位, group: 動能 }
+  dist_52w_high:        { label: 距 52 週高點, unit: "%", group: 動能 }
+  ma20_gap:             { label: 相對 20 日均線, unit: "%", group: 動能 }
+  ma60_gap:             { label: 相對 60 日均線, unit: "%", group: 動能 }
+  ma240_gap:            { label: 相對年線, unit: "%", group: 動能 }
+  volume_ratio_20:      { label: 成交值 ÷ 20 日均量, unit: 倍, group: 動能 }
+  change_pct:           { label: 當日漲跌幅, unit: "%", group: 動能 }
+  revenue_yoy:          { label: 最新月營收年增率, unit: "%", group: 基本面 }
+  revenue_yoy_3m:       { label: 近 3 月營收年增率, unit: "%", group: 基本面 }
+  revenue_yoy_trend:    { label: 營收年增率趨勢, unit: 百分點, group: 基本面 }
+  revenue_high_ratio:   { label: 營收相對 12 月高點, unit: "%", group: 基本面 }
+  revenue_growth_months: { label: 營收連續成長月數, unit: 月, group: 基本面 }
+  roe:                  { label: ROE（年化）, unit: "%", group: 基本面 }
+  pe:                   { label: 本益比, unit: 倍, group: 估值 }
+  pb:                   { label: 股價淨值比, unit: 倍, group: 估值 }
+  dividend_yield:       { label: 殖利率, unit: "%", group: 估值 }
+  pe_percentile:        { label: 本益比歷史百分位, unit: 百分位, group: 估值 }
+  pb_percentile:        { label: 淨值比歷史百分位, unit: 百分位, group: 估值 }
+  value_million:        { label: 成交值, unit: 百萬元, group: 流動性 }
+
+presets:
+  - id: chip_concentration
+    label: 籌碼集中
+    description: 投信連買、外資同步偏多、千張大戶持股增加。
+    conditions:
+      - { field: trust_streak, op: ">=", value: 3 }
+      - { field: foreign_net_5d, op: ">", value: 0 }
+      - { field: whale_change, op: ">", value: 0 }
+      - { field: value_million, op: ">=", value: 20 }
+  - id: revenue_acceleration
+    label: 營收加速
+    description: 近 3 月營收年增率轉強且創 12 個月新高。
+    conditions:
+      - { field: revenue_yoy_3m, op: ">=", value: 20 }
+      - { field: revenue_yoy_trend, op: ">", value: 0 }
+      - { field: revenue_high_ratio, op: ">=", value: 100 }
+      - { field: value_million, op: ">=", value: 20 }
+  - id: strong_breakout
+    label: 強勢突破
+    description: 相對強勢、接近 52 週高點且量能放大。
+    conditions:
+      - { field: rs_percentile, op: ">=", value: 80 }
+      - { field: dist_52w_high, op: ">=", value: -3 }
+      - { field: volume_ratio_20, op: ">=", value: 1.5 }
+      - { field: value_million, op: ">=", value: 50 }
+  - id: value_income
+    label: 低估高息
+    description: 本益比與淨值比位於自身歷史低檔、殖利率高。
+    conditions:
+      - { field: pe_percentile, op: "<=", value: 30 }
+      - { field: pb_percentile, op: "<=", value: 40 }
+      - { field: dividend_yield, op: ">=", value: 5 }
+      - { field: value_million, op: ">=", value: 10 }

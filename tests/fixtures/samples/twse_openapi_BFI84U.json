@@ -1,0 +1,163 @@
+[
+{
+"Code": "00400A",
+"Name": "主動國泰動能高息",
+"StartDate": "1151002",
+"EndDate": "1151007",
+"Reason": "分配收益"
+},
+{
+"Code": "00406A",
+"Name": "主動中信台灣收益",
+"StartDate": "1150929",
+"EndDate": "1151002",
+"Reason": "分配收益"
+},
+{
+"Code": "00662",
+"Name": "富邦NASDAQ",
+"StartDate": "1151105",
+"EndDate": "1151110",
+"Reason": "ETF分割"
+},
+{
+"Code": "00939",
+"Name": "統一台灣高息動能",
+"StartDate": "1150929",
+"EndDate": "1151002",
+"Reason": "分配收益"
+},
+{
+"Code": "00940",
+"Name": "元大台灣價值高息",
+"StartDate": "1151001",
+"EndDate": "1151006",
+"Reason": "分配收益"
+},
+{
+"Code": "00946",
+"Name": "群益科技高息成長",
+"StartDate": "1151001",
+"EndDate": "1151006",
+"Reason": "分配收益"
+},
+{
+"Code": "00953B",
+"Name": "群益優選非投等債",
+"StartDate": "1151001",
+"EndDate": "1151006",
+"Reason": "分配收益"
+},
+{
+"Code": "00984D",
+"Name": "主動聯博全球非投",
+"StartDate": "1150929",
+"EndDate": "1151002",
+"Reason": "分配收益"
+},
+{
+"Code": "00985B",
+"Name": "群益ESG投等債0-5",
+"StartDate": "1151001",
+"EndDate": "1151006",
+"Reason": "分配收益"
+},
+{
+"Code": "1225",
+"Name": "福懋油",
+"StartDate": "1150923",
+"EndDate": "1150930",
+"Reason": "股東常會"
+},
+{
+"Code": "1449",
+"Name": "佳和",
+"StartDate": "1151005",
+"EndDate": "1151008",
+"Reason": "除權"
+},
+{
+"Code": "1727",
+"Name": "中華化",
+"StartDate": "1151006",
+"EndDate": "1151012",
+"Reason": "現金增資"
+},
+{
+"Code": "2323",
+"Name": "中環",
+"StartDate": "1150923",
+"EndDate": "1150930",
+"Reason": "除息"
+},
+{
+"Code": "2323",
+"Name": "中環",
+"StartDate": "1150923",
+"EndDate": "1150930",
+"Reason": "減資"
+},
+{
+"Code": "2614",
+"Name": "東森",
+"StartDate": "1150930",
+"EndDate": "1151005",
+"Reason": "除權息"
+},
+{
+"Code": "2614",
+"Name": "東森",
+"StartDate": "1150930",
+"EndDate": "1151005",
+"Reason": "現金增資"
+},
+{
+"Code": "2890",
+"Name": "永豐金",
+"StartDate": "1151001",
+"EndDate": "1151006",
+"Reason": "現金增資"
+},
+{
+"Code": "4155",
+"Name": "訊映",
+"StartDate": "1151001",
+"EndDate": "1151006",
+"Reason": "減資"
+},
+{
+"Code": "4552",
+"Name": "力達-KY",
+"StartDate": "1151021",
+"EndDate": "1151027",
+"Reason": "除息"
+},
+{
+"Code": "6108",
+"Name": "競國",
+"StartDate": "1151001",
+"EndDate": "1151006",
+"Reason": "除息"
+},
+{
+"Code": "6834",
+"Name": "天二科技",
+"StartDate": "1150924",
+"EndDate": "1151001",
+"Reason": "現金增資"
+},
+{
+"Code": "8021",
+"Name": "尖點",
+"StartDate": "1150930",
+"EndDate": "1151005",
+"Reason": "現金增資"
+},
+{
+"Code": "9927",
+"Name": "泰銘",
+"StartDate": "1150923",
+"EndDate": "1150930",
+"Reason": "除息"
+}
+]

@@ -1,0 +1,416 @@
+# 資料源設定（單一事實來源）
+# url 佔位符：{date}=YYYYMMDD、{date_slash}=YYYY/MM/DD、{start}/{end}=YYYYMMDD、
+#             {start_slash}/{end_slash}=YYYY/MM/DD、{roc_year}=民國年、{month}=月（不補零）、
+#             {year}=西元年、{quarter}=季（兩位數）
+# frequency：daily（每交易日一檔）、range（區間查詢，依日期切檔）、weekly、monthly、quarterly、snapshot（最新快照）
+# tier：core（核心）、advanced（進階）、optional（選配）
+# status：verified（已用真實樣本驗證）、unverified（未以真實樣本驗證）、pending（資料源待處理）
+version: 1
+crawl:
+  delay_seconds: [3, 5]        # 依序請求，間隔 3–5 秒 + 隨機抖動
+  timeout_seconds: 60
+  max_retries: 4               # 指數退避：2、4、8、16 秒
+  circuit_breaker: 5           # 同一網域連續失敗 5 次即停止該網域本輪請求
+  user_agent: "twse-money-flow/1.0 (+https://github.com/zychang39/twse-money-flow)"
+  timezone: Asia/Taipei
+
+sources:
+  # ---------- 核心：上市 ----------
+  twse_quotes:
+    label: 上市每日收盤行情
+    market: twse
+    tier: core
+    frequency: daily
+    url: https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date={date}&type=ALLBUT0999&response=json
+    publish: "約 14:00"
+    status: verified
+  twse_index:
+    label: 上市指數（加權、報酬、類股）
+    market: twse
+    tier: core
+    frequency: daily
+    derived_from: twse_quotes   # 與收盤行情同一個回應（MI_INDEX）
+    publish: "約 14:00"
+    status: verified
+  twse_insti:
+    label: 上市三大法人買賣超
+    market: twse
+    tier: core
+    frequency: daily
+    url: https://www.twse.com.tw/rwd/zh/fund/T86?date={date}&selectType=ALLBUT0999&response=json
+    publish: "約 15:00–16:30"
+    status: verified
+  twse_margin:
+    label: 上市融資融券
+    market: twse
+    tier: core
+    frequency: daily
+    url: https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={date}&selectType=ALL&response=json
+    publish: "約 21:00"
+    status: verified
+  twse_valuation:
+    label: 上市本益比／殖利率／淨值比
+    market: twse
+    tier: core
+    frequency: daily
+    url: https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?date={date}&selectType=ALL&response=json
+    publish: "約 14:30"
+    status: verified
+  twse_exright:
+    label: 上市除權除息計算結果
+    market: twse
+    tier: core
+    frequency: range
+    url: https://www.twse.com.tw/rwd/zh/exRight/TWT49U?startDate={start}&endDate={end}&response=json
+    publish: "除權息交易日當日"
+    status: verified
+  twse_exright_notice:
+    label: 上市除權除息預告
+    market: twse
+    tier: core
+    frequency: snapshot
+    url: https://www.twse.com.tw/rwd/zh/exRight/TWT48U?response=json
+    status: verified
+  twse_capreduce:
+    label: 上市減資恢復買賣參考價
+    market: twse
+    tier: core
+    frequency: range
+    url: https://www.twse.com.tw/rwd/zh/reducation/TWTAUU?startDate={start}&endDate={end}&response=json
+    status: verified
+  twse_attention:
+    label: 上市注意股
+    market: twse
+    tier: core
+    frequency: range
+    url: https://www.twse.com.tw/rwd/zh/announcement/notice?querytype=1&startDate={start}&endDate={end}&response=json
+    publish: "約 17:00"
+    status: verified
+  twse_disposition:
+    label: 上市處置股
+    market: twse
+    tier: core
+    frequency: range
+    url: https://www.twse.com.tw/rwd/zh/announcement/punish?startDate={start}&endDate={end}&response=json
+    publish: "約 17:00"
+    status: verified
+  twse_attention_accum:
+    label: 上市注意累計次數可能達處置標準
+    market: twse
+    tier: core
+    frequency: snapshot
+    url: https://openapi.twse.com.tw/v1/announcement/notetrans
+    status: verified
+  twse_revenue:
+    label: 上市月營收（最新一期）
+    market: twse
+    tier: core
+    frequency: snapshot
+    url: https://openapi.twse.com.tw/v1/opendata/t187ap05_L
+    publish: "每月 10 日前陸續公布"
+    status: verified
+  twse_company:
+    label: 上市公司基本資料（產業別、股本）
+    market: twse
+    tier: core
+    frequency: snapshot
+    url: https://openapi.twse.com.tw/v1/opendata/t187ap03_L
+    status: verified
+  twse_holidays:
+    label: 證交所休市日曆
+    market: twse
+    tier: core
+    frequency: yearly
+    url: https://www.twse.com.tw/rwd/zh/holidaySchedule/holidaySchedule?date={year}0101&response=json
+    status: verified
+
+  # ---------- 核心：上櫃 ----------
+  tpex_quotes:
+    label: 上櫃每日收盤行情
+    market: tpex
+    tier: core
+    frequency: daily
+    url: https://www.tpex.org.tw/www/zh-tw/afterTrading/dailyQuotes?date={date_slash}&id=&response=json
+    publish: "約 14:30"
+    status: verified
+  tpex_index:
+    label: 櫃買指數（月查詢）
+    market: tpex
+    tier: core
+    frequency: monthly
+    url: https://www.tpex.org.tw/www/zh-tw/indexInfo/inx?date={date_slash}&response=json
+    status: verified
+  tpex_insti:
+    label: 上櫃三大法人買賣明細
+    market: tpex
+    tier: core
+    frequency: daily
+    url: https://www.tpex.org.tw/www/zh-tw/insti/dailyTrade?type=Daily&sect=EW&date={date_slash}&id=&response=json
+    publish: "約 15:00–16:30"
+    status: verified
+  tpex_margin:
+    label: 上櫃融資融券餘額
+    market: tpex
+    tier: core
+    frequency: daily
+    url: https://www.tpex.org.tw/www/zh-tw/margin/balance?date={date_slash}&id=&response=json
+    publish: "約 21:00"
+    status: verified
+  tpex_valuation:
+    label: 上櫃本益比／殖利率／淨值比
+    market: tpex
+    tier: core
+    frequency: daily
+    url: https://www.tpex.org.tw/www/zh-tw/afterTrading/peQryDate?date={date_slash}&id=&response=json
+    status: verified
+  tpex_exright:
+    label: 上櫃除權除息計算結果
+    market: tpex
+    tier: core
+    frequency: range
+    url: https://www.tpex.org.tw/www/zh-tw/bulletin/exDailyQ?startDate={start_slash}&endDate={end_slash}&response=json
+    status: verified
+  tpex_exright_notice:
+    label: 上櫃除權除息預告
+    market: tpex
+    tier: core
+    frequency: snapshot
+    url: https://www.tpex.org.tw/openapi/v1/tpex_exright_prepost
+    status: verified
+  tpex_capreduce:
+    label: 上櫃減資恢復買賣
+    market: tpex
+    tier: core
+    frequency: range
+    url: https://www.tpex.org.tw/www/zh-tw/bulletin/revivt?startDate={start_slash}&endDate={end_slash}&response=json
+    status: verified
+  tpex_attention:
+    label: 上櫃注意股
+    market: tpex
+    tier: core
+    frequency: range
+    url: https://www.tpex.org.tw/www/zh-tw/bulletin/attention?startDate={start_slash}&endDate={end_slash}&response=json
+    status: verified
+  tpex_disposition:
+    label: 上櫃處置股
+    market: tpex
+    tier: core
+    frequency: range
+    url: https://www.tpex.org.tw/www/zh-tw/bulletin/disposal?startDate={start_slash}&endDate={end_slash}&response=json
+    status: verified
+  tpex_attention_accum:
+    label: 上櫃注意累計次數可能達處置標準
+    market: tpex
+    tier: core
+    frequency: daily
+    url: https://www.tpex.org.tw/www/zh-tw/bulletin/warning?date={date_slash}&response=json
+    status: verified
+  tpex_revenue:
+    label: 上櫃月營收（最新一期）
+    market: tpex
+    tier: core
+    frequency: snapshot
+    url: https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap05_O
+    status: verified
+  tpex_company:
+    label: 上櫃公司基本資料（產業別、股本）
+    market: tpex
+    tier: core
+    frequency: snapshot
+    url: https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O
+    status: verified
+
+  # ---------- 核心：月營收歷史（MOPS 彙總表，Big5） ----------
+  mops_revenue:
+    label: 月營收歷史彙總表（上市＋上櫃）
+    market: both
+    tier: core
+    frequency: monthly
+    url: https://mopsov.twse.com.tw/nas/t21/{mops_market}/t21sc03_{roc_year}_{month}_0.html
+    encoding: big5
+    status: verified
+
+  # ---------- 核心：大盤報酬指數（月查詢，回補用） ----------
+  twse_return_index:
+    label: 發行量加權股價報酬指數（月查詢）
+    market: twse
+    tier: core
+    frequency: monthly
+    url: https://www.twse.com.tw/rwd/zh/TAIEX/MFI94U?date={date}&response=json
+    status: verified
+  twse_market_volume:
+    label: 集中市場每日成交資訊（月查詢）
+    market: twse
+    tier: core
+    frequency: monthly
+    url: https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK?date={date}&response=json
+    status: verified
+
+  # ---------- 進階 ----------
+  tdcc_holders:
+    label: 集保股權分散表
+    market: both
+    tier: advanced
+    frequency: weekly
+    url: https://opendata.tdcc.com.tw/getOD.ashx?id=1-5
+    publish: "每週最後一個營業日資料，次一日公布；只提供最新一週，須自行累積"
+    status: verified
+  twse_sbl:
+    label: 上市融券／借券賣出餘額
+    market: twse
+    tier: advanced
+    frequency: daily
+    url: https://www.twse.com.tw/rwd/zh/marginTrading/TWT93U?date={date}&response=json
+    status: verified
+  tpex_sbl:
+    label: 上櫃融券／借券賣出餘額
+    market: tpex
+    tier: advanced
+    frequency: daily
+    url: https://www.tpex.org.tw/www/zh-tw/margin/sbl?date={date_slash}&id=&response=json
+    status: verified
+  twse_qfii:
+    label: 上市外資持股比率
+    market: twse
+    tier: advanced
+    frequency: daily
+    url: https://www.twse.com.tw/rwd/zh/fund/MI_QFIIS?date={date}&selectType=ALLBUT0999&response=json
+    status: verified
+  tpex_qfii:
+    label: 上櫃外資持股比率
+    market: tpex
+    tier: advanced
+    frequency: daily
+    url: https://www.tpex.org.tw/www/zh-tw/insti/qfii?date={date_slash}&id=&response=json
+    status: verified
+  twse_daytrade:
+    label: 上市當沖交易
+    market: twse
+    tier: advanced
+    frequency: daily
+    url: https://www.twse.com.tw/rwd/zh/dayTrading/TWTB4U?date={date}&selectType=All&response=json
+    publish: "當日晚間，T+2 前可能更新"
+    status: verified
+  tpex_daytrade:
+    label: 上櫃當沖交易
+    market: tpex
+    tier: advanced
+    frequency: daily
+    url: https://www.tpex.org.tw/www/zh-tw/intraday/stat?date={date_slash}&type=Daily&response=json
+    status: verified
+  twse_short_halt:
+    label: 上市停券預告（融券最後回補日）
+    market: twse
+    tier: advanced
+    frequency: snapshot
+    url: https://www.twse.com.tw/rwd/zh/marginTrading/BFI84U?response=json
+    status: verified
+  tpex_short_halt:
+    label: 上櫃暫停融券賣出預告（融券最後回補日）
+    market: tpex
+    tier: advanced
+    frequency: snapshot
+    url: https://www.tpex.org.tw/openapi/v1/tpex_margin_trading_term
+    status: verified
+  taifex_insti:
+    label: 期交所三大法人期貨未平倉（台指期、小台、微台）
+    market: futures
+    tier: advanced
+    frequency: range
+    method: POST
+    url: https://www.taifex.com.tw/cht/3/futContractsDateDown
+    form: { queryStartDate: "{start_slash}", queryEndDate: "{end_slash}", commodityId: "{commodity}" }
+    encoding: big5
+    commodities: [TXF, MXF, TMF]
+    status: verified
+  taifex_oi:
+    label: 期貨各契約全市場未平倉量
+    market: futures
+    tier: advanced
+    frequency: range
+    method: POST
+    url: https://www.taifex.com.tw/cht/3/futDataDown
+    form: { down_type: "1", commodity_id: "{commodity}", commodity_id2: "", queryStartDate: "{start_slash}", queryEndDate: "{end_slash}" }
+    encoding: big5
+    commodities: [TX, MTX, TMF]
+    status: verified
+  fx_usdtwd:
+    label: 台幣兌美元匯率（期交所每日匯率）
+    market: macro
+    tier: advanced
+    frequency: range
+    method: POST
+    url: https://www.taifex.com.tw/cht/3/dailyFXRateDown
+    form: { queryStartDate: "{start_slash}", queryEndDate: "{end_slash}" }
+    encoding: big5
+    status: verified
+  twse_financials:
+    label: 上市季財報（EPS、毛利率、權益）
+    market: twse
+    tier: advanced
+    frequency: quarterly
+    urls:
+      income: https://openapi.twse.com.tw/v1/opendata/t187ap06_L_ci
+      margin: https://openapi.twse.com.tw/v1/opendata/t187ap17_L
+      balance: https://openapi.twse.com.tw/v1/opendata/t187ap07_L_ci
+      eps: https://openapi.twse.com.tw/v1/opendata/t187ap14_L
+    status: verified
+  tpex_financials:
+    label: 上櫃季財報（EPS、毛利率、權益）
+    market: tpex
+    tier: advanced
+    frequency: quarterly
+    urls:
+      income: https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap06_O_ci
+      margin: https://www.tpex.org.tw/openapi/v1/mopsfin_187ap17_O
+      balance: https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap07_O_ci
+      eps: https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap14_O
+    status: verified
+  active_etf:
+    label: 主動式 ETF 清單與每日持股揭露
+    market: twse
+    tier: advanced
+    frequency: daily
+    status: pending
+
+  # ---------- 選配 ----------
+  twse_insider:
+    label: 上市內部人持股轉讓事前申報
+    market: twse
+    tier: optional
+    frequency: snapshot
+    url: https://openapi.twse.com.tw/v1/opendata/t187ap12_L
+    status: verified
+  tpex_insider:
+    label: 上櫃內部人持股轉讓事前申報
+    market: tpex
+    tier: optional
+    frequency: snapshot
+    url: https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap12_O
+    status: verified
+  ust_10y:
+    label: 美國財政部 10 年期公債殖利率（Par Yield Curve）
+    market: macro
+    tier: optional
+    frequency: yearly
+    url: https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all?type=daily_treasury_yield_curve&field_tdr_date_value={year}&page&_format=csv
+    status: verified
+  cbc_money:
+    label: 央行 M1B／M2 年增率
+    market: macro
+    tier: optional
+    frequency: monthly
+    status: pending
+  fred_dtwexbgs:
+    label: FRED 美元指數 DTWEXBGS
+    market: macro
+    tier: optional
+    frequency: daily
+    url: https://fred.stlouisfed.org/graph/fredgraph.csv?id=DTWEXBGS
+    status: pending   # 2026-09-26 從 Actions 與本環境實測皆連線失敗 → 不加入
+  investor_conference:
+    label: 法說會日期
+    market: both
+    tier: optional
+    frequency: monthly
+    status: pending

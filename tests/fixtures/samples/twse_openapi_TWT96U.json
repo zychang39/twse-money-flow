@@ -1,0 +1,152 @@
+[
+{
+"TWSECode": "00400A",
+"TWSEAvailableVolume": "10,803,133",
+"GRETAICode": "00411A",
+"GRETAIAvailableVolume": "7,139,175"
+},
+{
+"TWSECode": "00401A",
+"TWSEAvailableVolume": "1,835,580",
+"GRETAICode": "006201",
+"GRETAIAvailableVolume": "51,787"
+},
+{
+"TWSECode": "00402A",
+"TWSEAvailableVolume": "1,864,838",
+"GRETAICode": "00679B",
+"GRETAIAvailableVolume": "5,239,404"
+},
+{
+"TWSECode": "00403A",
+"TWSEAvailableVolume": "68,147,737",
+"GRETAICode": "00687B",
+"GRETAIAvailableVolume": "3,966,087"
+},
+{
+"TWSECode": "00404A",
+"TWSEAvailableVolume": "3,783,995",
+"GRETAICode": "00694B",
+"GRETAIAvailableVolume": "109,062"
+},
+{
+"TWSECode": "00405A",
+"TWSEAvailableVolume": "21,558,763",
+"GRETAICode": "00695B",
+"GRETAIAvailableVolume": "119,533"
+},
+{
+"TWSECode": "00406A",
+"TWSEAvailableVolume": "60,751,455",
+"GRETAICode": "00696B",
+"GRETAIAvailableVolume": "626,439"
+},
+{
+"TWSECode": "00407A",
+"TWSEAvailableVolume": "14,630,255",
+"GRETAICode": "00697B",
+"GRETAIAvailableVolume": "129,850"
+},
+{
+"TWSECode": "00408A",
+"TWSEAvailableVolume": "501,044",
+"GRETAICode": "00719B",
+"GRETAIAvailableVolume": "652,141"
+},
+{
+"TWSECode": "00409A",
+"TWSEAvailableVolume": "12,081,001",
+"GRETAICode": "00720B",
+"GRETAIAvailableVolume": "1,275,200"
+},
+{
+"TWSECode": "00410A",
+"TWSEAvailableVolume": "2,161,362",
+"GRETAICode": "00722B",
+"GRETAIAvailableVolume": "1,024,192"
+},
+{
+"TWSECode": "0050",
+"TWSEAvailableVolume": "21,590,423",
+"GRETAICode": "00723B",
+"GRETAIAvailableVolume": "51,601"
+},
+{
+"TWSECode": "0051",
+"TWSEAvailableVolume": "14,311",
+"GRETAICode": "00724B",
+"GRETAIAvailableVolume": "1,170,913"
+},
+{
+"TWSECode": "0052",
+"TWSEAvailableVolume": "4,220,400",
+"GRETAICode": "00725B",
+"GRETAIAvailableVolume": "773,003"
+},
+{
+"TWSECode": "0053",
+"TWSEAvailableVolume": "28,793",
+"GRETAICode": "00726B",
+"GRETAIAvailableVolume": "59,965"
+},
+{
+"TWSECode": "0055",
+"TWSEAvailableVolume": "207,178",
+"GRETAICode": "00727B",
+"GRETAIAvailableVolume": "52,636"
+},
+{
+"TWSECode": "0056",
+"TWSEAvailableVolume": "7,749,078",
+"GRETAICode": "00734B",
+"GRETAIAvailableVolume": "41,125"
+},
+{
+"TWSECode": "0057",
+"TWSEAvailableVolume": "6,998",
+"GRETAICode": "00740B",
+"GRETAIAvailableVolume": "516,489"
+},
+{
+"TWSECode": "0061",
+"TWSEAvailableVolume": "26,866",
+"GRETAICode": "00741B",
+"GRETAIAvailableVolume": "36,265"
+},
+{
+"TWSECode": "006203",
+"TWSEAvailableVolume": "4,705",
+"GRETAICode": "00746B",
+"GRETAIAvailableVolume": "134,279"
+},
+{
+"TWSECode": "006204",
+"TWSEAvailableVolume": "7,005",
+"GRETAICode": "00749B",
+"GRETAIAvailableVolume": "36,237"
+},
+{
+"TWSECode": "006205",
+"TWSEAvailableVolume": "57,157",
+"GRETAICode": "00750B",
+"GRETAIAvailableVolume": "34,715"
+},
+{
+"TWSECode": "006206",
+"TWSEAvailableVolume": "11,016",
+"GRETAICode": "00751B",
+"GRETAIAvailableVolume": "1,431,264"
+},
+{
+"TWSECode": "006207",
+"TWSEAvailableVolume": "48,584",
+"GRETAICode": "00754B",
+"GRETAIAvailableVolume": "37,345"
+},
+{
+"TWSECode": "006208",
+"TWSEAvailableVolume": "623,169",
+"GRETAICode": "00755B",
+"GRETAIAvailableVolume": "35,684"
+}
+]
