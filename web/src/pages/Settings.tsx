@@ -2,13 +2,12 @@ import { useEffect, useState } from 'preact/hooks';
 import { Nav } from '../components/Nav';
 import { useDb } from '../hooks';
 import { getSetting, setSetting } from '../db/db';
-import { CATEGORY_IDS, scoresConfig, thresholds } from '../lib/config';
+import { CATEGORY_IDS, scoresConfig } from '../lib/config';
+import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
 import { DEFAULT_WEIGHTS, type Weights } from '../lib/scores';
 import { DEFAULT_COSTS, type CostSettings } from '../lib/costs';
 import { AlertExport } from '../components/AlertExport';
 
-export interface PortfolioSettings { capital: number; riskPct: number; oddLot: boolean }
-export const DEFAULT_PORTFOLIO: PortfolioSettings = { capital: 1_000_000, riskPct: Number(thresholds.portfolio.default_risk_pct), oddLot: false };
 
 export default function Settings() {
   const stored = useDb(async () => ({

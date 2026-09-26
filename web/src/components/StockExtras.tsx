@@ -42,14 +42,14 @@ export function StockExtras({ h }: { h: StockHistory }) {
                 <div class="small">目前 {fmtPrice(fair.price)}，位於區間 {fair.position === null ? '—' : `${Math.round(fair.position * 100)}%`}</div>
               </div>
             ) : <p class="small muted">資料不足以計算合理價。</p>}
-            <table class="table" style={{ marginTop: '0.75rem' }}>
+            <div class="scroll-x"><table class="table" style={{ marginTop: '0.75rem' }}>
               <thead><tr><th>方法</th><th>便宜</th><th>合理</th><th>昂貴</th></tr></thead>
               <tbody>
                 {fair.methods.map((m) => (
                   <tr key={m.method}><td>{m.label}<div class="tiny muted">{m.basis}</div></td><td>{fmtPrice(m.cheap)}</td><td>{fmtPrice(m.fair)}</td><td>{fmtPrice(m.expensive)}</td></tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </>
       ) : null}

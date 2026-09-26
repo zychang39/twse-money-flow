@@ -146,3 +146,30 @@ def health_summary(
     if warn:
         parts.append(("但" if good else "需留意：") + "、".join(warn))
     return parts
+
+
+def dividends_for(ds: Any, code: str) -> list[dict[str, Any]]:
+    """除權息事件的現金股利與配股率（投資組合自動入帳用）。
+
+    配股率 s 由參考價反推：參考價 = (前收 − 現金股利) ÷ (1 + s)。上市「權息」事件無法拆分現金時，
+    以預告表的現金股利為準；仍無資料則全部視為配股（價值等效）。
+    """
+    if ds.exright.empty:
+        return []
+    ex = ds.exright[ds.exright["code"] == code]
+    notice = ds.exright_notice[ds.exright_notice["code"] == code] if not ds.exright_notice.empty else pd.DataFrame()
+    out = []
+    for _, r in ex.iterrows():
+        pre, ref, kind = r.get("pre_close"), r.get("ref_price"), str(r.get("kind", ""))
+        cash = r.get("cash_dividend")
+        if (cash != cash or cash is None) and "權" in kind and not notice.empty:
+            hit = notice[notice["date"] == r["date"]]
+            if not hit.empty and hit.iloc[0].get("cash_dividend") == hit.iloc[0].get("cash_dividend"):
+                cash = float(hit.iloc[0]["cash_dividend"])
+        if cash != cash or cash is None:
+            cash = 0.0 if "權" in kind else float(r.get("rights_dividend") or 0)
+        ratio = 0.0
+        if "權" in kind and pre == pre and ref == ref and ref:
+            ratio = max(0.0, (float(pre) - float(cash)) / float(ref) - 1)
+        out.append({"date": r["date"], "cash": round(float(cash), 4), "stock_ratio": round(ratio, 6)})
+    return sorted(out, key=lambda x: x["date"])

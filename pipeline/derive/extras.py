@@ -168,8 +168,88 @@ def custom_panel(
     return {"custom_universe": len(codes), "custom_days": len(dates), "custom_fields": count}
 
 
+def index_file(ds: Any, p: Any, out: Path) -> None:
+    """大盤指數序列（投資組合比較基準、市場頁）。"""
+    series = {}
+    for name in (TAIEX, TAIEX_TR):
+        s = index_series(ds, name, p.dates)
+        series[name] = [clean(v, 2) for v in s.to_numpy()]
+    tpex = ds.index[(ds.index["name"] == "櫃買指數")] if not ds.index.empty else pd.DataFrame()
+    if not tpex.empty:
+        s = tpex.drop_duplicates("date", keep="last").set_index("date")["close"].reindex(p.dates)
+        series["櫃買指數"] = [clean(v, 2) for v in s.to_numpy()]
+    write_json(out / "index.json", {"dates": p.dates, "series": series})
+
+
+def sector_rotation(p: Any) -> list[dict[str, Any]]:
+    """產業資金輪動：法人淨買超金額（億元）與還原報酬中位數（%），期間 1／5／20 日。"""
+    adj = p.adj_close
+    amount = p.total_net * p.close  # 元
+    groups: dict[str, list[str]] = {}
+    for code in p.codes:
+        ind = p.industries.get(code)
+        if not ind or ind in ("ETF", "存託憑證", "管理股票") or not is_common_stock(code):
+            continue
+        if pd.isna(p.close[code].iloc[-1]):
+            continue
+        groups.setdefault(ind, []).append(code)
+    rows = []
+    for ind, codes in groups.items():
+        row: dict[str, Any] = {"industry": ind, "count": len(codes)}
+        for k in (1, 5, 20):
+            if len(p.dates) <= k:
+                continue
+            amt = amount[codes].iloc[-k:].sum().sum()
+            ret = (adj[codes].iloc[-1] / adj[codes].iloc[-1 - k] - 1).dropna()
+            row[f"net_{k}"] = clean(amt / 1e8, 2)
+            row[f"ret_{k}"] = clean(float(ret.median()) * 100 if len(ret) else None, 2)
+        f1 = (p.foreign_net[codes].iloc[-1] * p.close[codes].iloc[-1]).sum()
+        t1 = (p.trust_net[codes].iloc[-1] * p.close[codes].iloc[-1]).sum()
+        row["foreign_1"] = clean(f1 / 1e8, 2)
+        row["trust_1"] = clean(t1 / 1e8, 2)
+        chg = (adj[codes].iloc[-1] / adj[codes].iloc[-2] - 1) if len(p.dates) >= 2 else pd.Series(dtype=float)
+        row["up"] = int((chg > 0).sum())
+        row["down"] = int((chg < 0).sum())
+        rows.append(row)
+    rows.sort(key=lambda r: -(r.get("net_5") or 0))
+    return rows
+
+
+def market_file(ds: Any, p: Any, mp: Any, out: Path) -> dict[str, Any]:
+    taiex = index_series(ds, TAIEX, p.dates)
+    k = min(len(p.dates), 60)
+    flows = []
+    for i in range(len(p.dates) - k, len(p.dates)):
+        d = p.dates[i]
+        close = p.close.iloc[i]
+        flows.append(
+            {
+                "date": d,
+                "foreign": clean(float((p.foreign_net.iloc[i] * close).sum()) / 1e8, 2),
+                "trust": clean(float((p.trust_net.iloc[i] * close).sum()) / 1e8, 2),
+                "dealer": clean(float((p.dealer_net.iloc[i] * close).sum()) / 1e8, 2),
+            }
+        )
+    chg = p.close.iloc[-1] - p.close.iloc[-2] if len(p.dates) >= 2 else pd.Series(dtype=float)
+    data: dict[str, Any] = {
+        "date": p.dates[-1],
+        "taiex": {
+            "close": clean(taiex.iloc[-1], 2),
+            "change": clean(taiex.iloc[-1] - taiex.iloc[-2], 2) if len(taiex) >= 2 else None,
+            "ma240": clean(taiex.rolling(240, min_periods=240).mean().iloc[-1], 2),
+        },
+        "breadth": {"up": int((chg > 0).sum()), "down": int((chg < 0).sum()), "flat": int((chg == 0).sum())},
+        "flows": flows,
+        "sectors": sector_rotation(p),
+    }
+    write_json(out / "market.json", data)
+    return data
+
+
 def build_extras(ds: Any, p: Any, mp: Any, sc: Any, fv: Any, out: Path) -> dict[str, Any]:
     report: dict[str, Any] = {}
+    index_file(ds, p, out)
+    market_file(ds, p, mp, out)
     report.update(preset_backtests(ds, p, mp, sc, out))
     report.update(custom_panel(ds, p, mp, sc, out))
     return report
