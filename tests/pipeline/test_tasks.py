@@ -147,6 +147,28 @@ def test_backfill_newest_first_and_skips_existing(tmp_path):
     assert "date=20260923" in urls[0] and "date=20260922" in urls[1]
 
 
+def test_full_backfill_limits_advanced_days(tmp_path, monkeypatch):
+    monkeypatch.setattr(tasks, "BACKFILL_FULL", ["twse_quotes", "twse_sbl"])
+    monkeypatch.setattr(tasks, "ADVANCED_BACKFILL_DAYS", 1)
+    ctx = make_ctx(tmp_path, {"MI_INDEX": sample("twse_rwd_MI_INDEX_ALL.json")})
+    tasks.task_backfill(ctx, None, date(2026, 9, 21), date(2026, 9, 24))
+    sbl = [u for u in ctx.client.urls if "TWT93U" in u]  # type: ignore[attr-defined]
+    # 只補近 1 天（9/23 起）的進階來源；核心來源每天都補
+    assert [u.split("date=")[1][:8] for u in sbl] == ["20260924", "20260923"]
+    assert sum("MI_INDEX" in u for u in ctx.client.urls) == 4  # type: ignore[attr-defined]
+
+
+def test_backfill_skips_finished_months(tmp_path):
+    ctx = make_ctx(tmp_path, {"TWT49U": sample("twse_rwd_TWT49U.json")}, now=datetime(2026, 9, 26, 10, 0, tzinfo=TPE))
+    tasks.task_backfill(ctx, ["twse_exright"], date(2026, 6, 1), date(2026, 9, 25))
+    first = len(ctx.client.urls)  # type: ignore[attr-defined]
+    assert first == 4
+    assert ctx.manifest["backfilled"]["twse_exright"] == ["2026-06", "2026-07"]  # 近兩個月不標記完成
+    tasks.task_backfill(ctx, ["twse_exright"], date(2026, 6, 1), date(2026, 9, 25))
+    again = ctx.client.urls[first:]  # type: ignore[attr-defined]
+    assert len(again) == 2 and all("startDate=202608" in u or "startDate=202609" in u for u in again)
+
+
 @pytest.mark.parametrize("hour,expected", [(10, date(2026, 9, 23)), (18, date(2026, 9, 24))])
 def test_target_trading_date(tmp_path, hour, expected):
     ctx = make_ctx(tmp_path, {}, now=datetime(2026, 9, 24, hour, 0, tzinfo=TPE))

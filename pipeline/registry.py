@@ -286,6 +286,22 @@ BACKFILL_DEFAULT = [
 ]
 
 
+# 回補未指定來源時的完整清單：區間／月查詢 → 期交所、美債、財報、央行 → 每日（核心 3 年、進階近一年）
+CUSTOM_BACKFILL = ["taifex", "ust_10y", "financials", "cbc_money", "investor_conference"]
+BACKFILL_FULL = [
+    *CORE_RANGE,
+    "tpex_index",
+    "mops_revenue",
+    "taifex",
+    "ust_10y",
+    "financials",
+    "cbc_money",
+    *BACKFILL_DEFAULT,
+    *ADVANCED_DAILY,
+]
+ADVANCED_BACKFILL_DAYS = 400
+
+
 def mops_revenue_url(market: str, ym: date) -> str:
     return build_url("mops_revenue", ym, mops_market="sii" if market == "twse" else "otc")
 
