@@ -168,8 +168,22 @@ def custom_panel(
     return {"custom_universe": len(codes), "custom_days": len(dates), "custom_fields": count}
 
 
+def index_file(ds: Any, p: Any, out: Path) -> None:
+    """大盤指數序列（投資組合比較基準、市場頁）。"""
+    series = {}
+    for name in (TAIEX, TAIEX_TR):
+        s = index_series(ds, name, p.dates)
+        series[name] = [clean(v, 2) for v in s.to_numpy()]
+    tpex = ds.index[(ds.index["name"] == "櫃買指數")] if not ds.index.empty else pd.DataFrame()
+    if not tpex.empty:
+        s = tpex.drop_duplicates("date", keep="last").set_index("date")["close"].reindex(p.dates)
+        series["櫃買指數"] = [clean(v, 2) for v in s.to_numpy()]
+    write_json(out / "index.json", {"dates": p.dates, "series": series})
+
+
 def build_extras(ds: Any, p: Any, mp: Any, sc: Any, fv: Any, out: Path) -> dict[str, Any]:
     report: dict[str, Any] = {}
+    index_file(ds, p, out)
     report.update(preset_backtests(ds, p, mp, sc, out))
     report.update(custom_panel(ds, p, mp, sc, out))
     return report

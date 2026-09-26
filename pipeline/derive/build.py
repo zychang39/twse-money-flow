@@ -302,6 +302,7 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
             "cost": stockdetail.cost_lines(p, code, idx) or None,
             "summary_text": stockdetail.health_summary(code, m, m["flags"], fair, rev_now),
             "flags": m["flags"],
+            "dividends": stockdetail.dividends_for(ds, code),
             "series": {
                 k: arr(mp.get(k)[code].reindex(idx).to_numpy(), 2)
                 for k in ("rs_percentile", "pe_percentile", "pb_percentile")

@@ -75,3 +75,35 @@ test('回測：預設組合顯示統計；自訂條件在 Web Worker 計算', as
   await expect(page.getByRole('columnheader', { name: '勝率' })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(/訊號 \d+ 筆 · 範圍：成交值前/)).toBeVisible();
 });
+
+test('日誌：完成買進前檢查表後新增持倉，並可平倉', async ({ page }) => {
+  await page.goto('#/journal');
+  await page.getByRole('button', { name: '新增持倉' }).click();
+  await page.getByRole('searchbox', { name: '搜尋股票' }).fill('2330');
+  await page.getByRole('option', { name: /2330/ }).click();
+  const save = page.getByRole('button', { name: /請完成檢查表|加入持倉/ });
+  await expect(save).toBeDisabled();
+  await page.getByLabel('1. 市場燈號（見市場頁）').selectOption('中性');
+  for (const [label, idx] of [['2. 趨勢', 1], ['3. 營收', 1], ['4. 估值', 1]] as const) {
+    const sel = page.getByLabel(label);
+    if (!(await sel.inputValue())) await sel.selectOption({ index: idx });
+  }
+  await page.getByLabel('理由（必填）').fill('投信連買、營收創新高');
+  const entry = Number(await page.getByLabel('進場價').inputValue());
+  await page.getByLabel('6. 停損價').fill(String(Math.round(entry * 0.95)));
+  await page.getByLabel('7. 目標價').fill(String(Math.round(entry * 1.2)));
+  await expect(page.getByText(/風險報酬比：/)).toBeVisible();
+  await page.getByLabel('實際股數（預設為建議部位）').fill('1000');
+  await page.getByRole('button', { name: '加入持倉' }).click();
+  await expect(page.getByText(/持倉 1/)).toBeVisible();
+  await page.getByRole('button', { name: '平倉', exact: true }).click();
+  await page.getByRole('button', { name: '追高' }).click();
+  await page.getByRole('button', { name: '確認平倉' }).click();
+  await page.getByRole('button', { name: /統計/ }).click();
+  await expect(page.getByText('追高')).toBeVisible();
+});
+
+test('備份：匯出按鈕存在', async ({ page }) => {
+  await page.goto('#/more/backup');
+  await expect(page.getByRole('button', { name: '匯出全部資料（JSON）' })).toBeVisible();
+});
