@@ -135,7 +135,16 @@ def test_backfill_resumes_and_respects_budget(tmp_path):
     ctx = make_ctx(tmp_path, {"MI_INDEX": sample("twse_rwd_MI_INDEX_ALL.json")})
     ctx.deadline = 0  # 立即超時
     out = tasks.task_backfill(ctx, ["twse_quotes"], date(2026, 9, 1), date(2026, 9, 24))
-    assert out["remaining"] > 0 and out["next_start"] == "2026-09-01"
+    assert out["remaining"] > 0 and not out["progressed"]
+
+
+def test_backfill_newest_first_and_skips_existing(tmp_path):
+    ctx = make_ctx(tmp_path, {"MI_INDEX": sample("twse_rwd_MI_INDEX_ALL.json")})
+    ctx.store.write("twse_quotes", date(2026, 9, 24), pd.DataFrame({"code": ["2330"], "close": [1.0]}))
+    tasks.task_backfill(ctx, ["twse_quotes"], date(2026, 9, 21), date(2026, 9, 24))
+    urls = ctx.client.urls  # type: ignore[attr-defined]
+    # 9/24 已存在 → 從 9/23 開始往前抓（樣本日期為 9/24 → 驗證失敗，不寫入）
+    assert "date=20260923" in urls[0] and "date=20260922" in urls[1]
 
 
 @pytest.mark.parametrize("hour,expected", [(10, date(2026, 9, 23)), (18, date(2026, 9, 24))])

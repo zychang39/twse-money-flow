@@ -70,7 +70,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             start = _date(args.start) or date(end.year - 3, end.month, 1)
             extra = tasks.task_backfill(ctx, sources, start, end)
             deploy = "true" if not extra.get("remaining") else "false"
-            if extra.get("remaining") and args.chain:
+            if extra.get("remaining") and extra.get("progressed") and args.chain:
                 from pipeline.notify.github import dispatch_workflow
 
                 ok = dispatch_workflow(

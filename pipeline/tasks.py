@@ -328,50 +328,58 @@ def task_periodic(ctx: RunContext, sources: list[str] | None = None) -> None:
         load_calendar(ctx, [ctx.today.year + 1])
 
 
+def _months_desc(start: date, end: date) -> list[date]:
+    months = []
+    m = month_start(end)
+    while m >= month_start(start):
+        months.append(m)
+        m = prev_month(m)
+    return months
+
+
 def task_backfill(ctx: RunContext, sources: list[str] | None, start: date, end: date) -> dict[str, Any]:
-    """回補：可中斷、可續跑（已存在的檔案略過）。回傳剩餘工作量。"""
+    """回補：由近到遠，逐日抓齊所有每日型來源（中斷時最近的資料是完整的）。
+
+    可中斷、可續跑：已存在的檔案略過；時間預算用完就停止並回報剩餘天數。
+    """
     sources = sources or BACKFILL_DEFAULT
     load_calendar(ctx, list(range(start.year, end.year + 1)))
     remaining: dict[str, int] = {}
-    next_start: date | None = None
-    for sid in sources:
-        if sid == "mops_revenue":
-            m = month_start(start)
-            while m <= end and not ctx.out_of_time():
+    # 1) 非每日型（區間、月查詢、MOPS 月營收）：以月為單位，由近到遠
+    for sid in [s for s in sources if s == "mops_revenue" or SPECS[s].kind != "daily"]:
+        months = _months_desc(start, end)
+        for i, m in enumerate(months):
+            if ctx.out_of_time():
+                remaining[sid] = len(months) - i
+                break
+            if sid == "mops_revenue":
                 run_mops_revenue(ctx, m)
-                m = next_month(m)
-            continue
-        spec = SPECS[sid]
-        if spec.kind == "daily":
-            days = [d for d in ctx.calendar.trading_days(start, end) if not ctx.store.exists(sid, d)]
-            for i, d in enumerate(days):
-                if ctx.out_of_time():
-                    remaining[sid] = len(days) - i
-                    next_start = min(next_start or d, d)
-                    break
-                if sid != "twse_quotes" and d.isoformat() in ctx.manifest.get("closed_days", []):
-                    continue
-                run_daily_source(ctx, spec, d)
-        elif spec.kind == "range":
-            m = month_start(start)
-            while m <= end:
-                if ctx.out_of_time():
-                    remaining[sid] = remaining.get(sid, 0) + 1
-                    next_start = min(next_start or m, m)
-                    m = next_month(m)
-                    continue
+                continue
+            spec = SPECS[sid]
+            if spec.kind == "range":
                 run_range_source(ctx, spec, max(m, start), min(next_month(m) - timedelta(days=1), end))
-                m = next_month(m)
-        elif spec.kind == "month_query":
-            m = month_start(start)
-            while m <= end and not ctx.out_of_time():
+            elif spec.kind == "month_query":
                 run_month_query(ctx, spec, m)
-                m = next_month(m)
-    return {
-        "remaining": sum(remaining.values()),
-        "by_source": remaining,
-        "next_start": next_start.isoformat() if next_start else None,
-    }
+    # 2) 每日型：由近到遠，一天抓齊所有來源
+    daily = [s for s in sources if s != "mops_revenue" and SPECS[s].kind == "daily"]
+    if daily:
+        closed = set(ctx.manifest.get("closed_days", []))
+        days = [
+            d
+            for d in reversed(ctx.calendar.trading_days(start, end))
+            if d.isoformat() not in closed and any(not ctx.store.exists(s, d) for s in daily)
+        ]
+        for i, d in enumerate(days):
+            if ctx.out_of_time():
+                remaining["daily_days"] = len(days) - i
+                break
+            if "twse_quotes" in daily and run_daily_source(ctx, SPECS["twse_quotes"], d) == "closed":
+                continue
+            for sid in daily:
+                if sid != "twse_quotes":
+                    run_daily_source(ctx, SPECS[sid], d)
+    progressed = any(r["status"] == "ok" for r in ctx.results)
+    return {"remaining": sum(remaining.values()), "by_source": remaining, "progressed": progressed}
 
 
 def append_run(ctx: RunContext, task: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
