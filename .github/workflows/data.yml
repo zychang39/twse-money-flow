@@ -36,16 +36,48 @@ permissions:
   pages: write
   id-token: write
 
+# 會寫入 data 分支的任務共用 data-pipeline；盤中提醒只讀即時報價，另用 alerts 群組，避免被長時間回補卡住
 concurrency:
-  group: data-pipeline
+  group: ${{ (github.event.schedule == '*/15 1-5 * * 1-5' || inputs.task == 'alerts') && 'alerts' || 'data-pipeline' }}
   cancel-in-progress: false
 
 jobs:
+  alerts:
+    if: github.event.schedule == '*/15 1-5 * * 1-5' || inputs.task == 'alerts'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+      - run: pip install -r pipeline/requirements.txt
+      - uses: actions/cache/restore@v4
+        with:
+          path: .alerts-state
+          key: alerts-state-${{ github.run_id }}
+          restore-keys: alerts-state-
+      - env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m pipeline alerts --state .alerts-state/state.json
+      - if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .alerts-state
+          key: alerts-state-${{ github.run_id }}
+
   data:
+    if: github.event.schedule != '*/15 1-5 * * 1-5' && inputs.task != 'alerts'
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     outputs:
       deploy: ${{ steps.run.outputs.deploy }}
+      digest: ${{ steps.run.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,8 +93,6 @@ jobs:
       - id: run
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: >-
           python -m pipeline run --data-dir data --chain --max-minutes 320
           --task "${{ inputs.task }}" --schedule "${{ github.event.schedule }}"
@@ -72,8 +102,6 @@ jobs:
       - if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python -m pipeline report --data-dir data --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
       - if: always()
         env:
@@ -84,4 +112,6 @@ jobs:
     needs: data
     if: always() && needs.data.outputs.deploy == 'true'
     uses: ./.github/workflows/deploy.yml
+    with:
+      digest: ${{ needs.data.outputs.digest }}
     secrets: inherit

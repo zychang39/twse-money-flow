@@ -93,6 +93,7 @@ def load(store: DataStore) -> Dataset:
         "financials": ["financials"],
         "margin_total": [],
         "daytrade_total": ["twse_daytrade_total", "tpex_daytrade_total"],
+        "etf_holdings": ["etf_holdings"],  # 主動式 ETF 持股（資料源待處理；有資料即生效）
     }.items():
         if sources:
             ds.tables[name] = _concat(store, sources)

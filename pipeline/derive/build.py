@@ -12,6 +12,7 @@ import pandas as pd
 
 from pipeline.core import config
 from pipeline.derive import adjust
+from pipeline.derive import etf as etfmod
 from pipeline.derive import indicators as ind
 from pipeline.derive.dataset import Dataset, industry_map, pivot, shares_outstanding
 from pipeline.derive.export import arr, clean, is_listed_security, write_json
@@ -290,6 +291,8 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
     written = 0
     active = [c for c in p.codes if pd.notna(p.close[c].iloc[-20:]).any()]  # 近 20 日有交易
     since = p.dates[max(0, len(p.dates) - 260)]
+    etf_changes = etfmod.holdings_changes(ds.table("etf_holdings"))
+    etf_holders = etfmod.holders_by_stock(etf_changes, p.names)
     for code in active:
         m = stock_metrics(p, code)
         if not m:
@@ -348,6 +351,7 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
             },
             "quarters": fundamentals.latest_table(ds.table("financials"), code),
             "short_halt": short_halt_for(ds, code),
+            "etf_holders": etf_holders.get(code),
         }
         write_json(out / "stocks" / f"{code}.json", stock_file(p, code, m, extra_file))
         written += 1

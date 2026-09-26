@@ -99,7 +99,7 @@
 | taifex_oi | 各契約全市場未平倉 | POST `www.taifex.com.tw/cht/3/futDataDown`（Big5 CSV，依到期月份，取「一般」時段加總） | 約 15:00 | ✅ |
 | fx_usdtwd | 美元兌台幣 | POST `www.taifex.com.tw/cht/3/dailyFXRateDown`（Big5 CSV） | 每日 | ✅ |
 | financials | 季財報（上市＋上櫃） | MOPS `ajax_t163sb04`（綜合損益彙總）、`ajax_t163sb05`（資產負債彙總），GET 帶 `TYPEK=sii/otc&year=民國年&season=季`；一次涵蓋一般業、金融、證券、保險等所有格式 | 法定期限後 | ✅（Actions 實測；OpenAPI t187ap06／07 只有最新一季且依產業分檔，改用 MOPS） |
-| active_etf | 主動式 ETF 每日持股 | 各投信官網 PCF（無集中端點） | 每日 | ⛔ 資料源待處理（見 DECISIONS） |
+| active_etf | 主動式 ETF 每日持股 | 各投信官網 PCF（無集中端點；證交所 ETF 專區、櫃買 ETF 訊息中心、FundClear 皆無持股明細 API） | 每日 | ⛔ 資料源待處理（DECISIONS #22；清單由行情代號 00xxxA 判定，計算框架已完成） |
 
 其他：`twse_insider`／`tpex_insider`（內部人轉讓事前申報，OpenAPI t187ap12_L／mopsfin_t187ap12_O）列為選配資料並用於風險旗標。
 
@@ -116,7 +116,7 @@
 | cbc_money | 央行 M1B／M2 | 政府開放資料 dataset 6024（見 M10） | ⛔ 待處理 |
 | fred_dtwexbgs | FRED 美元指數 | `fred.stlouisfed.org/graph/fredgraph.csv?id=DTWEXBGS` | ⛔ Actions 實測連線失敗，依規則不加入 |
 | investor_conference | 法說會日期 | MOPS（需 POST 查詢） | ⛔ 待處理 |
-| intraday | 盤中即時報價 | `mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_2330.tw|otc_6488.tw&json=1&delay=0` | ✅ Actions 可用 |
+| intraday | 盤中即時報價（盤中到價提醒用，每 15 分鐘一次批次請求） | `mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_2330.tw\|otc_6488.tw&json=1&delay=0` | ✅ Actions 可用（`pipeline/alerts.py`） |
 
 ## 爬取禮節
 - 依序請求（不並行），間隔 3–5 秒加隨機抖動；失敗以 2／4／8／16 秒指數退避重試。

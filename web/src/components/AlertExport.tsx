@@ -1,12 +1,21 @@
 import { useState } from 'preact/hooks';
 import { useDb } from '../hooks';
-import { getSetting, listWatch, setSetting } from '../db/db';
+import { getSetting, listTrades, listWatch, setSetting } from '../db/db';
 
 export interface AlertRule { code: string; above?: number | null; below?: number | null; note?: string }
 
-/** 產生 config/alerts.yml 內容（複製後貼到 repo，由 Actions 盤中檢查並推播 Telegram）。 */
-export function toAlertsYaml(rules: AlertRule[]): string {
-  const lines = ['# 由 App「匯出提醒設定」產生', 'version: 1', 'alerts:'];
+/**
+ * 產生 config/alerts.yml 內容（複製後貼到 repo，由 Actions 盤中檢查並推播 Telegram）。
+ * digest：盤後日報要列出的代號（自選股＋持股）。
+ */
+export function toAlertsYaml(rules: AlertRule[], digest: string[] = []): string {
+  const codes = [...new Set(digest.filter(Boolean))];
+  const lines = [
+    '# 由 App「匯出提醒設定」產生',
+    'version: 1',
+    `digest: [${codes.map((c) => `"${c}"`).join(', ')}]`,
+    'alerts:',
+  ];
   const valid = rules.filter((r) => r.code && ((r.above ?? 0) > 0 || (r.below ?? 0) > 0));
   if (!valid.length) return lines.join('\n').replace('alerts:', 'alerts: []');
   for (const r of valid) {
@@ -20,13 +29,17 @@ export function toAlertsYaml(rules: AlertRule[]): string {
 }
 
 export function AlertExport() {
-  const state = useDb(async () => ({ rules: await getSetting<AlertRule[]>('alerts', []), watch: await listWatch() }));
+  const state = useDb(async () => ({
+    rules: await getSetting<AlertRule[]>('alerts', []),
+    watch: await listWatch(),
+    held: (await listTrades()).filter((t) => t.status === 'open').map((t) => t.code),
+  }));
   const [copied, setCopied] = useState(false);
   if (!state) return null;
   const rules = state.rules;
   const codes = state.watch.map((w) => w.code);
   const update = (i: number, patch: Partial<AlertRule>) => setSetting('alerts', rules.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  const yaml = toAlertsYaml(rules);
+  const yaml = toAlertsYaml(rules, [...codes, ...state.held]);
   return (
     <div class="card">
       {rules.map((r, i) => (
@@ -41,7 +54,7 @@ export function AlertExport() {
       <datalist id="alert-codes">{codes.map((c) => <option key={c} value={c} />)}</datalist>
       <button class="btn small" onClick={() => setSetting('alerts', [...rules, { code: codes[0] ?? '', above: null, below: null }])}>新增提醒</button>
       <label class="field">
-        <span>匯出的 config/alerts.yml（複製後在 GitHub 網頁版貼上並 Commit）</span>
+        <span>匯出的 config/alerts.yml（含盤後日報要列出的自選股與持股；複製後在 GitHub 網頁版貼上並 Commit）</span>
         <textarea class="input" rows={6} readOnly value={yaml} style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.8125rem' }} />
       </label>
       <button class="btn primary" onClick={() => navigator.clipboard?.writeText(yaml).then(() => setCopied(true))}>{copied ? '已複製' : '匯出提醒設定（複製）'}</button>

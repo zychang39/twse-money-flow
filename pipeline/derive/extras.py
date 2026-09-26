@@ -392,6 +392,22 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
     }
 
 
+def active_etf_section(ds: Any, p: Any) -> dict[str, Any]:
+    """主動式 ETF 清單（由行情代號 00xxxA 判定）與跨檔加碼／減碼排行（需 etf_holdings）。"""
+    from pipeline.derive import etf as etfmod
+
+    changes = etfmod.holdings_changes(ds.table("etf_holdings"))
+    close = {c: float(v) for c, v in p.close.iloc[-1].dropna().items()} if len(p.dates) else {}
+    ranking: dict[str, Any] = {"date": str(changes["date"].max()) if not changes.empty else None}
+    ranking.update(etfmod.ranking(changes, close))
+    if changes.empty:
+        ranking["status"] = (
+            "資料源待處理：主動式 ETF 每日持股僅由各投信官網個別揭露（格式不一、部分有防爬機制），"
+            "尚無集中、免費且可程式取得的官方來源；目前僅列出清單與成交資訊。"
+        )
+    return {"active_etfs": etfmod.active_etfs(p), "etf_ranking": ranking}
+
+
 def market_file(ds: Any, p: Any, mp: Any, out: Path) -> dict[str, Any]:
     taiex = index_series(ds, TAIEX, p.dates)
     k = min(len(p.dates), 60)
@@ -419,6 +435,7 @@ def market_file(ds: Any, p: Any, mp: Any, out: Path) -> dict[str, Any]:
         "flows": flows,
         "sectors": sector_rotation(p),
         **market_env(ds, p, taiex),
+        **active_etf_section(ds, p),
     }
     write_json(out / "market.json", data)
     return data

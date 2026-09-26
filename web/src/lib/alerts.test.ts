@@ -10,4 +10,7 @@ describe('alerts.yml 匯出', () => {
   it('沒有規則時輸出空陣列', () => {
     expect(toAlertsYaml([])).toContain('alerts: []');
   });
+  it('日報代號去重', () => {
+    expect(toAlertsYaml([], ['2330', '0050', '2330'])).toContain('digest: ["2330", "0050"]');
+  });
 });

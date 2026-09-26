@@ -50,6 +50,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     from pipeline import tasks
 
     task = args.task or SCHEDULE_TASKS.get((args.schedule or "").strip(), "daily")
+    if task == "alerts":  # 盤中提醒不碰 data 分支
+        return cmd_alerts(args)
     sources = [s.strip() for s in (args.source or "").split(",") if s.strip()] or None
     store = DataStore(args.data_dir)
     ctx = tasks.RunContext(store=store, client=PoliteClient.from_config())
@@ -84,23 +86,54 @@ def cmd_run(args: argparse.Namespace) -> int:
                     ref=os.environ.get("GITHUB_REF_NAME", "main"),
                 )
                 extra["chained"] = ok
-        elif task == "alerts":
-            from pipeline.alerts import run_alerts
-
-            extra = run_alerts(ctx)
         else:
             log.error("未知任務：%s", task)
             return 2
     finally:
         summary = tasks.append_run(ctx, task, extra)
-        if task != "alerts":  # 盤中提醒每 15 分鐘執行，不寫入 data 分支
-            store.save_manifest(ctx.manifest)
+        store.save_manifest(ctx.manifest)
         Path(args.data_dir, "last_run.json").write_text(
             json.dumps(summary, ensure_ascii=False, indent=1), encoding="utf-8"
         )
+    # 每日任務的最後一次（台北 20:30 後）部署完成時推播 Telegram 日報
+    digest = "true" if task == "daily" and ctx.is_final_run else "false"
     _gh_output(
-        task=task, failed="true" if ctx.failures else "false", deploy=deploy, remaining=extra.get("remaining", 0)
+        task=task,
+        failed="true" if ctx.failures else "false",
+        deploy=deploy,
+        digest=digest,
+        remaining=extra.get("remaining", 0),
     )
+    return 0
+
+
+def cmd_alerts(args: argparse.Namespace) -> int:
+    """盤中到價提醒（不需要 data 分支，狀態存在 --state，由 Actions cache 保存）。"""
+    from pipeline.alerts import run_alerts
+
+    class _Ctx:
+        client = PoliteClient.from_config()
+
+    result = run_alerts(_Ctx(), state_path=Path(getattr(args, "state", "") or ".alerts-state/state.json"))
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
+
+
+def cmd_digest(args: argparse.Namespace) -> int:
+    from pipeline.alerts import load_rules
+    from pipeline.notify.telegram import send_daily_digest
+
+    failures: list[str] = []
+    last = Path(args.data_dir, "last_run.json")
+    if last.exists():
+        failures = json.loads(last.read_text(encoding="utf-8")).get("failed", [])
+    site = args.site_url
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    if not site and "/" in repo:
+        owner, name = repo.split("/", 1)
+        site = f"https://{owner.lower()}.github.io/{name}/"
+    ok = send_daily_digest(Path(args.web_data), load_rules()["digest"], site, failures)
+    print("digest sent" if ok else "digest skipped")
     return 0
 
 
@@ -132,13 +165,6 @@ def cmd_report(args: argparse.Namespace) -> int:
     if task == "alerts":
         return 0
     print(report_failures(failures, args.run_url, task))
-    try:
-        from pipeline.notify.telegram import send_daily_digest
-
-        if task == "daily" and os.environ.get("TELEGRAM_BOT_TOKEN"):
-            send_daily_digest(Path(args.data_dir), failures)
-    except ImportError:
-        pass
     return 0
 
 
@@ -180,7 +206,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--chain", action="store_true", help="回補未完成時自動觸發下一輪")
     run.set_defaults(func=cmd_run)
 
-    for name in ("daily", "periodic", "backfill", "alerts"):
+    for name in ("daily", "periodic", "backfill"):
         alias = sub.add_parser(name, help=f"等同 run --task {name}")
         alias.add_argument("--source", default="")
         alias.add_argument("--start", default="")
@@ -189,6 +215,16 @@ def build_parser() -> argparse.ArgumentParser:
         alias.add_argument("--max-minutes", type=float, default=0)
         alias.add_argument("--chain", action="store_true")
         alias.set_defaults(func=cmd_run, task=name, schedule="")
+
+    al = sub.add_parser("alerts", help="盤中到價提醒（config/alerts.yml → Telegram）")
+    al.add_argument("--state", default=".alerts-state/state.json", help="當日已推送紀錄（Actions cache）")
+    al.set_defaults(func=cmd_alerts)
+
+    dg = sub.add_parser("digest", help="推播 Telegram 盤後日報（部署後執行，未設定 secrets 時略過）")
+    dg.add_argument("--web-data", default="web/public/data")
+    dg.add_argument("--data-dir", default="data")
+    dg.add_argument("--site-url", default="")
+    dg.set_defaults(func=cmd_digest)
 
     prep = sub.add_parser("prepare-data", help="把 data 分支掛到 data/（git worktree）")
     prep.add_argument("--data-dir", default="data")
@@ -200,7 +236,7 @@ def build_parser() -> argparse.ArgumentParser:
     com.add_argument("--no-push", action="store_true")
     com.set_defaults(func=cmd_commit_data)
 
-    rep = sub.add_parser("report", help="依最近一次執行結果開啟／更新／關閉 data-failure Issue、推播")
+    rep = sub.add_parser("report", help="依最近一次執行結果開啟／更新／關閉 data-failure Issue")
     rep.add_argument("--data-dir", default="data")
     rep.add_argument("--run-url", default="")
     rep.set_defaults(func=cmd_report)
