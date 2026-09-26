@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>美術方向 Mockup</title>
+<!--
+  美術方向 mockup（靜態，資料為示意）。參數：?dir=a|b&page=tonight|mine|stock&theme=dark|light
+  A「夜間簡報」：純黑、字體排版為主角、超大主角數字、極細發光走勢線、大量留白。
+  B「環境光」：A ＋ 頁首隨市場狀態變化的環境光暈、低調玻璃卡片、漂浮搜尋膠囊。
+  所有圖示、版面、文案皆為原創；數字與英文用 Inter（SIL OFL 1.1，見 fonts/Inter-LICENSE.txt）。
+-->
+<style>
+@font-face {
+  font-family: 'Inter';
+  src: url(fonts/inter-latin-wght-normal.woff2) format('woff2');
+  font-weight: 100 900;
+  font-display: block;
+}
+
+/* ====================== Tokens（實作時搬到 web/src/styles/tokens.css） ====================== */
+:root {
+  /* 字級：只有 5 級 */
+  --fs-hero: 3.25rem;    --lh-hero: 3.5rem;     /* 52 / 56 主角數字 */
+  --fs-title: 1.625rem;  --lh-title: 2.125rem;  /* 26 / 34 頁面標題、結論句 */
+  --fs-section: 1.25rem; --lh-section: 1.75rem; /* 20 / 28 區塊標題 */
+  --fs-body: 1rem;       --lh-body: 1.5rem;     /* 16 / 24 內文 */
+  --fs-caption: 0.8125rem; --lh-caption: 1.25rem; /* 13 / 20 輔助文字 */
+  /* 4pt 網格 */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px; --s12: 48px; --s16: 64px;
+  --gutter: 20px;
+  --r-card: 20px; --r-pill: 999px; --r-sm: 12px;
+  --font: 'Inter', -apple-system, 'PingFang TC', 'Noto Sans TC', system-ui, sans-serif;
+
+  /* 深色（預設） */
+  --bg: #000000;
+  --surface-1: #111113;   /* 卡片 */
+  --surface-2: #1c1c1f;   /* 浮起面板、軌道 */
+  --surface-3: #2a2a2e;
+  --text-1: #f5f5f7;
+  --text-2: rgba(235, 235, 245, 0.62);
+  --text-3: rgba(235, 235, 245, 0.32);
+  --up: #ff5c4d;           /* 紅漲 */
+  --down: #2ed47a;         /* 綠跌 */
+  --up-tint: rgba(255, 92, 77, 0.16);
+  --down-tint: rgba(46, 212, 122, 0.14);
+  --risk: #ffb224;         /* 琥珀：只代表風險 */
+  --risk-tint: rgba(255, 178, 36, 0.14);
+  --brand: #3d8bff;        /* 電光藍：所有可互動元素 */
+  --brand-fill: #1f6fff;
+  --on-brand: #ffffff;
+  --glow-opacity: 0.55;
+  --glass: rgba(28, 28, 32, 0.55);
+  --glass-hi: rgba(255, 255, 255, 0.10);
+}
+[data-theme='light'] {
+  --bg: #f4f4f6;
+  --surface-1: #ffffff;
+  --surface-2: #ebebef;
+  --surface-3: #dedee4;
+  --text-1: #0b0b0d;
+  --text-2: rgba(40, 40, 48, 0.70);
+  --text-3: rgba(40, 40, 48, 0.30);
+  --up: #d4261b;
+  --down: #0f8042;
+  --up-tint: rgba(212, 38, 27, 0.10);
+  --down-tint: rgba(15, 128, 66, 0.10);
+  --risk: #b35c00;
+  --risk-tint: rgba(245, 150, 20, 0.16);
+  --brand: #0a5bd8;
+  --brand-fill: #0a5bd8;
+  --glow-opacity: 0.22;
+  --glass: rgba(255, 255, 255, 0.62);
+  --glass-hi: rgba(255, 255, 255, 0.9);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #000; }
+[data-theme='light'] body, body[data-theme='light'] { background: var(--bg); }
+body {
+  font-family: var(--font);
+  font-size: var(--fs-body); line-height: var(--lh-body);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'tnum' 1, 'cv11' 1;
+}
+.screen { position: relative; width: 393px; min-height: 852px; margin: 0 auto; background: var(--bg); overflow: hidden; padding-bottom: 120px; }
+
+/* ---- 5 級字級 ---- */
+.hero { font-size: var(--fs-hero); line-height: var(--lh-hero); font-weight: 600; letter-spacing: -0.035em; }
+.title { font-size: var(--fs-title); line-height: var(--lh-title); font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+.section { font-size: var(--fs-section); line-height: var(--lh-section); font-weight: 600; margin: 0; }
+.body { font-size: var(--fs-body); line-height: var(--lh-body); }
+.cap { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); }
+.t1 { color: var(--text-1); }
+.w5 { font-weight: 500; } .w6 { font-weight: 600; }
+.up { color: var(--up); } .down { color: var(--down); } .risk { color: var(--risk); } .brand { color: var(--brand); }
+
+.pad { padding: 0 var(--gutter); }
+.row { display: flex; align-items: center; gap: var(--s3); }
+.between { justify-content: space-between; }
+.grow { flex: 1 1 auto; min-width: 0; }
+.stack > * + * { margin-top: var(--s2); }
+
+/* ---- 狀態列、頂列 ---- */
+.status { height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 14px 30px 0 44px; font-size: 16px; font-weight: 600; position: relative; z-index: 2; }
+.status svg { display: block; }
+.topbar { display: flex; align-items: center; gap: var(--s2); height: 44px; padding: 0 12px 0 var(--gutter); position: relative; z-index: 2; }
+.icon-btn { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; color: var(--brand); border-radius: 50%; }
+.icon-btn svg { width: 24px; height: 24px; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--surface-2); display: inline-flex; align-items: center; justify-content: center; color: var(--text-2); }
+.avatar svg { width: 20px; height: 20px; }
+.text-btn { color: var(--brand); font-weight: 500; padding: 0 var(--s2); height: 44px; display: inline-flex; align-items: center; }
+
+/* ---- 結論、燈號 ---- */
+.eyebrow { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); font-weight: 500; }
+.env { display: inline-flex; align-items: center; gap: var(--s2); height: 32px; padding: 0 var(--s3) 0 10px; border-radius: var(--r-pill); background: var(--surface-1); font-size: var(--fs-caption); }
+.env .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--risk); box-shadow: 0 0 0 3px var(--risk-tint), 0 0 12px var(--risk); }
+.env .dot.neutral { background: var(--text-2); box-shadow: none; }
+.env .dot.calm { background: var(--text-1); box-shadow: 0 0 10px rgba(255,255,255,.5); }
+.est { display: inline-flex; align-items: center; justify-content: center; height: 18px; padding: 0 5px; margin-left: 4px; border-radius: 5px; font-size: 11px; line-height: 1; color: var(--text-2); background: var(--surface-2); vertical-align: 2px; font-weight: 500; }
+
+/* ---- 區塊 ---- */
+.block { padding: var(--s10) var(--gutter) 0; }
+.block .eyebrow { margin-bottom: var(--s1); }
+.card { background: var(--surface-1); border-radius: var(--r-card); padding: var(--s4); }
+.card + .card { margin-top: var(--s2); }
+.collapsed { display: flex; align-items: center; justify-content: space-between; height: 48px; padding: 0 var(--s4); border-radius: var(--r-card); color: var(--text-2); font-size: var(--fs-caption); }
+.collapsed svg { width: 16px; height: 16px; color: var(--text-2); }
+.link { color: var(--brand); font-weight: 500; font-size: var(--fs-caption); display: inline-flex; align-items: center; gap: 2px; }
+.link svg { width: 14px; height: 14px; }
+
+/* ---- 標籤、膠囊 ---- */
+.tag { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: var(--r-pill); font-size: 12px; font-weight: 600; }
+.tag.risk { background: var(--risk-tint); color: var(--risk); }
+.tag.soft { background: var(--surface-2); color: var(--text-2); font-weight: 500; }
+.pill { display: inline-flex; align-items: center; justify-content: center; min-width: 76px; height: 26px; padding: 0 8px; border-radius: 8px; font-size: var(--fs-caption); font-weight: 600; }
+.pill.up { background: var(--up-tint); }
+.pill.down { background: var(--down-tint); }
+.ghost-delta { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: var(--r-pill); background: var(--surface-1); color: var(--text-2); font-size: 12px; font-weight: 500; margin-left: var(--s3); vertical-align: 1px; opacity: 0.8; }
+
+/* ---- 期間選擇器 ---- */
+.periods { display: flex; justify-content: space-between; padding: 0 12px; margin-top: var(--s3); }
+.periods span { min-width: 44px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-pill); font-size: var(--fs-caption); font-weight: 600; color: var(--brand); padding: 0 10px; }
+.periods span.on { background: var(--brand-fill); color: var(--on-brand); }
+
+/* ---- 分段控制 ---- */
+.seg { display: flex; background: var(--surface-1); border-radius: 12px; padding: 3px; }
+.seg span { flex: 1; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; font-size: var(--fs-caption); color: var(--text-2); font-weight: 500; }
+.seg span.on { background: var(--surface-3); color: var(--text-1); font-weight: 600; }
+.seg span b { font-weight: 500; color: var(--text-2); margin-left: 6px; }
+
+/* ---- 清單列 ---- */
+.list-row { display: grid; grid-template-columns: 1fr 64px 88px 32px; align-items: center; gap: var(--s3); min-height: 68px; padding: 10px 0; }
+.list-row .name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-row .price { text-align: right; }
+.list-row .price .body { font-weight: 500; }
+.list-row .price .pill { margin-top: 2px; }
+.change-note { display: block; margin-top: 2px; }
+
+/* ---- 分數環 ---- */
+.rings4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s2); text-align: center; }
+.ring { position: relative; width: 64px; height: 64px; margin: 0 auto; }
+.ring svg { position: absolute; inset: 0; }
+.ring .v { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.02em; }
+.mini-ring { position: relative; width: 32px; height: 32px; }
+.mini-ring svg { position: absolute; inset: 0; }
+.mini-ring .v { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: var(--text-1); }
+
+/* ---- 紀律三環 ---- */
+.discipline { display: grid; grid-template-columns: 132px 1fr; gap: var(--s5); align-items: center; }
+.legend > div { display: grid; grid-template-columns: 10px 1fr auto; gap: var(--s2); align-items: center; min-height: 32px; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; background: var(--text-1); display: block; }
+
+/* ---- 法人柱狀圖 ---- */
+.explain { background: var(--surface-1); border-radius: var(--r-card); padding: var(--s4); margin-top: var(--s4); }
+
+/* ---- Tab bar ---- */
+.tabbar { position: absolute; left: 0; right: 0; bottom: 0; height: 84px; display: grid; grid-template-columns: repeat(4, 1fr); padding: 6px 24px 30px; background: linear-gradient(to top, var(--bg) 60%, rgba(0,0,0,0)); z-index: 5; }
+[data-theme='light'] .tabbar { background: linear-gradient(to top, var(--bg) 60%, rgba(244,244,246,0)); }
+.tabbar span { display: flex; align-items: center; justify-content: center; color: var(--text-2); }
+.tabbar span.on { color: var(--brand); }
+.tabbar svg { width: 26px; height: 26px; }
+
+/* ====================== B「環境光」 ====================== */
+.ambient { position: absolute; left: -30%; right: -30%; top: -260px; height: 640px; pointer-events: none; z-index: 0; filter: blur(8px); }
+.ambient.up { background: radial-gradient(50% 50% at 50% 50%, rgba(255, 84, 62, 0.42), rgba(255, 84, 62, 0.10) 55%, rgba(255, 84, 62, 0) 75%); }
+.ambient.down { background: radial-gradient(50% 50% at 50% 50%, rgba(40, 200, 150, 0.36), rgba(40, 200, 150, 0.08) 55%, rgba(40, 200, 150, 0) 75%); }
+.ambient.risk { background: radial-gradient(50% 50% at 50% 50%, rgba(255, 170, 40, 0.40), rgba(255, 170, 40, 0.09) 55%, rgba(255, 170, 40, 0) 75%); }
+[data-theme='light'] .ambient { opacity: 0.55; }
+.content { position: relative; z-index: 1; }
+[data-dir='b'] .card, [data-dir='b'] .explain, [data-dir='b'] .env, [data-dir='b'] .seg {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
+  box-shadow: inset 0 0.5px 0 var(--glass-hi);
+}
+[data-dir='b'] .tabbar {
+  left: 20px; right: 20px; bottom: 24px; height: 60px; padding: 0 12px; border-radius: 30px;
+  background: var(--glass); -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%);
+  box-shadow: inset 0 0.5px 0 var(--glass-hi), 0 12px 32px rgba(0,0,0,.35);
+}
+[data-dir='b'][data-theme='light'] .tabbar { box-shadow: inset 0 0.5px 0 var(--glass-hi), 0 12px 32px rgba(0,0,0,.10); }
+.search-float { position: absolute; left: 50%; transform: translateX(-50%); bottom: 96px; height: 44px; width: 232px; border-radius: 22px; display: flex; align-items: center; gap: 10px; padding: 0 18px; z-index: 6; color: var(--text-2); font-size: 15px;
+  background: var(--glass); -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%);
+  box-shadow: inset 0 0.5px 0 var(--glass-hi), 0 12px 32px rgba(0,0,0,.35); }
+.search-float svg { width: 18px; height: 18px; color: var(--text-1); }
+</style>
+</head>
+<body>
+<div id="screen" class="screen"></div>
+<script>
+const P = new URLSearchParams(location.search);
+const DIR = P.get('dir') || 'a';
+const PAGE = P.get('page') || 'tonight';
+const THEME = P.get('theme') || 'dark';
+document.body.dataset.dir = DIR;
+document.body.dataset.theme = THEME;
+document.documentElement.dataset.theme = THEME;
+const screen = document.getElementById('screen');
+screen.dataset.dir = DIR;
+screen.dataset.theme = THEME;
+
+/* ---------- 原創線條圖示（24×24，1.6 描邊，圓角端點） ---------- */
+const I = (d, extra = '') => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${d}</svg>`;
+const ICON = {
+  tonight: I('<path d="M19.5 14.6A7.6 7.6 0 0 1 9.4 4.5a7.6 7.6 0 1 0 10.1 10.1Z"/><path d="M16.5 4.2v2.6M15.2 5.5h2.6"/>'),
+  mine: I('<path d="M3.5 16.5 8.5 11l3.6 3.4L20.5 6"/><path d="M3.5 20.5h17"/>'),
+  explore: I('<circle cx="12" cy="12" r="8.6"/><path d="m15.4 8.6-2 4.8-4.8 2 2-4.8 4.8-2Z"/>'),
+  discipline: I('<circle cx="12" cy="12" r="8.6"/><path d="M12 7.2a4.8 4.8 0 1 1-4.8 4.8"/><circle cx="12" cy="12" r="1.2"/>'),
+  person: I('<circle cx="12" cy="8.6" r="3.4"/><path d="M5.2 19.4c1.2-3.2 3.8-4.8 6.8-4.8s5.6 1.6 6.8 4.8"/>'),
+  search: I('<circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.5 15.5 4.6 4.6"/>'),
+  back: I('<path d="M14.8 5.2 8 12l6.8 6.8"/>'),
+  star: I('<path d="m12 4.2 2.3 4.8 5.2.7-3.8 3.6.9 5.2L12 16l-4.6 2.5.9-5.2-3.8-3.6 5.2-.7L12 4.2Z"/>'),
+  chevDown: I('<path d="m6.5 9.5 5.5 5.5 5.5-5.5"/>'),
+  chevRight: I('<path d="m9.5 6.5 5.5 5.5-5.5 5.5"/>'),
+};
+
+/* ---------- 示意資料 ---------- */
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function walk(n, start, end, vol, seed) {
+  const r = rng(seed); const a = [start];
+  for (let i = 1; i < n; i++) a.push(a[i - 1] * (1 + (r() - 0.5) * vol));
+  const drift = (end - a[n - 1]);
+  return a.map((v, i) => v + drift * (i / (n - 1)));
+}
+const fmt = (v, d = 2) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+/* ---------- 走勢線：極細、發光、無座標軸與格線 ---------- */
+let gid = 0;
+function glowLine(values, { w = 393, h = 180, color = 'var(--up)', area = false, baseline = null, pad = 12, dot = true } = {}) {
+  const id = `g${gid++}`;
+  const min = Math.min(...values, baseline ?? Infinity), max = Math.max(...values, baseline ?? -Infinity);
+  const x = (i) => (i / (values.length - 1)) * (w - 2 * pad) + pad;
+  const y = (v) => pad + (1 - (v - min) / (max - min || 1)) * (h - 2 * pad);
+  const d = values.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+  const last = values.length - 1;
+  const areaPath = `${d}L${x(last).toFixed(1)},${h}L${x(0).toFixed(1)},${h}Z`;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;overflow:visible" aria-hidden="true">
+    <defs>
+      <filter id="${id}b" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="4"/></filter>
+      <linearGradient id="${id}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".22"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient>
+    </defs>
+    ${baseline !== null ? `<line x1="${pad}" x2="${w - pad}" y1="${y(baseline)}" y2="${y(baseline)}" stroke="var(--text-3)" stroke-width="1" stroke-dasharray="1 5" stroke-linecap="round"/>` : ''}
+    ${area ? `<path d="${areaPath}" fill="url(#${id}a)"/>` : ''}
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="5" stroke-opacity="var(--glow-opacity)" filter="url(#${id}b)" stroke-linejoin="round"/>
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+    ${dot ? `<circle cx="${x(last)}" cy="${y(values[last])}" r="9" fill="${color}" opacity=".18"/><circle cx="${x(last)}" cy="${y(values[last])}" r="3.5" fill="${color}"/>` : ''}
+  </svg>`;
+}
+function spark(values, dir, baseline) {
+  return glowLine(values, { w: 64, h: 32, color: dir === 'up' ? 'var(--up)' : 'var(--down)', baseline, pad: 3, dot: false });
+}
+function ring(value, { size = 64, stroke = 4, label = '' } = {}) {
+  const r = (size - stroke) / 2 - 1, c = 2 * Math.PI * r;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">
+    <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="${stroke}"/>
+    <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--text-1)" stroke-width="${stroke}" stroke-linecap="round"
+      stroke-dasharray="${(c * value) / 100} ${c}" transform="rotate(-90 ${size / 2} ${size / 2})"/>
+  </svg>`;
+}
+function bars(values, { w = 353, h = 120 } = {}) {
+  const max = Math.max(...values.map(Math.abs));
+  const bw = w / values.length;
+  const mid = h / 2;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block" aria-hidden="true">${values.map((v, i) => {
+    const bh = Math.max(1.5, (Math.abs(v) / max) * (mid - 4));
+    const yy = v >= 0 ? mid - bh : mid;
+    return `<rect x="${(i * bw + 1).toFixed(1)}" y="${yy.toFixed(1)}" width="${(bw - 2).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${v >= 0 ? 'var(--up)' : 'var(--down)'}" opacity="${i >= values.length - 5 ? 1 : 0.72}"/>`;
+  }).join('')}</svg>`;
+}
+
+const statusBar = () => `<div class="status"><span>21:42</span><span class="row" style="gap:6px">
+  <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+  <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1.5 4.2a9.5 9.5 0 0 1 13 0M4.2 7a5.6 5.6 0 0 1 7.6 0"/><circle cx="8" cy="10" r="1" fill="currentColor"/></svg>
+  <svg width="27" height="13" viewBox="0 0 27 13" fill="none"><rect x="0.5" y="0.5" width="23" height="12" rx="3.5" stroke="currentColor" opacity=".4"/><rect x="2.5" y="2.5" width="16" height="8" rx="2" fill="currentColor"/><path d="M25 4.5v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".4"/></svg>
+</span></div>`;
+
+const tabbar = (on) => `<nav class="tabbar">${['tonight', 'mine', 'explore', 'discipline'].map((t) => `<span class="${t === on ? 'on' : ''}">${ICON[t]}</span>`).join('')}</nav>`;
+const ambient = (mood) => (DIR === 'b' ? `<div class="ambient ${mood}"></div>` : '');
+const searchFloat = () => (DIR === 'b' ? `<div class="search-float">${ICON.search}<span>搜尋代號或名稱</span></div>` : '');
+const periods = (on = '3M') => `<div class="periods">${['1D', '1W', '1M', '3M', 'YTD', '1Y', 'ALL'].map((p) => `<span class="${p === on ? 'on' : ''}">${p}</span>`).join('')}</div>`;
+
+/* ============================== 今晚 ============================== */
+function tonight() {
+  const taiex = walk(62, 19980, 19398.48, 0.011, 7);
+  const disc = [
+    { label: '看完今晚簡報', state: '進行中', v: 72 },
+    { label: '新持倉檢查表', state: '1 / 1', v: 100 },
+    { label: '平倉後檢討', state: '0 / 1', v: 0 },
+  ];
+  const sizes = [132, 104, 76];
+  const discRings = `<div style="position:relative;width:132px;height:132px">${disc.map((d, i) => {
+    const s = sizes[i], off = (132 - s) / 2;
+    const r = (s - 10) / 2, c = 2 * Math.PI * r;
+    const op = [1, 0.72, 0.46][i];
+    return `<svg width="${s}" height="${s}" style="position:absolute;left:${off}px;top:${off}px" aria-hidden="true">
+      <circle cx="${s / 2}" cy="${s / 2}" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="10"/>
+      ${d.v ? `<circle cx="${s / 2}" cy="${s / 2}" r="${r}" fill="none" stroke="var(--text-1)" stroke-opacity="${op}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${(c * d.v) / 100} ${c}" transform="rotate(-90 ${s / 2} ${s / 2})"/>` : ''}
+    </svg>`;
+  }).join('')}</div>`;
+
+  return `${ambient('risk')}<div class="content">
+  ${statusBar()}
+  <div class="topbar"><span class="cap grow">9月24日（四）盤後簡報</span><span class="avatar">${ICON.person}</span></div>
+  <div class="pad" style="padding-top:var(--s3)">
+    <h1 class="title">今晚 2 檔持股需要注意，<br>大盤資金環境轉弱。</h1>
+    <div class="row" style="margin-top:var(--s4);gap:var(--s2)">
+      <span class="env"><span class="dot"></span><span class="t1 w6">資金環境：保守</span><span class="cap">1 項風險・3 項中性</span></span>
+    </div>
+    <div class="cap" style="margin-top:var(--s2)">資料至 9/24 收盤・20:31 更新・完整度 96%</div>
+  </div>
+
+  <section class="block">
+    <div class="eyebrow">大盤環境能不能積極？</div>
+    <h2 class="section">指數在年線下 8%，外資轉為淨流入</h2>
+    <div style="margin-top:var(--s5)" class="cap">加權指數</div>
+    <div class="hero">19,398.48</div>
+    <div class="body up w5">▲ 134.98（0.70%）<span class="cap">今日</span></div>
+  </section>
+  <div style="margin-top:var(--s4)">${glowLine(taiex, { h: 150, color: 'var(--down)', area: DIR === 'b' })}</div>
+  <div class="pad cap" style="margin-top:var(--s1)">近 3 個月</div>
+  <div class="pad" style="margin-top:var(--s5)">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s3)">
+      <div><div class="cap">外資</div><div class="body up w6">▲ 57.3 億</div></div>
+      <div><div class="cap">投信</div><div class="body up w6">▲ 16.6 億</div></div>
+      <div><div class="cap">自營商</div><div class="body up w6">▲ 7.6 億</div></div>
+    </div>
+    <div class="card row between" style="margin-top:var(--s4)">
+      <div><div class="body w5">5 項資金指標</div><div class="cap">年線 <span class="risk w6">風險</span>・期貨、匯率、美債 中性・M1B 累積中</div></div>
+      <span class="brand" style="width:20px">${ICON.chevRight}</span>
+    </div>
+  </div>
+
+  <section class="block">
+    <div class="eyebrow">我的持股有沒有出事？</div>
+    <h2 class="section">2 檔需要注意</h2>
+    <div style="margin-top:var(--s4)">
+      <div class="card">
+        <div class="row between"><div><span class="body w6">聯發科</span> <span class="cap">2454</span></div><span class="body w5">1,215.00</span></div>
+        <div class="row between" style="margin-top:var(--s1)"><span class="tag risk">觸及停損 1,220</span><span class="cap down w6">▼ 40.00（3.19%）</span></div>
+        <div class="cap" style="margin-top:var(--s3)">收盤低於你設定的停損價 5 元；外資連 3 日淨賣超，合計 1.2 萬張。</div>
+      </div>
+      <div class="card">
+        <div class="row between"><div><span class="body w6">長榮</span> <span class="cap">2603</span></div><span class="body w5">212.50</span></div>
+        <div class="row between" style="margin-top:var(--s1)"><span class="tag risk">新風險旗標</span><span class="cap up w6">▲ 1.50（0.71%）</span></div>
+        <div class="cap" style="margin-top:var(--s3)">融資一週增加 18%，高於近一年 95% 的時間。</div>
+      </div>
+      <div class="collapsed"><span>其他 3 檔持股沒有顯著變化</span>${ICON.chevDown}</div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="eyebrow">自選股出現了什麼新變化？</div>
+    <h2 class="section">3 檔有顯著變化</h2>
+    <div class="cap">自上次查看（9/23 21:10）以來</div>
+    <div style="margin-top:var(--s3)">
+      ${[
+        ['廣達', '2382', '綜合分 58 → 71', '▲ 2.8%', 'up', 71, 11],
+        ['智邦', '2345', '投信連 5 日淨買超', '▲ 1.2%', 'up', 66, 12],
+        ['緯穎', '6669', '當沖比率升到 42%', '▼ 0.9%', 'down', 52, 13],
+      ].map(([n, c, why, chg, d, sc, seed]) => `
+        <div class="list-row" style="grid-template-columns:1fr 64px 72px 32px">
+          <div><div class="name body">${n} <span class="cap">${c}</span></div><div class="cap">${why}</div></div>
+          ${spark(walk(30, 100, d === 'up' ? 108 : 95, 0.014, seed), d, 100)}
+          <div class="cap ${d} w6" style="text-align:right">${chg}</div>
+          <div class="mini-ring">${ring(sc, { size: 32, stroke: 3 })}<span class="v">${sc}</span></div>
+        </div>`).join('')}
+      <div class="collapsed" style="padding:0"><span>另外 11 檔變化低於門檻</span>${ICON.chevDown}</div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="eyebrow">我該記錄或檢討什麼？</div>
+    <h2 class="section">今晚的紀律：還差 1 筆檢討</h2>
+    <div class="discipline" style="margin-top:var(--s5)">
+      ${discRings}
+      <div class="legend">
+        ${disc.map((d, i) => `<div><i style="opacity:${[1, 0.72, 0.46][i]}"></i><span class="cap t1">${d.label}</span><span class="cap">${d.state}</span></div>`).join('')}
+        <div style="grid-template-columns:1fr"><span class="link">寫下台積電的平倉檢討 ${ICON.chevRight}</span></div>
+      </div>
+    </div>
+    <div class="cap" style="margin-top:var(--s4)">連續 12 天完成儀式・休市日不中斷・紀律等級 4</div>
+  </section>
+  </div>
+  ${tabbar('tonight')}`;
+}
+
+/* ============================== 我的股票 ============================== */
+function mine() {
+  const pv = walk(62, 1238000, 1284560, 0.009, 21);
+  const rows = [
+    { n: '聯發科', c: '2454', p: '1,215.00', chg: '3.19%', d: 'down', sc: 58, note: '<span class="risk w6">觸及停損</span>', seed: 31, end: 94 },
+    { n: '長榮', c: '2603', p: '212.50', chg: '0.71%', d: 'up', sc: 47, note: '<span class="risk w6">新風險旗標</span>', seed: 32, end: 103 },
+    { n: '台積電', c: '2330', p: '1,085.00', chg: '2.36%', d: 'up', sc: 78, note: '綜合分 +6', seed: 33, end: 109 },
+  ];
+  return `${ambient('down')}<div class="content">
+  ${statusBar()}
+  <div class="topbar"><span class="cap grow">我的股票</span><span class="avatar">${ICON.person}</span></div>
+  <div class="pad" style="padding-top:var(--s3)">
+    <div class="eyebrow">我的持股有沒有出事？</div>
+    <h1 class="title">持股今天小跌，<br>2 檔需要注意。</h1>
+    <div class="cap" style="margin-top:var(--s5)">組合市值・5 檔</div>
+    <div class="hero">1,284,560</div>
+    <div class="body down w5">▼ 5,230（0.41%）<span class="cap">今日</span><span class="ghost-delta">較上次查看 ▼ 12,480</span></div>
+  </div>
+  <div style="margin-top:var(--s4)">${glowLine(pv, { h: 170, color: 'var(--up)', area: DIR === 'b', baseline: pv[0] })}</div>
+  ${periods('3M')}
+  <div class="pad" style="margin-top:var(--s8)">
+    <div class="seg"><span class="on">持股<b>5</b></span><span>自選<b>14</b></span></div>
+    <div class="cap" style="margin-top:var(--s4)">依自上次查看（9/23 21:10）以來的變化排序</div>
+    <div style="margin-top:var(--s1)">
+      ${rows.map((r) => `
+        <div class="list-row">
+          <div><div class="name body">${r.n}</div><div class="cap">${r.c}・${r.note}</div></div>
+          ${spark(walk(30, 100, r.end, 0.014, r.seed), r.d, 100)}
+          <div class="price"><div class="body">${r.p}</div><span class="pill ${r.d} ${r.d}">${r.d === 'up' ? '▲' : '▼'} ${r.chg}</span></div>
+          <div class="mini-ring">${ring(r.sc, { size: 32, stroke: 3 })}<span class="v">${r.sc}</span></div>
+        </div>`).join('')}
+      <div class="collapsed" style="padding:0"><span>2 檔變化低於門檻（鴻海、元大台灣50）</span>${ICON.chevDown}</div>
+    </div>
+    <div class="cap" style="margin-top:var(--s2)">左滑可移除或移到其他群組・長按快速預覽</div>
+  </div>
+  <div style="height:${DIR === 'b' ? 64 : 0}px"></div>
+  </div>
+  ${searchFloat()}
+  ${tabbar('mine')}`;
+}
+
+/* ============================== 個股頁 ============================== */
+function stock() {
+  const px = walk(62, 1012, 1085, 0.012, 41);
+  const flows = walk(60, 0, 0, 0, 1).map((_, i) => {
+    const r = rng(100 + i)();
+    const trend = i > 52 ? 0.7 : i > 30 ? 0.1 : -0.15;
+    return Math.round((r - 0.5 + trend) * 9000);
+  });
+  const scores = [['籌碼', 82, '100%'], ['動能', 74, '100%'], ['基本面', 69, '92%'], ['評價', 41, '100%']];
+  return `${ambient('up')}<div class="content">
+  ${statusBar()}
+  <div class="topbar" style="padding-left:6px">
+    <span class="icon-btn">${ICON.back}</span>
+    <span class="cap grow" style="text-align:center">持股 3 / 5・左右滑動切換</span>
+    <span class="icon-btn">${ICON.star}</span>
+    <span class="text-btn">進階</span>
+  </div>
+  <div class="pad" style="padding-top:var(--s2)">
+    <div class="eyebrow">2330・上市・半導體</div>
+    <h1 class="title">台積電</h1>
+    <div class="hero" style="margin-top:var(--s1)">1,085.00</div>
+    <div class="body up w5">▲ 25.00（2.36%）<span class="cap">今日</span></div>
+  </div>
+  <div style="margin-top:var(--s4)">${glowLine(px, { h: 200, color: 'var(--up)', area: DIR === 'b', baseline: px[0] })}</div>
+  ${periods('3M')}
+  <div class="pad" style="margin-top:var(--s8)">
+    <p class="body" style="margin:0">外資與投信連 5 日淨流入，綜合分升到 <b>78</b>；估值落在近 5 年區間的中上緣。</p>
+    <div class="rings4" style="margin-top:var(--s6)">
+      ${scores.map(([l, v, full]) => `<div><div class="ring">${ring(v)}<span class="v">${v}</span></div><div class="cap t1" style="margin-top:var(--s2)">${l}</div><div class="cap">資料 ${full}</div></div>`).join('')}
+    </div>
+  </div>
+
+  <section class="block">
+    <div class="eyebrow">法人</div>
+    <h2 class="section">外資近 20 日淨買 3.2 萬張</h2>
+    <div class="seg" style="margin-top:var(--s4)"><span class="on">外資</span><span>投信</span><span>自營商</span></div>
+    <div style="margin-top:var(--s5)">${bars(flows)}</div>
+    <div class="row between cap" style="margin-top:var(--s1)"><span>60 個交易日前</span><span><span class="up">■</span> 淨買超　<span class="down">■</span> 淨賣超</span></div>
+    <div class="explain">
+      <div class="body w6">白話重點</div>
+      <p class="cap t1" style="margin:var(--s1) 0 0">近 20 日外資淨買超高於過去一年 88% 的時間。外資 20 日成本約 1,032 元<span class="est">估</span>，現價高出 5.1%。</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="eyebrow">籌碼・營收・估值</div>
+    <div class="card" style="margin-top:var(--s3)">
+      <div class="row between"><span class="body">融資</span><span class="body up w5">▲ 1,204 張</span></div>
+      <div class="row between" style="margin-top:var(--s2)"><span class="body">8 月營收年增</span><span class="body up w5">▲ 31.4%</span></div>
+      <div class="row between" style="margin-top:var(--s2)"><span class="body">本益比</span><span class="body w5">22.4<span class="cap">・5 年第 64 百分位</span></span></div>
+    </div>
+  </section>
+  </div>
+  ${tabbar('mine')}`;
+}
+
+screen.innerHTML = PAGE === 'mine' ? mine() : PAGE === 'stock' ? stock() : tonight();
+document.fonts.ready.then(() => document.body.setAttribute('data-ready', '1'));
+</script>
+</body>
+</html>
