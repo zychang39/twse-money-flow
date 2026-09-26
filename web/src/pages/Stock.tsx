@@ -9,7 +9,8 @@ import { IconStar, IconStarFill } from '../components/Icons';
 import { ScoreDetailView } from '../components/ScoreDetail';
 import { StockExtras } from '../components/StockExtras';
 import { useAsync, useDb } from '../hooks';
-import { loadStock, loadSummary } from '../data/api';
+import { loadStock } from '../data/api';
+import { useScoredSummary } from '../data/useSummary';
 import { addWatch, isWatched, removeWatch } from '../db/db';
 import { fmtInt, fmtLots, fmtNum, fmtPrice } from '../lib/format';
 import { series, toOhlc, volumeSeries, type PriceMode } from '../lib/history';
@@ -37,7 +38,7 @@ function cssVar(name: string): string {
 
 export default function Stock({ code }: { code: string }) {
   const hist = useAsync(() => loadStock(code), [code]);
-  const summary = useAsync(loadSummary, []);
+  const summary = useScoredSummary();
   const watched = useDb(() => isWatched(code), [code]);
   const [mode, setMode] = useState<PriceMode>('adj');
   const [lower, setLower] = useState('foreign');

@@ -43,3 +43,25 @@ test('自選：新增後出現卡片，點擊進入個股頁', async ({ page }) 
   await expect(page.locator('h1.large-title')).toHaveText(/台積電/);
   await expect(page.getByRole('img', { name: /K 線圖/ })).toBeVisible();
 });
+
+test('選股：切換預設組合、新增條件並看到結果', async ({ page }) => {
+  await page.goto('#/screener');
+  await page.getByRole('button', { name: '強勢突破' }).click();
+  await expect(page.getByRole('heading', { name: /結果/ })).toBeVisible();
+  await page.getByRole('button', { name: '新增條件' }).click();
+  await expect(page.getByLabel('欄位').last()).toHaveValue('composite');
+  await expect(page.getByRole('link', { name: '一鍵回測' })).toHaveAttribute('href', /#\/backtest\?c=/);
+});
+
+test('方法說明由設定產生', async ({ page }) => {
+  await page.goto('#/more/methodology');
+  await expect(page.getByText('外資連買天數')).toBeVisible();
+  await expect(page.getByText(/線性：-5 → 0 分/).first()).toBeVisible();
+});
+
+test('設定：調整權重後自選卡片仍可顯示', async ({ page }) => {
+  await page.goto('#/more/settings');
+  await expect(page.getByLabel('籌碼分權重')).toBeVisible();
+  await page.getByRole('button', { name: '深色' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+});

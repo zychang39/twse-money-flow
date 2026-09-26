@@ -7,8 +7,8 @@ import { Flags } from '../components/Flags';
 import { Sheet } from '../components/Sheet';
 import { StockSearch } from '../components/StockSearch';
 import { IconPlus } from '../components/Icons';
-import { useAsync, useDb } from '../hooks';
-import { loadSummary } from '../data/api';
+import { useDb } from '../hooks';
+import { useScoredSummary } from '../data/useSummary';
 import { addWatch, listWatch, removeWatch, updateWatch, type WatchItem } from '../db/db';
 import { fmtLots } from '../lib/format';
 import { parseImport } from '../lib/importer';
@@ -83,7 +83,7 @@ export function StockCard({ r, code, onRemove, editing, groups, onGroup }: {
 }
 
 export default function Watchlist() {
-  const summary = useAsync(loadSummary, []);
+  const summary = useScoredSummary();
   const items = useDb(listWatch) ?? [];
   const [group, setGroup] = useState('全部');
   const [sort, setSort] = useState<SortKey>('custom');

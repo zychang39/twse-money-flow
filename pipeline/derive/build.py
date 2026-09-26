@@ -206,7 +206,7 @@ def stock_file(p: Panels, code: str, metrics: dict[str, Any], extra: dict[str, A
     }
 
 
-SUMMARY_COLUMNS = [
+BASE_COLUMNS = [
     "code",
     "name",
     "market",
@@ -229,28 +229,88 @@ SUMMARY_COLUMNS = [
     "pe",
     "pb",
     "dividend_yield",
-    "flags",
 ]
+SCORE_COLUMNS = ["composite", "chip", "momentum", "fundamental", "valuation"]
+
+
+def summary_columns() -> list[str]:
+    fields = list(config.load("screener")["fields"].keys())
+    extra = [f for f in fields if f not in BASE_COLUMNS and f not in SCORE_COLUMNS]
+    return [
+        *BASE_COLUMNS,
+        *SCORE_COLUMNS,
+        *extra,
+        "margin_usage",
+        "turnover",
+        "price_change_5d",
+        "fair_position",
+        "flags",
+    ]
+
+
+SUMMARY_COLUMNS = summary_columns()
 
 
 def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
+    from pipeline.derive import fairvalue, metrics, scores, stockdetail
+    from pipeline.derive import flags as flagmod
+
     p = build_panels(ds)
     last_date = p.dates[-1]
+    # 合理價（逐日），供估值因子使用
+    divs = fairvalue.dividend_panel(ds.exright, p.dates, p.codes)
+    fv = fairvalue.fair_value_panels(p.close, p.pe, p.pb, divs)
+    extra = (
+        {"fair_value_position": fv["position"], **ds.extra_panels}
+        if hasattr(ds, "extra_panels")
+        else {"fair_value_position": fv["position"]}
+    )
+    mp = metrics.build_metrics(p, ds.revenue, extra)
+    sc = scores.compute_scores(mp)
+    flags = flagmod.build_flags(ds, p, mp)
+    cols = SUMMARY_COLUMNS
     rows: list[list[Any]] = []
     written = 0
     active = [c for c in p.codes if pd.notna(p.close[c].iloc[-20:]).any()]  # 近 20 日有交易
+    since = p.dates[max(0, len(p.dates) - 260)]
     for code in active:
         m = stock_metrics(p, code)
         if not m:
             continue
-        m["flags"] = []
+        for name in cols:
+            if name in m or name in ("code", "name", "market", "industry", "flags"):
+                continue
+            if name in SCORE_COLUMNS:
+                m[name] = clean(sc[name][code].iloc[-1], 0)
+            elif name == "fair_position":
+                m[name] = clean(fv["position"][code].iloc[-1], 1)
+            else:
+                m[name] = clean(mp.last(name, code), 2)
+        m["flags"] = flags.get(code, [])
         m.update(
             {"code": code, "name": p.names.get(code), "market": p.markets.get(code), "industry": p.industries.get(code)}
         )
-        rows.append([clean(m.get(col)) for col in SUMMARY_COLUMNS])
-        write_json(out / "stocks" / f"{code}.json", stock_file(p, code, m, {}))
+        rows.append([clean(m.get(col)) for col in cols])
+        fair = fairvalue.fair_detail(fv, p.close, code)
+        idx = [d for d, ok in zip(p.dates, p.close[code].notna(), strict=True) if ok]
+        rev_now = {k: mp.last(k, code) for k in ("revenue_high_ratio", "revenue_yoy_3m", "revenue_growth_months")}
+        extra_file = {
+            "scores": scores.factor_detail(mp, sc, code),
+            "fair": fair,
+            "revenue": stockdetail.revenue_table(ds.revenue, code),
+            "events": stockdetail.events_for(ds, code, since),
+            "cost": stockdetail.cost_lines(p, code, idx) or None,
+            "summary_text": stockdetail.health_summary(code, m, m["flags"], fair, rev_now),
+            "flags": m["flags"],
+            "series": {
+                k: arr(mp.get(k)[code].reindex(idx).to_numpy(), 2)
+                for k in ("rs_percentile", "pe_percentile", "pb_percentile")
+                if k in mp.panels
+            },
+        }
+        write_json(out / "stocks" / f"{code}.json", stock_file(p, code, m, extra_file))
         written += 1
-    summary = {"date": last_date, "columns": SUMMARY_COLUMNS, "rows": rows}
+    summary = {"date": last_date, "columns": cols, "rows": rows}
     inferred = p.events[p.events["source"] == "inferred"] if not p.events.empty else p.events
     meta_extra = {
         "adjust_events": len(p.events),
@@ -262,5 +322,8 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
         ],
     }
     write_json(out / "summary.json", summary)
-    _ = config
-    return {"stocks": written, "dates": len(p.dates), "meta": {"stocks": written, **meta_extra}}
+    write_json(out / "disposition.json", flagmod.disposition_watchlist(ds, p))
+    from pipeline.derive import extras as extras_mod
+
+    report_extra = extras_mod.build_extras(ds, p, mp, sc, fv, out)
+    return {"stocks": written, "dates": len(p.dates), **report_extra, "meta": {"stocks": written, **meta_extra}}
