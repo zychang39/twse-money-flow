@@ -1,0 +1,15 @@
+trade_date=20260924
+twse_openapi_swagger.json|https://openapi.twse.com.tw/v1/swagger.json|200 309960
+twse_STOCK_DAY_ALL_openapi.json|https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL|200 318836
+twse_BWIBBU_ALL.json|https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL|200 116480
+twse_TWT48U_ALL.json|https://openapi.twse.com.tw/v1/exchangeReport/TWT48U_ALL|200 7695
+twse_t187ap05_L.json|https://openapi.twse.com.tw/v1/opendata/t187ap05_L|200 606355
+twse_holidaySchedule.json|https://openapi.twse.com.tw/v1/holidaySchedule/holidaySchedule|200 3774
+twse_rwd_STOCK_DAY_ALL.json|https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY_ALL?date=20260924&response=json|200 136800
+twse_rwd_T86.json|https://www.twse.com.tw/rwd/zh/fund/T86?date=20260924&selectType=ALLBUT0999&response=json|200 187155
+twse_rwd_MI_MARGN.json|https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date=20260924&selectType=ALL&response=json|200 128475
+twse_rwd_BWIBBU_d.json|https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?date=20260924&selectType=ALL&response=json|200 66299
+twse_rwd_TWT49U.json|https://www.twse.com.tw/rwd/zh/exRight/TWT49U?startDate=20260825&endDate=20260924&response=json|200 32376
+twse_rwd_MI_INDEX.json|https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=20260924&type=IND&response=json|200 28562
+mops_t21sc03_sii.html|https://mopsov.twse.com.tw/nas/t21/sii/t21sc03_115_8_0.html|200 454277
+mops_t21sc03_otc.html|https://mopsov.twse.com.tw/nas/t21/otc/t21sc03_115_8_0.html|200 394827
