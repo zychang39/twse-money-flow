@@ -1,0 +1,2 @@
+# 開發期：每行一個 pipeline 子指令（自動加上 --data-dir data），push 後由 dev-pipeline.yml 在 Actions 執行
+run --task daily
