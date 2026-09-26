@@ -1,0 +1,71 @@
+name: Smoke test
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "最近一個交易日 YYYYMMDD"
+        default: "20260924"
+        required: true
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Probe data sources from GitHub runner
+        shell: bash
+        env:
+          D: ${{ inputs.date }}
+        run: |
+          set +e
+          UA="Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+          D0=$(date -d "${D} -30 days" +%Y%m%d)
+          Y=${D:0:4}; M=$((10#${D:4:2} - 1))
+          if [ "$M" -eq 0 ]; then M=12; Y=$((Y - 1)); fi
+          ROC=$((Y - 1911))
+          cat > list.txt <<EOF
+          TWSE OpenAPI 目錄|https://openapi.twse.com.tw/v1/swagger.json
+          上市 最新收盤|https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL
+          上市 本益比殖利率|https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL
+          上市 除權息預告|https://openapi.twse.com.tw/v1/exchangeReport/TWT48U_ALL
+          上市 月營收最新|https://openapi.twse.com.tw/v1/opendata/t187ap05_L
+          休市日曆|https://openapi.twse.com.tw/v1/holidaySchedule/holidaySchedule
+          上市 歷史收盤|https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY_ALL?date=${D}&response=json
+          上市 三大法人|https://www.twse.com.tw/rwd/zh/fund/T86?date=${D}&selectType=ALLBUT0999&response=json
+          上市 融資融券|https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date=${D}&selectType=ALL&response=json
+          上市 本益比歷史|https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?date=${D}&selectType=ALL&response=json
+          上市 除權息結果|https://www.twse.com.tw/rwd/zh/exRight/TWT49U?startDate=${D0}&endDate=${D}&response=json
+          櫃買 最新收盤|https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes
+          櫃買 月營收|https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap05_O
+          月營收歷史 MOPS|https://mopsov.twse.com.tw/nas/t21/sii/t21sc03_${ROC}_${M}_0.html
+          集保股權分散|https://opendata.tdcc.com.tw/getOD.ashx?id=1-5
+          期交所 三大法人頁|https://www.taifex.com.tw/cht/3/futContractsDate
+          期交所 OpenAPI|https://openapi.taifex.com.tw/
+          FRED 美10年債|https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10
+          FRED 美元指數|https://fred.stlouisfed.org/graph/fredgraph.csv?id=DTWEXBGS
+          央行|https://www.cbc.gov.tw/
+          EOF
+          {
+            echo "## 資料源冒煙測試（日期 ${D}）"
+            echo ""
+            echo "| 來源 | HTTP | 位元組 | 秒 | 內容開頭 |"
+            echo "|---|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          fail=0
+          while IFS='|' read -r name url; do
+            [ -z "$name" ] && continue
+            res=$(curl -sS -L -A "$UA" -o body.bin -w "%{http_code} %{size_download} %{time_total}" --max-time 40 "$url" 2>err.txt)
+            [ -z "$res" ] && res="000 0 0"
+            read -r code size secs <<< "$res"
+            preview=$(head -c 400 body.bin 2>/dev/null | tr -d '\r\n|`' | cut -c1-100 | iconv -f utf-8 -t utf-8 -c)
+            [ "$code" = "000" ] && preview=$(tr -d '\r\n|`' < err.txt | cut -c1-100)
+            mark="✅"
+            if [ "$code" != "200" ]; then mark="❌"; fail=$((fail+1))
+            elif [ "${size%.*}" -lt 300 ]; then mark="⚠️"; fi
+            echo "| ${mark} ${name} | ${code} | ${size} | ${secs} | ${preview} |" >> "$GITHUB_STEP_SUMMARY"
+            rm -f body.bin
+            sleep 4
+          done < list.txt
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "失敗數：${fail}" >> "$GITHUB_STEP_SUMMARY"
