@@ -1,0 +1,57 @@
+name: Capture fixtures
+on:
+  workflow_dispatch:
+  push:
+    branches: ['claude/**']
+    paths: ['tests/fixtures/capture-list.txt']
+permissions:
+  contents: write
+concurrency:
+  group: capture-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture real responses
+        shell: bash
+        run: |
+          set +e
+          UA="Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+          LIST=tests/fixtures/capture-list.txt
+          OUT=tests/fixtures/raw
+          mkdir -p "$OUT"
+          RD=$(curl -sS -A "$UA" --max-time 40 https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL | jq -r '.[0].Date')
+          if [ -n "$RD" ] && [ "$RD" != "null" ]; then
+            DATE=$(( 10#${RD:0:3} + 1911 ))${RD:3:4}
+          else
+            DATE=$(date -d yesterday +%Y%m%d)
+          fi
+          D0=$(date -d "${DATE} -30 days" +%Y%m%d)
+          Y=${DATE:0:4}; M=$((10#${DATE:4:2} - 1))
+          if [ "$M" -eq 0 ]; then M=12; Y=$((Y - 1)); fi
+          ROC=$((Y - 1911))
+          echo "trade_date=${DATE}" > "$OUT/_meta.txt"
+          echo "## 取樣結果（交易日 ${DATE}）" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 檔名 | HTTP | 位元組 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          while IFS='|' read -r name url || [ -n "$name" ]; do
+            case "$name" in ''|'#'*) continue;; esac
+            url=${url//\{DATE\}/$DATE}; url=${url//\{D0\}/$D0}
+            url=${url//\{ROC\}/$ROC}; url=${url//\{M\}/$M}
+            res=$(curl -sS -L -A "$UA" -o "$OUT/$name" -w "%{http_code} %{size_download}" --max-time 60 "$url")
+            echo "${name}|${url}|${res}" >> "$OUT/_meta.txt"
+            echo "| ${name} | ${res% *} | ${res#* } |" >> "$GITHUB_STEP_SUMMARY"
+            sleep 4
+          done < "$LIST"
+      - name: Commit samples
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/fixtures/raw
+          git commit -m "chore: capture fixtures [skip ci]" || exit 0
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin HEAD:"${GITHUB_REF_NAME}"
