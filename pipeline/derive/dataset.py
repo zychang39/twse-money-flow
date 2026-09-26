@@ -48,7 +48,7 @@ class Dataset:
     revenue: pd.DataFrame = field(default_factory=pd.DataFrame)
     company: pd.DataFrame = field(default_factory=pd.DataFrame)
     margin_total: pd.DataFrame = field(default_factory=pd.DataFrame)
-    extra: dict[str, pd.DataFrame] = field(default_factory=dict)
+    extra: dict[str, list[pd.DataFrame]] = field(default_factory=dict)
     manifest: dict[str, Any] = field(default_factory=dict)
 
     @property

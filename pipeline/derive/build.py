@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from pipeline.core import config
+from pipeline.derive import adjust
 from pipeline.derive import indicators as ind
 from pipeline.derive.dataset import Dataset, industry_map, pivot, shares_outstanding
 from pipeline.derive.export import arr, clean, is_listed_security, write_json
@@ -45,6 +46,7 @@ class Panels:
     pb: pd.DataFrame
     dy: pd.DataFrame
     extra: dict[str, pd.DataFrame] = field(default_factory=dict)
+    events: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     @property
     def adj_close(self) -> pd.DataFrame:
@@ -71,33 +73,24 @@ def build_panels(ds: Dataset) -> Panels:
         wide = pivot(df, col, dates)
         return wide.reindex(columns=codes) if not wide.empty else pd.DataFrame(np.nan, index=dates, columns=codes)
 
-    events = (
-        pd.concat(
-            [
-                e[["date", "code", "factor"]]
-                for e in (ds.exright, ds.capreduce)
-                if not e.empty and "factor" in e.columns
-            ],
-            ignore_index=True,
-        )
-        if (not ds.exright.empty or not ds.capreduce.empty)
-        else pd.DataFrame(columns=["date", "code", "factor"])
-    )
     close = p(q, "close")
-    return Panels(
+    open_ = p(q, "open")
+    change = p(q, "change")
+    events = adjust.all_events(close, open_, change, ds.exright, ds.capreduce, *ds.extra.get("splits", []))
+    panels = Panels(
         dates=dates,
         codes=codes,
         names=names,
         markets=markets,
         industries=industry_map(ds),
         shares=shares_outstanding(ds),
-        open=p(q, "open"),
+        open=open_,
         high=p(q, "high"),
         low=p(q, "low"),
         close=close,
         volume=p(q, "volume"),
         value=p(q, "value"),
-        change=p(q, "change"),
+        change=change,
         af=ind.adjustment_table(dates, codes, events),
         foreign_net=p(ds.insti, "foreign_net"),
         trust_net=p(ds.insti, "trust_net"),
@@ -110,6 +103,8 @@ def build_panels(ds: Dataset) -> Panels:
         pb=p(ds.valuation, "pb"),
         dy=p(ds.valuation, "dividend_yield"),
     )
+    panels.events = events
+    return panels
 
 
 def _last_valid(s: pd.Series) -> float | None:
@@ -256,6 +251,16 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
         write_json(out / "stocks" / f"{code}.json", stock_file(p, code, m, {}))
         written += 1
     summary = {"date": last_date, "columns": SUMMARY_COLUMNS, "rows": rows}
+    inferred = p.events[p.events["source"] == "inferred"] if not p.events.empty else p.events
+    meta_extra = {
+        "adjust_events": len(p.events),
+        "adjust_inferred": [
+            {"date": d, "code": c, "name": p.names.get(c, c), "factor": round(float(f), 4)}
+            for d, c, f in zip(
+                inferred.get("date", []), inferred.get("code", []), inferred.get("factor", []), strict=True
+            )
+        ],
+    }
     write_json(out / "summary.json", summary)
     _ = config
-    return {"stocks": written, "dates": len(p.dates), "meta": {"stocks": written}}
+    return {"stocks": written, "dates": len(p.dates), "meta": {"stocks": written, **meta_extra}}
