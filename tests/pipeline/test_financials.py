@@ -32,8 +32,17 @@ def test_quarterly_decomposition_and_factors():
             if y == 2026 and q > 2:
                 break
             gp = 30 if y == 2026 else 20
-            rows.append({"code": "A", "year": y, "quarter": q, "revenue": 100 * q, "gross_profit": gp * q,
-                         "ni_parent": 10 * q, "equity_parent": 200})
+            rows.append(
+                {
+                    "code": "A",
+                    "year": y,
+                    "quarter": q,
+                    "revenue": 100 * q,
+                    "gross_profit": gp * q,
+                    "ni_parent": 10 * q,
+                    "equity_parent": 200,
+                }
+            )
     fin = pd.DataFrame(rows)
     q = fundamentals.quarterly(fin)
     assert q[(q["year"] == 2026) & (q["quarter"] == 2)].iloc[0]["rev_q"] == 100
