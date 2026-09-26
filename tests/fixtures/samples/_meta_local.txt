@@ -1,0 +1,37 @@
+# 本機（Claude Code 雲端環境）直接抓取的樣本；格式：檔名|方法|網址|HTTP 位元組
+tpex_dailyQuotes.json|GET|https://www.tpex.org.tw/www/zh-tw/afterTrading/dailyQuotes?date=2026%2F09%2F24&id=&response=json|200 1748597
+tpex_dailyQuotes_hist.json|GET|https://www.tpex.org.tw/www/zh-tw/afterTrading/dailyQuotes?date=2024%2F01%2F02&id=&response=json|200 1623079
+tpex_insti.json|GET|https://www.tpex.org.tw/www/zh-tw/insti/dailyTrade?type=Daily&sect=EW&date=2026%2F09%2F24&id=&response=json|200 144500
+tpex_insti_hist.json|GET|https://www.tpex.org.tw/www/zh-tw/insti/dailyTrade?type=Daily&sect=EW&date=2024%2F01%2F02&id=&response=json|200 124522
+tpex_margin.json|GET|https://www.tpex.org.tw/www/zh-tw/margin/balance?date=2026%2F09%2F24&id=&response=json|200 107203
+tpex_pe.json|GET|https://www.tpex.org.tw/www/zh-tw/afterTrading/peQryDate?date=2026%2F09%2F24&id=&response=json|200 70258
+tpex_sbl.json|GET|https://www.tpex.org.tw/www/zh-tw/margin/sbl?date=2026%2F09%2F24&id=&response=json|200 99263
+tpex_qfii.json|GET|https://www.tpex.org.tw/www/zh-tw/insti/qfii?date=2026%2F09%2F24&id=&response=json|200 81747
+tpex_daytrade.json|GET|https://www.tpex.org.tw/www/zh-tw/intraday/stat?date=2026%2F09%2F24&type=Daily&response=json|200 47944
+tpex_attention.json|GET|https://www.tpex.org.tw/www/zh-tw/bulletin/attention?startDate=2026%2F09%2F01&endDate=2026%2F09%2F24&response=json|200 108938
+tpex_disposal.json|GET|https://www.tpex.org.tw/www/zh-tw/bulletin/disposal?startDate=2026%2F09%2F01&endDate=2026%2F09%2F24&response=json|200 78627
+tpex_warning.json|GET|https://www.tpex.org.tw/www/zh-tw/bulletin/warning?date=2026%2F09%2F24&response=json|200 652
+tpex_exDailyQ.json|GET|https://www.tpex.org.tw/www/zh-tw/bulletin/exDailyQ?startDate=2026%2F08%2F25&endDate=2026%2F09%2F24&response=json|200 31164
+tpex_revivt.json|GET|https://www.tpex.org.tw/www/zh-tw/bulletin/revivt?startDate=2024%2F01%2F01&endDate=2026%2F09%2F24&response=json|200 21835
+tpex_inx.json|GET|https://www.tpex.org.tw/www/zh-tw/indexInfo/inx?date=2026%2F09%2F24&response=json|200 1267
+tpex_tradingDate.json|GET|https://www.tpex.org.tw/www/zh-tw/bulletin/tradingDate?response=json|200 8792
+tpex_openapi_t187ap03_O.json|GET|https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O|200 1074405
+tpex_openapi_t187ap05_O.json|GET|https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap05_O|200 496547
+tpex_openapi_exright_prepost.json|GET|https://www.tpex.org.tw/openapi/v1/tpex_exright_prepost|200 31484
+tpex_openapi_reward_index.json|GET|https://www.tpex.org.tw/openapi/v1/tpex_reward_index|200 1316
+tpex_openapi_t187ap14_O.json|GET|https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap14_O|200 325343
+tpex_openapi_t187ap17_O.json|GET|https://www.tpex.org.tw/openapi/v1/mopsfin_187ap17_O|200 205710
+tpex_openapi_t187ap12_O.json|GET|https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap12_O|200 575
+tpex_openapi_margin_term.json|GET|https://www.tpex.org.tw/openapi/v1/tpex_margin_trading_term|200 3107
+tpex_openapi_warning_note.json|GET|https://www.tpex.org.tw/openapi/v1/tpex_trading_warning_note|200 457
+tpex_openapi_cmode.json|GET|https://www.tpex.org.tw/openapi/v1/tpex_cmode|200 4583
+tdcc_1-5.csv|GET|https://opendata.tdcc.com.tw/getOD.ashx?id=1-5|200 2370404
+treasury_2026.csv|GET|https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/2026/all?type=daily_treasury_yield_curve&field_tdr_date_value=2026&page&_format=csv|200 15095
+taifex_futContractsDate_MXF.csv|POST queryStartDate=2026%2F09%2F01&queryEndDate=2026%2F09%2F24&commodityId=MXF|https://www.taifex.com.tw/cht/3/futContractsDateDown|200 6052
+taifex_futContractsDate_TXF.csv|POST queryStartDate=2026%2F09%2F01&queryEndDate=2026%2F09%2F24&commodityId=TXF|https://www.taifex.com.tw/cht/3/futContractsDateDown|200 6589
+taifex_futContractsDate_TMF.csv|POST queryStartDate=2026%2F09%2F01&queryEndDate=2026%2F09%2F24&commodityId=TMF|https://www.taifex.com.tw/cht/3/futContractsDateDown|200 5514
+taifex_futDataDown_MTX.csv|POST down_type=1&commodity_id=MTX&commodity_id2=&queryStartDate=2026%2F09%2F23&queryEndDate=2026%2F09%2F24|https://www.taifex.com.tw/cht/3/futDataDown|200 5893
+taifex_futDataDown_TMF.csv|POST down_type=1&commodity_id=TMF&commodity_id2=&queryStartDate=2026%2F09%2F23&queryEndDate=2026%2F09%2F24|https://www.taifex.com.tw/cht/3/futDataDown|200 5720
+taifex_dailyFXRate.csv|POST queryStartDate=2026%2F09%2F01&queryEndDate=2026%2F09%2F24|https://www.taifex.com.tw/cht/3/dailyFXRateDown|200 1720
+taifex_openapi_insti_fut.json|GET|https://openapi.taifex.com.tw/v1/MarketDataOfMajorInstitutionalTradersDetailsOfFuturesContractsBytheDate|200 33967
+tpex_etfSplitRslt.json|GET|https://www.tpex.org.tw/www/zh-tw/bulletin/etfSplitRslt?startDate=2020%2F01%2F01&endDate=2026%2F09%2F24&response=json|200

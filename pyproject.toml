@@ -1,0 +1,27 @@
+[project]
+name = "twse-money-flow-pipeline"
+version = "1.0.0"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["pipeline", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003", "E501"]  # 允許全形標點；行長由 formatter 處理（長中文字串除外）
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_unused_ignores = false
+check_untyped_defs = true
+files = ["pipeline"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/pipeline"]
+addopts = "-q"
+
+[tool.ruff.lint.isort]
+known-first-party = ["pipeline", "tests"]

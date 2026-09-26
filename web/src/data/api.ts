@@ -1,0 +1,45 @@
+/** 讀取 pipeline 產生的衍生資料（./data/*.json）。記憶體快取；離線時由 service worker 提供快取。 */
+import type { Health, Meta, StockHistory, StockRow, Summary } from './types';
+
+const BASE = `${import.meta.env.BASE_URL}data/`;
+const cache = new Map<string, Promise<unknown>>();
+
+export class DataError extends Error {}
+
+async function getJson<T>(path: string): Promise<T> {
+  if (!cache.has(path)) {
+    const p = fetch(BASE + path).then(async (res) => {
+      if (!res.ok) throw new DataError(`${path}：HTTP ${res.status}`);
+      return res.json();
+    });
+    p.catch(() => cache.delete(path));
+    cache.set(path, p);
+  }
+  return cache.get(path) as Promise<T>;
+}
+
+export function rowsToObjects<T = StockRow>(summary: Pick<Summary, 'columns' | 'rows'>): T[] {
+  return summary.rows.map((r) => {
+    const o: Record<string, unknown> = {};
+    summary.columns.forEach((c, i) => (o[c] = r[i]));
+    return o as T;
+  });
+}
+
+export const loadMeta = () => getJson<Meta>('meta.json');
+export const loadHealth = () => getJson<Health>('health.json');
+
+let summaryIndex: Promise<{ date: string; rows: StockRow[]; byCode: Map<string, StockRow> }> | null = null;
+export function loadSummary() {
+  if (!summaryIndex) {
+    summaryIndex = getJson<Summary>('summary.json').then((s) => {
+      const rows = rowsToObjects<StockRow>(s);
+      return { date: s.date, rows, byCode: new Map(rows.map((r) => [r.code, r])) };
+    });
+    summaryIndex.catch(() => (summaryIndex = null));
+  }
+  return summaryIndex;
+}
+
+export const loadStock = (code: string) => getJson<StockHistory>(`stocks/${encodeURIComponent(code)}.json`);
+export const loadJson = <T>(path: string) => getJson<T>(path);

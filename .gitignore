@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+web/dist/
+web/public/data/
+web/test-results/
+web/playwright-report/
+
+# 資料（data 分支的工作目錄）
+/data/
+
+# 本機抓取的完整樣本（裁切後的片段在 tests/fixtures/samples）
+tests/fixtures/local/*
+!tests/fixtures/local/.gitkeep

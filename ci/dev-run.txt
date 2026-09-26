@@ -1,0 +1,4 @@
+# 開發期：每行一個 pipeline 子指令（自動加上 --data-dir data），push 後由 dev-pipeline.yml 在 Actions 執行
+run --task backfill --source twse_exright,tpex_exright,twse_capreduce,tpex_capreduce --start 2020-09-01 --end 2026-09-24
+run --task backfill --source twse_attention,tpex_attention,twse_disposition,tpex_disposition,tpex_index,mops_revenue --start 2023-06-01 --end 2026-09-24
+run --task backfill --start 2023-09-01 --end 2026-09-24 --max-minutes 250
