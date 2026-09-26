@@ -1,0 +1,15 @@
+# 檔名|網址（可用 {DATE} {D0} {ROC} {M}）
+twse_openapi_swagger.json|https://openapi.twse.com.tw/v1/swagger.json
+twse_STOCK_DAY_ALL_openapi.json|https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL
+twse_BWIBBU_ALL.json|https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL
+twse_TWT48U_ALL.json|https://openapi.twse.com.tw/v1/exchangeReport/TWT48U_ALL
+twse_t187ap05_L.json|https://openapi.twse.com.tw/v1/opendata/t187ap05_L
+twse_holidaySchedule.json|https://openapi.twse.com.tw/v1/holidaySchedule/holidaySchedule
+twse_rwd_STOCK_DAY_ALL.json|https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY_ALL?date={DATE}&response=json
+twse_rwd_T86.json|https://www.twse.com.tw/rwd/zh/fund/T86?date={DATE}&selectType=ALLBUT0999&response=json
+twse_rwd_MI_MARGN.json|https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={DATE}&selectType=ALL&response=json
+twse_rwd_BWIBBU_d.json|https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?date={DATE}&selectType=ALL&response=json
+twse_rwd_TWT49U.json|https://www.twse.com.tw/rwd/zh/exRight/TWT49U?startDate={D0}&endDate={DATE}&response=json
+twse_rwd_MI_INDEX.json|https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date={DATE}&type=IND&response=json
+mops_t21sc03_sii.html|https://mopsov.twse.com.tw/nas/t21/sii/t21sc03_{ROC}_{M}_0.html
+mops_t21sc03_otc.html|https://mopsov.twse.com.tw/nas/t21/otc/t21sc03_{ROC}_{M}_0.html
