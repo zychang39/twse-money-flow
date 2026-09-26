@@ -1,4 +1,8 @@
 # 開發期：每行一個 pipeline 子指令（自動加上 --data-dir data），push 後由 dev-pipeline.yml 在 Actions 執行
-run --task backfill --source twse_exright,tpex_exright,twse_capreduce,tpex_capreduce --start 2020-09-01 --end 2026-09-24
-run --task backfill --source twse_attention,tpex_attention,twse_disposition,tpex_disposition,tpex_index,mops_revenue --start 2023-06-01 --end 2026-09-24
-run --task backfill --start 2023-09-01 --end 2026-09-24 --max-minutes 250
+# 第 2 批：分割／面額變更、季財報、美債、期交所、選配資料、續跑每日回補、最新一日
+run --task periodic --source tdcc_holders,cbc_money,investor_conference
+run --task backfill --source twse_parchange,twse_etfsplit,tpex_etfsplit,tpex_etfrevsplit --start 2020-09-01 --end 2026-09-25 --max-minutes 40
+run --task backfill --source financials,ust_10y --start 2023-09-01 --end 2026-09-25 --max-minutes 15
+run --task backfill --source taifex --start 2023-09-01 --end 2026-09-25 --max-minutes 35
+run --task backfill --start 2023-09-01 --end 2026-09-25 --max-minutes 170
+run --task daily
