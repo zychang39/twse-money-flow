@@ -12,7 +12,7 @@ export default defineConfig({
     sourcemap: false,
     chunkSizeWarningLimit: 400,
   },
-  worker: { format: 'es' },
+  worker: { format: 'es', plugins: () => [configYaml()] },
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],

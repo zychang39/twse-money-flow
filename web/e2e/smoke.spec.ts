@@ -65,3 +65,13 @@ test('設定：調整權重後自選卡片仍可顯示', async ({ page }) => {
   await page.getByRole('button', { name: '深色' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
+
+test('回測：預設組合顯示統計；自訂條件在 Web Worker 計算', async ({ page }) => {
+  await page.goto('#/backtest');
+  await expect(page.getByRole('columnheader', { name: '勝率' })).toBeVisible();
+  await expect(page.getByText('訊號衰減曲線')).toBeVisible();
+  const c = encodeURIComponent(JSON.stringify([{ field: 'composite', op: '>=', value: 50 }]));
+  await page.goto(`#/backtest?c=${c}&name=test`);
+  await expect(page.getByRole('columnheader', { name: '勝率' })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/訊號 \d+ 筆 · 範圍：成交值前/)).toBeVisible();
+});
