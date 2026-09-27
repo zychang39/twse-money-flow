@@ -33,6 +33,7 @@ export const IconStarFill = () => (
     <path d="m12 4.2 2.3 4.8 5.2.7-3.8 3.6.9 5.2L12 16l-4.6 2.5.9-5.2-3.8-3.6 5.2-.7L12 4.2Z" />
   </svg>
 );
+export const IconMore = () => base(<><circle cx="6" cy="12" r="1.3" /><circle cx="12" cy="12" r="1.3" /><circle cx="18" cy="12" r="1.3" /></>, 2);
 export const IconTrash = () => base(<><path d="M5 7h14M9.5 7V5.2h5V7M7 7l.8 12h8.4L17 7" /></>);
 export const IconFolder = () => base(<path d="M3.8 7.5a2 2 0 0 1 2-2h3.6l2 2h6.8a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2H5.8a2 2 0 0 1-2-2Z" />);
 export const IconExpand = () => base(<><path d="M4.5 9V4.5H9M19.5 9V4.5H15M4.5 15v4.5H9M19.5 15v4.5H15" /></>);

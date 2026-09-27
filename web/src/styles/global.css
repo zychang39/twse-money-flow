@@ -496,31 +496,110 @@ table.table tbody tr td:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0;
 .scroll-x { position: relative; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 /* ---------- 個股籌碼：區間統計與每日明細（第一欄固定，其餘橫向捲動；數字等寬） ---------- */
-.chip-stats, .chip-table { border-collapse: separate; border-spacing: 0; font-size: var(--fs-caption); line-height: var(--lh-caption); font-variant-numeric: tabular-nums; }
+.chip-stats { border-collapse: separate; border-spacing: 0; font-size: var(--fs-caption); line-height: var(--lh-caption); font-variant-numeric: tabular-nums; }
 .chip-stats { width: 100%; margin-top: var(--s-3); }
 .chip-stats th, .chip-stats td { padding: var(--s-2) var(--s-1); text-align: right; border-bottom: 1px solid var(--line); vertical-align: top; }
 .chip-stats thead th { color: var(--text-2); font-weight: var(--fw-medium); white-space: normal; }
-.chip-stats tbody th { text-align: left; color: var(--text-2); font-weight: var(--fw-regular); white-space: nowrap; }
+.chip-stats tbody th { text-align: left; color: var(--text-2); font-weight: var(--fw-regular); white-space: normal; min-width: 5.5rem; }
 .chip-stats td { white-space: nowrap; }
-.chip-controls { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: var(--s-3) 0; }
-.chip-controls .segmented { flex: 1 1 100%; }
+/* 區間統計的天數分段控制 */
 .segmented.chip-seg button { padding: 0 var(--s-1); white-space: nowrap; }
 .chip-stats thead th .sub { display: block; font-size: 0.6875rem; }
-.chip-scroll { position: relative; overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; background: var(--surface-1); border-radius: var(--r-card); margin: var(--s-2) 0; }
-.chip-scroll:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-.chip-table { min-width: 100%; }
-.chip-table th, .chip-table td { padding: var(--s-2) var(--s-3); text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
-.chip-table thead th { color: var(--text-2); font-weight: var(--fw-medium); white-space: normal; min-width: 4.75rem; vertical-align: bottom; }
-.chip-table th:first-child, .chip-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface-1); text-align: left; box-shadow: 1px 0 0 var(--line); min-width: 4.5rem; }
-.chip-table tbody th { font-weight: var(--fw-medium); }
-.chip-table tr.total > * { background: var(--surface-2); font-weight: var(--fw-semibold); }
-.chip-table tr.total > th:first-child { background: var(--surface-2); }
-.chip-table tr.day { cursor: pointer; }
-.chip-table tr.day.open > * { background: var(--surface-2); }
-.chip-table tr.streaks > * { color: var(--text-2); border-bottom: 0; }
-.chip-table tr.detail td { position: static; text-align: left; white-space: normal; box-shadow: none; background: var(--surface-2); }
-.chip-links { position: sticky; left: var(--s-3); display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-3); max-width: calc(100vw - 4rem); }
-.chip-date { border: 0; background: none; padding: 0; font: inherit; color: var(--brand); cursor: pointer; min-height: 1.75rem; text-decoration: underline; text-underline-offset: 2px; }
+
+/* ---------- 每日籌碼（HIG：一排控制列、分段控制切換檢視、固定寬度不需左右滑動、44pt 列高、Dynamic Type） ----------
+ * --dt：Dynamic Type 比例（iOS 以 -apple-system-body 換算；其他平台為 1，另隨瀏覽器預設字級的 rem 放大）。
+ */
+.chip-daily { --dt: 1; margin-top: var(--s-6); }
+.cd-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); }
+.cd-title { margin: 0; font: inherit; }
+.cd-toggle { display: inline-flex; align-items: center; gap: var(--s-2); min-height: var(--tap); padding: 0; border: 0; background: none; color: var(--text-1); cursor: pointer; }
+.cd-toggle svg { width: 1.25rem; height: 1.25rem; color: var(--brand); transition: transform var(--dur-base) var(--ease-spring); }
+.cd-toggle[aria-expanded='true'] svg { transform: rotate(180deg); }
+.cd-more { position: relative; }
+.cd-more .icon-btn svg { width: 1.375rem; height: 1.375rem; }
+.cd-menu { position: absolute; z-index: 20; right: 0; top: calc(100% + var(--s-1)); min-width: 12rem; padding: var(--s-1); border-radius: var(--r-md); background: var(--surface-3); box-shadow: var(--shadow-float); }
+.cd-menuitem { display: flex; align-items: center; width: 100%; min-height: var(--tap); padding: 0 var(--s-3); border: 0; border-radius: var(--r-sm); background: none; color: var(--text-1); font: inherit; text-align: left; cursor: pointer; }
+.cd-menuitem:hover, .cd-menuitem:focus-visible { background: var(--surface-row); outline: none; box-shadow: inset 0 0 0 2px var(--brand); }
+.cd-status { margin-top: var(--s-1); }
+.cd-placeholder { min-height: 36rem; margin-top: var(--s-3); }
+.chip-daily .segmented button { min-height: var(--tap); }
+.cd-controls { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-3); }
+.cd-periods { flex: 1 1 auto; min-width: 0; }
+.cd-unit { position: relative; flex: none; display: inline-flex; }
+.cd-unit-face { display: inline-flex; align-items: center; gap: var(--s-1); min-height: var(--tap); padding: 0 var(--s-2) 0 var(--s-3); border-radius: var(--r-sm); background: var(--surface-1); color: var(--brand); font-size: var(--fs-caption); font-weight: var(--fw-semibold); white-space: nowrap; }
+.cd-unit-face .muted { color: var(--text-2); font-weight: var(--fw-medium); }
+.cd-unit-face svg { width: 1rem; height: 1rem; }
+/* 原生 select 疊在按鈕上（iOS 會跳出系統選單）；字級 16px 避免 iOS 聚焦時放大 */
+.cd-unit select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; cursor: pointer; }
+.cd-unit:focus-within .cd-unit-face { box-shadow: inset 0 0 0 2px var(--brand); }
+.cd-views { margin-top: var(--s-2); }
+.cd-meta { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); margin: var(--s-3) 0 var(--s-1); color: var(--text-2); font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); }
+.cd-unit-label { flex: none; color: var(--text-1); font-weight: var(--fw-medium); }
+/* 量測用：與儲存格同字型；fixed 不影響版面與捲動範圍 */
+.chip-daily .cd-measure { position: fixed; left: 0; top: 0; visibility: hidden; white-space: nowrap; pointer-events: none; }
+.cd-wide-probe { position: fixed; left: 0; top: 0; height: 0; visibility: hidden; pointer-events: none; width: min(calc(100vw - 2 * (var(--gutter) + max(var(--safe-left), var(--safe-right)))), 64rem); }
+
+.cd-wrap { background: var(--surface-1); border-radius: var(--r-card); overflow: hidden; box-shadow: var(--shadow-card); }
+/* 橫向／平板：同時顯示全部欄位，寬度超出內容欄時置中延伸（仍在畫面內） */
+.cd-wrap.cd-wide { width: min(calc(100vw - 2 * (var(--gutter) + max(var(--safe-left), var(--safe-right)))), 64rem); max-width: none; position: relative; left: 50%; transform: translateX(-50%); }
+.cd-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.cd-table th, .cd-table td { padding: var(--s-1) 0.1875rem; text-align: right; vertical-align: middle; white-space: nowrap; overflow: hidden; }
+.cd-table th:first-child, .cd-table td:first-child { text-align: left; padding-left: var(--s-2); }
+.cd-table td:last-child, .cd-table thead th:last-child { padding-right: var(--s-2); }
+.cd-table thead th { color: var(--text-2); font-weight: var(--fw-medium); vertical-align: bottom; padding-top: var(--s-3); padding-bottom: var(--s-2); font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); }
+.cd-table thead .cd-groups th { text-align: center; color: var(--text-1); font-weight: var(--fw-semibold); padding-bottom: 0; }
+.cd-table thead .cd-groups th + th { box-shadow: inset 1px 0 0 var(--surface-row); }
+/* 欄位標題可折成兩行（例：融資／增減）；數字儲存格不折行 */
+.cd-h { display: block; white-space: normal; font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); color: var(--text-1); }
+.cd-sub { display: block; font-size: calc(var(--fs-micro) * var(--dt)); line-height: calc(var(--lh-micro) * var(--dt)); color: var(--text-2); font-weight: var(--fw-regular); margin-top: 0.125rem; }
+.cd-date { display: block; font-size: calc(var(--fs-body) * var(--dt)); line-height: calc(var(--lh-body) * var(--dt)); color: var(--text-1); font-weight: var(--fw-medium); }
+.cd-v { position: relative; font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+.cd-table tbody th, .cd-table tbody td { height: var(--tap); box-shadow: inset 0 -0.5px 0 var(--surface-row); }
+.cd-table tr.total > * { background: var(--surface-2); }
+.cd-table tr.total .cd-date { font-size: calc(var(--fs-caption) * var(--dt)); font-weight: var(--fw-semibold); }
+.cd-table tr.day { cursor: pointer; }
+.cd-table tr.day:hover > * { background: var(--surface-row); }
+.cd-rowhead { position: relative; }
+/* 透明按鈕蓋住整格／整張卡片：沒有可見文字（避免可見文字與無障礙名稱不一致），點擊區域 ≥ 44pt */
+.cd-rowbtn { position: absolute; inset: 0; width: 100%; min-height: var(--tap); padding: 0; border: 0; background: none; cursor: pointer; border-radius: var(--r-xs); }
+.cd-rowbtn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--brand); }
+/* 比例條：很淡的細條，貼在格子底部，從中線向右（買超／增加）或向左（賣超／減少）延伸；沒有正負的欄位從中線向右。
+ * 不用讀數字也能看出強弱；在文字下方、不與數字重疊，不影響文字對比。 */
+.cd-bar { position: absolute; bottom: 0.3125rem; height: 0.1875rem; left: 50%; border-radius: var(--r-pill); pointer-events: none; }
+.cd-bar.pos { background: color-mix(in srgb, var(--up) 45%, transparent); }
+.cd-bar.neg { left: auto; right: 50%; background: color-mix(in srgb, var(--down) 45%, transparent); }
+.cd-bar.neu { background: color-mix(in srgb, var(--text-2) 35%, transparent); }
+.cd-table tbody td.cd-v { background-image: linear-gradient(var(--surface-row), var(--surface-row)); background-size: 1px 0.1875rem; background-position: 50% calc(100% - 0.3125rem); background-repeat: no-repeat; }
+.cd-t { position: relative; }
+.cd-v.flat, .cd-v.none { color: var(--text-1); }
+
+/* 卡片版面：字級放大而寬度不夠時（每天一張，4 個欄位排成 2×2） */
+.cd-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.cd-card { position: relative; display: block; width: 100%; padding: var(--s-3) var(--s-4); border-radius: var(--r-md); background: var(--surface-1); }
+.cd-card.day { cursor: pointer; }
+.cd-card.total { background: var(--surface-2); }
+.cd-card .cd-rowbtn { border-radius: var(--r-md); }
+.cd-card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 var(--s-2); }
+.cd-card-head .cd-sub { display: inline; }
+.cd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2) var(--s-4); margin-top: var(--s-2); }
+.cd-cell { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 var(--s-2); min-height: var(--tap); align-content: center; }
+.cd-k { color: var(--text-2); font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); }
+.cd-k .cd-sub { display: inline; }
+.cd-cell .cd-v { font-size: calc(var(--fs-body) * var(--dt)); line-height: calc(var(--lh-body) * var(--dt)); }
+.cd-notes { margin-top: var(--s-2); }
+.cd-notes p { margin-top: var(--s-2); }
+.cd-foot { margin-top: var(--s-2); }
+
+/* 當天完整資料（底部面板） */
+.cd-dl { margin: 0; }
+.cd-dl > div { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); min-height: var(--tap); box-shadow: inset 0 -0.5px 0 var(--surface-row); }
+.cd-dl dt { color: var(--text-2); }
+.cd-dl dd { margin: 0; font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+.cd-dl dd.flat, .cd-dl dd.none { color: var(--text-1); }
+.cd-group { display: block; margin: var(--s-5) 0 var(--s-1); }
+.cd-day > .caption { margin-top: var(--s-3); }
+.cd-links { display: flex; flex-direction: column; gap: var(--s-1); }
+.cd-links a { min-height: var(--tap); display: inline-flex; align-items: center; }
 
 /* ---------- 狀態：提示、空狀態、骨架、錯誤 ---------- */
 .banner { display: flex; align-items: flex-start; gap: var(--s-3); border-radius: var(--r-md); padding: var(--s-3) var(--s-4); margin: var(--s-3) 0; font-size: var(--fs-caption); line-height: var(--lh-caption); background: var(--surface-1); color: var(--text-1); }

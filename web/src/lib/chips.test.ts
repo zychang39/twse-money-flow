@@ -1,8 +1,21 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  ALL_COLS,
   type ChipBlock,
+  UNIT_NAME,
+  VIEW_COLS,
+  cellPhrase,
+  cellText,
   chipRows,
+  colStreak,
+  colTotal,
+  colUnit,
+  colValue,
+  compactNum,
+  dayText,
+  rowSentence,
+  streakText,
   convert,
   estimatedCost,
   officialLinks,
@@ -180,5 +193,102 @@ describe('chips：區間合計、連續天數、估計成本', () => {
     const tp = officialLinks('tpex', '2026-09-24');
     expect(tp[0].url).toContain('date=2026/09/24');
     expect(tp.every((l) => l.url.includes('response=html') && l.label.startsWith('櫃買'))).toBe(true);
+  });
+});
+
+describe('每日籌碼：三種檢視、單位、縮寫與無障礙句子', () => {
+  const b: ChipBlock = {
+    d: ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24'],
+    c: [170, 175, 180, 176],
+    chg: [null, 2.94, 2.86, -2.22],
+    v: [1_000_000, 2_000_000, 3_000_000, 4_000_000],
+    avg: [170, 175, 180, 176],
+    af: [1, 1, 1, 1],
+    mb: [1000, 1100, 1300, 1200],
+    sb: [100, 110, 130, 60],
+    fn: [0, 20_000_000, -485_000, -485_000],
+    ffd: [0, 0, 0, 0],
+    tn: [0, 12_000, 12_000, 12_000],
+    dn: [0, -3_000, -3_000, -3_000],
+    dself: [0, -3_000, -3_000, -3_000],
+    dhedge: [0, 0, 0, 0],
+    tot: [0, 20_009_000, -476_000, -476_000],
+    sbls: [null, 1_000, 2_000, 3_000],
+    dt: [null, 10, 20, 30],
+    sblb: [50_000, 51_000, 53_000, 56_000],
+    dtv: [null, 200_000, 600_000, 1_200_000],
+  };
+  const all = chipRows(b);
+  const rows = recent(all, 3); // 新到舊：9/24、9/23、9/22
+  const col = (key: string) => ALL_COLS.find((c) => c.key === key)!;
+
+  it('每種檢視固定 4 欄；單位名稱是「佔成交量 %」（不是「估」）', () => {
+    for (const v of ['insti', 'credit', 'sbl'] as const) expect(VIEW_COLS[v]).toHaveLength(4);
+    expect(VIEW_COLS.insti.map((c) => c.full)).toEqual(['外資', '投信', '自營商（自行買賣）', '三大法人合計']);
+    expect(VIEW_COLS.credit.map((c) => c.label)).toEqual(['融資增減', '融券增減', '融資餘額', '券資比']);
+    expect(VIEW_COLS.sbl.map((c) => c.label)).toEqual(['借券賣出', '借券餘額', '當沖比率', '當沖量']);
+    expect(UNIT_NAME.pct).toBe('佔成交量 %');
+    expect([...UNIT_NAME.pct][0].codePointAt(0)).toBe(0x4f54); // 佔（U+4F54），不是 估（U+4F30）
+    expect(Object.values(UNIT_NAME).join()).not.toContain('估成交量');
+  });
+
+  it('≥ 10,000 縮寫為「萬」；張為整數、金額與佔量兩位小數、比率一位', () => {
+    expect(compactNum(9_999, 'lots')).toBe('9,999');
+    expect(compactNum(12_345, 'lots')).toBe('1.2\u00a0萬');
+    expect(compactNum(1_234_567, 'lots')).toBe('123\u00a0萬');
+    expect(compactNum(12.345, 'amount')).toBe('12.35');
+    expect(compactNum(123.45, 'amount')).toBe('123.5');
+    expect(compactNum(3.216, 'pct')).toBe('3.22');
+    expect(compactNum(12.34, 'ratio')).toBe('12.3');
+  });
+
+  it('儲存格：正負同時用 ▲▼ 與方向；比率加 %；沒有資料為「—」', () => {
+    const r = rows[0];
+    expect(cellText(colValue(r, col('foreign'), 'lots'), col('foreign'), 'lots')).toEqual({ text: '▼485', dir: 'down' });
+    expect(cellText(colValue(r, col('trust'), 'lots'), col('trust'), 'lots')).toEqual({ text: '▲12', dir: 'up' });
+    expect(cellText(colValue(r, col('shortRatio'), 'lots'), col('shortRatio'), 'lots')).toEqual({ text: '5.0%', dir: 'none' });
+    expect(cellText(null, col('foreign'), 'lots').text).toBe('—');
+    expect(cellText(colValue(all[1], col('foreign'), 'lots'), col('foreign'), 'lots').text).toBe('▲2.0\u00a0萬');
+  });
+
+  it('單位換算：融資以張計、餘額在「佔成交量」時仍以張顯示、比率不隨單位變動', () => {
+    const r = rows[0];
+    expect(colValue(r, col('marginChg'), 'lots')).toBe(-100);
+    expect(colValue(r, col('marginChg'), 'pct')).toBeCloseTo((-100_000 / 4_000_000) * 100);
+    expect(colUnit(col('marginBal'), 'pct')).toBe('lots');
+    expect(colValue(r, col('marginBal'), 'pct')).toBe(1200);
+    expect(colValue(r, col('dtPct'), 'amount')).toBe(30);
+    expect(colValue(r, col('dtVol'), 'lots')).toBe(1200);
+    expect(colValue(r, col('sblBal'), 'amount')).toBeCloseTo((56_000 * 176) / 1e8);
+  });
+
+  it('區間合計：數量欄加總、餘額欄為區間增減、比率欄為區間平均', () => {
+    expect(colTotal(rows, all, col('foreign'), 'lots')).toBe(19_030); // 20,000 − 485 − 485
+    expect(colTotal(rows, all, col('marginBal'), 'lots')).toBe(200); // 1,200 − 1,000（區間前一日）
+    expect(colTotal(rows, all, col('sblBal'), 'lots')).toBe(6); // 56,000 − 50,000 股
+    expect(colTotal(rows, all, col('dtPct'), 'lots')).toBeCloseTo((10 * 2 + 20 * 3 + 30 * 4) / 9);
+    expect(colTotal(rows, all, col('shortRatio'), 'lots')).toBeCloseTo(((60 + 130 + 110) / (1200 + 1300 + 1100)) * 100);
+    expect(cellText(colTotal(rows, all, col('marginBal'), 'lots'), col('marginBal'), 'lots', true).text).toBe('▲200');
+  });
+
+  it('連買／連賣天數（法人欄標題下方）', () => {
+    expect(streakText(colStreak(all, col('foreign')), all.length - 1)).toBe('連賣 2 日');
+    expect(streakText(colStreak(all, col('trust')), all.length - 1)).toBe('連買 3+ 日');
+  });
+
+  it('VoiceOver 完整句子：「9 月 24 日，外資賣超 485 張…；收盤 176 元，下跌 2.22%」', () => {
+    const s = rowSentence(rows[0], VIEW_COLS.insti, 'lots');
+    expect(s).toBe('9 月 24 日，外資賣超 485 張，投信買超 12 張，自營商（自行買賣）賣超 3 張，三大法人合計賣超 476 張；收盤 176 元，下跌 2.22%');
+    expect(rowSentence(rows[0], VIEW_COLS.credit, 'lots')).toContain('融資減少 100 張，融券減少 70 張，融資餘額 1,200 張，券資比 5.0%');
+    expect(cellPhrase(colValue(rows[0], col('foreign'), 'pct'), col('foreign'), 'pct')).toBe('外資賣超佔成交量 12.13%');
+  });
+
+  it('複製這天資料：代號、日期、12 個主要欄位與餘額（含單位）', () => {
+    const t = dayText(rows[0], 'lots', { code: '2330', name: '台積電' });
+    expect(t.split('\n')[0]).toBe('台積電 2330 2026-09-24');
+    expect(t).toContain('外資(張)\t-485');
+    expect(t).toContain('自營商（避險）(張)\t0');
+    expect(t).toContain('當沖比率(%)\t30.00');
+    expect(t).toContain('成交量(張)\t4000');
   });
 });
