@@ -36,6 +36,7 @@ def test_build_web_outputs(tmp_path):
         assert abs(chip["fn"][i] / 1000 - stock["fn"][-61 + i]) <= 0.5  # 股數精確值；主陣列為四捨五入後的張數
     assert chip["avg"][-1] is not None and abs(chip["v"][-1] / 1000 - stock["v"][-1]) <= 0.5
     assert all(len(v) == 61 for v in chip.values())
+    assert {"sblb", "dtv"} <= chip.keys()  # 借券餘額、當沖量（股）
 
 
 def test_build_web_without_data(tmp_path):
