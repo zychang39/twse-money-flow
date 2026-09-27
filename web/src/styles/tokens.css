@@ -1,0 +1,190 @@
+/*
+ * 設計 tokens（唯一來源）：色彩、字級、間距、圓角、陰影、光暈、動畫時長與緩動曲線。
+ * 深色為主；淺色同等完整。元件只引用這裡的變數，不寫死數值。
+ *
+ * 色彩預算：灰階為主；--up／--down 只代表漲跌（紅漲綠跌）；--risk（琥珀）只代表風險；
+ * --brand（電光藍）只給可互動元素。除此之外不使用其他顏色。
+ */
+@font-face {
+  font-family: 'Inter';
+  src: url('@inter/inter-latin-wght-normal.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  /* 只接管拉丁字母、數字與常用標點；中文交給系統字體 */
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  color-scheme: light dark;
+
+  /* ---------- 字體與 5 級字級（行高皆為 4 的倍數） ---------- */
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Heiti TC', 'Noto Sans TC', 'Microsoft JhengHei', system-ui, sans-serif;
+  --fs-hero: 3.25rem;     --lh-hero: 3.5rem;      /* 52 / 56 主角數字 */
+  --fs-title: 1.625rem;   --lh-title: 2.125rem;   /* 26 / 34 頁面標題、結論句 */
+  --fs-section: 1.25rem;  --lh-section: 1.75rem;  /* 20 / 28 區塊標題 */
+  --fs-body: 1rem;        --lh-body: 1.5rem;      /* 16 / 24 內文 */
+  --fs-caption: 0.8125rem; --lh-caption: 1.25rem; /* 13 / 20 輔助文字 */
+  --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600;
+  --track-hero: -0.035em;
+
+  /* ---------- 4pt 間距 ---------- */
+  --s-1: 0.25rem; --s-2: 0.5rem; --s-3: 0.75rem; --s-4: 1rem; --s-5: 1.25rem; --s-6: 1.5rem;
+  --s-8: 2rem; --s-10: 2.5rem; --s-12: 3rem; --s-16: 4rem;
+  --gutter: 1.25rem;
+  --tap: 2.75rem; /* 44pt 最小點擊區域 */
+
+  /* ---------- 圓角 ---------- */
+  --r-xs: 0.375rem; --r-sm: 0.75rem; --r-md: 1rem; --r-card: 1.25rem; --r-sheet: 1.75rem; --r-pill: 999px;
+
+  /* ---------- 動畫 ---------- */
+  --dur-press: 120ms;
+  --dur-fast: 180ms;
+  --dur-base: 320ms;
+  --dur-slow: 520ms;
+  --dur-draw: 900ms;
+  --dur-roll: 800ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* 低彈性 spring（約 3% 過衝），不支援 linear() 的瀏覽器退回 ease-out */
+  --ease-spring: var(--ease-out);
+
+  /* ---------- 版面 ---------- */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --tabbar-h: 3.75rem;
+  --content-max: 40rem;
+
+  /* ---------- 淺色 ---------- */
+  --bg: #f4f4f6;
+  --surface-1: #ffffff;
+  --surface-2: #ebebef;
+  --surface-3: #ffffff;
+  --surface-row: rgba(120, 120, 128, 0.06);
+  --text-1: #0b0b0d;
+  --text-2: rgba(40, 40, 48, 0.72);
+  --text-3: rgba(40, 40, 48, 0.30);   /* 只用於裝飾（基準虛線、軌道），不用於文字 */
+  --up: #b81f15;
+  --down: #066b34;
+  --up-tint: rgba(204, 36, 25, 0.10);
+  --down-tint: rgba(11, 122, 62, 0.10);
+  --risk: #8a4600;          /* 文字用琥珀（對比 ≥ 4.5:1，含光暈上） */
+  --risk-fill: #f59e0b;     /* 點、環等非文字元素 */
+  --risk-tint: rgba(245, 158, 11, 0.16);
+  --brand: #0850c0;
+  --brand-fill: #0a5bd8;
+  --on-brand: #ffffff;
+  --brand-tint: rgba(10, 91, 216, 0.10);
+  --glass: rgba(255, 255, 255, 0.70);
+  --glass-strong: rgba(255, 255, 255, 0.86);
+  --glass-hi: rgba(255, 255, 255, 0.95);
+  --scrim: rgba(0, 0, 0, 0.28);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.12);
+  --line-glow-opacity: 0.22;
+  /* 環境光（靜態漸層；強度刻意壓低，不影響文字對比） */
+  --glow-up: rgba(230, 70, 50, 0.12);
+  --glow-down: rgba(20, 160, 90, 0.11);
+  --glow-risk: rgba(245, 158, 11, 0.16);
+  --glow-neutral: rgba(110, 135, 175, 0.10);
+  --status-bar: #f4f4f6;
+
+  /* 舊元件相容別名（逐步淘汰） */
+  --label: var(--text-1);
+  --label-2: var(--text-2);
+  --label-3: var(--text-3);
+  --tint: var(--brand);
+  --bg-elev: var(--surface-1);
+  --bg-elev-2: var(--surface-2);
+  --fill: var(--surface-2);
+  --fill-strong: var(--surface-3);
+  --warn-text: var(--risk);
+  --danger-text: var(--risk);
+  --flat: var(--text-2);
+}
+
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --ease-spring: linear(0, 0.063, 0.221 5.8%, 0.645 13.5%, 0.846 18.3%, 0.964 23.6%, 1.012 28.6%, 1.028 33%, 1.029 38.6%, 1.012 49.4%, 1.001 61%, 0.998 75.4%, 1);
+  }
+}
+
+/* ---------- 深色（跟隨系統或手動指定） ---------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #000000;
+    --surface-1: #111113;
+    --surface-2: #1c1c1f;
+    --surface-3: #2c2c30;
+    --surface-row: rgba(255, 255, 255, 0.035);
+    --text-1: #f5f5f7;
+    --text-2: rgba(235, 235, 245, 0.64);
+    --text-3: rgba(235, 235, 245, 0.30);
+    --up: #ff6656;
+    --down: #2ed47a;
+    --up-tint: rgba(255, 92, 77, 0.16);
+    --down-tint: rgba(46, 212, 122, 0.14);
+    --risk: #ffb224;
+    --risk-fill: #ffb224;
+    --risk-tint: rgba(255, 178, 36, 0.14);
+    --brand: #5c9dff;
+    --brand-fill: #1766f5;
+    --on-brand: #ffffff;
+    --brand-tint: rgba(77, 148, 255, 0.14);
+    --glass: rgba(28, 28, 32, 0.62);
+    --glass-strong: rgba(28, 28, 32, 0.82);
+    --glass-hi: rgba(255, 255, 255, 0.10);
+    --scrim: rgba(0, 0, 0, 0.55);
+    --shadow-card: none;
+    --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.45);
+    --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.6);
+    --line-glow-opacity: 0.55;
+    --glow-up: rgba(255, 84, 62, 0.24);
+    --glow-down: rgba(38, 196, 120, 0.20);
+    --glow-risk: rgba(255, 170, 40, 0.22);
+    --glow-neutral: rgba(120, 146, 186, 0.16);
+    --status-bar: #000000;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #000000;
+  --surface-1: #111113;
+  --surface-2: #1c1c1f;
+  --surface-3: #2c2c30;
+  --surface-row: rgba(255, 255, 255, 0.035);
+  --text-1: #f5f5f7;
+  --text-2: rgba(235, 235, 245, 0.64);
+  --text-3: rgba(235, 235, 245, 0.30);
+  --up: #ff6656;
+  --down: #2ed47a;
+  --up-tint: rgba(255, 92, 77, 0.16);
+  --down-tint: rgba(46, 212, 122, 0.14);
+  --risk: #ffb224;
+  --risk-fill: #ffb224;
+  --risk-tint: rgba(255, 178, 36, 0.14);
+  --brand: #5c9dff;
+  --brand-fill: #1766f5;
+  --on-brand: #ffffff;
+  --brand-tint: rgba(77, 148, 255, 0.14);
+  --glass: rgba(28, 28, 32, 0.62);
+  --glass-strong: rgba(28, 28, 32, 0.82);
+  --glass-hi: rgba(255, 255, 255, 0.10);
+  --scrim: rgba(0, 0, 0, 0.55);
+  --shadow-card: none;
+  --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.6);
+  --line-glow-opacity: 0.55;
+  --glow-up: rgba(255, 84, 62, 0.24);
+  --glow-down: rgba(38, 196, 120, 0.20);
+  --glow-risk: rgba(255, 170, 40, 0.22);
+  --glow-neutral: rgba(120, 146, 186, 0.16);
+  --status-bar: #000000;
+}
+
+/*
+ * A「夜間簡報」：關閉環境光（設定）、或系統要求減少透明度／動態效果時，
+ * 玻璃改為不透明表面、光暈隱藏（由 html[data-ambient='off'] 與媒體查詢控制，見 global.css）。
+ */

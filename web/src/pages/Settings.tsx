@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Nav } from '../components/Nav';
+import { PageHead, TopBar } from '../components/Chrome';
 import { useDb } from '../hooks';
 import { getSetting, setSetting } from '../db/db';
 import { CATEGORY_IDS, scoresConfig } from '../lib/config';
@@ -14,22 +14,45 @@ export default function Settings() {
     weights: await getSetting<Weights>('weights', DEFAULT_WEIGHTS),
     costs: await getSetting<CostSettings>('costs', DEFAULT_COSTS),
     theme: await getSetting<string>('theme', 'auto'),
+    ambient: await getSetting<boolean>('ambient', true),
+    gamification: await getSetting<boolean>('gamification', true),
     portfolio: await getSetting<PortfolioSettings>('portfolio', DEFAULT_PORTFOLIO),
   }));
   const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS);
   useEffect(() => { if (stored) setWeights(stored.weights); }, [stored?.weights]);
-  if (!stored) return <div><Nav title="設定" back="/more" /></div>;
+  if (!stored) return <div class="page"><TopBar back="/" avatar={false} /><PageHead title="設定" /></div>;
   const total = CATEGORY_IDS.reduce((s, c) => s + weights[c], 0) || 1;
 
   function applyTheme(t: string) {
     setSetting('theme', t);
-    if (t === 'auto') document.documentElement.removeAttribute('data-theme');
-    else document.documentElement.setAttribute('data-theme', t);
   }
 
   return (
-    <div>
-      <Nav title="設定" back="/more" />
+    <div class="page">
+      <TopBar back="/" avatar={false} />
+      <PageHead eyebrow="我的" title="設定" />
+
+      <h2 class="section-title">外觀</h2>
+      <div class="card">
+        <div class="segmented" role="group" aria-label="外觀">
+          {[['auto', '跟隨系統'], ['light', '淺色'], ['dark', '深色']].map(([v, l]) => (
+            <button key={v} aria-pressed={stored.theme === v} onClick={() => applyTheme(v)}>{l}</button>
+          ))}
+        </div>
+        <div class="switch-row" style={{ marginTop: 'var(--s-3)' }}>
+          <span><span class="body" style={{ display: 'block' }}>環境光</span><span class="caption muted">頁首柔和光暈：今晚頁代表資金環境（有風險偏琥珀），我的股票與個股頁跟著所選期間的漲跌。關閉即為純黑的「夜間簡報」樣式；系統開啟減少透明度或減少動態效果時會自動關閉。</span></span>
+          <label class="switch"><input type="checkbox" role="switch" aria-label="環境光" checked={stored.ambient} onChange={(e) => setSetting('ambient', (e.target as HTMLInputElement).checked)} /><span /></label>
+        </div>
+      </div>
+
+      <h2 class="section-title">遊戲化</h2>
+      <div class="card">
+        <div class="switch-row">
+          <span><span class="body" style={{ display: 'block' }}>紀律圓環、等級與徽章</span><span class="caption muted">只獎勵紀律行為（看完簡報、檢查表、檢討、備份），不因交易次數或獲利給予任何獎勵。關閉後改為純文字待辦；紀錄仍保存在本機並納入備份。</span></span>
+          <label class="switch"><input type="checkbox" role="switch" aria-label="遊戲化" checked={stored.gamification} onChange={(e) => setSetting('gamification', (e.target as HTMLInputElement).checked)} /><span /></label>
+        </div>
+      </div>
+
       <h2 class="section-title">綜合分權重</h2>
       <div class="card">
         {CATEGORY_IDS.map((c) => (
@@ -42,7 +65,7 @@ export default function Settings() {
           </label>
         ))}
         <button class="btn small" onClick={() => { setWeights(DEFAULT_WEIGHTS); setSetting('weights', DEFAULT_WEIGHTS); }}>恢復預設（等權重）</button>
-        <p class="tiny muted">權重只影響綜合分的加總方式；不建議依回測結果反覆調整（過度擬合）。</p>
+        <p class="caption muted">權重只影響綜合分的加總方式；不建議依回測結果反覆調整（過度擬合）。</p>
       </div>
 
       <h2 class="section-title">交易成本</h2>
@@ -52,7 +75,7 @@ export default function Settings() {
           <input class="input" type="number" step="0.05" min="0.1" max="1" inputMode="decimal" value={stored.costs.discount}
             onChange={(e) => setSetting('costs', { ...stored.costs, discount: Number((e.target as HTMLInputElement).value) })} />
         </label>
-        <label class="row" style={{ minHeight: '2.75rem' }}>
+        <label class="check">
           <input type="checkbox" checked={stored.costs.minimumEnabled} onChange={(e) => setSetting('costs', { ...stored.costs, minimumEnabled: (e.target as HTMLInputElement).checked })} />
           最低手續費 20 元
         </label>
@@ -70,19 +93,10 @@ export default function Settings() {
           <input class="input" type="number" step="0.1" inputMode="decimal" value={stored.portfolio.riskPct}
             onChange={(e) => setSetting('portfolio', { ...stored.portfolio, riskPct: Number((e.target as HTMLInputElement).value) })} />
         </label>
-        <label class="row" style={{ minHeight: '2.75rem' }}>
+        <label class="check">
           <input type="checkbox" checked={stored.portfolio.oddLot} onChange={(e) => setSetting('portfolio', { ...stored.portfolio, oddLot: (e.target as HTMLInputElement).checked })} />
           以零股（股數）計算建議部位
         </label>
-      </div>
-
-      <h2 class="section-title">外觀</h2>
-      <div class="card">
-        <div class="segmented" role="group" aria-label="外觀">
-          {[['auto', '跟隨系統'], ['light', '淺色'], ['dark', '深色']].map(([v, l]) => (
-            <button key={v} aria-pressed={stored.theme === v} onClick={() => applyTheme(v)}>{l}</button>
-          ))}
-        </div>
       </div>
 
       <h2 class="section-title">盤中到價提醒</h2>

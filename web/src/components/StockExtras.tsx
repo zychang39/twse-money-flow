@@ -1,6 +1,8 @@
 import type { StockHistory } from '../data/types';
-import { fmtNum, fmtPct, fmtPrice } from '../lib/format';
+import { fmtInt, fmtNum, fmtPct, fmtPrice } from '../lib/format';
 import { Signed } from './Change';
+import { Banner } from './DataStatus';
+import { IconCalendar } from './Icons';
 
 interface FairMethod { method: string; label: string; cheap: number | null; fair: number | null; expensive: number | null; basis: string }
 interface Fair { methods: FairMethod[]; combined: { cheap: number; fair: number; expensive: number } | null; position: number | null; price: number }
@@ -10,58 +12,66 @@ interface EtfHolder { etf: string; name: string; weight: number | null; change_s
 interface QuarterRow { period: string; revenue: number | null; gross_margin: number | null; net_income: number | null }
 interface ShortHalt { last_cover_date: string; end: string; reason: string | null }
 
-/** 個股頁的延伸區塊：健檢摘要、合理價、月營收、ETF 持有、近期事件（有資料才顯示）。 */
-export function StockExtras({ h }: { h: StockHistory }) {
-  const summary = h.summary_text as string[] | undefined;
+/** 合理價區間（估算值）：灰階軌道＋目前位置標記，不另用顏色。 */
+export function FairRange({ h, detail }: { h: StockHistory; detail?: boolean }) {
   const fair = h.fair as Fair | undefined;
+  if (!fair) return <p class="caption muted">資料不足以計算合理價。</p>;
+  const pos = fair.position === null ? null : Math.min(Math.max(fair.position, 0), 1);
+  return (
+    <div>
+      {fair.combined ? (
+        <>
+          <div class="row between caption"><span class="muted">便宜 {fmtPrice(fair.combined.cheap)}</span><span class="t1">合理 {fmtPrice(fair.combined.fair)}<span class="est">估</span></span><span class="muted">昂貴 {fmtPrice(fair.combined.expensive)}</span></div>
+          <div style={{ position: 'relative', margin: 'var(--s-3) 0 var(--s-2)' }} role="img"
+            aria-label={`目前價格 ${fmtPrice(fair.price)}，位於合理價估算區間的 ${pos === null ? '—' : Math.round(pos * 100)}%`}>
+            <div class="bar"><i style={{ width: '100%', background: 'var(--surface-3)' }} /></div>
+            {pos !== null ? <span style={{ position: 'absolute', top: '-0.25rem', left: `calc(${pos * 100}% - 0.4375rem)`, width: '0.875rem', height: '0.875rem', borderRadius: '50%', background: 'var(--text-1)', boxShadow: '0 0 0 3px var(--surface-1)' }} /> : null}
+          </div>
+          <div class="caption">目前 {fmtPrice(fair.price)}，位於區間 {pos === null ? '—' : `${Math.round(pos * 100)}%`}</div>
+        </>
+      ) : <p class="caption muted">各方法結果不足以合併成區間。</p>}
+      {detail ? (
+        <div class="scroll-x"><table class="table" style={{ marginTop: 'var(--s-3)' }}>
+          <thead><tr><th>方法</th><th>便宜</th><th>合理</th><th>昂貴</th></tr></thead>
+          <tbody>
+            {fair.methods.map((m) => (
+              <tr key={m.method}><td>{m.label}<div class="muted">{m.basis}</div></td><td>{fmtPrice(m.cheap)}</td><td>{fmtPrice(m.fair)}</td><td>{fmtPrice(m.expensive)}</td></tr>
+            ))}
+          </tbody>
+        </table></div>
+      ) : null}
+    </div>
+  );
+}
+
+/** 個股延伸資料（底部面板）：合理價方法、月營收、季財報、主動式 ETF 持有、近期事件、停券。 */
+export function StockExtras({ h }: { h: StockHistory }) {
   const revenue = h.revenue as RevenueRow[] | undefined;
   const events = h.events as EventRow[] | undefined;
   const etfs = h.etf_holders as EtfHolder[] | undefined;
   const quarters = h.quarters as QuarterRow[] | undefined;
   const halt = h.short_halt as ShortHalt | null | undefined;
+  const last = h.d.length - 1;
   return (
     <>
-      {summary && summary.length ? (
-        <div class="card glass">
-          <div class="headline">健檢摘要</div>
-          <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>
-            {summary.map((s) => <li key={s} class="small">{s}</li>)}
-          </ul>
-          <p class="tiny muted">規則式自動產生（非 AI），依據見分數明細與方法說明。</p>
-        </div>
-      ) : null}
-
-      {fair ? (
+      <h3 class="eyebrow">基本數據（{h.d[last]}）</h3>
+      <div class="list">
+        <div class="list-item"><span class="grow">成交量</span><span>{fmtInt(h.v[last])} 張</span></div>
+        <div class="list-item"><span class="grow">成交值</span><span>{fmtNum(h.val[last], 1)} 百萬</span></div>
+        <div class="list-item"><span class="grow">本益比／淨值比／殖利率</span><span>{fmtNum(h.pe[last])}／{fmtNum(h.pb[last])}／{fmtNum(h.dy[last])}%</span></div>
+        {h.shares ? <div class="list-item"><span class="grow">發行股數</span><span>{fmtNum(h.shares / 1e8, 2)} 億股</span></div> : null}
+      </div>
+      {halt ? <Banner icon={<IconCalendar />} title={`融券最後回補日 ${halt.last_cover_date}`}>停券至 {halt.end}{halt.reason ? `，${halt.reason}` : ''}</Banner> : null}
+      {h.fair ? (
         <>
-          <h2 class="title-2">合理價區間</h2>
-          <div class="card">
-            {fair.combined ? (
-              <div>
-                <div class="row between small"><span class="down">便宜 {fmtPrice(fair.combined.cheap)}</span><span>合理 {fmtPrice(fair.combined.fair)}</span><span class="up">昂貴 {fmtPrice(fair.combined.expensive)}</span></div>
-                <div class="bar" style={{ position: 'relative', margin: '0.5rem 0', height: '0.625rem' }} role="img"
-                  aria-label={`目前價格 ${fmtPrice(fair.price)} 位於區間 ${fair.position === null ? '—' : Math.round(fair.position * 100)}%`}>
-                  <i style={{ width: '100%', background: 'linear-gradient(90deg, var(--down), #ffcc00, var(--up))' }} />
-                  {fair.position !== null ? <span style={{ position: 'absolute', top: '-0.25rem', left: `calc(${Math.min(Math.max(fair.position, 0), 1) * 100}% - 0.5rem)`, fontSize: '0.875rem' }} aria-hidden="true">▼</span> : null}
-                </div>
-                <div class="small">目前 {fmtPrice(fair.price)}，位於區間 {fair.position === null ? '—' : `${Math.round(fair.position * 100)}%`}</div>
-              </div>
-            ) : <p class="small muted">資料不足以計算合理價。</p>}
-            <div class="scroll-x"><table class="table" style={{ marginTop: '0.75rem' }}>
-              <thead><tr><th>方法</th><th>便宜</th><th>合理</th><th>昂貴</th></tr></thead>
-              <tbody>
-                {fair.methods.map((m) => (
-                  <tr key={m.method}><td>{m.label}<div class="tiny muted">{m.basis}</div></td><td>{fmtPrice(m.cheap)}</td><td>{fmtPrice(m.fair)}</td><td>{fmtPrice(m.expensive)}</td></tr>
-                ))}
-              </tbody>
-            </table></div>
-          </div>
+          <h3 class="eyebrow" style={{ marginTop: 'var(--s-4)' }}>合理價估算方法</h3>
+          <div class="card"><FairRange h={h} detail /></div>
         </>
       ) : null}
-
       {revenue && revenue.length ? (
         <>
-          <h2 class="title-2">月營收</h2>
-          <div class="card scroll-x">
+          <h3 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>月營收</h3>
+          <div class="scroll-x">
             <table class="table">
               <thead><tr><th>年月</th><th>營收（百萬）</th><th>年增率</th><th>月增率</th></tr></thead>
               <tbody>
@@ -75,15 +85,10 @@ export function StockExtras({ h }: { h: StockHistory }) {
           </div>
         </>
       ) : null}
-
-      {halt ? (
-        <div class="banner" role="status">融券最後回補日 {halt.last_cover_date}（停券至 {halt.end}{halt.reason ? `，${halt.reason}` : ''}）</div>
-      ) : null}
-
       {quarters && quarters.length ? (
         <>
-          <h2 class="title-2">季財報（單季）</h2>
-          <div class="card scroll-x">
+          <h3 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>季財報（單季）</h3>
+          <div class="scroll-x">
             <table class="table">
               <thead><tr><th>季度</th><th>營收（億）</th><th>毛利率</th><th>稅後淨利（億）</th></tr></thead>
               <tbody>
@@ -94,36 +99,33 @@ export function StockExtras({ h }: { h: StockHistory }) {
                 ))}
               </tbody>
             </table>
-            <p class="tiny muted">MOPS 財報彙總（仟元換算為億元）；單季 = 本季累計 − 上季累計。</p>
+            <p class="caption muted">MOPS 財報彙總（仟元換算為億元）；單季 = 本季累計 − 上季累計。</p>
           </div>
         </>
       ) : null}
-
       {etfs && etfs.length ? (
         <>
-          <h2 class="title-2">主動式 ETF 持有</h2>
+          <h3 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>主動式 ETF 持有</h3>
           <div class="list">
             {etfs.map((e) => (
               <a key={e.etf} class="list-item" href={`#/stock/${e.etf}`}>
-                <span class="grow">{e.name} <span class="muted small">{e.etf}</span></span>
-                <span class="small num">{e.weight !== null ? `${fmtNum(e.weight)}%` : '—'}</span>
+                <span class="grow">{e.name} <span class="muted caption">{e.etf}</span></span>
+                <span class="caption">{e.weight !== null ? `${fmtNum(e.weight)}%` : '—'}</span>
                 <Signed value={e.change_shares} format={(v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${fmtNum(v / 1000, 0)} 張`)} />
               </a>
             ))}
           </div>
-          <p class="tiny muted">部分涵蓋：只有部分投信的主動式 ETF 有持股資料（取自各投信官網揭露；涵蓋範圍見市場頁）。</p>
+          <p class="caption muted">部分涵蓋：只有部分投信的主動式 ETF 有持股資料（取自各投信官網揭露；涵蓋範圍見探索 › 主動式 ETF）。</p>
         </>
       ) : null}
-
       {events && events.length ? (
         <>
-          <h2 class="title-2">近期事件</h2>
+          <h3 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>近期事件</h3>
           <div class="list">
             {events.map((e) => (
-              <div key={`${e.date}-${e.type}-${e.text}`} class="list-item">
-                <span class="num small muted" style={{ minWidth: '5.5rem' }}>{e.date}</span>
-                <span class="badge">{e.type}</span>
-                <span class="small grow">{e.text}</span>
+              <div key={`${e.date}-${e.type}-${e.text}`} class="list-item" style={{ alignItems: 'flex-start' }}>
+                <span class="caption muted" style={{ minWidth: '5.5rem' }}>{e.date}</span>
+                <span class="grow caption"><span class="badge">{e.type}</span> {e.text}</span>
               </div>
             ))}
           </div>

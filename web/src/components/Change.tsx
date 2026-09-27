@@ -6,11 +6,22 @@ export function Change({ change, pct, showPrice }: { change: number | null | und
   return (
     <span class={`num ${d}`}>
       <span class="sr-only">{changeLabel(change, pct)}</span>
-      {showPrice !== undefined ? <span class="bold">{fmtPrice(showPrice)} </span> : null}
+      {showPrice !== undefined ? <span class="bold t1">{fmtPrice(showPrice)} </span> : null}
       <span aria-hidden="true">
         {arrow(change)} {fmtNum(change === null || change === undefined ? null : Math.abs(change))}
-        {pct !== undefined ? ` (${fmtPct(pct)})` : ''}
+        {pct !== undefined ? `（${pct === null || pct === undefined ? '—' : `${Math.abs(pct).toFixed(2)}%`}）` : ''}
       </span>
+    </span>
+  );
+}
+
+/** 漲跌膠囊（清單列右側）：▲▼＋百分比，底色為淡紅／淡綠。 */
+export function ChangePill({ change, pct }: { change: number | null | undefined; pct: number | null | undefined }) {
+  const d = direction(change ?? pct);
+  return (
+    <span class={`pill ${d}`}>
+      <span class="sr-only">{changeLabel(change, pct)}</span>
+      <span aria-hidden="true">{arrow(change ?? pct)} {pct === null || pct === undefined ? '—' : `${Math.abs(pct).toFixed(2)}%`}</span>
     </span>
   );
 }
@@ -26,3 +37,5 @@ export function Signed({ value, format, label }: { value: number | null | undefi
     </span>
   );
 }
+
+export { fmtPct };

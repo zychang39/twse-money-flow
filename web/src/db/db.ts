@@ -6,7 +6,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 
 export const DB_NAME = 'twse-money-flow';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 export interface WatchItem {
   code: string;
@@ -51,6 +51,16 @@ export interface Trade {
   dividends?: { date: string; cash: number; shares: number }[];
 }
 
+/** 紀律行為紀錄（遊戲化）：只記錄紀律行為，不記錄下單次數或損益。day＝該晚儀式對應的資料日期。 */
+export type ActivityType = 'brief_read' | 'checklist_done' | 'review_done' | 'ritual_done' | 'backup' | 'backtest_own';
+export interface Activity {
+  id: string;
+  type: ActivityType;
+  day: string;
+  at: string;
+  meta?: Record<string, string | number | boolean>;
+}
+
 export interface Setting {
   key: string;
   value: unknown;
@@ -61,10 +71,11 @@ interface Schema extends DBSchema {
   settings: { key: string; value: Setting };
   screens: { key: string; value: SavedScreen };
   trades: { key: string; value: Trade; indexes: { status: string; code: string } };
+  activity: { key: string; value: Activity; indexes: { type: string; day: string } };
 }
 
-export type StoreName = 'watchlist' | 'settings' | 'screens' | 'trades';
-export const STORES: StoreName[] = ['watchlist', 'settings', 'screens', 'trades'];
+export type StoreName = 'watchlist' | 'settings' | 'screens' | 'trades' | 'activity';
+export const STORES: StoreName[] = ['watchlist', 'settings', 'screens', 'trades', 'activity'];
 
 type Migration = (db: IDBPDatabase<Schema>) => void;
 
@@ -78,6 +89,11 @@ export const MIGRATIONS: Record<number, Migration> = {
     const t = db.createObjectStore('trades', { keyPath: 'id' });
     t.createIndex('status', 'status');
     t.createIndex('code', 'code');
+  },
+  2: (db) => {
+    const a = db.createObjectStore('activity', { keyPath: 'id' });
+    a.createIndex('type', 'type');
+    a.createIndex('day', 'day');
   },
 };
 
@@ -164,6 +180,25 @@ export async function saveTrade(t: Trade): Promise<void> {
 export async function deleteTrade(id: string): Promise<void> {
   await (await getDb()).delete('trades', id);
   notify();
+}
+
+// ------------------------------------------------------------------ 紀律行為紀錄（遊戲化）
+export async function listActivity(): Promise<Activity[]> {
+  return (await getDb()).getAll('activity');
+}
+export async function logActivity(type: ActivityType, day: string, meta?: Activity['meta']): Promise<Activity> {
+  const a: Activity = { id: uid(), type, day, at: new Date().toISOString(), ...(meta ? { meta } : {}) };
+  await (await getDb()).put('activity', a);
+  notify();
+  return a;
+}
+/** 同一天同類型只記一次（例如「看完今晚簡報」）。 */
+export async function logActivityOnce(type: ActivityType, day: string, meta?: Activity['meta']): Promise<boolean> {
+  const db = await getDb();
+  const existing = await db.getAllFromIndex('activity', 'day', day);
+  if (existing.some((a) => a.type === type)) return false;
+  await logActivity(type, day, meta);
+  return true;
 }
 
 // ------------------------------------------------------------------ 變更通知（讓畫面重新讀取）

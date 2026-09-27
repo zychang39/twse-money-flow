@@ -1,6 +1,6 @@
 /** 方法說明：直接讀取 /config（與 pipeline 相同的設定）自動產生，設定改了這頁就跟著改。 */
-import { Nav } from '../components/Nav';
-import { CATEGORY_IDS, costsConfig, scoresConfig, thresholds, type Mapping } from '../lib/config';
+import { PageHead, TopBar } from '../components/Chrome';
+import { CATEGORY_IDS, costsConfig, scoresConfig, thresholds, uiConfig, type Mapping } from '../lib/config';
 
 function mappingText(m: Mapping, unit: string): string {
   switch (m.type) {
@@ -20,7 +20,7 @@ function mappingText(m: Mapping, unit: string): string {
 function Section({ title, children }: { title: string; children: preact.ComponentChildren }) {
   return (
     <section>
-      <h2 class="title-2">{title}</h2>
+      <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>{title}</h2>
       <div class="card">{children}</div>
     </section>
   );
@@ -35,8 +35,11 @@ export default function Methodology() {
   const fv = th.fair_value;
   const ind = th.indicators;
   return (
-    <div>
-      <Nav title="方法說明" back="/more" subtitle="依設定檔自動產生；所有報酬、均線、RS、回測使用還原價" />
+    <div class="page">
+      <TopBar back="/" avatar={false} />
+      <PageHead eyebrow="我的" title="方法說明">
+        <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>依設定檔自動產生；所有報酬、均線、RS、回測使用還原價。</p>
+      </PageHead>
       <Section title="綜合分">
         <p class="small">{scoresConfig.composite.description}</p>
         <table class="table">
@@ -54,7 +57,7 @@ export default function Methodology() {
           <Section key={cid} title={cat.label}>
             <p class="small">{cat.description}</p>
             {cat.factors.map((f) => (
-              <div key={f.id} style={{ padding: '0.5rem 0', borderTop: '0.5px solid var(--separator)' }}>
+              <div key={f.id} style={{ padding: '0.5rem 0', }}>
                 <div class="row between"><span class="bold small">{f.label}</span><span class="badge">權重 {f.weight}</span></div>
                 <div class="small">{f.description}</div>
                 <div class="tiny muted">{mappingText(f.mapping, f.unit === '%' || f.unit === '百分點' ? (f.unit === '%' ? '%' : 'pp') : '')}</div>
@@ -66,7 +69,7 @@ export default function Methodology() {
 
       <Section title="風險旗標（不併入分數）">
         {Object.entries(rf).map(([id, f]) => (
-          <div key={id} style={{ padding: '0.375rem 0', borderTop: '0.5px solid var(--separator)' }}>
+          <div key={id} style={{ padding: '0.375rem 0', }}>
             <div class="bold small">{f.label}</div>
             <div class="small">{f.description}</div>
             <div class="tiny muted">
@@ -121,8 +124,19 @@ export default function Methodology() {
         </ul>
       </Section>
 
+      <Section title="介面呈現規則（不影響計算）">
+        <ul class="small" style={{ paddingLeft: '1.25rem', margin: 0 }}>
+          <li>變化優先：以「上次查看」的快照為基準（第一次使用以前一交易日為基準）。顯著門檻：漲跌 ≥ {uiConfig.significance.price_pct}%、綜合分 ≥ {uiConfig.significance.composite_points} 分、外資或投信新達到連買／連賣 {uiConfig.significance.inst_streak_days} 日、法人淨買賣超 ≥ 成交量 {uiConfig.significance.inst_volume_pct}%、融資變化 ≥ {uiConfig.significance.margin_pct}%、新的風險旗標；低於門檻的預設收合。</li>
+          <li>資金環境燈號：任一指標為風險（紅燈）→ 保守；沒有風險且 ≥ {uiConfig.env_state.aggressive_min_green} 項有利 → 積極；其餘為中性。</li>
+          <li>持股警示：收盤 ≤ 停損價為「觸及停損」；距停損 ≤ {uiConfig.significance.near_stop_pct}% 為「接近停損」；新的或嚴重的風險旗標。</li>
+          <li>冷靜卡：新增持倉時若資金環境為保守、股價高於 20 日均線超過 {uiConfig.impulse.ma20_gap_pct}%、或近 5 日上漲超過 {uiConfig.impulse.price_change_5d_pct}%，先列出事實並需多確認一步。</li>
+          <li>回測可信度：樣本 &lt; {uiConfig.backtest_confidence.low_below} 筆為低、≥ {uiConfig.backtest_confidence.high_from} 筆為高，其餘為中。</li>
+          <li>遊戲化只獎勵紀律行為（看完簡報、完成檢查表〔含決定不進場〕、平倉檢討、備份、回測自己的條件），並設每日上限；不因下單次數、交易頻率或獲利給予任何獎勵。連續天數只計交易日，休市日不中斷。</li>
+        </ul>
+      </Section>
+
       <Section title="資料來源">
-        <p class="small">證交所、櫃買中心、集保、期交所、公開資訊觀測站、美國財政部等公開資料。各來源狀態見 <a href="#/more/health">資料健康</a>。</p>
+        <p class="small">證交所、櫃買中心、集保、期交所、公開資訊觀測站、美國財政部等公開資料。各來源狀態見 <a href="#/me/health">資料健康</a>。</p>
       </Section>
     </div>
   );

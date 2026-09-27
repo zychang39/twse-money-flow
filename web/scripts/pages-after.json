@@ -1,0 +1,166 @@
+[
+ {
+  "id": "01-tonight",
+  "hash": "#/",
+  "wait": 2600
+ },
+ {
+  "id": "01b-tonight-full",
+  "hash": "#/",
+  "wait": 2600,
+  "full": true
+ },
+ {
+  "id": "02-mine",
+  "hash": "#/mine",
+  "wait": 3000
+ },
+ {
+  "id": "02b-mine-full",
+  "hash": "#/mine",
+  "wait": 3000,
+  "full": true
+ },
+ {
+  "id": "03-mine-watch",
+  "hash": "#/mine?seg=watch",
+  "wait": 3000,
+  "full": true
+ },
+ {
+  "id": "04-stock",
+  "hash": "#/stock/2330",
+  "wait": 3000
+ },
+ {
+  "id": "04b-stock-full",
+  "hash": "#/stock/2330",
+  "wait": 3000,
+  "full": true
+ },
+ {
+  "id": "04c-stock-advanced",
+  "hash": "#/stock/2330",
+  "wait": 2500,
+  "steps": [
+   {
+    "click": "^進階$",
+    "wait": 2500
+   }
+  ]
+ },
+ {
+  "id": "04d-quick-preview",
+  "hash": "#/mine",
+  "wait": 3000,
+  "steps": [
+   {
+    "rightclickSel": ".srow",
+    "wait": 1500
+   }
+  ]
+ },
+ {
+  "id": "05-explore",
+  "hash": "#/explore",
+  "wait": 2200
+ },
+ {
+  "id": "06-screener",
+  "hash": "#/explore/screener",
+  "wait": 2200
+ },
+ {
+  "id": "07-backtest",
+  "hash": "#/explore/backtest",
+  "wait": 2500
+ },
+ {
+  "id": "08-sectors",
+  "hash": "#/explore/sectors",
+  "wait": 2200
+ },
+ {
+  "id": "09-etf",
+  "hash": "#/explore/etf",
+  "wait": 2200
+ },
+ {
+  "id": "10-market",
+  "hash": "#/explore/market",
+  "wait": 2200,
+  "full": true
+ },
+ {
+  "id": "11-calendar",
+  "hash": "#/explore/calendar",
+  "wait": 2200
+ },
+ {
+  "id": "12-disposition",
+  "hash": "#/explore/disposition",
+  "wait": 2200
+ },
+ {
+  "id": "13-discipline",
+  "hash": "#/discipline",
+  "wait": 2200
+ },
+ {
+  "id": "14-journal",
+  "hash": "#/discipline/journal",
+  "wait": 2200
+ },
+ {
+  "id": "15-stats",
+  "hash": "#/discipline/stats",
+  "wait": 3000,
+  "full": true
+ },
+ {
+  "id": "16-badges",
+  "hash": "#/discipline/badges",
+  "wait": 2200
+ },
+ {
+  "id": "17-weekly",
+  "hash": "#/discipline/weekly",
+  "wait": 2200
+ },
+ {
+  "id": "18-avatar-menu",
+  "hash": "#/",
+  "wait": 2200,
+  "steps": [
+   {
+    "click": "帳戶選單",
+    "wait": 900
+   }
+  ]
+ },
+ {
+  "id": "19-settings",
+  "hash": "#/me/settings",
+  "wait": 1800
+ },
+ {
+  "id": "20-backup",
+  "hash": "#/me/backup",
+  "wait": 1800
+ },
+ {
+  "id": "21-health",
+  "hash": "#/me/health",
+  "wait": 1800
+ },
+ {
+  "id": "22-methodology",
+  "hash": "#/me/methodology",
+  "wait": 1800
+ },
+ {
+  "id": "23-checklist",
+  "hash": "#/discipline/checklist",
+  "wait": 2200
+ }
+]

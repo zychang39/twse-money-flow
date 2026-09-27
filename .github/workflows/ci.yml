@@ -49,6 +49,9 @@ jobs:
         working-directory: web
       - run: npm run typecheck
         working-directory: web
+      - name: WCAG AA 對比（設計 tokens）
+        run: python3 scripts/contrast.py
+        working-directory: web
       - run: npm test
         working-directory: web
       - run: npm run build
