@@ -122,6 +122,13 @@ INSTI_COLS = [
     "dealer_self_net",
     "dealer_hedge_net",
     "total_net",
+    # 外資自營商、自營商（自行買賣／避險）的買進與賣出股數：2026-09 起才保存（較早的檔案為空值，可用 backfill --refresh 重抓）
+    "foreign_dealer_buy",
+    "foreign_dealer_sell",
+    "dealer_self_buy",
+    "dealer_self_sell",
+    "dealer_hedge_buy",
+    "dealer_hedge_sell",
 ]
 
 
@@ -147,6 +154,12 @@ def parse_insti(payload: bytes | str | dict[str, Any]) -> ParseResult:
             "dealer_self_net": "自營商買賣超股數(自行買賣)",
             "dealer_hedge_net": "自營商買賣超股數(避險)",
             "total_net": "三大法人買賣超股數",
+            "foreign_dealer_buy": "外資自營商買進股數",
+            "foreign_dealer_sell": "外資自營商賣出股數",
+            "dealer_self_buy": "自營商買進股數(自行買賣)",
+            "dealer_self_sell": "自營商賣出股數(自行買賣)",
+            "dealer_hedge_buy": "自營商買進股數(避險)",
+            "dealer_hedge_sell": "自營商賣出股數(避險)",
         },
     )
     df = finalize(df, numeric=INSTI_COLS[3:])

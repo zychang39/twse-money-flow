@@ -88,6 +88,16 @@ CHIP_INSTI = [
     "dealer_self_net",
     "dealer_hedge_net",
     "total_net",
+    "foreign_buy",
+    "foreign_sell",
+    "foreign_dealer_buy",
+    "foreign_dealer_sell",
+    "trust_buy",
+    "trust_sell",
+    "dealer_self_buy",
+    "dealer_self_sell",
+    "dealer_hedge_buy",
+    "dealer_hedge_sell",
 ]
 CHIP_KEYS = {
     "foreign_net": "fn",
@@ -178,6 +188,36 @@ def chip_block(p: Any, mp: Any, src: dict[str, pd.DataFrame], code: str, idx: li
     out["dtv"] = arr(_col(_sub(src, "daytrade", code), "dt_volume", sel).to_numpy(), 0)
     dt = mp.get("daytrade_pct")[code].reindex(sel) if "daytrade_pct" in mp.panels else pd.Series(np.nan, index=sel)
     out["dt"] = arr(dt.to_numpy(), 2)
+    out.update(chip_buy_sell(ins, sel))
+    return out
+
+
+def chip_buy_sell(ins: pd.DataFrame | None, sel: list[str]) -> dict[str, list[Any]]:
+    """各法人的買進／賣出股數（法人買賣超報表用）。
+
+    fb／fs：外資＝外陸資（不含外資自營商）＋外資自營商；外資自營商買賣股數缺漏（舊檔只存買賣超）時，
+    若其買賣超為 0 視為沒有交易，否則為空值（避免買進 − 賣出 ≠ 買賣超）。
+    tb／ts：投信。dsb／dss：自營商自行買賣；dhb／dhs：自營商避險（舊檔為空值，可用 backfill --refresh 重抓）。
+    """
+
+    def c(col: str) -> pd.Series:
+        return _col(ins, col, sel).astype(float)
+
+    ffd = c("foreign_dealer_net")
+    no_trade = pd.Series(np.where(ffd == 0, 0.0, np.nan), index=ffd.index)
+    out: dict[str, list[Any]] = {}
+    for side, key in (("buy", "fb"), ("sell", "fs")):
+        dealer = c(f"foreign_dealer_{side}").fillna(no_trade)
+        out[key] = arr((c(f"foreign_{side}") + dealer).to_numpy(), 0)
+    for col, key in (
+        ("trust_buy", "tb"),
+        ("trust_sell", "ts"),
+        ("dealer_self_buy", "dsb"),
+        ("dealer_self_sell", "dss"),
+        ("dealer_hedge_buy", "dhb"),
+        ("dealer_hedge_sell", "dhs"),
+    ):
+        out[key] = arr(c(col).to_numpy(), 0)
     return out
 
 

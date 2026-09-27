@@ -147,6 +147,22 @@ def test_backfill_newest_first_and_skips_existing(tmp_path):
     assert "date=20260923" in urls[0] and "date=20260922" in urls[1]
 
 
+def test_backfill_refresh_refetches_existing(tmp_path):
+    """--refresh：已存在的檔案也重抓（補齊解析器新增的欄位）；未指定來源時拒絕，避免整批重抓。"""
+    ctx = make_ctx(tmp_path, {"T86": sample("twse_rwd_T86.json")})
+    old = pd.DataFrame({"date": ["2026-09-24"], "code": ["2330"], "foreign_net": [1.0]})
+    ctx.store.write("twse_insti", date(2026, 9, 24), old)
+    tasks.task_backfill(ctx, ["twse_insti"], date(2026, 9, 24), date(2026, 9, 24))
+    assert not ctx.client.urls  # type: ignore[attr-defined]
+    tasks.task_backfill(ctx, ["twse_insti"], date(2026, 9, 24), date(2026, 9, 24), refresh=True)
+    assert any("T86" in u and "date=20260924" in u for u in ctx.client.urls)  # type: ignore[attr-defined]
+    # 樣本已裁切（筆數少於下限）→ 驗證失敗，保留原檔不覆蓋
+    got = ctx.store.read("twse_insti", date(2026, 9, 24))
+    assert got is not None and got["foreign_net"].tolist() == [1.0]
+    with pytest.raises(ValueError):
+        tasks.task_backfill(ctx, None, date(2026, 9, 24), date(2026, 9, 24), refresh=True)
+
+
 def test_full_backfill_limits_advanced_days(tmp_path, monkeypatch):
     monkeypatch.setattr(tasks, "BACKFILL_FULL", ["twse_quotes", "twse_sbl"])
     monkeypatch.setattr(tasks, "ADVANCED_BACKFILL_DAYS", 1)

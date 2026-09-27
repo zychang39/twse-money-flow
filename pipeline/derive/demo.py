@@ -30,6 +30,12 @@ DEMO_STOCKS = [
 ]
 
 
+def _gross(volume: int, net: int, share: float) -> tuple[int, int]:
+    """示範用買進、賣出股數：以成交量的固定比例為雙邊基本量，再加上買賣超（不額外抽亂數，其他示範數值不變）。"""
+    base = int(volume * share)
+    return base + max(net, 0), base + max(-net, 0)
+
+
 def _trading_days(end: date, n: int) -> list[date]:
     out: list[date] = []
     d = end
@@ -83,16 +89,32 @@ def build_store(root: Path, *, days: int = 320, end: date | None = None, seed: i
             fnet = int(rng.normal(0, 2e6))
             tnet = int(rng.normal(3e5, 5e5))
             dnet = int(rng.normal(0, 3e5))
+            dself = int(dnet * 0.6)
+
+            fb, fs = _gross(vol, fnet, 0.08)
+            tb, ts = _gross(vol, tnet, 0.01)
+            sb_, ss_ = _gross(vol, dself, 0.02)
+            hb, hs = _gross(vol, dnet - dself, 0.015)
             rows.setdefault(f"{market}_insti", {}).setdefault(iso, []).append(
                 {
                     "date": iso,
                     "code": code,
                     "name": name,
+                    "foreign_buy": fb,
+                    "foreign_sell": fs,
                     "foreign_net": fnet,
+                    "trust_buy": tb,
+                    "trust_sell": ts,
                     "trust_net": tnet,
                     "dealer_net": dnet,
-                    "dealer_self_net": int(dnet * 0.6),
-                    "dealer_hedge_net": dnet - int(dnet * 0.6),
+                    "dealer_self_buy": sb_,
+                    "dealer_self_sell": ss_,
+                    "dealer_self_net": dself,
+                    "dealer_hedge_buy": hb,
+                    "dealer_hedge_sell": hs,
+                    "dealer_hedge_net": dnet - dself,
+                    "foreign_dealer_buy": 0,
+                    "foreign_dealer_sell": 0,
                     "foreign_dealer_net": 0,
                     "total_net": fnet + tnet + dnet,
                 }

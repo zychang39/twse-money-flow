@@ -405,13 +405,20 @@ def _mark_month(ctx: RunContext, key: str, m: date, failures_before: int) -> Non
         done.sort()
 
 
-def task_backfill(ctx: RunContext, sources: list[str] | None, start: date, end: date) -> dict[str, Any]:
+def task_backfill(
+    ctx: RunContext, sources: list[str] | None, start: date, end: date, *, refresh: bool = False
+) -> dict[str, Any]:
     """回補：未指定來源時做完整回補（見 registry.BACKFILL_FULL）。
 
     順序：區間／月查詢型與期交所等（以月為單位，由近到遠）→ 每日型（由近到遠、一天抓齊所有來源；
     進階每日來源只補近 ADVANCED_BACKFILL_DAYS 天）。可中斷、可續跑：已存在的檔案與已完成的月份略過；
     時間預算用完就停止並回報剩餘量。
+
+    refresh：重抓區間內「已存在」的每日型檔案（解析器新增欄位後補齊舊檔用，例如法人的自營商買賣股數）；
+    只在明確指定來源時有效，避免誤觸整批重抓。
     """
+    if refresh and not sources:
+        raise ValueError("--refresh 需要指定 --source（只重抓指定的每日型來源）")
     full = not sources
     sources = sources or BACKFILL_FULL
     load_calendar(ctx, list(range(start.year, end.year + 1)))
@@ -485,18 +492,18 @@ def task_backfill(ctx: RunContext, sources: list[str] | None, start: date, end: 
         days = [
             d
             for d in reversed(ctx.calendar.trading_days(start, end))
-            if d.isoformat() not in closed and any(not ctx.store.exists(s, d) for s in wanted(d))
+            if d.isoformat() not in closed and (refresh or any(not ctx.store.exists(s, d) for s in wanted(d)))
         ]
         for i, d in enumerate(days):
             if ctx.out_of_time():
                 remaining["daily_days"] = len(days) - i
                 break
             todo = wanted(d)
-            if "twse_quotes" in todo and run_daily_source(ctx, SPECS["twse_quotes"], d) == "closed":
+            if "twse_quotes" in todo and run_daily_source(ctx, SPECS["twse_quotes"], d, overwrite=refresh) == "closed":
                 continue
             for sid in todo:
                 if sid != "twse_quotes":
-                    run_daily_source(ctx, SPECS[sid], d)
+                    run_daily_source(ctx, SPECS[sid], d, overwrite=refresh)
     progressed = any(r["status"] == "ok" for r in ctx.results)
     return {"remaining": sum(remaining.values()), "by_source": remaining, "progressed": progressed}
 

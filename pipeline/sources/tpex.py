@@ -126,6 +126,12 @@ def parse_insti(payload: bytes | str | dict[str, Any]) -> ParseResult:
         "dealer_hedge_net": 19,
         "dealer_net": 22,
         "total_net": 23,
+        "foreign_dealer_buy": 5,
+        "foreign_dealer_sell": 6,
+        "dealer_self_buy": 14,
+        "dealer_self_sell": 15,
+        "dealer_hedge_buy": 17,
+        "dealer_hedge_sell": 18,
     }
     df = frame_from_fields(t["fields"], t.get("data", []), mapping)
     df = finalize(df, numeric=INSTI_COLS[3:])
