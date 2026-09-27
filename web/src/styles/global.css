@@ -349,44 +349,64 @@ label.field > span { display: block; font-size: var(--fs-caption); line-height: 
 }
 :root[data-ambient='on'] .card.soft-glass { background: color-mix(in srgb, var(--surface-1) 78%, transparent); box-shadow: inset 0 0.5px 0 var(--glass-hi); }
 
-/* ---------- 底部導覽：Tab 膠囊＋圓形搜尋按鈕（同一列，iOS 26 慣例） ----------
+/* ---------- 底部導覽：5 個分頁的玻璃膠囊（Instagram／iOS 26 樣式），搜尋在第 4 格 ----------
  * 固定元素一律 bottom: 0，以 safe-area 補齊，不額外疊加 margin：
  * - Safari 瀏覽器模式：網址列在頁面視窗之外（或由 Safari 提供 inset），env() 通常為 0 → 緊貼視窗底緣。
  * - 加入主畫面（standalone）：視窗延伸到螢幕底部，env() ＝ Home 指示條高度（約 34px）→ 導覽列浮在指示條上方。
+ * 整頁轉場（View Transitions）時導覽列有自己的 view-transition-name，不會跟著頁面滑動。
  */
 .dock {
   position: fixed; z-index: 30; left: 0; right: 0; bottom: 0;
-  display: flex; align-items: flex-end; justify-content: center; gap: var(--s-3);
+  display: flex; align-items: flex-end; justify-content: center;
   padding: 0 calc(var(--safe-right) + var(--gutter)) var(--dock-pad) calc(var(--safe-left) + var(--gutter));
   pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-out);
 }
 .dock > * { pointer-events: auto; }
 .tabbar {
-  flex: 1 1 auto; max-width: 20rem; height: var(--tabbar-h);
-  display: grid; grid-template-columns: repeat(4, 1fr); padding: 0 var(--s-1);
+  position: relative; flex: 1 1 auto; max-width: 26rem; height: var(--tabbar-h);
+  display: grid; grid-template-columns: repeat(5, 1fr); padding: 0 var(--tab-pad);
   border-radius: var(--r-pill);
+  background: var(--tab-bg);
+  -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
+  /* 細框＋上緣高光＋柔和陰影（玻璃的厚度感） */
+  box-shadow: inset 0 0 0 0.5px var(--tab-edge), inset 0 1px 0 var(--tab-hi), var(--tab-shadow);
+  touch-action: pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   transition: height var(--dur-base) var(--ease-spring), max-width var(--dur-base) var(--ease-spring);
+  /* 整頁轉場時自成一組、不跟著頁面滑動。名稱放在導覽列本身而不是外層 .dock：
+     有 view-transition-name 的元素會成為 backdrop root，放在外層會讓導覽列的模糊取不到背後的頁面 */
+  view-transition-name: dock;
 }
-.tabbar a { display: flex; align-items: center; justify-content: center; color: var(--text-2); border-radius: var(--r-pill); min-height: var(--tap); }
-.tabbar a[aria-current='page'] { color: var(--brand); }
+/* 選取膠囊：寬度＝一格，以 translateX(n × 100%) 放到第 n 格；切換時由 Chrome.tsx 以 Web Animations 滑過去 */
+.tab-indicator {
+  position: absolute; top: var(--tab-pad); bottom: var(--tab-pad); left: var(--tab-pad);
+  width: calc((100% - 2 * var(--tab-pad)) / 5); border-radius: var(--r-pill);
+  background: var(--tab-sel); box-shadow: inset 0 0.5px 0 var(--tab-sel-hi);
+  pointer-events: none; will-change: transform; transform-origin: 50% 50%;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.tab-indicator.hidden { opacity: 0; }
+.tabbar.lens .tab-indicator { background: var(--tab-sel-lens); box-shadow: inset 0 0.5px 0 var(--tab-sel-hi), 0 4px 14px rgba(0, 0, 0, 0.18); }
+.tabbar a {
+  position: relative; display: flex; align-items: center; justify-content: center; min-height: var(--tap);
+  color: var(--tab-icon); border-radius: var(--r-pill); -webkit-tap-highlight-color: transparent;
+}
+.tabbar a[aria-current='page'] { color: var(--tab-icon-on); }
+.tabbar svg { stroke-width: 1.8; }
+.tabbar a[aria-current='page'] svg { stroke-width: 2.2; }
+.tabbar a:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--brand); }
 .tabbar svg { width: 1.625rem; height: 1.625rem; transition: width var(--dur-base) var(--ease-spring), height var(--dur-base) var(--ease-spring); }
-.search-btn {
-  flex: none; width: var(--tabbar-h); height: var(--tabbar-h); border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center; color: var(--text-1);
-  transition: width var(--dur-base) var(--ease-spring), height var(--dur-base) var(--ease-spring);
-}
-.search-btn svg { width: 1.5rem; height: 1.5rem; }
-/* 精簡型態：往下捲動時縮小（高度 56 → 44、寬度收窄），往上捲或停止時恢復 */
-.dock.compact .tabbar { height: var(--tabbar-h-compact); max-width: 13.5rem; }
+/* 精簡型態：往下捲動時縮小（高度 58 → 46、寬度收窄），往上捲或停止時恢復 */
+.dock.compact .tabbar { height: var(--tabbar-h-compact); max-width: 18rem; }
 .dock.compact .tabbar svg { width: 1.375rem; height: 1.375rem; }
-.dock.compact .search-btn { width: var(--tabbar-h-compact); height: var(--tabbar-h-compact); }
-.dock.compact .search-btn svg { width: 1.25rem; height: 1.25rem; }
-:root[data-ambient='off'] .tabbar, :root[data-ambient='off'] .search-btn {
-  -webkit-backdrop-filter: none; backdrop-filter: none;
-  background: var(--glass-strong); box-shadow: var(--shadow-float);
-}
+/* 搜尋頁鍵盤開啟時：導覽列淡出（鍵盤收起後恢復） */
+:root[data-kb='open'] .dock { opacity: 0; transform: translateY(0.75rem); pointer-events: none; }
+:root[data-kb='open'] .dock > * { pointer-events: none; }
+:root[data-ambient='off'] .tabbar { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--tab-bg-solid); }
 @media (prefers-reduced-transparency: reduce) {
-  .glass, .tabbar, .search-btn { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--surface-2); }
+  .glass, .tabbar { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .glass { background: var(--surface-2); }
+  .tabbar { background: var(--tab-bg-solid); }
 }
 /* 加入主畫面：狀態列為 black-translucent，內容捲到狀態列底下時加一層漸層，避免與時間、電量重疊 */
 .status-scrim { display: none; position: fixed; z-index: 29; left: 0; right: 0; top: 0; height: var(--safe-top); background: linear-gradient(var(--bg) 60%, transparent); pointer-events: none; }
@@ -408,7 +428,7 @@ label.field > span { display: block; font-size: var(--fs-caption); line-height: 
  * 鍵盤開啟時高度縮小、輸入框自然貼在鍵盤正上方；iOS 把版面往上推的位移由 --vv-top 抵銷。
  */
 .search-screen {
-  position: fixed; z-index: 35; left: 0; right: 0; top: var(--vv-top, 0px); height: var(--vv-h, 100dvh);
+  position: fixed; z-index: 29; /* 在底部導覽（30）之下：鍵盤收起時導覽列顯示在搜尋框下方 */ left: 0; right: 0; top: var(--vv-top, 0px); height: var(--vv-h, 100dvh);
   max-width: var(--content-max); margin: 0 auto;
   display: flex; flex-direction: column; background: var(--bg);
   padding: 0 var(--safe-right) 0 var(--safe-left);
@@ -449,9 +469,10 @@ label.field > span { display: block; font-size: var(--fs-caption); line-height: 
 .sresult-add.on { color: var(--text-2); cursor: default; }
 .search-bar {
   flex: none; display: flex; align-items: center; gap: var(--s-2);
-  padding: var(--s-2) calc(var(--gutter) - var(--s-2)) calc(var(--s-2) + var(--safe-bottom)) var(--gutter);
+  /* 鍵盤收起：搜尋框在底部導覽（含 safe-area）正上方 */
+  padding: var(--s-2) calc(var(--gutter) - var(--s-2)) calc(var(--dock-h) + var(--s-3)) var(--gutter);
 }
-/* 鍵盤開啟時 safe-area 被鍵盤蓋住，不需要再補 */
+/* 鍵盤開啟時導覽列淡出、safe-area 被鍵盤蓋住：搜尋框直接貼在鍵盤上方 */
 .search-screen[data-kb='open'] .search-bar { padding-bottom: var(--s-2); }
 .search-field {
   flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--s-2); height: 3rem; padding: 0 var(--s-2) 0 var(--s-4);
@@ -712,14 +733,19 @@ details.tech ul { margin: var(--s-1) 0 0; padding-left: var(--s-4); color: var(-
 .chart-box { width: 100%; height: 22rem; }
 
 /* ---------- 按壓回饋、轉場 ---------- */
-.press, .btn, .chip, .tile, .index-card, .menu-item, .list-item, .card[href], a.card, .srow, .env-pill, .ring-btn, .search-btn, .tabbar a {
+.press, .btn, .chip, .tile, .index-card, .menu-item, .list-item, .card[href], a.card, .srow, .env-pill, .ring-btn, .tabbar a {
   transition: transform var(--dur-press) var(--ease-out), background var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
 }
-.press:active, .btn:active, .chip:active, .tile:active, .index-card:active, .menu-item:active, a.list-item:active, button.list-item:active, a.card:active, .env-pill:active, .ring-btn:active, .tabbar a:active, .search-btn:active { transform: scale(0.97); }
+.press:active, .btn:active, .chip:active, .tile:active, .index-card:active, .menu-item:active, a.list-item:active, button.list-item:active, a.card:active, .env-pill:active, .ring-btn:active, .tabbar a:active { transform: scale(0.92); }
 .fade-in { animation: fade-in var(--dur-base) var(--ease-out) both; }
 @keyframes fade-in { from { opacity: 0; transform: translateY(0.375rem); } to { opacity: 1; transform: none; } }
-.swipe-page { transition: transform var(--dur-base) var(--ease-spring), opacity var(--dur-base) var(--ease-out); }
-.swipe-page.dragging { transition: none; }
+/* 個股頁左右換股（StockPager）：主角區是一條「前一檔｜目前｜後一檔」的軌道，滿版寬度（走勢圖仍延伸到螢幕邊緣） */
+.pager { margin: 0 calc(-1 * var(--gutter)); overflow: hidden; touch-action: pan-y; }
+@supports (overflow: clip) { .pager { overflow-x: clip; overflow-y: visible; } }
+.pager-track { display: flex; align-items: flex-start; will-change: transform; }
+.pager-pane { flex: 0 0 100%; min-width: 0; box-sizing: border-box; padding: 0 var(--gutter); }
+.pager.dragging { cursor: grabbing; }
+.pager.dragging .chart-wrap { cursor: grabbing; }
 
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-base); animation-timing-function: var(--ease-out); }
 :root[data-nav='push']::view-transition-old(root) { animation-name: vt-out-left; }

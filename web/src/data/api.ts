@@ -3,6 +3,8 @@ import type { AiSummary, Health, Meta, StockHistory, StockRow, Summary } from '.
 
 const BASE = `${import.meta.env.BASE_URL}data/`;
 const cache = new Map<string, Promise<unknown>>();
+/** 已經載入完成的資料（同步讀取用：個股頁左右滑動時，前後一檔已預先載入，換股不必等待、不出現載入畫面） */
+const resolved = new Map<string, unknown>();
 
 export class DataError extends Error {}
 
@@ -12,7 +14,7 @@ async function getJson<T>(path: string): Promise<T> {
       if (!res.ok) throw new DataError(`${path}：HTTP ${res.status}`);
       return res.json();
     });
-    p.catch(() => cache.delete(path));
+    p.then((v) => resolved.set(path, v), () => cache.delete(path));
     cache.set(path, p);
   }
   return cache.get(path) as Promise<T>;
@@ -43,7 +45,10 @@ export function loadSummary() {
   return summaryIndex;
 }
 
-export const loadStock = (code: string) => getJson<StockHistory>(`stocks/${encodeURIComponent(code)}.json`);
+const stockPath = (code: string) => `stocks/${encodeURIComponent(code)}.json`;
+export const loadStock = (code: string) => getJson<StockHistory>(stockPath(code));
+/** 已載入的個股檔（沒有則為 undefined，不發出請求）。 */
+export const peekStock = (code: string) => resolved.get(stockPath(code)) as StockHistory | undefined;
 export const loadJson = <T>(path: string) => getJson<T>(path);
 export const loadMarket = () => getJson<import('./types').MarketData>('market.json');
 /** 系統清單（熱門動能）；舊版部署沒有這個檔案時回傳 null，不影響其他畫面。 */

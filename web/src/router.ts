@@ -1,5 +1,6 @@
 /** 簡易 hash 路由（GitHub Pages 友善）：#/stock/2330?list=holdings。舊網址自動轉址到新資訊架構。 */
 import { useEffect, useState } from 'preact/hooks';
+import { isTabSwitch } from './lib/tabs';
 
 export interface Route {
   path: string;
@@ -46,7 +47,9 @@ export function depth(path: string): number {
 }
 
 let lastPath = typeof location === 'undefined' ? '/' : parseHash(location.hash).path;
-let pendingDir: 'push' | 'pop' | null = null;
+/** none：不做整頁轉場、也不捲回頂端（個股頁左右滑動換股時，主角區已經自己滑過去了） */
+type NavDir = 'push' | 'pop' | 'none';
+let pendingDir: NavDir | null = null;
 
 export function useRoute(): Route {
   const [route, setRoute] = useState(() => parseHash(location.hash));
@@ -60,14 +63,16 @@ export function useRoute(): Route {
       }
       const dir = pendingDir ?? (depth(next.path) > depth(lastPath) ? 'push' : depth(next.path) < depth(lastPath) ? 'pop' : 'swap');
       pendingDir = null;
+      // 切換分頁（例：今晚 → 搜尋）：內容直接替換，只有底部導覽的選取膠囊滑過去（Instagram 的做法）
+      const tabSwitch = isTabSwitch(lastPath, next.path);
       lastPath = next.path;
       const apply = () => {
         setRoute(next);
-        window.scrollTo(0, 0);
+        if (dir !== 'none') window.scrollTo(0, 0);
       };
       const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
       const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-      if (doc.startViewTransition && !reduce) {
+      if (doc.startViewTransition && !reduce && !tabSwitch && dir !== 'none') {
         document.documentElement.dataset.nav = dir;
         doc.startViewTransition(apply);
       } else apply();
@@ -81,7 +86,7 @@ export function useRoute(): Route {
   return route;
 }
 
-export function navigate(path: string, replace = false, dir?: 'push' | 'pop'): void {
+export function navigate(path: string, replace = false, dir?: NavDir): void {
   const h = path.startsWith('#') ? path : `#${path}`;
   pendingDir = dir ?? null;
   if (replace) location.replace(h);

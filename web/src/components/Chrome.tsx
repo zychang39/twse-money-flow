@@ -1,42 +1,126 @@
-/** App 外框：頂列（含頭像選單）、底部導覽（4 個圖示 Tab＋圓形搜尋按鈕）、環境光。 */
+/** App 外框：頂列（含頭像選單）、底部導覽（5 個圖示分頁，搜尋在第 4 格）、環境光。 */
 import type { ComponentChildren } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Sheet } from './Sheet';
 import {
   IconBack, IconDiscipline, IconDoc, IconExplore, IconExport, IconMine, IconPerson, IconPulse, IconSearch, IconSliders, IconTonight,
 } from './Icons';
+import { TAB_DEFS, tabIndexOf } from '../lib/tabs';
+import { navigate } from '../router';
 
-const TABS = [
-  { path: '/', label: '今晚', icon: IconTonight, match: (p: string) => p === '/' },
-  { path: '/mine', label: '我的股票', icon: IconMine, match: (p: string) => p.startsWith('/mine') || p.startsWith('/stock') },
-  { path: '/explore', label: '探索', icon: IconExplore, match: (p: string) => p.startsWith('/explore') },
-  { path: '/discipline', label: '紀律', icon: IconDiscipline, match: (p: string) => p.startsWith('/discipline') },
-];
+const TAB_ICONS = [IconTonight, IconMine, IconExplore, IconSearch, IconDiscipline];
+const SEARCH_TAB = 3;
+const DRAG_START = 10; // 在導覽列上水平拖曳超過這個距離，選取膠囊跟著手指移動（放開即切換）
+
+const reduceMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 /**
- * 底部導覽（iOS 26 慣例）：4 個圖示 Tab 的膠囊＋右側獨立的圓形搜尋按鈕，合併成一列。
- * - 固定在 bottom: 0，以 env(safe-area-inset-bottom) 補齊（不另加 margin）；內容底部保留剛好等於這一列的高度。
- * - 往下捲動時縮小成精簡型態；往上捲、停止捲動或換頁時恢復（useScrollCompact）。
- * - 搜尋頁（#/search）有自己的底部搜尋列，這一列隱藏。
+ * 底部導覽（Instagram／iOS 26 樣式的玻璃膠囊）：今晚、我的股票、探索、搜尋、紀律。
+ * - 目前分頁底下有一顆較亮的選取膠囊；切換分頁時膠囊滑過去（中途略微拉長再回彈），頁面內容直接替換。
+ * - 手指按住導覽列左右拖曳：膠囊跟著手指移動並略微放大，放開時切換到手指下方的分頁。
+ * - 搜尋在第 4 格（右手拇指最順手）；點搜尋時同步預熱鍵盤（primeKeyboard），進入搜尋頁鍵盤直接彈出；
+ *   鍵盤開啟時導覽列淡出（:root[data-kb='open']），收起後恢復。
+ * - 固定在 bottom: 0，以 env(safe-area-inset-bottom) 補齊；往下捲動時縮小（useScrollCompact）。
  */
 export function Dock({ path }: { path: string }) {
   const compact = useScrollCompact(path);
+  const active = tabIndexOf(path);
+  const indRef = useRef<HTMLSpanElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+  const prev = useRef(active);
+  const drag = useRef<{ id: number; x: number; on: boolean } | null>(null);
+  const suppressClick = useRef(false);
+  const [lens, setLens] = useState(false);
+
+  // 分頁改變：選取膠囊從舊位置滑到新位置（中途拉長一點再回彈，類似液態玻璃）
+  useLayoutEffect(() => {
+    const el = indRef.current;
+    const from = prev.current;
+    prev.current = active;
+    if (!el || from === active || from < 0 || active < 0 || reduceMotion() || !el.animate) return;
+    const mid = (from + active) / 2;
+    const stretch = 1 + Math.min(0.35, 0.12 * Math.abs(active - from));
+    el.animate(
+      [
+        { transform: `translateX(${from * 100}%) scale(1, 1)` },
+        { transform: `translateX(${mid * 100}%) scale(${stretch}, 0.92)`, offset: 0.45 },
+        { transform: `translateX(${active * 100}%) scale(1, 1)` },
+      ],
+      { duration: 460, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+    );
+  }, [active]);
+
+  const cellAt = (clientX: number): { index: number; x: number } | null => {
+    const nav = navRef.current;
+    if (!nav) return null;
+    const r = nav.getBoundingClientRect();
+    const pad = parseFloat(getComputedStyle(nav).paddingLeft) || 0;
+    const w = (r.width - 2 * pad) / TAB_DEFS.length;
+    const x = Math.max(0, Math.min(r.width - 2 * pad - w, clientX - r.left - pad - w / 2));
+    return { index: Math.round(x / w), x: x / w };
+  };
+  const onDown = (e: PointerEvent) => {
+    if (e.pointerType === 'mouse' || e.button !== 0) return;
+    drag.current = { id: e.pointerId, x: e.clientX, on: false };
+  };
+  const onMove = (e: PointerEvent) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    if (!d.on) {
+      if (Math.abs(e.clientX - d.x) < DRAG_START) return;
+      d.on = true;
+      navRef.current?.setPointerCapture(e.pointerId);
+      setLens(true);
+    }
+    const c = cellAt(e.clientX);
+    if (c && indRef.current) indRef.current.style.transform = `translateX(${c.x * 100}%) scale(1.12)`;
+  };
+  const onUp = (e: PointerEvent) => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || !d.on) return;
+    setLens(false);
+    suppressClick.current = true;
+    const c = cellAt(e.clientX);
+    const el = indRef.current;
+    const to = c ? c.index : active;
+    if (el) {
+      // 從手指放開的位置吸附到分頁中央
+      const from = el.style.transform;
+      el.style.transform = `translateX(${Math.max(0, to) * 100}%)`;
+      if (!reduceMotion() && el.animate) el.animate([{ transform: from }, { transform: el.style.transform }], { duration: 320, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+    }
+    prev.current = to; // 已經在目標位置，不再播放一次滑動
+    if (to !== active && to >= 0) {
+      if (to === SEARCH_TAB) primeKeyboard();
+      navigate(TAB_DEFS[to].path);
+    }
+  };
+  const onCancel = () => { drag.current = null; setLens(false); };
+
   return (
     <div class={`dock ${compact ? 'compact' : ''}`}>
-      <nav class="tabbar glass" aria-label="主要分頁">
-        {TABS.map((t) => {
-          const Icon = t.icon;
-          const current = t.match(path);
+      <nav ref={navRef} class={`tabbar ${lens ? 'lens' : ''}`} aria-label="主要分頁"
+        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onCancel}
+        onClickCapture={(e) => { if (suppressClick.current) { e.preventDefault(); e.stopPropagation(); suppressClick.current = false; } }}>
+        <span ref={indRef} class={`tab-indicator ${active < 0 ? 'hidden' : ''}`} aria-hidden="true"
+          style={{ transform: `translateX(${Math.max(0, active) * 100}%)` }} />
+        {TAB_DEFS.map((t, i) => {
+          const Icon = TAB_ICONS[i];
+          const current = i === active;
           return (
-            <a key={t.path} href={`#${t.path}`} aria-label={t.label} aria-current={current ? 'page' : undefined}>
+            <a key={t.path} href={`#${t.path}`} aria-label={i === SEARCH_TAB ? '搜尋代號或名稱' : t.label} aria-current={current ? 'page' : undefined}
+              class={i === SEARCH_TAB ? 'tab-search' : undefined}
+              onClick={i === SEARCH_TAB ? (e) => {
+                primeKeyboard();
+                // 已在搜尋頁再點一次：回到搜尋框
+                if (current) { e.preventDefault(); window.dispatchEvent(new Event('search-refocus')); }
+              } : undefined}>
               <Icon />
             </a>
           );
         })}
       </nav>
-      <a class="search-btn glass" href="#/search" aria-label="搜尋代號或名稱" onClick={primeKeyboard}>
-        <IconSearch />
-      </a>
     </div>
   );
 }

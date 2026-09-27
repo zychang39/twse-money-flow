@@ -53,13 +53,15 @@ test('個股頁：同一清單左右切換（按鈕與拖曳手勢）', async ({
   if (await quiet.count() && (await quiet.getAttribute('aria-expanded')) === 'false') await quiet.click();
   await page.locator('.srow').first().click();
   await expect(page.getByText(/自選 1 \/ 3/)).toBeVisible();
-  const first = await page.locator('h1').textContent();
+  // 主角區是「前一檔｜目前｜後一檔」的軌道：只看目前這一檔的標題（相鄰的兩檔 aria-hidden）
+  const title = page.getByRole('heading', { level: 1 });
+  const first = await title.textContent();
   await page.getByRole('button', { name: '下一檔' }).click();
   await expect(page.getByText(/自選 2 \/ 3/)).toBeVisible();
-  await expect(page.locator('h1')).not.toHaveText(first!);
-  // 在圖表以外的區域往右拖曳 → 上一檔（等頁面轉場結束）
+  await expect(title).not.toHaveText(first!);
+  // 在名稱附近往右拖曳 → 上一檔（等滑動動畫結束）
   await page.waitForTimeout(600);
-  const h = (await page.locator('h1').boundingBox())!;
+  const h = (await title.boundingBox())!;
   const y = h.y + h.height / 2;
   await page.mouse.move(h.x + 20, y);
   await page.mouse.down();

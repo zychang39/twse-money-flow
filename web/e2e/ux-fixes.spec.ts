@@ -26,15 +26,14 @@ const box = async (page: Page, sel: string) => (await page.locator(sel).first().
 
 // ---------------------------------------------------------------- 1. 底部導覽
 test.describe('1. 底部導覽列', () => {
-  test('瀏覽器模式：Tab 膠囊與圓形搜尋按鈕在同一列，貼齊視窗底緣（safe-area 為 0，不另加 margin）', async ({ page }) => {
+  test('瀏覽器模式：5 個分頁在同一條膠囊內、搜尋在第 4 格，貼齊視窗底緣（safe-area 為 0，不另加 margin）', async ({ page }) => {
     await page.goto('#/');
     const tab = await box(page, '.tabbar');
-    const btn = await box(page, '.search-btn');
-    expect(Math.abs(tab.y + tab.height / 2 - (btn.y + btn.height / 2))).toBeLessThan(1);
-    expect(btn.x).toBeGreaterThan(tab.x + tab.width); // 搜尋按鈕在右側
+    const links = page.locator('.tabbar a');
+    await expect(links).toHaveCount(5);
+    await expect(links.nth(3)).toHaveAttribute('aria-label', '搜尋代號或名稱'); // 第 4 格：右手拇指最順手
     expect(Math.round(tab.y + tab.height)).toBe(H);
-    expect(Math.round(btn.width)).toBe(Math.round(btn.height)); // 圓形
-    await expect(page.locator('.search-float')).toHaveCount(0); // 舊的漂浮膠囊已移除
+    await expect(page.locator('.search-btn, .search-float')).toHaveCount(0); // 舊的圓形按鈕與漂浮膠囊已移除
   });
 
   test('加入主畫面（standalone）：導覽列與畫面底部的距離只有 safe-area', async ({ page }) => {
@@ -94,7 +93,10 @@ test.describe('2. 搜尋頁', () => {
     expect(field.y + field.height).toBeGreaterThan(H - 80);
     const shadow = await page.locator('.search-field').evaluate((el) => getComputedStyle(el).boxShadow);
     expect(shadow).toContain('inset');
-    await expect(page.locator('.dock')).toHaveCount(0); // 搜尋頁有自己的底部列
+    // 搜尋是底部導覽的第 4 格：鍵盤收起時導覽列顯示在搜尋框下方、搜尋分頁為目前分頁
+    await expect(page.locator('.tabbar a[aria-current="page"]')).toHaveAttribute('aria-label', '搜尋代號或名稱');
+    const tab = await box(page, '.tabbar');
+    expect(field.y + field.height).toBeLessThanOrEqual(tab.y);
   });
 
   test('代號、中文名稱、部分比對；最相關的結果最靠近輸入框（由下往上）', async ({ page }) => {

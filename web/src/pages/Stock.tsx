@@ -1,12 +1,14 @@
 /**
  * 個股頁：預設只顯示主角數字、走勢、一句話健檢、四環分數；往下捲才展開法人、籌碼、營收、估值等區塊。
- * 左右滑動切換同一清單的上一檔／下一檔；「進階」切換成 lightweight-charts 完整 K 線；細節用底部面板。
+ * 左右滑動主角區（名稱、股價、走勢圖）切換同一清單的上一檔／下一檔（Apple 股市式，頂列與下方內容不動）；
+ * 「進階」切換成 lightweight-charts 完整 K 線；細節用底部面板。
  * 環境光與走勢線同一個期間、同一個顏色。
  */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Ambient, Block, TopBar } from '../components/Chrome';
 import { Accumulating, DataStatus, ErrorState, Loading } from '../components/DataStatus';
 import { HeroChart, usePeriod } from '../components/HeroChart';
+import { type PagerApi, StockPager } from '../components/StockPager';
 import { ScoreRings, compositeCompleteness, categoryName, scoreText } from '../components/Scores';
 import { ScoreDetailView } from '../components/ScoreDetail';
 import { StockExtras, FairRange } from '../components/StockExtras';
@@ -17,14 +19,13 @@ import { Signed } from '../components/Change';
 import { healthLine } from '../components/QuickPreview';
 import { IconChevron, IconStar, IconStarFill } from '../components/Icons';
 import { lazy } from '../lazy';
-import { useAsync, useDb } from '../hooks';
-import { loadStock } from '../data/api';
+import { useDb, useStockData } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { addWatch, isWatched, removeWatch } from '../db/db';
 import type { CategoryId } from '../lib/config';
 import type { ChipBlock } from '../lib/chips';
 import { adjClose } from '../lib/history';
-import { change, sliceWindow } from '../lib/periods';
+import { change, sliceWindow, type Period } from '../lib/periods';
 import { instInsight, type Who } from '../lib/insights';
 import { getListContext } from '../lib/listContext';
 import { commitHero, heroSeen } from '../lib/seen';
@@ -49,8 +50,40 @@ function agoOf(a: unknown, n: number): number | null {
   return (a[a.length - 1 - n] as number | null) ?? null;
 }
 
+/** 主角區（名稱、股價、走勢圖）：個股頁左右換股時，前一檔／目前／後一檔各一份。 */
+function StockHero({ code, fallbackName, fallbackIndustry, period, onPeriod, seen, advanced = false, holdToScrub = false }: {
+  code: string;
+  fallbackName?: string | null;
+  fallbackIndustry?: string | null;
+  period: Period;
+  onPeriod: (p: Period) => void;
+  seen: number | null;
+  advanced?: boolean;
+  holdToScrub?: boolean;
+}) {
+  const { data: h } = useStockData(code);
+  const adj = useMemo(() => (h ? adjClose(h) : []), [h]);
+  const win = h ? sliceWindow(h.d, adj, period) : null;
+  return (
+    <>
+      <header class="page-head">
+        <div class="eyebrow">{code}・{h?.market === 'tpex' ? '上櫃' : '上市'}・{h?.industry ?? fallbackIndustry ?? '—'}</div>
+        <h1 class="title">{h?.name ?? fallbackName ?? code}</h1>
+      </header>
+      {h ? (
+        <div style={{ marginTop: 'var(--s-2)' }}>
+          {advanced ? <AdvancedChart h={h} /> : (
+            <HeroChart label="收盤價（還原）" win={win} period={period} onPeriod={onPeriod} seen={seen}
+              format={(v) => fmtPrice(v)} formatDelta={(v) => fmtNum(v, v >= 100 ? 1 : 2)} area height={200} periodsLabel="股價走勢期間" holdToScrub={holdToScrub} />
+          )}
+        </div>
+      ) : <Loading hero />}
+    </>
+  );
+}
+
 export default function Stock({ code }: { code: string }) {
-  const hist = useAsync(() => loadStock(code), [code]);
+  const hist = useStockData(code);
   const summary = useScoredSummary();
   const watched = useDb(() => isWatched(code), [code]);
   const [period, setPeriod] = usePeriod('stock');
@@ -58,8 +91,9 @@ export default function Stock({ code }: { code: string }) {
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [who, setWho] = useState<Who>('foreign');
   const [seen, setSeen] = useState<number | null | undefined>(undefined);
-  const [drag, setDrag] = useState(0);
-  const g = useRef<{ x: number; y: number; lock: 'h' | 'v' | null } | null>(null);
+  const pagerRef = useRef<PagerApi>(null);
+  // 下方內容只在「換股之後」淡入；第一次開啟直接顯示（淡入會延後最大內容繪製 LCP）
+  const firstCode = useRef(code);
   const row = summary.data?.byCode.get(code);
   const h = hist.data;
   const ctx = getListContext(code);
@@ -72,31 +106,15 @@ export default function Stock({ code }: { code: string }) {
   useEffect(() => { if (seen !== undefined) commitHero(`stock:${code}`, latest); }, [seen, latest, code]);
   const inst = h ? instInsight(h, who) : null;
 
-  // 左右滑動切換同一清單的上一檔／下一檔（圖表區與橫向捲動區除外）
+  // 同一清單的上一檔／下一檔：左右滑動主角區（StockPager）或點頂列的 ‹ ›，兩者走同一個動畫
   function go(step: 1 | -1) {
     if (!ctx) return;
+    if (pagerRef.current) { pagerRef.current.go(step); return; }
     const next = ctx.codes[ctx.index + step];
     if (next) navigate(`/stock/${next}`, true, step > 0 ? 'push' : 'pop');
   }
-  const onDown = (e: PointerEvent) => {
-    if (!ctx || (e.target as HTMLElement).closest('.chart-wrap, .chips, .periods, .sheet, button, a, input, .chart-box, .scroll-x, .chip-scroll, .nb-bars')) return;
-    g.current = { x: e.clientX, y: e.clientY, lock: null };
-  };
-  const onMove = (e: PointerEvent) => {
-    const s = g.current;
-    if (!s) return;
-    const dx = e.clientX - s.x, dy = e.clientY - s.y;
-    if (!s.lock) s.lock = Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5 ? 'h' : Math.abs(dy) > 12 ? 'v' : null;
-    if (s.lock === 'h') setDrag(dx);
-  };
-  const onUp = () => {
-    const s = g.current;
-    g.current = null;
-    if (!s || s.lock !== 'h') { setDrag(0); return; }
-    if (drag < -80 && ctx && ctx.index < ctx.codes.length - 1) go(1);
-    else if (drag > 80 && ctx && ctx.index > 0) go(-1);
-    setDrag(0);
-  };
+  const nameOf = (c: string) => (summary.data?.byCode.get(c)?.name as string | undefined) ?? null;
+  const industryOf = (c: string) => (summary.data?.byCode.get(c)?.industry as string | undefined) ?? null;
 
   const comp = (row?.composite as number | null | undefined) ?? h?.scores?.composite ?? null;
   const cc = compositeCompleteness(h?.scores);
@@ -109,8 +127,7 @@ export default function Stock({ code }: { code: string }) {
   const bb = useMemo(() => (h ? tally(evaluate(h)) : null), [h]);
 
   return (
-    <div class="page swipe-page" style={{ transform: drag ? `translateX(${drag * 0.4}px)` : undefined, opacity: drag ? 1 - Math.min(0.4, Math.abs(drag) / 600) : undefined }}
-      onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+    <div class="page stock-page">
       <Ambient mood={win ? dir : 'neutral'} />
       <TopBar back="/mine" avatar={false}
         caption={ctx ? (
@@ -128,21 +145,22 @@ export default function Stock({ code }: { code: string }) {
             <button class="text-btn" aria-pressed={advanced} onClick={() => setAdvanced(!advanced)}>{advanced ? '簡潔' : '進階'}</button>
           </>
         } />
-      <header class="page-head">
-        <div class="eyebrow">{code}・{h?.market === 'tpex' ? '上櫃' : '上市'}・{h?.industry ?? row?.industry ?? '—'}</div>
-        <h1 class="title">{h?.name ?? row?.name ?? code}</h1>
-      </header>
+      {ctx && !advanced ? (
+        <StockPager apiRef={pagerRef} codes={ctx.codes} index={ctx.index}
+          onCommit={(step) => navigate(`/stock/${ctx.codes[ctx.index + step]}`, true, 'none')}
+          renderPane={(c, current) => (
+            <StockHero code={c} fallbackName={nameOf(c)} fallbackIndustry={industryOf(c)} period={period} onPeriod={setPeriod}
+              seen={current ? seen ?? null : null} holdToScrub />
+          )} />
+      ) : (
+        <StockHero code={code} fallbackName={row?.name as string | undefined} fallbackIndustry={row?.industry as string | undefined}
+          period={period} onPeriod={setPeriod} seen={seen ?? null} advanced={advanced} />
+      )}
       {hist.error ? <ErrorState error={hist.error} title="找不到這檔股票的資料" /> : null}
-      {hist.loading && !h ? <Loading hero /> : null}
 
       {h ? (
-        <>
-          <div style={{ marginTop: 'var(--s-2)' }}>
-            {advanced ? <AdvancedChart h={h} /> : (
-              <HeroChart label="收盤價（還原）" win={win} period={period} onPeriod={setPeriod} seen={seen ?? null}
-                format={(v) => fmtPrice(v)} formatDelta={(v) => fmtNum(v, v >= 100 ? 1 : 2)} area height={200} periodsLabel="股價走勢期間" />
-            )}
-          </div>
+        /* 換股後下方內容整段換成新的一檔（淡入）；頂列與主角區不重新載入 */
+        <div key={code} class={`stock-lower ${code !== firstCode.current ? 'fade-in' : ''}`}>
           <DataStatus date={h.d[h.d.length - 1]} uses={PAGE_SOURCES.stock} />
 
           <p class="body" style={{ marginTop: 'var(--s-6)' }}>{healthLine(h.summary_text) ?? '健檢摘要資料不足。'}</p>
@@ -251,7 +269,7 @@ export default function Stock({ code }: { code: string }) {
             {sheet?.kind === 'score' && h.scores ? <ScoreDetailView detail={h.scores} only={sheet.id} /> : null}
             {sheet?.kind === 'more' ? <StockExtras h={h} /> : null}
           </Sheet>
-        </>
+        </div>
       ) : null}
     </div>
   );

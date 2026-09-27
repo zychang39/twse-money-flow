@@ -73,9 +73,12 @@ function useRoll(to: number | null, from: number | null | undefined, format: (v:
   return shown === null ? '—' : format(shown);
 }
 
+const HOLD_MS = 200; // 按住多久開始查價（holdToScrub）
+const HOLD_SLOP = 8; // 這段時間內移動超過幾 px 就視為滑動
+
 export function HeroChart({
   label, win, period, onPeriod, format, formatDelta, seen, height = 176, area = false, caption, emptyText = '資料累積中', periodsLabel,
-  periods = PERIODS, heroChange = 'period',
+  periods = PERIODS, heroChange = 'period', holdToScrub = false,
 }: {
   label: ComponentChildren;
   win: Window | null;
@@ -94,6 +97,11 @@ export function HeroChart({
   periods?: Period[];
   /** 主角數字下方顯示：period＝所選期間漲跌（預設）；daily＝今日（拖曳時為該日）漲跌 */
   heroChange?: 'period' | 'daily';
+  /**
+   * 觸控時要先按住（約 0.2 秒）才開始查價：放在可左右滑動換股的區域時使用，
+   * 讓快速的左右滑動交給換股、按住再拖曳才是查價（滑鼠不受影響）。
+   */
+  holdToScrub?: boolean;
 }) {
   const fd = formatDelta ?? format;
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -169,20 +177,68 @@ export function HeroChart({
   const heroText = scrub !== null && win ? format(win.values[scrub]) : rolled;
   const seenDelta = seen !== null && seen !== undefined && latest !== null && Math.abs(latest - seen) > 1e-9 ? latest - seen : null;
 
-  function idxFromEvent(e: PointerEvent): number | null {
+  function idxFromX(clientX: number): number | null {
     const el = wrapRef.current;
     if (!el || !win) return null;
     const r = el.getBoundingClientRect();
-    return nearestIndex(((e.clientX - r.left) / r.width) * w, frame, win.values.length);
+    return nearestIndex(((clientX - r.left) / r.width) * w, frame, win.values.length);
   }
+  const idxFromEvent = (e: PointerEvent) => idxFromX(e.clientX);
+  // 按住查價（holdToScrub）：按下後 HOLD_MS 內移動超過 HOLD_SLOP 就放棄（交給換股或捲動），時間到才開始查價
+  const hold = useRef<{ id: number; x: number; y: number; timer: number; active: boolean } | null>(null);
+  const clearHold = () => {
+    if (hold.current) clearTimeout(hold.current.timer);
+    hold.current = null;
+  };
+  useEffect(() => {
+    // 查價中阻止頁面上下捲動（touch-action: pan-y 允許捲動，需要在 touchmove 取消）
+    const el = wrapRef.current;
+    if (!el || !holdToScrub) return;
+    const block = (e: TouchEvent) => { if (hold.current?.active && e.cancelable) e.preventDefault(); };
+    el.addEventListener('touchmove', block, { passive: false });
+    return () => { el.removeEventListener('touchmove', block); clearHold(); };
+  }, [holdToScrub]);
   const onMove = (e: PointerEvent) => {
+    if (holdToScrub && e.pointerType !== 'mouse') {
+      const h = hold.current;
+      if (!h || h.id !== e.pointerId) return;
+      if (!h.active) {
+        if (Math.hypot(e.clientX - h.x, e.clientY - h.y) > HOLD_SLOP) clearHold();
+        return;
+      }
+      e.stopPropagation(); // 查價中：不讓外層的換股手勢接手
+      setScrub(idxFromEvent(e));
+      return;
+    }
+    // 外層正在左右換股（StockPager 拖曳中）：不查價
+    if (wrapRef.current?.closest('.dragging')) { if (scrub !== null) setScrub(null); return; }
     if (e.pointerType === 'mouse' || e.buttons || (e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) setScrub(idxFromEvent(e));
   };
   const onDown = (e: PointerEvent) => {
+    if (holdToScrub && e.pointerType !== 'mouse') {
+      clearHold();
+      const target = e.currentTarget as HTMLElement;
+      const id = e.pointerId;
+      const x = e.clientX;
+      hold.current = {
+        id, x, y: e.clientY, active: false,
+        timer: window.setTimeout(() => {
+          if (!hold.current || hold.current.id !== id) return;
+          hold.current.active = true;
+          try { target.setPointerCapture(id); } catch { /* 手指已離開 */ }
+          setScrub(idxFromX(x));
+        }, HOLD_MS),
+      };
+      return;
+    }
     if (e.pointerType !== 'mouse') (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setScrub(idxFromEvent(e));
   };
-  const end = () => setScrub(null);
+  const end = (e?: PointerEvent) => {
+    if (e && hold.current?.active) e.stopPropagation();
+    clearHold();
+    setScrub(null);
+  };
   const onKey = (e: KeyboardEvent) => {
     if (!win) return;
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -227,8 +283,9 @@ export function HeroChart({
       ) : null}
       <div ref={wrapRef} class="chart-wrap bleed" style={{ height: `${height / 16}rem` }}
         tabIndex={win ? 0 : -1} role="img" aria-label={`${summary}。可用左右鍵查看每日數值。`}
-        onPointerMove={onMove} onPointerDown={onDown} onPointerUp={(e) => e.pointerType !== 'mouse' && end()} onPointerCancel={end} onPointerLeave={end}
-        onKeyDown={onKey} onBlur={end}>
+        onPointerMove={onMove} onPointerDown={onDown} onPointerUp={(e) => e.pointerType !== 'mouse' && end(e)} onPointerCancel={() => end()}
+        onPointerLeave={(e) => (e.pointerType === 'mouse' ? end() : undefined)}
+        onKeyDown={onKey} onBlur={() => end()}>
         {geo ? (
           <svg class={`chart ${drawn ? '' : 'draw'}`} viewBox={`0 0 ${w} ${height}`} height={height} preserveAspectRatio="none" aria-hidden="true" style={{ ['--len' as string]: 1 }}>
             <defs>

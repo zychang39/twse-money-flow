@@ -133,7 +133,7 @@ export function App() {
         </div>
         <Footer />
       </main>
-      {route.path === '/search' ? null : <Dock path={route.path} />}
+      <Dock path={route.path} />
       <UpdateToast />
     </>
   );

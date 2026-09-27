@@ -51,7 +51,7 @@ for (const p of PAGES) {
     await expect(page.getByText('僅供研究參考，非投資建議')).toBeVisible();
     const nav = page.getByRole('navigation', { name: '主要分頁' });
     await expect(nav).toBeVisible();
-    await expect(nav.getByRole('link')).toHaveCount(4);
+    await expect(nav.getByRole('link')).toHaveCount(5); // 今晚、我的股票、探索、搜尋、紀律
     expect(errors).toEqual([]);
   });
 }
@@ -59,7 +59,7 @@ for (const p of PAGES) {
 test('Tab 只有圖示、以 aria-label 提供名稱', async ({ page }) => {
   await page.goto('#/');
   const nav = page.getByRole('navigation', { name: '主要分頁' });
-  for (const name of ['今晚', '我的股票', '探索', '紀律']) await expect(nav.getByRole('link', { name })).toBeVisible();
+  for (const name of ['今晚', '我的股票', '探索', '搜尋代號或名稱', '紀律']) await expect(nav.getByRole('link', { name })).toBeVisible();
   await expect(nav).toHaveText('');
 });
 
