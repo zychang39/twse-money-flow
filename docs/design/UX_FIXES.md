@@ -16,6 +16,8 @@
 
 ## 1. 底部導覽列太高（Safari 瀏覽器模式）
 
+> 第四輪已把搜尋併入分頁列第 4 格、改為 Instagram 式玻璃膠囊（見 [ROUND4.md](ROUND4.md)）；以下 safe-area 與高度的處理仍適用。
+
 | | |
 |---|---|
 | 前 | ![](ux-fixes/compare/browser-dark-02-mine.jpg) |
