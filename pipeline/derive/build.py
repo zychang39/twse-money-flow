@@ -369,6 +369,9 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
         ],
     }
     write_json(out / "summary.json", summary)
+    from pipeline.derive.lists import build_lists
+
+    write_json(out / "lists.json", build_lists(cols, rows, last_date))
     write_json(out / "disposition.json", flagmod.disposition_watchlist(ds, p))
     from pipeline.derive import extras as extras_mod
 

@@ -18,6 +18,7 @@ from pipeline.sources.base import (
     is_no_data,
     load_json,
     match_interval_minutes,
+    opt,
     split_period,
 )
 
@@ -250,6 +251,8 @@ def parse_margin(payload: bytes | str | dict[str, Any]) -> ParseResult:
 
 # ---------------------------------------------------------------- 本益比／殖利率／淨值比（BWIBBU_d）
 VALUATION_COLS = ["date", "code", "name", "close", "dividend_yield", "dividend_year", "pe", "pb", "fin_period"]
+# 本益比表的必要欄位：代號、本益比、殖利率、淨值比；其餘（名稱、股利年度、財報年/季…）缺少時仍可解析
+VALUATION_REQUIRED = ("code", "pe", "dividend_yield", "pb")
 
 
 def parse_valuation(payload: bytes | str | dict[str, Any]) -> ParseResult:
@@ -261,18 +264,20 @@ def parse_valuation(payload: bytes | str | dict[str, Any]) -> ParseResult:
         obj["fields"],
         obj.get("data", []),
         {
-            "code": "證券代號",
-            "name": "證券名稱",
+            "code": ("證券代號", "股票代號"),
+            "name": ("證券名稱", "公司名稱"),
             "close": "收盤價",
             "dividend_yield": "殖利率(%)",
             "dividend_year": "股利年度",
             "pe": "本益比",
             "pb": "股價淨值比",
-            "fin_period": "財報年/季",
+            "fin_period": opt("財報年/季", "財報年季"),
         },
+        required=VALUATION_REQUIRED,
+        source="上市本益比",
     )
     df = finalize(df, numeric=["close", "dividend_yield", "dividend_year", "pe", "pb"])
-    df["fin_period"] = [strip_tags(v) for v in df["fin_period"]]
+    df["fin_period"] = [strip_tags(v) or None for v in df["fin_period"]]
     df["date"] = d.isoformat() if d else None
     return ParseResult(df[VALUATION_COLS].reset_index(drop=True), response_date=d)
 

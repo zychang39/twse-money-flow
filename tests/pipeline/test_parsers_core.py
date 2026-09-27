@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date
 
 import pytest
 
 from pipeline.sources import mops, tpex, twse
+from pipeline.sources.base import ParseError, collect_format_warnings
 from tests.pipeline.conftest import sample
 
 
@@ -193,8 +195,43 @@ def test_tpex_margin():
 
 
 def test_tpex_valuation():
-    r = row(tpex.parse_valuation(sample("tpex_pe.json")).df, "1240")
+    with collect_format_warnings() as warnings:
+        res = tpex.parse_valuation(sample("tpex_pe.json"))
+    r = row(res.df, "1240")
     assert r["pe"] == 10.26 and r["dividend_yield"] == 0.91 and r["pb"] == 1.63
+    assert r["fin_period"] == "115Q2"
+    assert warnings == []
+
+
+def test_tpex_valuation_without_fin_period():
+    """2024 年（含）以前的回應沒有「財報年/季」：改為選用欄位，照常解析並記錄格式變動警告。"""
+    with collect_format_warnings() as warnings:
+        res = tpex.parse_valuation(sample("tpex_pe_hist.json"))
+    assert res.response_date == date(2024, 1, 2)
+    r = row(res.df, "1240")
+    assert r["pe"] == 17.13 and r["dividend_yield"] == 2.5 and r["pb"] == 1.48
+    assert r["fin_period"] is None
+    assert len(warnings) == 1 and "財報年/季" in warnings[0]
+
+
+def test_tpex_valuation_missing_required_field_fails():
+    obj = json.loads(sample("tpex_pe_hist.json"))
+    t = obj["tables"][0]
+    drop = t["fields"].index("股價淨值比")
+    t["fields"] = [f for i, f in enumerate(t["fields"]) if i != drop]
+    t["data"] = [[c for i, c in enumerate(r) if i != drop] for r in t["data"]]
+    with pytest.raises(ParseError, match="股價淨值比"):
+        tpex.parse_valuation(json.dumps(obj, ensure_ascii=False))
+
+
+def test_tpex_valuation_renamed_field_uses_alias():
+    obj = json.loads(sample("tpex_pe.json"))
+    t = obj["tables"][0]
+    t["fields"] = ["證券代號" if f == "股票代號" else "殖利率（％）" if f == "殖利率(%)" else f for f in t["fields"]]
+    with collect_format_warnings() as warnings:
+        r = row(tpex.parse_valuation(json.dumps(obj, ensure_ascii=False)).df, "1240")
+    assert r["pe"] == 10.26 and r["dividend_yield"] == 0.91
+    assert any("證券代號" in w for w in warnings)
 
 
 def test_tpex_exright_and_capreduce():

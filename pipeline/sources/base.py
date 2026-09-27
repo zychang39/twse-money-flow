@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Iterator, Mapping, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
@@ -13,6 +16,8 @@ import pandas as pd
 
 from pipeline.core.dates import parse_date
 from pipeline.core.normalize import clean_code, clean_name, rows_to_frame, to_num
+
+log = logging.getLogger(__name__)
 
 
 class ParseError(ValueError):
@@ -51,39 +56,156 @@ def is_no_data(obj: Any) -> bool:
     return False
 
 
+_FULLWIDTH_PUNCT = str.maketrans({"（": "(", "）": ")", "％": "%", "／": "/", "：": ":"})
+
+
 def norm_field(name: str) -> str:
-    return re.sub(r"\s+|<br>|　", "", str(name))
+    """欄名正規化：去空白與 <br>、全形括號／百分號／斜線轉半形（「殖利率（％）」＝「殖利率(%)」）。"""
+    return re.sub(r"\s+|<br>|　", "", str(name)).translate(_FULLWIDTH_PUNCT)
+
+
+# ------------------------------------------------------------------ 格式變動警告
+# 解析時遇到「欄名改用別名」「選用欄位缺少」「欄位多出或順序改變但仍可解析」時記錄警告，
+# 由 tasks 寫入 manifest（sources.{id}.format_warnings），資料健康頁以「相容模式」呈現。
+_WARNINGS: ContextVar[list[str] | None] = ContextVar("format_warnings", default=None)
+_PENDING: list[str] = []  # 沒有 collect_format_warnings 時的暫存，由 RunContext.note 取走
+
+
+def warn_format(message: str) -> None:
+    """記錄一則格式變動警告（去重）。"""
+    log.warning("格式變動：%s", message)
+    bucket = _WARNINGS.get()
+    if bucket is None:
+        bucket = _PENDING
+    if message not in bucket:
+        bucket.append(message)
+
+
+def drain_format_warnings() -> list[str]:
+    """取走目前累積的格式變動警告（任務每記錄一次來源狀態就取走一次）。"""
+    out = list(_PENDING)
+    _PENDING.clear()
+    return out
+
+
+@contextmanager
+def collect_format_warnings() -> Iterator[list[str]]:
+    """收集 with 區塊內所有解析器發出的格式變動警告。"""
+    bucket: list[str] = []
+    token = _WARNINGS.set(bucket)
+    try:
+        yield bucket
+    finally:
+        _WARNINGS.reset(token)
+
+
+@dataclass(frozen=True)
+class Col:
+    """欄位規格：names 為主名稱＋別名（依序比對）；required=False 表示缺少時以空值補上並記錄警告。"""
+
+    names: tuple[str, ...]
+    required: bool = True
+
+
+def col(*names: str, required: bool = True) -> Col:
+    return Col(tuple(names), required)
+
+
+def opt(*names: str) -> Col:
+    """選用欄位：來源拿掉這個欄位時仍繼續解析。"""
+    return Col(tuple(names), required=False)
+
+
+# 沒有特別標示時，一律必要的標準欄位（其餘欄位缺少時以空值補上＋警告；
+# 關鍵數值欄位另由 registry 的 Spec.numeric 在驗證階段把關）
+ALWAYS_REQUIRED = frozenset({"code"})
+
+FieldSpec = str | int | tuple[str, ...] | Col
+
+
+def resolve_fields(
+    fields: Sequence[str],
+    mapping: Mapping[str, FieldSpec],
+    *,
+    required: Collection[str] | None = None,
+    source: str = "",
+) -> dict[str, int | None]:
+    """把 {標準欄位: 規格} 對應到實際欄位位置；找不到的選用欄位為 None。
+
+    - 字串／tuple：主名稱與別名；是否必要依 required（未指定時只有 ALWAYS_REQUIRED 必要）。
+    - Col：自帶 required 設定（優先於 required 參數）。
+    - int：固定位置（呼叫端應先以 expect_fields 確認版面）。
+    必要欄位找不到時丟 ParseError；用到別名或缺少選用欄位時記錄格式變動警告。
+    """
+    normalized = [norm_field(f) for f in fields]
+    must = ALWAYS_REQUIRED | set(required or ())
+    tag = f"{source}：" if source else ""
+    positions: dict[str, int | None] = {}
+    for target, spec in mapping.items():
+        if isinstance(spec, int):
+            positions[target] = spec
+            continue
+        if isinstance(spec, Col):
+            names, is_required = spec.names, spec.required
+        else:
+            names = (spec,) if isinstance(spec, str) else tuple(spec)
+            is_required = target in must
+        hit = next((i for i, n in enumerate(names) if norm_field(n) in normalized), None)
+        if hit is None:
+            if is_required:
+                raise ParseError(f"{tag}找不到必要欄位「{names[0]}」；實際欄位：{list(fields)}")
+            warn_format(f"{tag}缺少欄位「{names[0]}」，已略過（以空值處理）")
+            positions[target] = None
+            continue
+        if hit > 0:
+            warn_format(f"{tag}欄位「{names[0]}」改名為「{names[hit]}」，已自動對應")
+        positions[target] = normalized.index(norm_field(names[hit]))
+    return positions
 
 
 def frame_from_fields(
     fields: Sequence[str],
     rows: Sequence[Sequence[Any]],
-    mapping: Mapping[str, str | int],
+    mapping: Mapping[str, FieldSpec],
+    *,
+    required: Collection[str] | None = None,
+    source: str = "",
 ) -> pd.DataFrame:
     """依欄位名稱（或位置）把原始表轉成標準欄位。
 
-    mapping：{標準欄位: 原始欄名或位置}；欄名找不到時丟 ParseError（代表格式變更）。
+    策略（所有解析器共用）：欄名可有別名；必要欄位找不到才整批失敗（ParseError），
+    其他欄位找不到時以空值補上並記錄「格式變動警告」，能解析的就繼續解析。
     """
-    normalized = [norm_field(f) for f in fields]
-    positions: dict[str, int] = {}
-    for target, src in mapping.items():
-        if isinstance(src, int):
-            positions[target] = src
-            continue
-        key = norm_field(src)
-        if key not in normalized:
-            raise ParseError(f"找不到欄位「{src}」；實際欄位：{fields}")
-        positions[target] = normalized.index(key)
-    width = max(positions.values()) + 1 if positions else 0
+    positions = resolve_fields(fields, mapping, required=required, source=source)
+    found = [i for i in positions.values() if i is not None]
+    width = max(found) + 1 if found else 0
     base = rows_to_frame(rows, [f"c{i}" for i in range(max(width, 1))])
-    return pd.DataFrame({t: base[f"c{i}"] for t, i in positions.items()})
+    return pd.DataFrame(
+        {
+            t: (base[f"c{i}"] if i is not None else pd.Series([None] * len(base), index=base.index, dtype=object))
+            for t, i in positions.items()
+        }
+    )
 
 
-def expect_fields(fields: Sequence[str], expected: Sequence[str], *, prefix_only: bool = True) -> None:
+def expect_fields(
+    fields: Sequence[str], expected: Sequence[str], *, prefix_only: bool = True, source: str = ""
+) -> None:
+    """以位置解析的表格（欄名重複，例如多組「買進／賣出」）先確認版面。
+
+    - 完全相同：通過。
+    - 只在最後多出欄位：通過並記錄警告（既有位置不受影響）。
+    - 欄數相同、只有欄名的全形／半形或空白差異：norm_field 已處理，視為相同。
+    - 其他（欄位插入、刪除、順序改變）：位置已不可靠，丟 ParseError。
+    """
     got = [norm_field(f) for f in fields]
     exp = [norm_field(f) for f in expected]
-    if (got[: len(exp)] if prefix_only else got) != exp:
-        raise ParseError(f"欄位與預期不符：{fields}")
+    tag = f"{source}：" if source else ""
+    if got[: len(exp)] == exp:
+        if not prefix_only and len(got) > len(exp):
+            warn_format(f"{tag}表格最後多出欄位 {list(fields)[len(exp) :]}，已略過")
+        return
+    raise ParseError(f"{tag}欄位與預期不符（以位置解析，無法相容）：{list(fields)}")
 
 
 def finalize(

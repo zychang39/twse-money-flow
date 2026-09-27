@@ -178,3 +178,18 @@ def test_target_trading_date(tmp_path, hour, expected):
 def test_target_skips_holiday(tmp_path):
     ctx = make_ctx(tmp_path, {}, now=datetime(2026, 9, 26, 12, 0, tzinfo=TPE))  # 週六；9/25 中秋
     assert tasks.target_trading_date(ctx) == date(2026, 9, 24)
+
+
+def test_old_format_parses_and_records_format_warning(tmp_path):
+    """上櫃本益比舊格式（無「財報年/季」）：照常寫入，manifest 記錄格式變動警告；新格式成功後清除。"""
+    ctx = make_ctx(tmp_path, {"peQryDate?date=2024": sample("tpex_pe_hist.json"), "peQryDate": sample("tpex_pe.json")})
+    spec = SPECS["tpex_valuation"].__class__(**{**SPECS["tpex_valuation"].__dict__, "min_rows": 10})
+    assert tasks.run_daily_source(ctx, spec, date(2024, 1, 2)) == "ok"
+    entry = ctx.manifest["sources"]["tpex_valuation"]
+    assert entry["last_status"] == "ok"
+    assert any("財報年/季" in w for w in entry["format_warnings"])
+    assert "tpex_valuation" in tasks.append_run(ctx, "backfill")["format_warnings"]
+    df = ctx.store.read("tpex_valuation", date(2024, 1, 2))
+    assert df is not None and len(df) == 31
+    assert tasks.run_daily_source(ctx, spec, date(2026, 9, 24)) == "ok"
+    assert "format_warnings" not in entry

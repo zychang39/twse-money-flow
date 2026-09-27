@@ -38,7 +38,7 @@ from pipeline.registry import (
     mops_revenue_url,
     parse_mops,
 )
-from pipeline.sources.base import ParseError, ParseResult
+from pipeline.sources.base import ParseError, ParseResult, drain_format_warnings
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +52,7 @@ class RunContext:
     calendar: TradingCalendar = field(default_factory=TradingCalendar)
     results: list[dict[str, Any]] = field(default_factory=list)
     deadline: float | None = None
+    format_warnings: dict[str, list[str]] = field(default_factory=dict)
 
     @property
     def today(self) -> date:
@@ -68,7 +69,19 @@ class RunContext:
     def note(
         self, source: str, status: str, *, data_date: date | None = None, rows: int | None = None, message: str = ""
     ) -> None:
-        record(self.manifest, source, status=status, data_date=data_date, rows=rows, message=message or None)
+        warnings = drain_format_warnings()
+        record(
+            self.manifest,
+            source,
+            status=status,
+            data_date=data_date,
+            rows=rows,
+            message=message or None,
+            format_warnings=warnings,
+        )
+        if warnings:
+            self.format_warnings.setdefault(source, [])
+            self.format_warnings[source] += [w for w in warnings if w not in self.format_warnings[source]]
         self.results.append(
             {
                 "source": source,
@@ -179,11 +192,11 @@ def run_daily_source(ctx: RunContext, spec: Spec, d: date, *, overwrite: bool = 
         ctx.note(spec.id, "failed", data_date=d, rows=len(res.df), message="驗證失敗：" + check.summary())
         return "failed"
     ctx.store.write(spec.id, d, res.df)
+    ctx.note(spec.id, "ok", data_date=d, rows=len(res.df))
     for extra_id, extra_df in res.extras.items():
         if extra_df is not None and not extra_df.empty:
             ctx.store.write(extra_id, d, extra_df)
             ctx.note(extra_id, "ok", data_date=d, rows=len(extra_df))
-    ctx.note(spec.id, "ok", data_date=d, rows=len(res.df))
     return "ok"
 
 
@@ -496,6 +509,7 @@ def append_run(ctx: RunContext, task: str, extra: dict[str, Any] | None = None) 
         "ok": sum(1 for r in ctx.results if r["status"] == "ok"),
         "failed": [f"{r['source']} {r['date'] or ''} {r['message']}".strip() for r in ctx.failures],
         "pending": [r["source"] for r in ctx.results if r["status"] == "pending"],
+        **({"format_warnings": sorted(ctx.format_warnings)} if ctx.format_warnings else {}),
         **(extra or {}),
     }
     runs = ctx.manifest.setdefault("runs", [])
