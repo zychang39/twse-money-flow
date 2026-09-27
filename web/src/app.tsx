@@ -32,6 +32,7 @@ const Backup = lazy(() => import('./pages/Backup'));
 const Search = lazy(() => import('./pages/Search'));
 const Institutional = lazy(() => import('./pages/Institutional'));
 const Holders = lazy(() => import('./pages/Holders'));
+const BullBear = lazy(() => import('./pages/BullBear'));
 
 function Page({ parts }: { parts: string[] }) {
   const [a, b, c] = parts;
@@ -45,6 +46,7 @@ function Page({ parts }: { parts: string[] }) {
         case undefined: return <Stock code={b} />;
         case 'institutional': return <Institutional code={b} />;
         case 'holders': return <Holders code={b} />;
+        case 'bullbear': return <BullBear code={b} />;
         default: return <Placeholder title="找不到頁面" back={`/stock/${b}`} />;
       }
     case 'explore':

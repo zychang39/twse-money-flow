@@ -30,7 +30,7 @@ import {
   reportSentence,
   signedLots,
 } from '../lib/institutional';
-import { arrow, direction, fmtPrice, numberFormat } from '../lib/format';
+import { arrow, direction, fmtPrice, glueNumbers, numberFormat } from '../lib/format';
 import '../styles/tools.css';
 
 type Tab = Party | 'banks';
@@ -157,7 +157,7 @@ export default function Institutional({ code }: { code: string }) {
                   <button key={m} aria-pressed={m === months} disabled={m > 1 && available < (m - 1) * DAYS_PER_MONTH + 1} onClick={() => setMonths(m)}>{m} 個月</button>
                 ))}
               </div>
-              <p class="body ir-sentence" data-testid="ir-sentence">{headline(rows, party)}。</p>
+              <p class="body ir-sentence" data-testid="ir-sentence">{glueNumbers(headline(rows, party))}。</p>
 
               {/* 區間合計：四個法人一次看（點一列切換下方的圖與明細） */}
               <section class="ir-card" aria-labelledby="ir-sum-title" ref={sumRef} data-fits={sumFits ? 'all' : 'compact'}>

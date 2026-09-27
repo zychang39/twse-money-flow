@@ -124,3 +124,35 @@ holders:
     top_value: 30           # 加上最近交易日成交值前 N 名（不含 ETF）
     max_codes: 60
     max_requests: 1500      # 每次執行的查詢上限（約 51 次／檔；3–5 秒間隔 ≈ 1.5 小時）
+
+# 多空對照（個股頁 → 多空對照；METHODOLOGY §4.9）：規則式條件，每一項權重相同；不是買賣建議
+bull_bear:
+  price_volume:
+    volume_ratio: 1.2          # 放量：成交量 ≥ 20 日均量 × 1.2
+    near_high_pct: -5          # 距 52 週高點 5% 以內
+    far_high_pct: -30          # 距 52 週高點超過 30%
+    rs_strong: 70              # RS 百分位
+    rs_weak: 30
+    daytrade_high: 40          # 當沖比率（%）偏高
+  technical:
+    rsi_period: 14
+    rsi_hot: 70
+    rsi_cold: 30
+    macd: [12, 26, 9]
+    cross_days: 5              # 幾日內的黃金／死亡交叉另外註明
+  chip:
+    streak_days: 3             # 外資、投信連買／連賣天數
+    insti_days: 20             # 三大法人合計的統計天數
+    insti_pct: 3               # 三大法人合計買賣超佔成交量 ±3%
+    margin_pct: 5              # 融資 5 日增減 ±5%
+    whale_pp: 0.3              # 千張大戶週變化 ±0.3 個百分點
+  fundamental:
+    revenue_yoy_good: 20       # 近 3 月營收年增率（%）
+    revenue_yoy_bad: -10
+    growth_months: 6           # 營收連續年增月數
+    roe_good: 15
+    roe_bad: 3
+    pe_low_pct: 20             # 本益比位於自身 3 年百分位
+    pe_high_pct: 80
+    yield_good: 5              # 殖利率（%）
+    gross_margin_pp: 2         # 毛利率與去年同季相比 ±2 個百分點

@@ -131,3 +131,16 @@
 .hd-table tbody td.cd-v, .hd-weeks tbody td.cd-v { background-image: none; }
 .hd-weeks tbody th, .hd-weeks tbody td { height: 2.25rem; }
 .hd-week { font-size: var(--fs-caption); }
+
+/* ---------- 多空對照 ---------- */
+.bb-card { padding-bottom: var(--s-3); }
+.bb-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s-3); margin-top: var(--s-2); }
+.bb-col { min-width: 0; }
+.bb-col + .bb-col { padding-left: var(--s-3); box-shadow: inset 1px 0 0 var(--surface-row); }
+.bb-col-head { margin: 0 0 var(--s-1); }
+.bb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.bb-item { display: flex; flex-direction: column; min-width: 0; }
+.bb-name { word-break: keep-all; overflow-wrap: anywhere; }
+.bb-text { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-1); word-break: keep-all; overflow-wrap: anywhere; line-break: strict; }
+.bb-rest { margin-top: var(--s-3); }
+.bb-rest .bb-list { margin-top: var(--s-2); }

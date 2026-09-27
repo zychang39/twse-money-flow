@@ -177,3 +177,41 @@ for (const width of [375, 393]) {
     }
   });
 }
+
+// ---------------------------------------------------------------- M4 多空對照
+test('M4：個股頁的多空區塊有比例條與入口；多空對照並排列出四個面向的多方與空方', async ({ page }) => {
+  await page.goto('#/stock/2330');
+  const block = page.getByRole('region', { name: '多空' });
+  await expect(block.getByRole('heading', { level: 2 })).toHaveText(/^多方 \d+ 項、空方 \d+ 項$/);
+  await expect(block.getByRole('img', { name: /^多方 \d+ 項、中性 \d+ 項、空方 \d+ 項$/ })).toBeVisible();
+  await block.getByRole('link', { name: /多空對照/ }).click();
+  await expect(page).toHaveURL(/#\/stock\/2330\/bullbear$/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^多方\s\d+\s項、空方\s\d+\s項$/);
+  const cards = page.locator('.bb-card');
+  await expect(cards).toHaveCount(4);
+  for (const [i, name] of ['基本面', '籌碼面', '量價面', '技術面'].entries()) {
+    await expect(cards.nth(i).getByRole('heading', { level: 2 })).toHaveText(name);
+    await expect(cards.nth(i).getByRole('group', { name: `${name}多方` })).toBeVisible();
+    await expect(cards.nth(i).getByRole('group', { name: `${name}空方` })).toBeVisible();
+  }
+  // 篩選單一面向
+  await page.getByRole('group', { name: '面向' }).getByRole('button', { name: '技術面' }).click();
+  await expect(cards).toHaveCount(1);
+  await expect(cards.first().getByRole('heading', { level: 2 })).toHaveText('技術面');
+  // 中性字眼
+  await expect(page.locator('main')).not.toContainText(/買進|賣出|建議買|建議賣/);
+});
+
+for (const width of [375, 393]) {
+  test(`M4：${width}pt 寬度多方與空方兩欄並排，不需要左右滑動`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 852 });
+    await page.goto('#/stock/2330/bullbear');
+    const cols = page.locator('.bb-card').first().locator('.bb-col');
+    const a = (await cols.nth(0).boundingBox())!;
+    const b = (await cols.nth(1).boundingBox())!;
+    expect(Math.abs(a.y - b.y)).toBeLessThan(1);
+    expect(b.x).toBeGreaterThan(a.x + a.width - 1);
+    const doc = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
+    expect(doc.sw).toBeLessThanOrEqual(doc.cw);
+  });
+}

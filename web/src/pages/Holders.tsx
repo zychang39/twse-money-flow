@@ -13,7 +13,7 @@ import { StockToolFrame, useStock } from '../components/StockTool';
 import { IconSeed } from '../components/Icons';
 import { getSetting, setSetting } from '../db/db';
 import { uiConfig } from '../lib/config';
-import { fmtPrice, numberFormat } from '../lib/format';
+import { fmtPrice, glueNumbers, numberFormat } from '../lib/format';
 import {
   BREAKPOINTS,
   GROUP_NAME,
@@ -127,7 +127,7 @@ export default function Holders({ code }: { code: string }) {
         </Banner>
       ) : (
         <>
-          <p class="body ir-sentence" data-testid="hd-sentence">{headline(block, weeks, th.small, th.big)}。</p>
+          <p class="body ir-sentence" data-testid="hd-sentence">{glueNumbers(headline(block, weeks, th.small, th.big))}。</p>
           {n < 4 ? (
             <Banner icon={<IconSeed />} title={`目前只有 ${n} 週資料`}>
               集保開放資料每週只提供最新一週，趨勢需要逐週累積；過去一年可由「集保個股歷史」回補（關注清單內的股票）。

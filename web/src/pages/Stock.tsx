@@ -31,6 +31,8 @@ import { commitHero, heroSeen } from '../lib/seen';
 import { fmtInt, fmtLots, fmtNum, fmtPct, fmtPrice } from '../lib/format';
 import { navigate } from '../router';
 import { PAGE_SOURCES } from '../lib/health';
+import { evaluate, tally, title as bbTitle } from '../lib/bullbear';
+import { BullBearBar } from '../components/BullBearBar';
 
 const AdvancedChart = lazy(() => import('../components/AdvancedChart'));
 
@@ -103,6 +105,7 @@ export default function Stock({ code }: { code: string }) {
   const rev = revenue[revenue.length - 1];
   const pePct = h ? lastOf((h.series as Record<string, unknown> | undefined)?.pe_percentile) : null;
   const chip = (h?.chip as ChipBlock | null | undefined) ?? null;
+  const bb = useMemo(() => (h ? tally(evaluate(h)) : null), [h]);
 
   return (
     <div class="page swipe-page" style={{ transform: drag ? `translateX(${drag * 0.4}px)` : undefined, opacity: drag ? 1 - Math.min(0.4, Math.abs(drag) / 600) : undefined }}
@@ -203,6 +206,16 @@ export default function Stock({ code }: { code: string }) {
                 <ChipDaily block={chip} code={code} name={h.name} market={h.market} />
               </>
             ) : <Accumulating what="每日籌碼明細" detail="需要至少兩個交易日的法人與融資融券資料。" />}
+          </Block>
+
+          <Block question="多空" answer={bb ? bbTitle(bb) : undefined}>
+            {bb ? <BullBearBar t={bb} /> : null}
+            <div class="list">
+              <a class="list-item brand" href={`#/stock/${code}/bullbear`}>
+                <span class="grow">多空對照<span class="caption muted tool-sub">基本面、籌碼面、量價面、技術面的多方與空方並排比較</span></span>
+                <span class="chev"><IconChevron /></span>
+              </a>
+            </div>
           </Block>
 
           <Block question="營收" answer={rev ? `${rev.ym.slice(0, 4)} 年 ${Number(rev.ym.slice(5, 7))} 月營收年增 ${rev.yoy === null ? '—' : `${rev.yoy.toFixed(1)}%`}` : '沒有月營收資料（ETF 或資料累積中）'}>

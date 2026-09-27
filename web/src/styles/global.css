@@ -132,6 +132,14 @@ a.card, button.card { display: block; color: inherit; width: 100%; text-align: l
 .list-item + .list-item { box-shadow: inset 0 0.5px 0 var(--surface-row); }
 .list-item .chev { color: var(--text-3); margin-left: auto; display: inline-flex; }
 .list-item .chev svg { width: 1rem; height: 1rem; }
+/* 多空對照的項數比例條（個股頁與多空對照頁共用） */
+.bb-meter { margin-top: var(--s-4); }
+.bb-bar { display: flex; gap: 2px; height: 0.5rem; border-radius: var(--r-pill); overflow: hidden; background: var(--surface-2); }
+.bb-seg { flex-basis: 0; min-width: 0.25rem; }
+.bb-seg.bull { background: var(--up); }
+.bb-seg.bear { background: var(--down); }
+.bb-seg.neutral { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--text-3); }
+.bb-legend { display: flex; justify-content: space-between; margin-top: var(--s-1); font-size: var(--fs-caption); line-height: var(--lh-caption); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
 /* 個股頁的工具入口：標題（藍）＋ 一行說明（灰） */
 .list-item .tool-sub { display: block; color: var(--text-2); text-wrap: pretty; }
 button.list-item, a.list-item { cursor: pointer; }
