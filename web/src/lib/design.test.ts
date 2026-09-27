@@ -8,6 +8,7 @@ import { badgeMetrics, badges, levelFor, ritualRings, stopRespected, streaks, to
 import { impulseFacts } from './impulse';
 import { holdingsSeries } from './portfolioSeries';
 import { tonightConclusion } from './conclusion';
+import { uiConfig } from './config';
 
 const L = (id: string, state: Light['state']): Light => ({ id, label: id, state, value: '', basis: '' });
 const row = (o: Partial<StockRow>): StockRow => ({
@@ -48,10 +49,11 @@ describe('變化優先', () => {
     expect(sinceLabel(null)).toBe('較前一交易日');
   });
   it('連買天數「新達到」門檻才算', () => {
-    const prev = makeSnapshot([row({ trust_streak: 2 })], 'd').rows['2330'];
-    expect(diffRow(row({ trust_streak: 3 }), prev).reasons.some((r) => r.kind === 'streak')).toBe(true);
-    const prev2 = makeSnapshot([row({ trust_streak: 3 })], 'd').rows['2330'];
-    expect(diffRow(row({ trust_streak: 4 }), prev2).reasons.some((r) => r.kind === 'streak')).toBe(false);
+    const n = uiConfig.significance.inst_streak_days;
+    const prev = makeSnapshot([row({ trust_streak: n - 1 })], 'd').rows['2330'];
+    expect(diffRow(row({ trust_streak: n }), prev).reasons.some((r) => r.kind === 'streak')).toBe(true);
+    const prev2 = makeSnapshot([row({ trust_streak: n })], 'd').rows['2330'];
+    expect(diffRow(row({ trust_streak: n + 1 }), prev2).reasons.some((r) => r.kind === 'streak')).toBe(false);
   });
 });
 

@@ -31,6 +31,8 @@ import { fmtInt } from '../lib/format';
 import { navigate, useRoute } from '../router';
 
 type Seg = 'hold' | 'watch';
+type SortKey = 'change' | 'pct' | 'composite' | 'foreign' | 'trust' | 'custom';
+const SORTS: [SortKey, string][] = [['change', '依變化'], ['pct', '漲跌幅'], ['composite', '綜合分'], ['foreign', '外資'], ['trust', '投信'], ['custom', '自訂順序']];
 
 function AddWatchSheet({ open, onClose, rows, group, groups }: { open: boolean; onClose: () => void; rows: StockRow[]; group: string; groups: string[] }) {
   const [importText, setImportText] = useState('');
@@ -100,6 +102,7 @@ export default function Mine() {
   const [closing, setClosing] = useState<Trade | null>(null);
   const [moving, setMoving] = useState<WatchItem | null>(null);
   const [showQuiet, setShowQuiet] = useState(false);
+  const [sort, setSort] = useState<SortKey>('change');
   const [snap, setSnap] = useState<Snapshot | null | undefined>(undefined);
   const [seen, setSeen] = useState<number | null | undefined>(undefined);
   useEffect(() => { baseline('mine').then(setSnap); heroSeen('portfolio').then(setSeen); }, []);
@@ -130,8 +133,21 @@ export default function Mine() {
   const ordered = seg === 'hold'
     ? [...changes].sort((a, b) => Number(risky.has(b.code)) - Number(risky.has(a.code)) || Number(b.significant) - Number(a.significant) || b.score - a.score)
     : changes;
-  const main = ordered.filter((c) => c.significant || risky.has(c.code));
-  const quiet = ordered.filter((c) => !c.significant && !risky.has(c.code));
+  const val = (c: (typeof changes)[number]): number => {
+    const r = c.row;
+    switch (sort) {
+      case 'pct': return r.change_pct ?? -Infinity;
+      case 'composite': return (r.composite as number | null) ?? -Infinity;
+      case 'foreign': return r.foreign_net_lots ?? -Infinity;
+      case 'trust': return r.trust_net_lots ?? -Infinity;
+      case 'custom': return -(watch.find((w) => w.code === c.code)?.order ?? 0);
+      default: return 0;
+    }
+  };
+  const sortedAll = sort === 'change' ? ordered : [...changes].sort((a, b) => val(b) - val(a));
+  // 依變化排序時，沒有顯著變化的收合；改用其他排序時全部列出
+  const main = sort === 'change' ? ordered.filter((c) => c.significant || risky.has(c.code)) : sortedAll;
+  const quiet = sort === 'change' ? ordered.filter((c) => !c.significant && !risky.has(c.code)) : [];
   const missing = seg === 'watch' ? watchShown.filter((w) => !byCode?.get(w.code)).map((w) => w.code) : [];
 
   useEffect(() => {
@@ -144,7 +160,7 @@ export default function Mine() {
 
   const [c1, c2] = mineConclusion({ holdings: holdCodes.length, alerts: risky.size, dir, periodName: PERIOD_LABEL[period] });
   const setSeg = (s: Seg) => navigate(s === 'watch' ? '/mine?seg=watch' : '/mine', true);
-  const listCodes = ordered.map((c) => c.code);
+  const listCodes = sortedAll.map((c) => c.code);
   const openStock = (code: string) => { setListContext({ name: seg === 'hold' ? '持股' : '自選', codes: listCodes }); navigate(`/stock/${code}`); };
   const previewRow = preview ? byCode?.get(preview) : undefined;
   const previewTrade = preview ? open.find((t) => t.code === preview) : undefined;
@@ -202,7 +218,14 @@ export default function Mine() {
         </div>
       ) : null}
 
-      {rows.length ? <p class="caption muted" style={{ marginTop: 'var(--s-4)' }}>依{sinceLabel(snap ?? null)}的變化排序・左滑可{seg === 'hold' ? '平倉' : '移除或移到其他群組'}・長按快速預覽</p> : null}
+      {rows.length ? (
+        <div class="row between" style={{ marginTop: 'var(--s-4)', alignItems: 'flex-start' }}>
+          <p class="caption muted grow">{sort === 'change' ? `依${sinceLabel(snap ?? null)}的變化排序` : `依${SORTS.find((x) => x[0] === sort)![1]}排序`}・左滑可{seg === 'hold' ? '平倉' : '移除或移到其他群組'}・長按快速預覽</p>
+          <select class="select sort-select" aria-label="排序" value={sort} onChange={(e) => setSort((e.target as HTMLSelectElement).value as SortKey)}>
+            {SORTS.filter(([k]) => seg === 'watch' || k !== 'custom').map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        </div>
+      ) : null}
 
       <div class="stock-list">
         {user && seg === 'hold' && !holdCodes.length ? (

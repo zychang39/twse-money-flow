@@ -456,7 +456,7 @@ function stock() {
     const trend = i > 52 ? 0.7 : i > 30 ? 0.1 : -0.15;
     return Math.round((r - 0.5 + trend) * 9000);
   });
-  const scores = [['籌碼', 82, '100%'], ['動能', 74, '100%'], ['基本面', 69, '92%'], ['評價', 41, '100%']];
+  const scores = [['籌碼', 82, '100%'], ['動能', 74, '100%'], ['基本面', 69, '92%'], ['估值', 41, '100%']];
   return `${ambient('up')}<div class="content">
   ${statusBar()}
   <div class="topbar" style="padding-left:6px">

@@ -55,7 +55,8 @@ for (const v of VARIANTS) {
     }
     // 整頁截圖時固定元素會出現在中間，改為隱藏（Tab 與搜尋膠囊另見視窗截圖）
     if (p.full) await page.addStyleTag({ content: '.tabbar, .search-float { display: none !important; }' });
-    await page.screenshot({ path: `${dir}/${p.id}.png`, fullPage: !!p.full });
+    const jpeg = args.format === 'jpeg';
+    await page.screenshot({ path: `${dir}/${p.id}.${jpeg ? 'jpg' : 'png'}`, fullPage: !!p.full, ...(jpeg ? { type: 'jpeg', quality: 82 } : {}) });
     process.stdout.write(`${v.id}/${p.id} `);
   }
   await ctx.close();

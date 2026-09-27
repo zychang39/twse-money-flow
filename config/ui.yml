@@ -5,9 +5,9 @@ version: 1
 significance:
   price_pct: 3.0            # |漲跌幅| ≥ 3%（自上次查看的收盤價變化）
   composite_points: 5       # 綜合分變化 ≥ 5 分
-  inst_streak_days: 3       # 外資或投信「新達到」連買／連賣 ≥ 3 日
-  inst_volume_pct: 20       # 當日外資＋投信淨買賣超 ≥ 成交量 20%
-  margin_pct: 5             # 融資餘額變化 ≥ 5%
+  inst_streak_days: 5       # 外資或投信「新達到」連買／連賣 ≥ 5 日
+  inst_volume_pct: 25       # 當日外資＋投信淨買賣超 ≥ 成交量 25%
+  margin_pct: 8             # 融資餘額變化 ≥ 8%
   near_stop_pct: 3          # 持股收盤價距停損 ≤ 3% 視為「接近停損」
 
 # 資金環境燈號（由市場頁的 5 項資金指標彙總）：只有「保守」使用琥珀色

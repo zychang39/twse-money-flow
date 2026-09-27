@@ -186,14 +186,16 @@ export default function Stock({ code }: { code: string }) {
             {row && (row.whale_pct === null || row.whale_pct === undefined) ? <Accumulating what="集保大戶持股" detail="集保股權分散表官方只提供最新一週，每週六起逐週累積。" /> : null}
           </Block>
 
-          <Block question="營收" answer={rev ? `${rev.ym.slice(0, 4)} 年 ${Number(rev.ym.slice(5, 7))} 月營收年增 ${rev.yoy === null ? '—' : `${rev.yoy.toFixed(1)}%`}` : '營收資料累積中'}>
-            {rev ? (
-              <div class="list" style={{ marginTop: 'var(--s-4)' }}>
-                <div class="list-item"><span class="grow">單月營收</span><span class="body">{fmtNum(rev.revenue / 1e5, 1)} 億</span></div>
-                <div class="list-item"><span class="grow">近 3 月年增率</span><span class="body"><Signed value={(row?.revenue_yoy_3m as number | null) ?? null} format={(v) => fmtPct(v, 1)} /></span></div>
-                <button class="list-item brand" onClick={() => setSheet({ kind: 'more' })}>月營收、季財報與事件<span class="chev"><IconChevron /></span></button>
-              </div>
-            ) : null}
+          <Block question="營收" answer={rev ? `${rev.ym.slice(0, 4)} 年 ${Number(rev.ym.slice(5, 7))} 月營收年增 ${rev.yoy === null ? '—' : `${rev.yoy.toFixed(1)}%`}` : '沒有月營收資料（ETF 或資料累積中）'}>
+            <div class="list" style={{ marginTop: 'var(--s-4)' }}>
+              {rev ? (
+                <>
+                  <div class="list-item"><span class="grow">單月營收</span><span class="body">{fmtNum(rev.revenue / 1e5, 1)} 億</span></div>
+                  <div class="list-item"><span class="grow">近 3 月年增率</span><span class="body"><Signed value={(row?.revenue_yoy_3m as number | null) ?? null} format={(v) => fmtPct(v, 1)} /></span></div>
+                </>
+              ) : null}
+              <button class="list-item brand" onClick={() => setSheet({ kind: 'more' })}>基本數據、月營收、季財報與事件<span class="chev"><IconChevron /></span></button>
+            </div>
           </Block>
 
           <Block question="估值" answer={h.fair ? '合理價區間' : `本益比 ${fmtNum(lastOf(h.pe))}`}>
@@ -208,7 +210,7 @@ export default function Stock({ code }: { code: string }) {
           </Block>
 
           <Sheet open={!!sheet} onClose={() => setSheet(null)} detent={sheet?.kind === 'score' && sheet.id ? 'half' : 'full'}
-            title={sheet?.kind === 'score' ? (sheet.id ? `${categoryName(sheet.id)}分數明細` : '分數明細') : sheet?.kind === 'chip' ? '近期每日籌碼' : '營收、財報與事件'}>
+            title={sheet?.kind === 'score' ? (sheet.id ? `${categoryName(sheet.id)}分數明細` : '分數明細') : sheet?.kind === 'chip' ? '近期每日籌碼' : '基本數據、營收、財報與事件'}>
             {sheet?.kind === 'score' && h.scores ? <ScoreDetailView detail={h.scores} only={sheet.id} /> : null}
             {sheet?.kind === 'chip' ? (
               <div class="scroll-x">

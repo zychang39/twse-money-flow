@@ -1,0 +1,31 @@
+[
+ {
+  "id": "01-today",
+  "hash": "#/"
+ },
+ {
+  "id": "02-watchlist",
+  "hash": "#/watchlist"
+ },
+ {
+  "id": "03-stock",
+  "hash": "#/stock/2330",
+  "wait": 2500
+ },
+ {
+  "id": "04-market",
+  "hash": "#/market"
+ },
+ {
+  "id": "05-journal",
+  "hash": "#/journal"
+ },
+ {
+  "id": "06-screener",
+  "hash": "#/screener"
+ },
+ {
+  "id": "07-more",
+  "hash": "#/more"
+ }
+]

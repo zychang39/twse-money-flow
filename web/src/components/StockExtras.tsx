@@ -1,5 +1,5 @@
 import type { StockHistory } from '../data/types';
-import { fmtNum, fmtPct, fmtPrice } from '../lib/format';
+import { fmtInt, fmtNum, fmtPct, fmtPrice } from '../lib/format';
 import { Signed } from './Change';
 import { Banner } from './DataStatus';
 import { IconCalendar } from './Icons';
@@ -51,8 +51,16 @@ export function StockExtras({ h }: { h: StockHistory }) {
   const etfs = h.etf_holders as EtfHolder[] | undefined;
   const quarters = h.quarters as QuarterRow[] | undefined;
   const halt = h.short_halt as ShortHalt | null | undefined;
+  const last = h.d.length - 1;
   return (
     <>
+      <h3 class="eyebrow">基本數據（{h.d[last]}）</h3>
+      <div class="list">
+        <div class="list-item"><span class="grow">成交量</span><span>{fmtInt(h.v[last])} 張</span></div>
+        <div class="list-item"><span class="grow">成交值</span><span>{fmtNum(h.val[last], 1)} 百萬</span></div>
+        <div class="list-item"><span class="grow">本益比／淨值比／殖利率</span><span>{fmtNum(h.pe[last])}／{fmtNum(h.pb[last])}／{fmtNum(h.dy[last])}%</span></div>
+        {h.shares ? <div class="list-item"><span class="grow">發行股數</span><span>{fmtNum(h.shares / 1e8, 2)} 億股</span></div> : null}
+      </div>
       {halt ? <Banner icon={<IconCalendar />} title={`融券最後回補日 ${halt.last_cover_date}`}>停券至 {halt.end}{halt.reason ? `，${halt.reason}` : ''}</Banner> : null}
       {h.fair ? (
         <>

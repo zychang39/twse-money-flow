@@ -45,7 +45,8 @@ export function Sheet({ open, onClose, title, children, detent = 'half', actions
     const raf = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
     openCount++;
     document.documentElement.style.overflow = 'hidden';
-    sheetRef.current?.querySelector<HTMLElement>('[data-autofocus], .sheet-close')?.focus({ preventScroll: true });
+    // 焦點移入面板：有指定欄位（data-autofocus）就聚焦該欄位，否則聚焦面板本身（不在關閉鈕上顯示焦點框）
+    (sheetRef.current?.querySelector<HTMLElement>('[data-autofocus]') ?? sheetRef.current)?.focus({ preventScroll: true });
     return () => {
       cancelAnimationFrame(raf);
       openCount--;
@@ -102,7 +103,7 @@ export function Sheet({ open, onClose, title, children, detent = 'half', actions
   return (
     <>
       <div class={`sheet-backdrop ${shown ? 'open' : ''}`} onClick={onClose} aria-hidden="true" />
-      <div ref={sheetRef} class={`sheet ${drag !== null ? 'dragging' : ''}`} role="dialog" aria-modal="true" aria-label={title}
+      <div ref={sheetRef} tabIndex={-1} class={`sheet ${drag !== null ? 'dragging' : ''}`} role="dialog" aria-modal="true" aria-label={title}
         style={{ transform: `translateY(${offset})` }}>
         <div class="sheet-head" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
           <div class="grabber" aria-hidden="true" />

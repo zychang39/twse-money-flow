@@ -7,7 +7,7 @@
 - 定位：以「分數 + 因子明細 + 依據」呈現，**不使用「買進／賣出」字眼**；頁尾註明「僅供研究參考，非投資建議」。
 - 資料：證交所、櫃買中心、集保、期交所、公開資訊觀測站、美國財政部等**公開免費**資料；遵守政府資料開放授權並標示來源；不繞過驗證碼。
 - 資料流程：GitHub Actions 依排程執行 `python -m pipeline`，正規化後寫入孤兒分支 `data`；部署時再由 pipeline 產生前端用 JSON（衍生資料不 commit）。
-- 前端：Vite + TypeScript + Preact，hash 路由，PWA，手機優先（Apple HIG 風格），紅漲綠跌，漲跌同時以 ▲▼ 表示。
+- 前端：Vite + TypeScript + Preact，hash 路由，PWA，手機優先；設計方向 B「環境光」（tokens 集中在 `web/src/styles/tokens.css`，5 級字級、原創線條圖示、深淺色）。紅漲綠跌並以 ▲▼ 表示；琥珀只代表風險；電光藍只給可互動元素。資訊架構與設計文件見 `docs/design/`。
 - 使用者資料（自選、日誌、持倉、設定）只存在瀏覽器 IndexedDB，可單檔 JSON 匯出／匯入。
 - 詳細規格：`docs/METHODOLOGY.md`（計算定義）、`docs/DATA_SOURCES.md`（資料源）、`docs/DECISIONS.md`（決策紀錄）。
 
@@ -34,7 +34,7 @@
 | `pipeline/derive/` | 衍生計算：還原價、指標、分數、選股、回測、前端 JSON 匯出 |
 | `pipeline/notify/` | Telegram 推播、GitHub Issue（data-failure） |
 | `web/` | 前端（Vite + Preact + TS）；`web/src/lib` 為純函式（可測）、`web/src/pages` 為頁面 |
-| `config/` | **單一事實來源**：權重、門檻、交易成本、資料源、產業代碼、提醒；pipeline 與 web 共用 |
+| `config/` | **單一事實來源**：權重、門檻、交易成本、資料源、產業代碼、提醒、介面行為參數（`ui.yml`）；pipeline 與 web 共用 |
 | `docs/` | 文件 |
 | `tests/` | pytest；`tests/fixtures/raw` 為 Actions 抓的真實樣本（勿手改），`tests/fixtures/local` 為本機抓取並裁切的樣本 |
 | `.github/workflows/` | `data.yml`、`deploy.yml`、`ci.yml`；`smoke-test.yml`、`capture-fixtures.yml` 為使用者建立，**不要修改** |

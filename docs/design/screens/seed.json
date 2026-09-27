@@ -1,0 +1,224 @@
+{
+ "date": "2026-09-24",
+ "watchlist": [
+  {
+   "code": "2454",
+   "group": "預設",
+   "addedAt": "2026-08-01T12:00:00.000Z",
+   "order": 0
+  },
+  {
+   "code": "2345",
+   "group": "預設",
+   "addedAt": "2026-08-01T12:00:00.000Z",
+   "order": 1
+  },
+  {
+   "code": "6669",
+   "group": "預設",
+   "addedAt": "2026-08-01T12:00:00.000Z",
+   "order": 2
+  },
+  {
+   "code": "3231",
+   "group": "預設",
+   "addedAt": "2026-08-01T12:00:00.000Z",
+   "order": 3
+  },
+  {
+   "code": "2308",
+   "group": "預設",
+   "addedAt": "2026-08-01T12:00:00.000Z",
+   "order": 4
+  },
+  {
+   "code": "2881",
+   "group": "預設",
+   "addedAt": "2026-08-01T12:00:00.000Z",
+   "order": 5
+  },
+  {
+   "code": "1101",
+   "group": "預設",
+   "addedAt": "2026-08-01T12:00:00.000Z",
+   "order": 6
+  },
+  {
+   "code": "2412",
+   "group": "預設",
+   "addedAt": "2026-08-01T12:00:00.000Z",
+   "order": 7
+  },
+  {
+   "code": "3008",
+   "group": "觀察",
+   "addedAt": "2026-08-01T12:00:00.000Z",
+   "order": 8
+  },
+  {
+   "code": "2303",
+   "group": "觀察",
+   "addedAt": "2026-08-01T12:00:00.000Z",
+   "order": 9
+  },
+  {
+   "code": "6505",
+   "group": "觀察",
+   "addedAt": "2026-08-01T12:00:00.000Z",
+   "order": 10
+  },
+  {
+   "code": "3711",
+   "group": "觀察",
+   "addedAt": "2026-08-01T12:00:00.000Z",
+   "order": 11
+  }
+ ],
+ "trades": [
+  {
+   "id": "seed-open-0",
+   "code": "2330",
+   "name": "台積電",
+   "status": "open",
+   "openedAt": "2026-07-30",
+   "entry": 2205,
+   "shares": 1000,
+   "stop": 2029.0,
+   "target": 2646.0,
+   "reasonType": "籌碼",
+   "checklist": {
+    "market": "中性",
+    "trend": "年線之上、短線整理",
+    "revenue": "成長",
+    "valuation": "合理",
+    "reason": "投信連買、月營收年增"
+   }
+  },
+  {
+   "id": "seed-open-1",
+   "code": "2317",
+   "name": "鴻海",
+   "status": "open",
+   "openedAt": "2026-08-06",
+   "entry": 264.5,
+   "shares": 3000,
+   "stop": 243.3,
+   "target": 317.4,
+   "reasonType": "營收",
+   "checklist": {
+    "market": "中性",
+    "trend": "年線之上、短線整理",
+    "revenue": "成長",
+    "valuation": "合理",
+    "reason": "投信連買、月營收年增"
+   }
+  },
+  {
+   "id": "seed-open-2",
+   "code": "0050",
+   "name": "元大台灣50",
+   "status": "open",
+   "openedAt": "2026-07-01",
+   "entry": 109.35,
+   "shares": 5000,
+   "stop": 100.6,
+   "target": 131.2,
+   "reasonType": "估值",
+   "checklist": {
+    "market": "中性",
+    "trend": "年線之上、短線整理",
+    "revenue": "成長",
+    "valuation": "合理",
+    "reason": "投信連買、月營收年增"
+   }
+  },
+  {
+   "id": "seed-open-3",
+   "code": "2382",
+   "name": "廣達",
+   "status": "open",
+   "openedAt": "2026-09-08",
+   "entry": 328,
+   "shares": 2000,
+   "stop": 341.9,
+   "target": 393.6,
+   "reasonType": "動能",
+   "checklist": {
+    "market": "中性",
+    "trend": "年線之上、短線整理",
+    "revenue": "成長",
+    "valuation": "合理",
+    "reason": "投信連買、月營收年增"
+   }
+  },
+  {
+   "id": "seed-open-4",
+   "code": "2603",
+   "name": "長榮",
+   "status": "open",
+   "openedAt": "2026-08-20",
+   "entry": 246,
+   "shares": 2000,
+   "stop": 226.3,
+   "target": 295.2,
+   "reasonType": "籌碼",
+   "checklist": {
+    "market": "中性",
+    "trend": "年線之上、短線整理",
+    "revenue": "成長",
+    "valuation": "合理",
+    "reason": "投信連買、月營收年增"
+   }
+  },
+  {
+   "id": "seed-closed-0",
+   "code": "2454",
+   "name": "聯發科",
+   "status": "closed",
+   "openedAt": "2026-06-02",
+   "closedAt": "2026-07-16",
+   "entry": 4525,
+   "shares": 1000,
+   "stop": 3737.0,
+   "target": 5430.0,
+   "reasonType": "動能",
+   "checklist": {
+    "market": "中性",
+    "trend": "多頭（年線、季線之上）",
+    "revenue": "成長",
+    "valuation": "合理",
+    "reason": "RS 強勢"
+   },
+   "exit": 3700,
+   "review": "依計畫在停損附近出場；進場時追高，下次等回檔。",
+   "errorTags": [
+    "追高"
+   ],
+   "fees": 0
+  },
+  {
+   "id": "seed-closed-1",
+   "code": "2308",
+   "name": "台達電",
+   "status": "closed",
+   "openedAt": "2026-07-23",
+   "closedAt": "2026-09-14",
+   "entry": 1880,
+   "shares": 1000,
+   "stop": 1692.0,
+   "target": 2256.0,
+   "reasonType": "動能",
+   "checklist": {
+    "market": "中性",
+    "trend": "多頭（年線、季線之上）",
+    "revenue": "成長",
+    "valuation": "合理",
+    "reason": "RS 強勢"
+   },
+   "exit": 1620,
+   "review": "",
+   "errorTags": [],
+   "fees": 0
+  }
+ ]
+}
