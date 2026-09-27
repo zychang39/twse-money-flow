@@ -66,14 +66,14 @@
   --text-1: #0b0b0d;
   --text-2: rgba(40, 40, 48, 0.72);
   --text-3: rgba(40, 40, 48, 0.30);   /* 只用於裝飾（基準虛線、軌道），不用於文字 */
-  --up: #cc2419;
-  --down: #0b7a3e;
+  --up: #b81f15;
+  --down: #066b34;
   --up-tint: rgba(204, 36, 25, 0.10);
   --down-tint: rgba(11, 122, 62, 0.10);
-  --risk: #9e5200;          /* 文字用琥珀（對比 ≥ 4.5:1） */
+  --risk: #8a4600;          /* 文字用琥珀（對比 ≥ 4.5:1，含光暈上） */
   --risk-fill: #f59e0b;     /* 點、環等非文字元素 */
   --risk-tint: rgba(245, 158, 11, 0.16);
-  --brand: #0a5bd8;
+  --brand: #0850c0;
   --brand-fill: #0a5bd8;
   --on-brand: #ffffff;
   --brand-tint: rgba(10, 91, 216, 0.10);
@@ -86,10 +86,10 @@
   --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.12);
   --line-glow-opacity: 0.22;
   /* 環境光（靜態漸層；強度刻意壓低，不影響文字對比） */
-  --glow-up: rgba(230, 70, 50, 0.16);
-  --glow-down: rgba(20, 160, 90, 0.14);
-  --glow-risk: rgba(245, 158, 11, 0.20);
-  --glow-neutral: rgba(110, 135, 175, 0.12);
+  --glow-up: rgba(230, 70, 50, 0.12);
+  --glow-down: rgba(20, 160, 90, 0.11);
+  --glow-risk: rgba(245, 158, 11, 0.16);
+  --glow-neutral: rgba(110, 135, 175, 0.10);
   --status-bar: #f4f4f6;
 
   /* 舊元件相容別名（逐步淘汰） */
@@ -123,14 +123,14 @@
     --text-1: #f5f5f7;
     --text-2: rgba(235, 235, 245, 0.64);
     --text-3: rgba(235, 235, 245, 0.30);
-    --up: #ff5c4d;
+    --up: #ff6656;
     --down: #2ed47a;
     --up-tint: rgba(255, 92, 77, 0.16);
     --down-tint: rgba(46, 212, 122, 0.14);
     --risk: #ffb224;
     --risk-fill: #ffb224;
     --risk-tint: rgba(255, 178, 36, 0.14);
-    --brand: #4d94ff;
+    --brand: #5c9dff;
     --brand-fill: #1766f5;
     --on-brand: #ffffff;
     --brand-tint: rgba(77, 148, 255, 0.14);
@@ -142,9 +142,9 @@
     --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.45);
     --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.6);
     --line-glow-opacity: 0.55;
-    --glow-up: rgba(255, 84, 62, 0.26);
-    --glow-down: rgba(38, 196, 120, 0.22);
-    --glow-risk: rgba(255, 170, 40, 0.26);
+    --glow-up: rgba(255, 84, 62, 0.24);
+    --glow-down: rgba(38, 196, 120, 0.20);
+    --glow-risk: rgba(255, 170, 40, 0.22);
     --glow-neutral: rgba(120, 146, 186, 0.16);
     --status-bar: #000000;
   }
@@ -158,14 +158,14 @@
   --text-1: #f5f5f7;
   --text-2: rgba(235, 235, 245, 0.64);
   --text-3: rgba(235, 235, 245, 0.30);
-  --up: #ff5c4d;
+  --up: #ff6656;
   --down: #2ed47a;
   --up-tint: rgba(255, 92, 77, 0.16);
   --down-tint: rgba(46, 212, 122, 0.14);
   --risk: #ffb224;
   --risk-fill: #ffb224;
   --risk-tint: rgba(255, 178, 36, 0.14);
-  --brand: #4d94ff;
+  --brand: #5c9dff;
   --brand-fill: #1766f5;
   --on-brand: #ffffff;
   --brand-tint: rgba(77, 148, 255, 0.14);
@@ -177,9 +177,9 @@
   --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.45);
   --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.6);
   --line-glow-opacity: 0.55;
-  --glow-up: rgba(255, 84, 62, 0.26);
-  --glow-down: rgba(38, 196, 120, 0.22);
-  --glow-risk: rgba(255, 170, 40, 0.26);
+  --glow-up: rgba(255, 84, 62, 0.24);
+  --glow-down: rgba(38, 196, 120, 0.20);
+  --glow-risk: rgba(255, 170, 40, 0.22);
   --glow-neutral: rgba(120, 146, 186, 0.16);
   --status-bar: #000000;
 }

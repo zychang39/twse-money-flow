@@ -34,7 +34,7 @@ export function EnvDetail({ market }: { market: MarketData }) {
       {market.env ? <LightsList lights={market.env.lights} /> : <p class="caption muted">資料源待處理。</p>}
       {market.temperature ? (
         <>
-          <h3 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>市場溫度（反向參考）</h3>
+          <h2 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>市場溫度（反向參考）</h2>
           <LightsList lights={market.temperature.lights} />
         </>
       ) : null}

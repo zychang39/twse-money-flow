@@ -24,7 +24,7 @@ export function TabBar({ path }: { path: string }) {
         const Icon = t.icon;
         const current = t.match(path);
         return (
-          <a key={t.path} href={`#${t.path}`} aria-label={t.label} aria-current={current ? 'page' : undefined} title={t.label}>
+          <a key={t.path} href={`#${t.path}`} aria-label={t.label} aria-current={current ? 'page' : undefined}>
             <Icon />
           </a>
         );
@@ -92,11 +92,11 @@ export function TopBar({ back, caption, actions, avatar = true }: { back?: strin
 }
 
 /** 頁首：問題（小字）＋ 結論句（頁面標題）。 */
-export function PageHead({ eyebrow, title, children }: { eyebrow?: ComponentChildren; title: ComponentChildren; children?: ComponentChildren }) {
+export function PageHead({ eyebrow, title, children, twoLine }: { eyebrow?: ComponentChildren; title: ComponentChildren; children?: ComponentChildren; twoLine?: boolean }) {
   return (
     <header class="page-head">
       {eyebrow ? <div class="eyebrow">{eyebrow}</div> : null}
-      <h1 class="title">{title}</h1>
+      <h1 class={`title ${twoLine ? 'two-line' : ''}`}>{title}</h1>
       {children}
     </header>
   );
@@ -107,7 +107,7 @@ export function Block({ question, answer, children, id }: { question: ComponentC
   return (
     <section class="block" id={id} aria-label={typeof question === 'string' ? question : undefined}>
       <span class="eyebrow">{question}</span>
-      {answer ? <h2 class="section">{answer}</h2> : null}
+      <h2 class="section">{answer || '\u00a0'}</h2>
       {children}
     </section>
   );

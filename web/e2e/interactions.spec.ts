@@ -35,7 +35,7 @@ test('主角數字：hover／拖曳時數字與日期即時變動，離開後恢
 
 test('期間選擇器：選中者為實心膠囊，選擇會被記住；線與環境光同色', async ({ page }) => {
   await page.goto('#/stock/2330');
-  const btn = page.getByRole('group', { name: '股價走勢期間' }).getByRole('button', { name: '近 1 年' });
+  const btn = page.getByRole('group', { name: '股價走勢期間' }).getByRole('button', { name: /^1Y/ });
   await btn.click();
   await expect(btn).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.hero-change .caption').first()).toHaveText('近 1 年');
@@ -43,7 +43,7 @@ test('期間選擇器：選中者為實心膠囊，選擇會被記住；線與�
   const mood = await page.locator('.ambient').first().getAttribute('data-mood');
   expect(stroke === 'var(--up)' ? 'up' : stroke === 'var(--down)' ? 'down' : 'neutral').toBe(mood);
   await page.reload();
-  await expect(page.getByRole('group', { name: '股價走勢期間' }).getByRole('button', { name: '近 1 年' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('group', { name: '股價走勢期間' }).getByRole('button', { name: /^1Y/ })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('個股頁：同一清單左右切換（按鈕與拖曳手勢）', async ({ page }) => {
@@ -99,6 +99,9 @@ test('清單列：長按（右鍵）叫出快速預覽；左滑露出移除', as
   await expect(preview).toBeVisible();
   await expect(preview.getByRole('button', { name: '開啟個股頁' })).toBeVisible();
   await page.keyboard.press('Escape');
+  await expect(preview).toHaveCount(0);
+  await expect(page.locator('.sheet-backdrop')).toHaveCount(0);
+  await row.evaluate((e) => e.scrollIntoView({ block: 'center' }));
   const box = (await row.boundingBox())!;
   await page.mouse.move(box.x + box.width - 20, box.y + box.height / 2);
   await page.mouse.down();

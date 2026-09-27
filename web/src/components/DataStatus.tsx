@@ -6,7 +6,7 @@ import type { ComponentChildren } from 'preact';
 import { useAsync } from '../hooks';
 import { loadMeta } from '../data/api';
 import { businessDaysSince, todayTpe } from '../lib/dates';
-import { IconCloudOff, IconInfo, IconMoonRest, IconRisk, IconSeed } from './Icons';
+import { IconClock, IconCloudOff, IconMoonRest, IconRisk, IconSeed } from './Icons';
 
 function md(iso: string): string {
   const d = new Date(`${iso}T12:00:00Z`);
@@ -42,12 +42,12 @@ export function DataStatus({ date, extra }: { date?: string | null; extra?: Comp
   return (
     <>
       <p class="meta-line">
+        {phase === 'holiday' ? <span class="meta-phase" title="休市日不會中斷你的連續天數"><IconMoonRest />今天休市・</span> : null}
+        {phase === 'pending' ? <span class="meta-phase" title="通常在 17:30 與 21:30 更新"><IconClock />今天的資料尚未更新・</span> : null}
+        {meta.data.demo ? <span class="meta-demo w6">示範資料（合成數據）・</span> : null}
         資料至 {md(d)} 收盤{genText ? `・${genText} 更新` : ''}{extra ? <>・{extra}</> : null}
         {failed ? <>・<a href="#/me/health">{failed} 個資料源異常</a></> : null}
       </p>
-      {meta.data.demo ? <Banner icon={<IconInfo />} title="示範資料">目前顯示合成數據，只供介面展示。</Banner> : null}
-      {phase === 'holiday' ? <Banner icon={<IconMoonRest />} title="今天休市">以下是 {md(d)} 的資料；休市日不會中斷你的連續天數。</Banner> : null}
-      {phase === 'pending' ? <Banner icon={<IconInfo />} title="今天的盤後資料尚未更新">通常在 17:30 與 21:30 更新；目前顯示 {md(d)} 的資料。</Banner> : null}
       {phase === 'stale' ? <Banner kind="risk" icon={<IconRisk />} title="資料可能過期">最新資料停在 {md(d)}，落後 {lag} 個工作日。可到「資料健康」查看原因。</Banner> : null}
     </>
   );
@@ -74,7 +74,9 @@ export function Loading({ label = '載入中', hero }: { label?: string; hero?: 
         <>
           <div class="skeleton line" style={{ width: '30%' }} />
           <div class="skeleton hero" style={{ marginTop: 'var(--s-2)' }} />
-          <div class="skeleton" style={{ minHeight: '10rem', marginTop: 'var(--s-4)' }} />
+          <div class="skeleton line" style={{ width: '45%', marginTop: 'var(--s-1)' }} />
+          <div class="skeleton" style={{ minHeight: '11rem', marginTop: 'var(--s-4)' }} />
+          <div class="skeleton line" style={{ minHeight: '2.75rem', marginTop: 'var(--s-3)', borderRadius: 'var(--r-pill)' }} />
         </>
       ) : (
         <>

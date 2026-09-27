@@ -112,9 +112,9 @@ export default function Tonight() {
     <div class="page">
       <Ambient mood={tonightMood(env.state)} />
       <TopBar caption={day ? `${md(day)}盤後簡報` : '盤後簡報'} />
-      <PageHead title={summary.data && market.data && user ? <>{c1}<br />{c2}</> : '今晚的盤後簡報'}>
+      <PageHead twoLine title={summary.data && market.data && user ? <>{c1}<br />{c2}</> : '今晚的盤後簡報'}>
         <div class="row" style={{ marginTop: 'var(--s-4)' }}>
-          <button class="env-pill" onClick={() => setEnvOpen(true)} aria-label={`資金環境燈號：${env.label}，${env.counts}，查看 5 項指標`} disabled={!market.data}>
+          <button class="env-pill" onClick={() => setEnvOpen(true)} aria-haspopup="dialog" disabled={!market.data}>
             <span class={`env-dot ${env.state}`} aria-hidden="true" />
             <span class="w6">資金環境：{market.data ? env.label : '—'}</span>
             <span class="muted">{env.counts}</span>
@@ -151,8 +151,7 @@ export default function Tonight() {
               action={<a class="btn primary" href="#/discipline/checklist">開始買進前檢查表</a>} />
           ) : null}
           {risky.map((a) => (
-            <a key={a.trade.id} class="card" href={`#/stock/${a.trade.code}`} onClick={() => setListContext({ name: '持股', codes: alerts.map((x) => x.trade.code) })}
-              aria-label={`${a.trade.name}：${a.items.map((i) => i.label).join('、')}`}>
+            <a key={a.trade.id} class="card" href={`#/stock/${a.trade.code}`} onClick={() => setListContext({ name: '持股', codes: alerts.map((x) => x.trade.code) })}>
               <div class="row between"><span><span class="body w6">{a.trade.name}</span> <span class="caption muted">{a.trade.code}</span></span><span class="body w5">{fmtPrice(a.row?.close)}</span></div>
               <div class="row between wrap" style={{ marginTop: 'var(--s-1)' }}>
                 <span class="row wrap" style={{ gap: 'var(--s-1)' }}>{a.items.map((i) => <span key={i.label} class="tag risk">{i.label}</span>)}</span>

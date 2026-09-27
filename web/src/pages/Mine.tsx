@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Ambient, PageHead, SearchFloat, TopBar } from '../components/Chrome';
-import { DataStatus, EmptyState, ErrorState } from '../components/DataStatus';
+import { DataStatus, EmptyState, ErrorState, Loading } from '../components/DataStatus';
 import { HeroChart, usePeriod } from '../components/HeroChart';
 import { StockListRow, type RowAction } from '../components/StockRow';
 import { QuickPreview } from '../components/QuickPreview';
@@ -178,10 +178,11 @@ export default function Mine() {
       <TopBar caption="我的股票" actions={
         <button class="icon-btn" aria-label={seg === 'hold' ? '新增持倉（買進前檢查表）' : '加入自選股'} onClick={() => setAdding(true)}><IconPlus /></button>
       } />
-      <PageHead eyebrow={seg === 'hold' ? '我的持股有沒有出事？' : '自選股出現了什麼新變化？'} title={user && summary.data ? <>{c1}<br />{c2}</> : '我的股票'} />
+      <PageHead twoLine eyebrow={seg === 'hold' ? '我的持股有沒有出事？' : '自選股出現了什麼新變化？'} title={user && summary.data ? <>{c1}<br />{c2}</> : '我的股票'} />
       <DataStatus date={summary.data?.date} />
       {summary.error ? <ErrorState error={summary.error} /> : null}
 
+      {!user && seg === 'hold' ? <div style={{ marginTop: 'var(--s-5)' }}><Loading hero /></div> : null}
       {holdCodes.length ? (
         <div style={{ marginTop: 'var(--s-5)' }}>
           <HeroChart label={`目前持股組合・${holdCodes.length} 檔`} win={win} period={period} onPeriod={setPeriod} seen={seen ?? null}

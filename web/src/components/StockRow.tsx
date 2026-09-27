@@ -94,7 +94,7 @@ export function StockListRow({ code, row, hist, sub, onOpen, onPreview, actions 
       <button class={`srow ${dragging ? 'dragging' : ''}`} style={{ transform: dx ? `translateX(${dx}px)` : undefined }}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
         onClick={click} onContextMenu={(e) => { e.preventDefault(); onPreview?.(); }}
-        aria-label={label} aria-haspopup={onPreview ? 'dialog' : undefined}>
+        aria-haspopup={onPreview ? 'dialog' : undefined} aria-description={label}>
         <span style={{ minWidth: 0 }}>
           <span class="name body ellipsis" style={{ display: 'block' }}>{row?.name ?? code}</span>
           <span class="sub">{code}{sub ? <>・{sub}</> : null}</span>
@@ -113,8 +113,7 @@ export function StockListRow({ code, row, hist, sub, onOpen, onPreview, actions 
 /** 精簡清單列（不含 sparkline）：用於今晚的變化清單、選股結果等不需要走勢的地方。 */
 export function StockMiniRow({ row, text, onOpen, risk }: { row: StockRow; text: ComponentChildren; onOpen: () => void; risk?: boolean }) {
   return (
-    <button class="srow" style={{ gridTemplateColumns: 'minmax(0,1fr) 5.5rem 2rem' }} onClick={onOpen}
-      aria-label={`${row.name} ${row.code}，收盤 ${fmtPrice(row.close)}${typeof text === 'string' ? `，${text}` : ''}`}>
+    <button class="srow" style={{ gridTemplateColumns: 'minmax(0,1fr) 5.5rem 2rem' }} onClick={onOpen}>
       <span style={{ minWidth: 0 }}>
         <span class="name body ellipsis" style={{ display: 'block' }}>{row.name} <span class="caption muted">{row.code}</span></span>
         <span class={`sub ${risk ? 'risk w6' : ''}`}>{text}</span>

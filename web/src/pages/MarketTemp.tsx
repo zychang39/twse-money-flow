@@ -24,7 +24,7 @@ export default function MarketTemp() {
   return (
     <div class="page">
       <TopBar back="/explore" />
-      <PageHead eyebrow="大盤環境能不能積極？" title={m ? <>資金環境{env.label}<br />{env.counts}</> : '市場溫度'} />
+      <PageHead twoLine eyebrow="大盤環境能不能積極？" title={m ? <>資金環境{env.label}<br />{env.counts}</> : '市場溫度'} />
       <DataStatus date={m?.date} />
       {market.error ? <ErrorState error={market.error} /> : null}
       {market.loading ? <Loading /> : null}

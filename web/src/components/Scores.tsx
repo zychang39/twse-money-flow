@@ -40,14 +40,14 @@ export function ScoreRings({ row, detail, onPick }: { row?: Partial<StockRow>; d
         const name = categoryName(id);
         const inner = (
           <>
-            <ScoreRing value={v} size={64} stroke={4} />
+            <ScoreRing value={v} size={64} stroke={4} label={name} />
             <span class="caption t1" style={{ display: 'block', marginTop: 'var(--s-2)' }}>{name}</span>
             <span class="caption muted" style={{ display: 'block' }}>{c === null ? '資料 —' : `資料 ${Math.round(c * 100)}%`}</span>
           </>
         );
         const label = `${name}分數 ${scoreText(v)}，資料完整度 ${c === null ? '未知' : `${Math.round(c * 100)}%`}`;
         return onPick ? (
-          <button key={id} class="ring-btn" onClick={() => onPick(id)} aria-label={`${label}，查看明細`}>{inner}</button>
+          <button key={id} class="ring-btn" onClick={() => onPick(id)} aria-description={`${label}，查看明細`}>{inner}</button>
         ) : <div key={id} aria-label={label} role="group">{inner}</div>;
       })}
     </div>

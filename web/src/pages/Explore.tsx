@@ -22,10 +22,10 @@ function IndexCard({ name, values }: { name: string; values: (number | null)[] |
   const pct = chg !== null && prev ? (chg / prev) * 100 : null;
   const d = chg === null || chg === 0 ? 'flat' : chg > 0 ? 'up' : 'down';
   return (
-    <a class="index-card" href="#/explore/market" aria-label={`${name} ${fmtNum(last, 2)}，${d === 'up' ? '上漲' : d === 'down' ? '下跌' : '持平'} ${pct === null ? '' : `${Math.abs(pct).toFixed(2)}%`}`}>
+    <a class="index-card" href="#/explore/market">
       <div class="caption muted">{name}</div>
       <div class="body w6">{fmtNum(last, 2)}</div>
-      <div class={`caption w6 ${d}`} aria-hidden="true">{arrow(chg)} {pct === null ? '—' : `${Math.abs(pct).toFixed(2)}%`}</div>
+      <div class={`caption w6 ${d}`}><span aria-hidden="true">{arrow(chg)} </span><span class="sr-only">{d === 'up' ? '上漲' : d === 'down' ? '下跌' : '持平'}</span>{pct === null ? '—' : `${Math.abs(pct).toFixed(2)}%`}</div>
       <div style={{ marginTop: 'var(--s-2)' }}><Sparkline values={(values ?? []).slice(-22)} dir={d} w={136} h={36} /></div>
     </a>
   );
@@ -57,9 +57,9 @@ export default function Explore() {
   return (
     <div class="page">
       <TopBar caption="探索" />
-      <PageHead eyebrow="大盤環境與可研究的新變化" title={title} />
+      <PageHead twoLine eyebrow="大盤環境與可研究的新變化" title={title} />
       <DataStatus date={market.data?.date} />
-      <div class="hscroll" style={{ marginTop: 'var(--s-5)' }} role="list" aria-label="指數">
+      <div class="hscroll" style={{ marginTop: 'var(--s-5)' }} role="group" aria-label="指數">
         <IndexCard name="加權指數" values={index.data?.series[TAIEX]} />
         <IndexCard name="櫃買指數" values={index.data?.series[TPEX]} />
         <IndexCard name="加權報酬指數" values={index.data?.series[TAIEX_TR]} />

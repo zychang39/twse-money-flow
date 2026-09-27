@@ -40,7 +40,7 @@ export default function Discipline() {
   return (
     <div class="page">
       <TopBar caption="紀律" />
-      <PageHead eyebrow="我該記錄或檢討什麼？" title={r.complete ? '今晚的紀律已完成。' : <>今晚還差 {missing.length} 項：<br />{missing.map((x) => x.label).join('、')}</>} />
+      <PageHead twoLine eyebrow="我該記錄或檢討什麼？" title={r.complete ? '今晚的紀律已完成。' : <>今晚還差 {missing.length} 項：<br />{missing.map((x) => x.label).join('、')}</>} />
       <div style={{ marginTop: 'var(--s-6)' }}>
         <RitualPanel rings={r.rings} complete={r.complete} gamification={user.gamification} />
       </div>

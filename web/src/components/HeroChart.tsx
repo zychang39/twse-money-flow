@@ -38,7 +38,7 @@ export function PeriodSelector({ value, onChange, label = '期間' }: { value: P
   return (
     <div class="periods" role="group" aria-label={label}>
       {PERIODS.map((p) => (
-        <button key={p} aria-pressed={value === p} onClick={() => onChange(p)} aria-label={PERIOD_LABEL[p]}>{p}</button>
+        <button key={p} aria-pressed={value === p} onClick={() => onChange(p)}>{p}<span class="sr-only">（{PERIOD_LABEL[p]}）</span></button>
       ))}
     </div>
   );
