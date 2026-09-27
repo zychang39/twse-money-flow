@@ -47,3 +47,4 @@ etf_cathay_list.json|GET ETFType=06（主動式）|https://cwapi.cathaysite.com.
 etf_cathay_EA.json|GET FundCode=EA&SearchDate=2026/09/24（00400A；裁切為前 6 列）|https://cwapi.cathaysite.com.tw/api/ETF/GetETFDetailStockList|200
 etf_cathay_nodata.json|GET FundCode=EA&SearchDate=2026/09/26（非交易日）|https://cwapi.cathaysite.com.tw/api/ETF/GetETFDetailStockList|200
 tpex_pe_hist.json|GET|https://www.tpex.org.tw/www/zh-tw/afterTrading/peQryDate?date=2024%2F01%2F02&id=&response=json|200 57692
+tdcc_qryStock_3406.html|POST|https://www.tdcc.com.tw/portal/zh/smWeb/qryStock（scaDate=20250926&stockNo=3406；裁切保留表單與結果表格）|200 76780

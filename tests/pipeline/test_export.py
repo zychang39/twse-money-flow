@@ -37,6 +37,13 @@ def test_build_web_outputs(tmp_path):
     assert chip["avg"][-1] is not None and abs(chip["v"][-1] / 1000 - stock["v"][-1]) <= 0.5
     assert all(len(v) == 61 for v in chip.values())
     assert {"sblb", "dtv"} <= chip.keys()  # 借券餘額、當沖量（股）
+    # 集保持股分級：15 個分級（分級為主的陣列）＋各週總股數與總人數；比例合計約 100%
+    hold = stock["holders"]
+    w = len(hold["d"])
+    assert w >= 10 and hold["d"] == sorted(hold["d"])
+    assert len(hold["n"]) == 15 and len(hold["p"]) == 15 and all(len(a) == w for a in hold["n"] + hold["p"])
+    assert all(abs(sum(hold["p"][lv][i] for lv in range(15)) - 100) < 0.2 for i in range(w))
+    assert hold["th"][-1] == sum(hold["n"][lv][-1] for lv in range(15)) and hold["ts"][-1] == 1_000_000_000
     # 法人買賣超報表：各法人買進 − 賣出 ＝ 買賣超（外資含外資自營商；自營商分自行買賣與避險）
     for i in range(61):
         assert chip["fb"][i] - chip["fs"][i] == chip["fn"][i] + chip["ffd"][i]

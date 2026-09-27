@@ -221,6 +221,46 @@ def chip_buy_sell(ins: pd.DataFrame | None, sel: list[str]) -> dict[str, list[An
     return out
 
 
+# ------------------------------------------------------------------ 集保持股分級（大戶／散戶持股工具）
+TDCC_LEVELS = list(range(1, 16))
+TDCC_TOTAL = 17
+
+
+def holder_sources(ds: Any) -> dict[str, pd.DataFrame]:
+    """集保股權分散表（開放資料＋個股歷史查詢），依代號分組。"""
+    t = ds.table("tdcc")
+    if t.empty or not {"date", "code", "level"} <= set(t.columns):
+        return {}
+    t = t[t["level"].isin([*TDCC_LEVELS, TDCC_TOTAL])]
+    return {str(code): part for code, part in t.groupby("code")}
+
+
+def holders_block(src: dict[str, pd.DataFrame], code: str) -> dict[str, Any] | None:
+    """最近 holders.weeks 週的 15 個持股分級（分級為主的陣列，方便前端依門檻加總）。
+
+    n[i]／p[i]：分級 i+1 各週的人數與占集保庫存比例（%）；ts／th：各週集保總股數與總人數（分級 17 合計）。
+    分級邊界（張）：1、5、10、15、20、30、40、50、100、200、400、600、800、1000（見 config/ui.yml holders.breakpoints）。
+    """
+    part = src.get(code)
+    if part is None or part.empty:
+        return None
+    weeks = int(config.ui().get("holders", {}).get("weeks", 52))
+    dates = sorted(part["date"].astype(str).unique())[-weeks:]
+
+    def grid(col: str) -> pd.DataFrame:
+        g = part.pivot_table(index="date", columns="level", values=col, aggfunc="last")
+        return g.reindex(index=dates, columns=[*TDCC_LEVELS, TDCC_TOTAL])
+
+    holders, pct, shares = grid("holders"), grid("pct"), grid("shares")
+    return {
+        "d": dates,
+        "n": [arr(holders[lv].to_numpy(), 0) for lv in TDCC_LEVELS],
+        "p": [arr(pct[lv].to_numpy(), 2) for lv in TDCC_LEVELS],
+        "ts": arr(shares[TDCC_TOTAL].to_numpy(), 0),
+        "th": arr(holders[TDCC_TOTAL].to_numpy(), 0),
+    }
+
+
 def cost_lines(p: Any, code: str, idx: list[str]) -> dict[str, list[Any]]:
     windows = config.thresholds()["indicators"]["cost_line_windows"]
     avg = (p.value[code] / p.volume[code]).where(p.volume[code] > 0)

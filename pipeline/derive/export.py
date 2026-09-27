@@ -75,7 +75,12 @@ def build_health(ds: Dataset, market_date: str | None) -> dict[str, Any]:
         status = cfg.get("status", "unverified")
         failed = entry.get("last_status") == "failed"
         # 失敗是否影響「最新」資料：每日型只有落後（或從未成功）才算；回補歷史日期失敗不影響今天的畫面
-        affects_latest = failed and (cfg.get("frequency") != "daily" or not last or lag is None or lag > 0)
+        # 手動回補型（on_demand，例：集保個股歷史）只補過去，失敗不影響最新資料
+        affects_latest = (
+            failed
+            and cfg.get("frequency") != "on_demand"
+            and (cfg.get("frequency") != "daily" or not last or lag is None or lag > 0)
+        )
         rows.append(
             {
                 "id": sid,

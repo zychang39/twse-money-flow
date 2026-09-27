@@ -283,6 +283,14 @@ sources:
     url: https://opendata.tdcc.com.tw/getOD.ashx?id=1-5
     publish: "每週最後一個營業日資料，次一日公布；只提供最新一週，須自行累積"
     status: verified
+  tdcc_history:
+    label: 集保股權分散表（個股歷史查詢）
+    market: both
+    tier: advanced
+    frequency: on_demand
+    url: https://www.tdcc.com.tw/portal/zh/smWeb/qryStock
+    publish: "官方保存一年（約 51 週）；逐檔逐週查詢（無驗證碼），只在回補時對關注清單執行"
+    status: verified
   twse_sbl:
     label: 上市融券／借券賣出餘額
     market: twse

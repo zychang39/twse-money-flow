@@ -451,6 +451,8 @@ def task_backfill(
             financials.run_history(ctx, start, end)
         if "cbc_money" in custom and not ctx.out_of_time():
             tasks_advanced.run_cbc_money(ctx)
+        if "tdcc_history" in custom and not ctx.out_of_time():
+            tasks_advanced.run_tdcc_history(ctx)
         if "investor_conference" in custom:
             for m in months:
                 if not ctx.out_of_time() and not _month_done(ctx, "investor_conference", m):

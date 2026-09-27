@@ -36,6 +36,36 @@ def _gross(volume: int, net: int, share: float) -> tuple[int, int]:
     return base + max(net, 0), base + max(-net, 0)
 
 
+# 示範用集保分級：分級 1–14 的相對比例與人數（分級 15 為千張大戶，比例由 whale 決定）
+_TDCC_SHAPE = [1.5, 12, 5, 2.5, 2, 2, 1.8, 1.5, 4.5, 4.5, 5.5, 4, 3, 2.5]
+_TDCC_HOLDERS = [20000, 12000, 900, 250, 130, 90, 60, 40, 70, 40, 25, 12, 6, 3]
+
+
+def _tdcc_rows(iso: str, code: str, whale: float) -> list[dict[str, object]]:
+    """一週的 15 個分級＋差異數調整＋合計（總股數 10 億股）；大戶比例下降時散戶人數增加（不額外抽亂數）。"""
+    total = 1_000_000_000
+    rest = 100 - whale
+    scale = rest / sum(_TDCC_SHAPE)
+    retail = 1 + (50 - whale) / 100
+    rows: list[dict[str, object]] = []
+    pcts = [p * scale for p in _TDCC_SHAPE] + [whale]
+    holders = [int(h * (retail if i < 3 else 1)) for i, h in enumerate(_TDCC_HOLDERS)] + [max(3, int(whale / 4))]
+    for level, (pct, n) in enumerate(zip(pcts, holders, strict=True), start=1):
+        rows.append(
+            {
+                "date": iso,
+                "code": code,
+                "level": level,
+                "holders": n,
+                "shares": round(total * pct / 100),
+                "pct": round(pct, 2),
+            }
+        )
+    rows.append({"date": iso, "code": code, "level": 16, "holders": 0, "shares": 0, "pct": 0.0})
+    rows.append({"date": iso, "code": code, "level": 17, "holders": sum(holders), "shares": total, "pct": 100.0})
+    return rows
+
+
 def _trading_days(end: date, n: int) -> list[date]:
     out: list[date] = []
     d = end
@@ -289,11 +319,7 @@ def _advanced(store: DataStore, dates: list[date], rng: np.random.Generator, pat
             rows = []
             for c, *_ in DEMO_STOCKS:
                 whale[c] += rng.normal(0, 0.4)
-                for level in range(1, 18):
-                    pct = whale[c] if level == 15 else (100 if level == 17 else (100 - whale[c]) / 14)
-                    rows.append(
-                        {"date": iso, "code": c, "level": level, "holders": 1000, "shares": 1e6, "pct": round(pct, 2)}
-                    )
+                rows.extend(_tdcc_rows(iso, c, whale[c]))
             store.write("tdcc_holders", d, pd.DataFrame(rows))
         for contract, scale in (("TXF", 1), ("MXF", 4), ("TMF", 20)):
             for party in ("自營商", "投信", "外資及陸資"):

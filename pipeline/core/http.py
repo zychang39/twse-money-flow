@@ -65,6 +65,7 @@ class PoliteClient:
         method: str = "GET",
         data: dict[str, str] | None = None,
         json_body: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> requests.Response:
         host = urlparse(url).netloc
         if self._failures.get(host, 0) >= self.breaker_threshold:
@@ -80,7 +81,7 @@ class PoliteClient:
                     data=data,
                     json=json_body,
                     timeout=self.timeout,
-                    headers={"User-Agent": self.user_agent, "Accept": "*/*"},
+                    headers={"User-Agent": self.user_agent, "Accept": "*/*", **(headers or {})},
                     allow_redirects=True,
                 )
                 self._last_request = time.monotonic()
@@ -109,8 +110,8 @@ class PoliteClient:
     def get_bytes(self, url: str) -> bytes:
         return self.request(url).content
 
-    def post_bytes(self, url: str, data: dict[str, str]) -> bytes:
-        return self.request(url, method="POST", data=data).content
+    def post_bytes(self, url: str, data: dict[str, str], headers: dict[str, str] | None = None) -> bytes:
+        return self.request(url, method="POST", data=data, headers=headers).content
 
     def post_json(self, url: str, body: dict[str, Any]) -> bytes:
         """POST JSON 本文（部分投信 API 只接受 application/json）。"""
