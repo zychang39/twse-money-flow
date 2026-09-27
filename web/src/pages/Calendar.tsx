@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'preact/hooks';
-import { Nav } from '../components/Nav';
+import { PageHead, TopBar } from '../components/Chrome';
 import { DataStatus, ErrorState, Loading } from '../components/DataStatus';
 import { useAsync, useDb } from '../hooks';
 import { loadJson } from '../data/api';
@@ -19,10 +19,11 @@ export default function CalendarPage() {
   const byDate = new Map<string, CalEvent[]>();
   events.forEach((e) => byDate.set(e.date, [...(byDate.get(e.date) ?? []), e]));
   return (
-    <div>
-      <Nav title="行事曆" back="/more" />
+    <div class="page">
+      <TopBar back="/explore" />
+      <PageHead eyebrow="接下來有哪些已知事件？" title={cal.data ? `近期 ${events.length} 件事件` : '行事曆'} />
       <DataStatus date={cal.data?.date} />
-      <div class="segmented" role="group" aria-label="範圍">
+      <div class="segmented" role="group" aria-label="範圍" style={{ marginTop: 'var(--s-4)' }}>
         <button aria-pressed={!all} onClick={() => setAll(false)}>自選與持股</button>
         <button aria-pressed={all} onClick={() => setAll(true)}>全部</button>
       </div>
@@ -35,14 +36,14 @@ export default function CalendarPage() {
             {evs.map((e, i) => (
               <div key={i} class="list-item">
                 <span class="badge">{e.type}</span>
-                <span class="grow small">{e.code ? <a href={`#/stock/${e.code}`}>{e.name} {e.code}</a> : null} {e.text}</span>
+                <span class="grow caption">{e.code ? <a href={`#/stock/${e.code}`}>{e.name} {e.code}</a> : null} {e.text}</span>
               </div>
             ))}
           </div>
         </section>
       ))}
-      {cal.data && !events.length ? <div class="empty">近期沒有相關事件。</div> : null}
-      <p class="tiny muted">月營收公布日以法定期限（每月 10 日）標示；法說會資料來源若未就緒則不顯示。</p>
+      {cal.data && !events.length ? <div class="empty"><p>近期沒有和你的自選或持股相關的事件。</p><button class="btn" onClick={() => setAll(true)}>查看全部事件</button></div> : null}
+      <p class="caption muted" style={{ marginTop: 'var(--s-3)' }}>月營收公布日以法定期限（每月 10 日）標示；法說會資料來源若未就緒則不顯示。</p>
     </div>
   );
 }

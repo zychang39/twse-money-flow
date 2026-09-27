@@ -9,19 +9,20 @@
 
 ## 功能
 
-| 分頁 | 內容 |
-|---|---|
-| 今日 | 盤後日報：大盤、三大法人金額、資金燈號、自選股與持股的法人／信用／分數變化、新出現的風險旗標（有設定時另顯示「AI 生成」摘要） |
-| 自選 | 自選股清單、分數與旗標、匯入代號 |
-| 個股 | K 線（還原權息）、法人／融資券／借券、分數明細、合理價區間、法人成本線、月營收、季財報、健檢摘要、事件 |
-| 選股 | 條件篩選（預設策略＋自訂）、儲存條件 |
-| 市場 | 產業資金輪動熱力圖、資金燈號與市場溫度、主動式 ETF 清單 |
-| 日誌 | 交易日誌、進場前檢查清單、部位大小與風險、投資組合分析 |
-| 更多 | 回測（Web Worker）、週報、行事曆、處置風險預警、資料健康、方法說明、設定、備份 |
+App 的核心是「每晚 5 分鐘的決策儀式」，依序回答四個問題。底部 4 個圖示 Tab：
 
-- 資料存在手機本機（IndexedDB），可匯出／匯入單一 JSON 備份，並會定期提醒備份。
-- 離線可開啟（service worker），每頁顯示資料日期，資料過舊會警示。
-- 紅漲綠跌，並以 ▲▼ 符號標示，支援 VoiceOver 與深色模式。
+| Tab | 回答的問題 | 內容 |
+|---|---|---|
+| 今晚 | 大盤能不能積極？持股有沒有出事？自選有什麼新變化？該記錄或檢討什麼？ | 一句話結論與資金環境燈號；加權指數主角數字與走勢；持股警示（觸及／接近停損、新風險旗標）；自上次查看以來超過門檻的自選變化；今晚的紀律三環（有設定時另顯示「AI 生成」摘要） |
+| 我的股票 | 持股有沒有出事？自選有什麼新變化？ | 持股與自選（分段切換）、持股組合走勢、依變化排序的清單（左滑移除／移群組／平倉、長按預覽）；個股頁：主角數字＋期間選擇器（可拖曳查看）、一句話健檢、四環分數與資料完整度、法人／籌碼／營收／估值、左右滑動切換、「進階」K 線（還原權息、法人成本線〔估〕） |
+| 探索 | 大盤環境與自選以外的新變化 | 選股、回測（Web Worker，標示樣本數與可信度）、產業資金輪動、主動式 ETF、市場溫度、行事曆、處置預警 |
+| 紀律 | 我該記錄或檢討什麼？ | 交易日誌、買進前檢查表（含冷靜卡、可選「檢查後決定不進場」）、個人統計與組合分析、成就徽章、週報 |
+| 右上角頭像 | — | 設定（環境光、遊戲化、權重、交易成本、提醒匯出）、備份、資料健康、方法說明 |
+
+- 資料存在手機本機（IndexedDB），可匯出／匯入單一 JSON 備份（含紀律紀錄），並會定期提醒備份。
+- 離線可開啟（service worker），每頁顯示資料日期；休市、尚未更新、過期、資料累積中都有對應的提示。
+- 紅漲綠跌並以 ▲▼ 標示；琥珀只代表風險；支援 VoiceOver、深色與淺色模式。遊戲化只獎勵紀律（不因交易次數或獲利給獎勵），可關閉。
+- 設計文件：[docs/design/](docs/design/README.md)（資訊架構對照、驗收截圖、儀式走查）。
 
 ## 第一次使用：手動步驟（依序）
 
@@ -38,10 +39,10 @@
    2. 對新建立的 bot 傳任意一則訊息。
    3. 用瀏覽器開啟 `https://api.telegram.org/bot<你的token>/getUpdates`，找到 `"chat":{"id":…}` 的數字，就是 **chat id**。
    4. repo → Settings → Secrets and variables → Actions → New repository secret，新增 `TELEGRAM_BOT_TOKEN` 與 `TELEGRAM_CHAT_ID`。
-   5. 在 App「更多 → 設定 → 盤中到價提醒」設定價格，按「匯出提醒設定（複製）」，到 GitHub 網頁版編輯 `config/alerts.yml`，整份貼上後 Commit。這份設定同時決定盤後日報要列出哪些自選股與持股。
+   5. 在 App「右上角頭像 → 設定 → 盤中到價提醒」設定價格，按「匯出提醒設定（複製）」，到 GitHub 網頁版編輯 `config/alerts.yml`，整份貼上後 Commit。這份設定同時決定盤後日報要列出哪些自選股與持股。
 6. **AI 摘要（選配）**：新增 secret `ANTHROPIC_API_KEY` 後，每次部署會產生當日盤後條列摘要（標示「AI 生成」）。預設使用最新可用模型；要指定模型可新增 Actions variable `ANTHROPIC_MODEL`。沒有設定則完全不呼叫。
 7. **確認部署**：Actions → **Deploy** 顯示綠色勾勾後，開啟 <https://zychang39.github.io/twse-money-flow/>。iPhone 可用 Safari「分享 → 加入主畫面」安裝成 App。
-   - 首頁與「更多 → 資料健康」會顯示每個資料來源的最後成功日期；資料源失敗時會自動開一個標籤為 `data-failure` 的 Issue，恢復後自動關閉。
+   - 每頁的資料日期列與「頭像 → 資料健康」會顯示資料狀態與每個資料來源的最後成功日期；資料源失敗時會自動開一個標籤為 `data-failure` 的 Issue，恢復後自動關閉。
 
 ## 自動排程（`.github/workflows/data.yml`，台北時間）
 
@@ -90,6 +91,12 @@ ruff check pipeline tests && ruff format --check pipeline tests && mypy && pytes
 python -m pipeline demo-data --out web/public/data
 cd web && npm ci && npm run dev
 npm run lint && npm run typecheck && npm test && npm run build && npm run e2e
+python3 scripts/contrast.py   # 設計 tokens 的 WCAG AA 對比檢查
+
+# 設計驗收截圖與儀式走查（用真實資料：先 build-web 到 dist/data，再 vite preview）
+python scripts/make-seed.py <衍生資料目錄> > seed.json
+node scripts/screens.mjs --base http://localhost:4173/twse-money-flow/ --out ../docs/design/screens/after --pages scripts/pages-after.json --seed seed.json --format jpeg
+node scripts/walkthrough.mjs --base http://localhost:4173/twse-money-flow/ --seed seed.json --out ../docs/design/walkthrough
 ```
 
 常用 pipeline 指令：`python -m pipeline daily`、`python -m pipeline backfill --start 2023-09-01`、`python -m pipeline build-web --data-dir data`、`python -m pipeline alerts`。

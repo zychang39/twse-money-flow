@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<title>美術方向總覽</title>
+<style>
+  @font-face { font-family: 'Inter'; src: url(fonts/inter-latin-wght-normal.woff2) format('woff2'); font-weight: 100 900; }
+  body { margin: 0; background: #0c0c0e; font-family: 'Inter', 'PingFang TC', 'Noto Sans TC', sans-serif; color: #f5f5f7; }
+  #board { display: inline-block; padding: 48px 56px 56px; }
+  h1 { font-size: 34px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
+  p { margin: 0 0 32px; color: rgba(235,235,245,.62); font-size: 17px; }
+  .phones { display: flex; gap: 40px; align-items: flex-start; }
+  figure { margin: 0; width: 393px; }
+  figcaption { font-size: 15px; color: rgba(235,235,245,.62); margin-bottom: 12px; }
+  img { width: 393px; display: block; border-radius: 28px; box-shadow: 0 0 0 1px rgba(255,255,255,.08); }
+</style>
+</head>
+<body>
+<div id="board">
+  <h1 id="t"></h1>
+  <p id="d"></p>
+  <div class="phones" id="phones"></div>
+</div>
+<script>
+  const dir = new URLSearchParams(location.search).get('dir') || 'A';
+  const meta = {
+    A: ['A「夜間簡報」', '純黑背景、字體排版為主角、超大主角數字、極細發光走勢線、大量留白。深度只靠明度（純黑 → 深灰卡片）。'],
+    B: ['B「環境光」', '以 A 為基礎：頁首環境光暈隨狀態變化（今晚＝有風險偏琥珀、我的股票＝組合下跌偏冷綠、個股＝上漲偏暖紅）、低調玻璃卡片、漂浮搜尋膠囊與 Tab 膠囊。'],
+  }[dir];
+  document.getElementById('t').textContent = meta[0];
+  document.getElementById('d').textContent = meta[1];
+  const items = [['tonight', '今晚'], ['mine', '我的股票'], ['stock', '個股頁'], ['tonight-light', '今晚（淺色）']];
+  document.getElementById('phones').innerHTML = items.map(([k, l]) => `<figure><figcaption>${l}</figcaption><img src="../art-direction/${dir}-${k}.png" alt="${meta[0]} ${l}"></figure>`).join('');
+</script>
+</body>
+</html>

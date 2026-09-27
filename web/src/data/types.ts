@@ -120,3 +120,26 @@ export interface Health {
   trading_days: number;
   first_date: string | null;
 }
+
+// ---------- market.json ----------
+export type LightStateT = 'green' | 'yellow' | 'red' | 'gray';
+export interface MarketLight { id: string; label: string; state: LightStateT; value: string; basis: string }
+export interface Sector { industry: string; count: number; up: number; down: number; foreign_1: number | null; trust_1: number | null; [k: string]: string | number | null }
+export interface EtfMove { code: string; name: string; etfs: number; net_shares: number; net_value: number | null; detail: string }
+export interface MarketData {
+  date: string;
+  taiex: { close: number | null; change: number | null; ma240: number | null };
+  breadth: { up: number; down: number; flat: number };
+  flows: { date: string; foreign: number | null; trust: number | null; dealer: number | null }[];
+  sectors: Sector[];
+  env?: { summary: string; lights: MarketLight[] };
+  temperature?: { lights: MarketLight[]; retail?: { date: string; mtx: number | null; tmf: number | null }[] };
+  etf_ranking?: { date: string | null; add: EtfMove[]; reduce: EtfMove[]; status?: string };
+  active_etfs?: { code: string; name: string; close: number; value_million_20d: number | null }[];
+}
+
+// ---------- index.json ----------
+export interface IndexData { dates: string[]; series: Record<string, (number | null)[]> }
+export const TAIEX = '發行量加權股價指數';
+export const TAIEX_TR = '發行量加權股價報酬指數';
+export const TPEX = '櫃買指數';

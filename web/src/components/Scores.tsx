@@ -1,42 +1,55 @@
-import { CATEGORY_IDS, scoresConfig } from '../lib/config';
-import type { StockRow } from '../data/types';
-
-function cls(v: number | null | undefined): string {
-  if (v === null || v === undefined) return '';
-  return v >= 65 ? 'hi' : v <= 35 ? 'lo' : '';
-}
+import { CATEGORY_IDS, scoresConfig, type CategoryId } from '../lib/config';
+import type { ScoreDetail, StockRow } from '../data/types';
+import { ScoreRing } from './Viz';
 
 export function scoreText(v: number | null | undefined): string {
   return v === null || v === undefined ? '—' : String(Math.round(v));
 }
 
-/** 四項分數（籌碼／動能／基本面／估值）。 */
-export function ScoreRow({ row }: { row: Partial<StockRow> }) {
-  return (
-    <div class="score-row">
-      {CATEGORY_IDS.map((id) => {
-        const v = row[id] as number | null | undefined;
-        const label = scoresConfig.categories[id].label.replace('分', '');
-        return (
-          <div key={id} class={`score ${cls(v)}`}>
-            <span class="sr-only">{`${label}分數 ${scoreText(v)}`}</span>
-            <div class="val" aria-hidden="true">{scoreText(v)}</div>
-            <div class="lbl" aria-hidden="true">{label}</div>
-          </div>
-        );
-      })}
-    </div>
-  );
+/** 類別名稱（籌碼、動能、基本面、估值）。 */
+export function categoryName(id: CategoryId): string {
+  return scoresConfig.categories[id].label.replace(/分$/, '');
 }
 
-export function Composite({ value }: { value: number | null | undefined }) {
+/** 資料完整度：有資料的因子數 ÷ 設定中的因子數。 */
+export function completeness(detail: ScoreDetail | undefined, id: CategoryId): number | null {
+  const got = detail?.categories[id];
+  if (!got) return null;
+  const total = scoresConfig.categories[id].factors.length;
+  const have = got.factors.filter((f) => f.score !== null && f.score !== undefined).length;
+  return total ? have / total : null;
+}
+
+export function compositeCompleteness(detail: ScoreDetail | undefined): number | null {
+  if (!detail) return null;
+  let have = 0, total = 0;
+  for (const id of CATEGORY_IDS) {
+    total += scoresConfig.categories[id].factors.length;
+    have += detail.categories[id]?.factors.filter((f) => f.score !== null && f.score !== undefined).length ?? 0;
+  }
+  return total ? have / total : null;
+}
+
+/** 四環分數（籌碼／動能／基本面／估值），每環下方標示資料完整度。點選開啟該類別明細。 */
+export function ScoreRings({ row, detail, onPick }: { row?: Partial<StockRow>; detail?: ScoreDetail; onPick?: (id: CategoryId) => void }) {
   return (
-    <div style={{ textAlign: 'right' }}>
-      <span class="sr-only">{`綜合分 ${scoreText(value)}`}</span>
-      <div class={`composite ${value !== null && value !== undefined && value >= 65 ? 'up' : value !== null && value !== undefined && value <= 35 ? 'down' : ''}`} aria-hidden="true">
-        {scoreText(value)}
-      </div>
-      <div class="tiny muted" aria-hidden="true">綜合分</div>
+    <div class="rings4">
+      {CATEGORY_IDS.map((id) => {
+        const v = (row?.[id] as number | null | undefined) ?? detail?.categories[id]?.score ?? null;
+        const c = completeness(detail, id);
+        const name = categoryName(id);
+        const inner = (
+          <>
+            <ScoreRing value={v} size={64} stroke={4} label={name} />
+            <span class="caption t1" style={{ display: 'block', marginTop: 'var(--s-2)' }}>{name}</span>
+            <span class="caption muted" style={{ display: 'block' }}>{c === null ? '資料 —' : `資料 ${Math.round(c * 100)}%`}</span>
+          </>
+        );
+        const label = `${name}分數 ${scoreText(v)}，資料完整度 ${c === null ? '未知' : `${Math.round(c * 100)}%`}`;
+        return onPick ? (
+          <button key={id} class="ring-btn" onClick={() => onPick(id)} aria-description={`${label}，查看明細`}>{inner}</button>
+        ) : <div key={id} aria-label={label} role="group">{inner}</div>;
+      })}
     </div>
   );
 }

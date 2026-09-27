@@ -51,6 +51,14 @@ export function fmtLots(v: number | null | undefined): string {
   return `${sign}${Math.round(abs).toLocaleString('zh-TW')}`;
 }
 
+/** 張數（不帶正負號）：萬張以上以「萬」表示。方向由文字（買／賣、增加／減少）或 ▲▼ 表達。 */
+export function fmtLotsAbs(v: number | null | undefined): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+  const abs = Math.abs(v);
+  if (abs >= 10000) return `${(abs / 10000).toFixed(1)} 萬`;
+  return Math.round(abs).toLocaleString('zh-TW');
+}
+
 export function fmtMoney(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return '—';
   const abs = Math.abs(v);

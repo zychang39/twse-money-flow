@@ -45,3 +45,5 @@ export function loadSummary() {
 
 export const loadStock = (code: string) => getJson<StockHistory>(`stocks/${encodeURIComponent(code)}.json`);
 export const loadJson = <T>(path: string) => getJson<T>(path);
+export const loadMarket = () => getJson<import('./types').MarketData>('market.json');
+export const loadIndex = () => getJson<import('./types').IndexData>('index.json');

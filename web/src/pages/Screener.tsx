@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'preact/hooks';
-import { Nav } from '../components/Nav';
+import { PageHead, TopBar } from '../components/Chrome';
+import { StockMiniRow } from '../components/StockRow';
+import { setListContext } from '../lib/listContext';
+import { navigate } from '../router';
 import { DataStatus, ErrorState, Loading } from '../components/DataStatus';
-import { Change } from '../components/Change';
-import { Flags } from '../components/Flags';
-import { scoreText } from '../components/Scores';
 import { useDb } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { deleteScreen, listScreens, saveScreen, uid, type SavedScreen } from '../db/db';
@@ -21,7 +21,7 @@ function ConditionEditor({ c, onChange, onRemove }: { c: Condition; onChange: (c
   const isBetween = c.op === 'between';
   const [lo, hi] = isBetween ? (c.value as [number, number]) : [c.value as number, c.value as number];
   return (
-    <div class="card" style={{ padding: '0.75rem' }}>
+    <div class="card" style={{ padding: 'var(--s-3)' }}>
       <div class="row wrap">
         <select class="select" style={{ flex: '1 1 10rem' }} aria-label="欄位" value={c.field} onChange={(e) => onChange({ ...c, field: (e.target as HTMLSelectElement).value })}>
           {groups.map((g) => (
@@ -59,6 +59,12 @@ export default function Screener() {
   const [conditions, setConditions] = useState<Condition[]>(screenerConfig.presets[0].conditions);
   const [active, setActive] = useState<string>(screenerConfig.presets[0].id);
   const [name, setName] = useState(screenerConfig.presets[0].label);
+  // 誠實呈現：條件欄位若多數股票還沒有資料（例如集保大戶逐週累積中），結果會偏少，要說清楚
+  const sparse = useMemo(() => {
+    if (!summary.data) return [];
+    const rows = summary.data.rows as unknown as Record<string, unknown>[];
+    return conditions.filter((c) => rows.filter((r) => r[c.field] !== null && r[c.field] !== undefined).length < rows.length * 0.2).map((c) => label(c.field));
+  }, [summary.data, conditions]);
   const results = useMemo(() => (summary.data ? screen(summary.data.rows as unknown as Record<string, unknown>[], conditions) : []), [summary.data, conditions]);
 
   function load(id: string, nm: string, cs: Condition[]) {
@@ -77,8 +83,9 @@ export default function Screener() {
   }
 
   return (
-    <div>
-      <Nav title="選股" actions={<a class="btn small" href={`#/backtest?c=${encodeConditions(conditions)}&name=${encodeURIComponent(name)}`}>一鍵回測</a>} />
+    <div class="page">
+      <TopBar back="/explore" actions={<a class="btn small" href={`#/explore/backtest?c=${encodeConditions(conditions)}&name=${encodeURIComponent(name)}${saved.some((s) => s.id === active) ? '&own=1' : ''}`}>一鍵回測</a>} />
+      <PageHead eyebrow="自選股以外，有哪些符合條件的股票？" title={summary.data ? `${name}：${results.length} 檔符合` : '選股'} />
       <DataStatus date={summary.data?.date} />
       <h2 class="section-title">內建組合</h2>
       <div class="chips" role="group" aria-label="內建組合">
@@ -108,24 +115,22 @@ export default function Screener() {
         {saved.some((s) => s.id === active) ? <button class="btn danger" onClick={() => deleteScreen(active)}>刪除組合</button> : null}
       </div>
 
-      <h2 class="title-2">結果 {summary.data ? <span class="muted small">{results.length} 檔</span> : null}</h2>
+      <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>結果 {summary.data ? <span class="muted caption">{results.length} 檔</span> : null}</h2>
       {summary.error ? <ErrorState error={summary.error} /> : null}
       {summary.loading && !summary.data ? <Loading /> : null}
-      <div class="list">
+      {summary.data && !results.length ? (
+        <div class="empty">
+          <p>{sparse.length ? `「${sparse.join('、')}」目前多數股票還沒有資料（資料累積中），所以沒有股票符合。` : '目前沒有股票同時符合所有條件。'}</p>
+          <button class="btn" onClick={() => setConditions(conditions.slice(0, -1))} disabled={!conditions.length}>移除最後一個條件</button>
+        </div>
+      ) : sparse.length ? <p class="caption muted">「{sparse.join('、')}」資料累積中，結果可能偏少。</p> : null}
+      <div class="stock-list">
         {results.slice(0, 100).map((r) => {
-          const row = r as unknown as { code: string; name: string; close: number; change: number; change_pct: number; composite: number; flags: [] };
+          const row = r as unknown as import('../data/types').StockRow;
           return (
-            <a key={row.code} class="list-item" href={`#/stock/${row.code}`}>
-              <div class="grow">
-                <div><span class="bold">{row.name}</span> <span class="small muted num">{row.code}</span></div>
-                <div class="tiny muted">{conditions.map((c) => `${label(c.field)} ${fmtNum(r[c.field] as number, 1)}`).join('・')}</div>
-                <Flags flags={row.flags} compact />
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div class="small"><Change change={row.change} pct={row.change_pct} showPrice={row.close} /></div>
-                <div class="bold num"><span class="sr-only">綜合分 </span>{scoreText(row.composite)} <span class="tiny muted">分</span></div>
-              </div>
-            </a>
+            <StockMiniRow key={row.code} row={row} risk={!!row.flags?.length}
+              text={row.flags?.length ? row.flags.map((f) => f.label).join('、') : conditions.map((c) => `${label(c.field)} ${fmtNum(r[c.field] as number, 1)}`).join('・')}
+              onOpen={() => { setListContext({ name: '選股結果', codes: results.slice(0, 100).map((x) => (x as { code: string }).code) }); navigate(`/stock/${row.code}`); }} />
           );
         })}
       </div>

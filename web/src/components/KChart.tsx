@@ -36,8 +36,8 @@ export function KChart({ ohlc, volume, overlays = [], lower, height = 380, ariaL
     if (!el) return;
     const up = cssVar('--up', '#e5352b');
     const down = cssVar('--down', '#1e9e4a');
-    const text = cssVar('--label-2', '#666');
-    const grid = cssVar('--separator', 'rgba(0,0,0,0.1)');
+    const text = cssVar('--text-2', '#888');
+    const grid = cssVar('--surface-2', 'rgba(128,128,128,0.15)');
     const chart = createChart(el, {
       autoSize: true,
       layout: {
@@ -68,9 +68,9 @@ export function KChart({ ohlc, volume, overlays = [], lower, height = 380, ariaL
     if (lower && lower.data.length) {
       if (lower.kind === 'histogram') {
         const s = chart.addSeries(HistogramSeries, { priceLineVisible: false, title: lower.label }, 2);
-        s.setData(lower.data.map((p) => ({ time: p.time as Time, value: p.value, color: p.color ?? (lower.signed ? (p.value >= 0 ? up : down) : cssVar('--tint', '#007aff')) })));
+        s.setData(lower.data.map((p) => ({ time: p.time as Time, value: p.value, color: p.color ?? (lower.signed ? (p.value >= 0 ? up : down) : cssVar('--text-2', '#888')) })));
       } else {
-        const s = chart.addSeries(LineSeries, { priceLineVisible: false, title: lower.label, color: cssVar('--tint', '#007aff'), lineWidth: 2 }, 2);
+        const s = chart.addSeries(LineSeries, { priceLineVisible: false, title: lower.label, color: cssVar('--text-2', '#888'), lineWidth: 2 }, 2);
         s.setData(lower.data.map((p) => ({ time: p.time as Time, value: p.value })));
       }
     }
@@ -85,5 +85,5 @@ export function KChart({ ohlc, volume, overlays = [], lower, height = 380, ariaL
     };
   }, [ohlc, volume, overlays, lower]);
 
-  return <div ref={ref} class="chart" style={{ height: `${height / 16}rem` }} role="img" aria-label={ariaLabel} />;
+  return <div ref={ref} class="chart-box" style={{ height: `${height / 16}rem` }} role="img" aria-label={ariaLabel} />;
 }
