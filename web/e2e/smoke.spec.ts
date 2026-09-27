@@ -145,3 +145,9 @@ test('市場：資金環境燈號與市場溫度', async ({ page }) => {
   await expect(page.getByText('外資台指期淨未平倉')).toBeVisible();
   await expect(page.getByText('散戶多空比（小台）')).toBeVisible();
 });
+
+test('資料健康：列出還原價推估事件並標示「推估」', async ({ page }) => {
+  await page.goto('#/more/health');
+  await expect(page.getByRole('region', { name: '還原價推估事件' })).toBeVisible();
+  await expect(page.getByText(/只有在「前一個交易日之後到跳空當天」沒有任何官方/)).toBeVisible();
+});

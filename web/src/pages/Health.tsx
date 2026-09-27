@@ -3,6 +3,7 @@ import { ErrorState, Loading } from '../components/DataStatus';
 import { useAsync } from '../hooks';
 import { loadHealth, loadMeta } from '../data/api';
 import type { HealthSource } from '../data/types';
+import { InferredEvents } from '../components/InferredEvents';
 
 const TIER_LABEL: Record<string, string> = { core: '核心', advanced: '進階', optional: '選配' };
 
@@ -54,6 +55,7 @@ export default function Health() {
               </div>
             </section>
           ))}
+          <InferredEvents events={meta.data?.adjust_inferred} total={meta.data?.adjust_events} />
           <h2 class="section-title">最近執行</h2>
           <div class="list">
             {health.data.runs.map((r) => (

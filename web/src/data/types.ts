@@ -9,7 +9,13 @@ export interface Meta {
   stocks?: number;
   /** 有 ANTHROPIC_API_KEY 時產生 ai_summary.json */
   ai_summary?: boolean;
+  /** 還原價事件總數（官方＋推估） */
+  adjust_events?: number;
+  /** 以價格跳空推估的還原事件（沒有任何官方事件可以解釋的跳空） */
+  adjust_inferred?: InferredEvent[];
 }
+
+export interface InferredEvent { date: string; code: string; name: string; factor: number }
 
 export interface AiSummary { date: string; lines: string[]; model: string; generated_at: string }
 

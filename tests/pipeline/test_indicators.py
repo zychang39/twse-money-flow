@@ -155,3 +155,31 @@ def test_infer_ignores_ipo_first_days_and_normal_moves():
     close = pd.DataFrame({"N": [10, 20, 40, 60, 80, 85, 90, 95, 99, 100.0]}, index=dates)  # 上市初期暴漲
     ev = infer_events(close, close, close * np.nan, known=set())
     assert ev.empty
+
+
+def test_official_event_during_halt_prevents_double_adjustment():
+    """減資停牌：官方事件日（停牌期間）不在交易紀錄中，跳空出現在恢復交易日 → 不可再推估一次。"""
+    from pipeline.derive.adjust import all_events, explained_by_official, infer_events
+
+    dates = [f"2024-12-{d:02d}" for d in range(9, 32)]
+    px = [30.0] * 10 + [np.nan] * 12 + [50.0]  # 12/19～12/30 停止買賣，12/31 恢復，價格約 ×1.67
+    close = pd.DataFrame({"R": px}, index=dates)
+    open_ = close.copy()
+    change = pd.DataFrame({"R": [0.0] * 10 + [np.nan] * 12 + [0.0]}, index=dates)
+    official = pd.DataFrame({"date": ["2024-12-30"], "code": ["R"], "factor": [5 / 3]})
+    ev = all_events(close, open_, change, official)
+    assert len(ev) == 1 and ev.iloc[0]["source"] == "official"
+    # 同一個跳空不會同時有官方與推估事件
+    assert ev.groupby("code").size().max() == 1
+    af = ind.adjustment_factor(dates, zip(ev["date"], ev["factor"], strict=True))
+    adj = close["R"] * af
+    assert abs(adj.iloc[-1] / adj.iloc[9] - 1) < 0.01  # 還原後沒有斷層，也沒有重複調整
+    # 沒有官方事件時才推估
+    only = infer_events(close, open_, change, known=set())
+    assert len(only) == 1 and only.iloc[0]["source"] == "inferred"
+    # 區間判斷：官方事件必須落在（前一筆交易紀錄, 跳空日]
+    known = {"R": ["2024-12-30"]}
+    assert explained_by_official(known, "R", "2024-12-18", "2024-12-31")
+    assert not explained_by_official(known, "R", "2024-12-31", "2025-01-02")
+    assert not explained_by_official(known, "R", "2024-12-18", "2024-12-29")
+    assert not explained_by_official({}, "R", "2024-12-18", "2024-12-31")

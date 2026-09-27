@@ -1,14 +1,18 @@
 """還原價事件：官方除權息／減資／面額變更／分割，加上「無法解釋的價格跳空」推估。
 
 面額變更與 ETF 分割（如 0050 於 2025 年 1 拆 4）若官方表未涵蓋，會造成還原價斷層。
-推估規則（標示為 inferred，列在資料健康頁）：
-1. 相鄰兩個交易紀錄的收盤價比 |r − 1| > 門檻（預設 35%，遠大於 10% 漲跌幅限制），且該日沒有官方事件；
+推估規則（標示為 inferred，列在資料健康頁並標示「推估」）：
+1. 相鄰兩個交易紀錄的收盤價比 |r − 1| > 門檻（預設 35%，遠大於 10% 漲跌幅限制），
+   且「前一筆交易紀錄之後、到跳空當天為止」沒有任何官方除權息、減資、面額變更或分割事件可以解釋
+   （停牌期間發生的官方事件也算；避免官方事件與推估重複調整）；
 2. 排除每檔最初 5 筆（新上市前 5 日無漲跌幅限制）；
 3. 若有漲跌欄（相對參考價），參考價 = 收盤 − 漲跌，因子 = 參考價 ÷ 前收；
    否則以開盤價 ÷ 前收，貼近常見拆合比例（1/2、1/3、1/4、1/5、1/10、2、3、4、5、10）時取該比例。
 """
 
 from __future__ import annotations
+
+from bisect import bisect_right
 
 import numpy as np
 import pandas as pd
@@ -23,6 +27,15 @@ def snap_ratio(r: float, tolerance: float = 0.12) -> float:
     return r
 
 
+def explained_by_official(known_by_code: dict[str, list[str]], code: str, prev_date: str, date: str) -> bool:
+    """官方事件日期落在 (前一筆交易紀錄日, 跳空日] 之間 → 這個跳空已由官方事件解釋。"""
+    dates = known_by_code.get(code)
+    if not dates:
+        return False
+    i = bisect_right(dates, prev_date)
+    return i < len(dates) and dates[i] <= date
+
+
 def infer_events(
     close: pd.DataFrame,
     open_: pd.DataFrame,
@@ -31,6 +44,11 @@ def infer_events(
     threshold: float = 0.35,
     skip_first: int = 5,
 ) -> pd.DataFrame:
+    known_by_code: dict[str, list[str]] = {}
+    for code, d in known:
+        known_by_code.setdefault(code, []).append(d)
+    for v in known_by_code.values():
+        v.sort()
     rows = []
     for code in close.columns:
         c = close[code].dropna()
@@ -41,7 +59,9 @@ def infer_events(
         suspicious = ratio[(ratio - 1).abs() > threshold].index
         for d in suspicious:
             pos = c.index.get_loc(d)
-            if not isinstance(pos, int) or pos < skip_first or (code, d) in known:
+            if not isinstance(pos, int) or pos < skip_first:
+                continue
+            if explained_by_official(known_by_code, code, str(c.index[pos - 1]), str(d)):
                 continue
             p = float(prev[d])
             chg = change[code].get(d)
@@ -75,6 +95,7 @@ def official_events(*frames: pd.DataFrame) -> pd.DataFrame:
 
 
 def all_events(close: pd.DataFrame, open_: pd.DataFrame, change: pd.DataFrame, *official: pd.DataFrame) -> pd.DataFrame:
+    """官方事件＋推估事件。推估只補官方沒有涵蓋的跳空，兩者不會同時作用在同一個跳空上。"""
     off = official_events(*official)
     known = set(zip(off["code"], off["date"], strict=True))
     inferred = infer_events(close, open_, change, known)
