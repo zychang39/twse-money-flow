@@ -113,15 +113,24 @@ def _by_code(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame | None:
 
 
 def chip_sources(ds: Any) -> dict[str, pd.DataFrame]:
-    """三大法人（含外資自營商、自營商自行買賣／避險、官方合計）與借券賣出，依代號索引，供逐檔取用。"""
+    """三大法人（含外資自營商、自營商自行買賣／避險、官方合計）、借券賣出與借券餘額、當沖量，依代號索引，供逐檔取用。"""
     out: dict[str, pd.DataFrame] = {}
     ins = _by_code(ds.insti, CHIP_INSTI)
     if ins is not None:
         out["insti"] = ins
-    sbl = _by_code(ds.table("sbl"), ["sbl_sell"])
+    sbl = _by_code(ds.table("sbl"), ["sbl_sell", "sbl_balance"])
     if sbl is not None:
         out["sbl"] = sbl
+    dt = _by_code(ds.table("daytrade"), ["dt_volume"])
+    if dt is not None:
+        out["daytrade"] = dt
     return out
+
+
+def _col(frame: pd.DataFrame | None, col: str, sel: list[str]) -> pd.Series:
+    if frame is not None and col in frame.columns:
+        return frame[col].reindex(sel)
+    return pd.Series(np.nan, index=sel)
 
 
 def _sub(src: dict[str, pd.DataFrame], name: str, code: str) -> pd.DataFrame | None:
@@ -137,7 +146,8 @@ def _sub(src: dict[str, pd.DataFrame], name: str, code: str) -> pd.DataFrame | N
 def chip_block(p: Any, mp: Any, src: dict[str, pd.DataFrame], code: str, idx: list[str]) -> dict[str, Any] | None:
     """近 chip.days 個交易日＋前一日（算增減與漲跌用）的每日籌碼。
 
-    法人、借券賣出以「股」為單位（精確值，前端再換算張、金額、佔成交量）；融資融券餘額為「張」。
+    法人、借券賣出、借券餘額（sblb）、當沖量（dtv）以「股」為單位（精確值，前端再換算張、金額、佔成交量）；
+    融資融券餘額為「張」。
     avg＝當日成交金額 ÷ 成交股數（均價）；af＝還原因子（估計成本用還原後均價）；chg＝還原收盤的日漲跌 %。
     """
     days = int(config.ui().get("chip", {}).get("days", 60))
@@ -163,7 +173,9 @@ def chip_block(p: Any, mp: Any, src: dict[str, pd.DataFrame], code: str, idx: li
         vals = ins[col].reindex(sel) if ins is not None and col in ins.columns else pd.Series(np.nan, index=sel)
         out[key] = arr(vals.to_numpy(), 0)
     sbl = _sub(src, "sbl", code)
-    out["sbls"] = arr((sbl["sbl_sell"].reindex(sel) if sbl is not None else pd.Series(np.nan, index=sel)).to_numpy(), 0)
+    out["sbls"] = arr(_col(sbl, "sbl_sell", sel).to_numpy(), 0)
+    out["sblb"] = arr(_col(sbl, "sbl_balance", sel).to_numpy(), 0)
+    out["dtv"] = arr(_col(_sub(src, "daytrade", code), "dt_volume", sel).to_numpy(), 0)
     dt = mp.get("daytrade_pct")[code].reindex(sel) if "daytrade_pct" in mp.panels else pd.Series(np.nan, index=sel)
     out["dt"] = arr(dt.to_numpy(), 2)
     return out
