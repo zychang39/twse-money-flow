@@ -1,7 +1,7 @@
 """主動式 ETF：清單（代號 00xxxA）、每日持股變化、跨檔加碼／減碼排行、個股被哪些主動式 ETF 持有。
 
-持股資料來源（etf_holdings：date, etf, code, name, shares, weight）目前為「資料源待處理」：
-各投信官網 PCF 格式各異且部分有防爬機制，依規則不繞過；資料一旦進入 data 分支即自動生效。
+持股資料（etf_holdings：date, etf, code, name, shares, weight）來自各投信官網的持股揭露／PCF
+（pipeline/sources/etf_holdings.py），只涵蓋沒有反爬、導向循環或驗證機制的投信，屬「部分涵蓋」。
 """
 
 from __future__ import annotations
@@ -10,6 +10,8 @@ import re
 from typing import Any
 
 import pandas as pd
+
+from pipeline.core import config
 
 ACTIVE_RE = re.compile(r"^00\d{3,4}A$")
 
@@ -66,10 +68,15 @@ def holdings_changes(h: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def ranking(changes: pd.DataFrame, close: dict[str, float], top: int = 30) -> dict[str, list[dict[str, Any]]]:
+def ranking(
+    changes: pd.DataFrame, close: dict[str, float], top: int = 30, names: dict[str, str] | None = None
+) -> dict[str, list[dict[str, Any]]]:
+    """跨檔加碼／減碼排行；names（行情簡稱）優先，因各投信揭露的名稱有全名、有簡稱。"""
     if changes.empty:
         return {"add": [], "reduce": []}
     ch = changes.dropna(subset=["change_shares"])
+    if ch.empty:
+        return {"add": [], "reduce": []}
     agg = []
     for code, part in ch.groupby("code"):
         net = float(part["change_shares"].sum())
@@ -79,7 +86,7 @@ def ranking(changes: pd.DataFrame, close: dict[str, float], top: int = 30) -> di
         agg.append(
             {
                 "code": code,
-                "name": part["name"].iloc[0],
+                "name": (names or {}).get(code) or part["name"].iloc[0],
                 "etfs": adders if net > 0 else reducers,
                 "net_shares": net,
                 "net_value": round(net * px / 1e8, 2) if px else None,
@@ -107,3 +114,15 @@ def holders_by_stock(changes: pd.DataFrame, names: dict[str, str]) -> dict[str, 
             }
         )
     return out
+
+
+def covered_issuers_text() -> str:
+    """已實作的投信（config 的 active_etf.issuers 中 status=verified），例：「野村、群益… 5 家投信」。"""
+    issuers = config.source("active_etf").get("issuers", {})
+    labels = [str(c["label"]).removesuffix("投信") for c in issuers.values() if c.get("status") == "verified"]
+    return f"{'、'.join(labels)} {len(labels)} 家投信（共 {len(issuers)} 家發行主動式 ETF）"
+
+
+def coverage_text(changes: pd.DataFrame, total: int) -> str:
+    n = int(changes["etf"].nunique()) if not changes.empty else 0
+    return f"部分涵蓋：{n}／{total} 檔主動式 ETF 有持股資料，來源為{covered_issuers_text()}的官網揭露。"

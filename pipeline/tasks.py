@@ -326,6 +326,11 @@ def task_daily(ctx: RunContext, sources: list[str] | None = None, heal_days: int
 
         tasks_advanced.run_taifex(ctx, target - timedelta(days=10), target)
         tasks_advanced.run_ust(ctx, target.year)
+    # 6) 主動式 ETF 持股（各投信官網，部分涵蓋）
+    if not sources or "active_etf" in sources:
+        from pipeline import tasks_advanced
+
+        tasks_advanced.run_etf_holdings(ctx, target)
 
 
 def _after_financial_deadline(today: date) -> bool:
@@ -432,6 +437,9 @@ def task_backfill(ctx: RunContext, sources: list[str] | None, start: date, end: 
                     before = len(ctx.failures)
                     tasks_advanced.run_conference(ctx, m)
                     _mark_month(ctx, "investor_conference", m, before)
+        if "active_etf" in custom and not ctx.out_of_time():
+            days = ctx.calendar.trading_days(start, min(end, ctx.today))[::-1]
+            tasks_advanced.run_etf_holdings(ctx, days[0] if days else end, days=days)
     # 1) 非每日型（區間、月查詢、MOPS 月營收）：以月為單位，由近到遠
     for sid in [s for s in sources if s == "mops_revenue" or SPECS[s].kind != "daily"]:
         for i, m in enumerate(months):

@@ -58,7 +58,14 @@ class PoliteClient:
             if elapsed < gap:
                 self.sleep(gap - elapsed)
 
-    def request(self, url: str, *, method: str = "GET", data: dict[str, str] | None = None) -> requests.Response:
+    def request(
+        self,
+        url: str,
+        *,
+        method: str = "GET",
+        data: dict[str, str] | None = None,
+        json_body: dict[str, Any] | None = None,
+    ) -> requests.Response:
         host = urlparse(url).netloc
         if self._failures.get(host, 0) >= self.breaker_threshold:
             raise CircuitOpenError(f"斷路器開啟：{host} 連續失敗 {self._failures[host]} 次")
@@ -71,6 +78,7 @@ class PoliteClient:
                     method,
                     url,
                     data=data,
+                    json=json_body,
                     timeout=self.timeout,
                     headers={"User-Agent": self.user_agent, "Accept": "*/*"},
                     allow_redirects=True,
@@ -103,3 +111,7 @@ class PoliteClient:
 
     def post_bytes(self, url: str, data: dict[str, str]) -> bytes:
         return self.request(url, method="POST", data=data).content
+
+    def post_json(self, url: str, body: dict[str, Any]) -> bytes:
+        """POST JSON 本文（部分投信 API 只接受 application/json）。"""
+        return self.request(url, method="POST", json_body=body).content

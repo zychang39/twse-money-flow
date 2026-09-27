@@ -111,6 +111,7 @@ export function StockExtras({ h }: { h: StockHistory }) {
               </a>
             ))}
           </div>
+          <p class="tiny muted">部分涵蓋：只有部分投信的主動式 ETF 有持股資料（取自各投信官網揭露；涵蓋範圍見市場頁）。</p>
         </>
       ) : null}
 

@@ -35,3 +35,14 @@ taifex_futDataDown_TMF.csv|POST down_type=1&commodity_id=TMF&commodity_id2=&quer
 taifex_dailyFXRate.csv|POST queryStartDate=2026%2F09%2F01&queryEndDate=2026%2F09%2F24|https://www.taifex.com.tw/cht/3/dailyFXRateDown|200 1720
 taifex_openapi_insti_fut.json|GET|https://openapi.taifex.com.tw/v1/MarketDataOfMajorInstitutionalTradersDetailsOfFuturesContractsBytheDate|200 33967
 tpex_etfSplitRslt.json|GET|https://www.tpex.org.tw/www/zh-tw/bulletin/etfSplitRslt?startDate=2020%2F01%2F01&endDate=2026%2F09%2F24&response=json|200
+etf_nomura_00980A.json|POST JSON {"FundID":"00980A","SearchDate":"2026-09-24"}（股票表裁切為前 6 列）|https://www.nomurafunds.com.tw/API/ETFAPI/api/Fund/GetFundAssets|200
+etf_nomura_nodata.json|POST JSON {"FundID":"00980A","SearchDate":"2026-09-26"}（非交易日）|https://www.nomurafunds.com.tw/API/ETFAPI/api/Fund/GetFundAssets|200
+etf_capital_items.json|POST JSON {}（裁切為 6 檔）|https://www.capitalfund.com.tw/CFWeb/api/etf/items|200
+etf_capital_399.json|POST JSON {"fundId":"399","date":"2026/09/24"}（00982A；stocks 裁切為前 6 列）|https://www.capitalfund.com.tw/CFWeb/api/etf/buyback|200
+etf_capital_nodata.json|POST JSON {"fundId":"399","date":"2026/09/26"}（非交易日）|https://www.capitalfund.com.tw/CFWeb/api/etf/buyback|200
+etf_yuanta_00990A.json|GET ticker=00990A&date=20260924（StockWeights 裁切為 4 檔台股＋3 檔美股；Cash 省略）|https://etfapi.yuantaetfs.com/ectranslation/api/bridge?APIType=ETFAPI&AppName=ETF&Device=3&Platform=ETF&FuncId=PCF/Daily|200
+etf_yuanta_nodata.json|GET ticker=00990A&date=20260925（中秋節）|https://etfapi.yuantaetfs.com/ectranslation/api/bridge?APIType=ETFAPI&AppName=ETF&Device=3&Platform=ETF&FuncId=PCF/Daily|200
+etf_fubon_00405A.html|GET stkId=00405A&ddate=2026/09/24（保留標題、資料日期、持股表前 6 列與資產表）|https://websys.fsit.com.tw/FubonETF/Trade/Assets.aspx|200
+etf_cathay_list.json|GET ETFType=06（主動式）|https://cwapi.cathaysite.com.tw/api/ETF/GetETFList|200
+etf_cathay_EA.json|GET FundCode=EA&SearchDate=2026/09/24（00400A；裁切為前 6 列）|https://cwapi.cathaysite.com.tw/api/ETF/GetETFDetailStockList|200
+etf_cathay_nodata.json|GET FundCode=EA&SearchDate=2026/09/26（非交易日）|https://cwapi.cathaysite.com.tw/api/ETF/GetETFDetailStockList|200
