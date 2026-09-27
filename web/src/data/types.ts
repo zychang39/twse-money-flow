@@ -6,6 +6,8 @@ export interface Meta {
   demo: boolean;
   status: 'ok' | 'no_data';
   sources_failed: string[];
+  /** 影響最新資料的異常來源（回補歷史失敗不算） */
+  sources_affected?: string[];
   stocks?: number;
   /** 有 ANTHROPIC_API_KEY 時產生 ai_summary.json */
   ai_summary?: boolean;
@@ -117,6 +119,11 @@ export interface HealthSource {
   rows: number | null;
   lag_days: number | null;
   consecutive_failures: number;
+  /** 失敗是否影響最新資料（每日型：落後才算；回補歷史日期失敗不影響） */
+  affects_latest?: boolean;
+  /** 格式變動警告（欄位改名、缺少選用欄位…）；有值＝相容模式 */
+  format_warnings?: string[];
+  format_warning_date?: string | null;
 }
 export interface Health {
   market_date: string | null;
@@ -125,6 +132,17 @@ export interface Health {
   runs: { task: string; at: string; requests: number; ok: number; failed: string[]; pending: string[] }[];
   trading_days: number;
   first_date: string | null;
+}
+
+// ---------- lists.json（系統清單，依規則產生，非推薦） ----------
+export interface HotItem { code: string; name: string | null; rs_percentile: number; value_rank: number; reason: string }
+export interface Lists {
+  date: string;
+  hot_momentum: {
+    label: string;
+    rule: { value_rank_top: number; min_rs_percentile: number; max_warn_flags: number; max_danger_flags: number; size: number; exclude_etf: boolean };
+    items: HotItem[];
+  };
 }
 
 // ---------- market.json ----------

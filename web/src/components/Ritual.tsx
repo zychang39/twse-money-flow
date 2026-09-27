@@ -45,7 +45,7 @@ export function RitualPanel({ rings, complete, animate, gamification, streak, le
       {streak || level ? (
         <p class="caption muted" style={{ marginTop: 'var(--s-4)' }}>
           {streak ? `連續 ${streak.current} 天完成儀式（最佳 ${streak.best} 天）・休市日不中斷` : ''}
-          {level ? `・紀律等級 ${level.level}` : ''}
+          {level ? `・紀律等級\u00a0${level.level}` : ''}
         </p>
       ) : null}
     </div>

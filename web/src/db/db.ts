@@ -3,10 +3,13 @@
  * - 結構有版本號（DB_VERSION）；升級時依序執行 MIGRATIONS。
  * - 匯出為單一 JSON（含 schemaVersion）；匯入舊版本時先套用資料層遷移（EXPORT_MIGRATIONS）。
  */
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
 
 export const DB_NAME = 'twse-money-flow';
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
+
+/** 自選的來源：自己加入、歡迎卡的範例（可一鍵清除）、從系統清單「熱門動能」複製或挑選。 */
+export type WatchOrigin = 'user' | 'sample' | 'hot';
 
 export interface WatchItem {
   code: string;
@@ -14,6 +17,8 @@ export interface WatchItem {
   addedAt: string;
   order: number;
   note?: string;
+  /** v3 起；舊資料在升級時補為 'user' */
+  origin?: WatchOrigin;
 }
 
 export interface SavedScreen {
@@ -67,7 +72,7 @@ export interface Setting {
 }
 
 interface Schema extends DBSchema {
-  watchlist: { key: string; value: WatchItem; indexes: { group: string } };
+  watchlist: { key: string; value: WatchItem; indexes: { group: string; origin: string } };
   settings: { key: string; value: Setting };
   screens: { key: string; value: SavedScreen };
   trades: { key: string; value: Trade; indexes: { status: string; code: string } };
@@ -77,7 +82,9 @@ interface Schema extends DBSchema {
 export type StoreName = 'watchlist' | 'settings' | 'screens' | 'trades' | 'activity';
 export const STORES: StoreName[] = ['watchlist', 'settings', 'screens', 'trades', 'activity'];
 
-type Migration = (db: IDBPDatabase<Schema>) => void;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type UpgradeTx = IDBPTransaction<Schema, any, 'versionchange'>;
+type Migration = (db: IDBPDatabase<Schema>, tx: UpgradeTx) => void | Promise<void>;
 
 /** 結構遷移：key 為升級後的版本號。新增版本時只能往後加，不改舊的。 */
 export const MIGRATIONS: Record<number, Migration> = {
@@ -95,6 +102,16 @@ export const MIGRATIONS: Record<number, Migration> = {
     a.createIndex('type', 'type');
     a.createIndex('day', 'day');
   },
+  // v3：自選加上來源（origin）與索引；既有自選一律視為使用者自己加入的，資料原樣保留
+  3: async (_db, tx) => {
+    const store = tx.objectStore('watchlist');
+    store.createIndex('origin' as never, 'origin');
+    let cursor = await store.openCursor();
+    while (cursor) {
+      if (!cursor.value.origin) await cursor.update({ ...cursor.value, origin: 'user' });
+      cursor = await cursor.continue();
+    }
+  },
 };
 
 let dbPromise: Promise<IDBPDatabase<Schema>> | null = null;
@@ -102,8 +119,8 @@ let dbPromise: Promise<IDBPDatabase<Schema>> | null = null;
 export function getDb(name = DB_NAME): Promise<IDBPDatabase<Schema>> {
   if (!dbPromise) {
     dbPromise = openDB<Schema>(name, DB_VERSION, {
-      upgrade(db, oldVersion, newVersion) {
-        for (let v = oldVersion + 1; v <= (newVersion ?? DB_VERSION); v++) MIGRATIONS[v]?.(db);
+      async upgrade(db, oldVersion, newVersion, tx) {
+        for (let v = oldVersion + 1; v <= (newVersion ?? DB_VERSION); v++) await MIGRATIONS[v]?.(db, tx);
       },
     });
   }
@@ -122,12 +139,41 @@ export async function listWatch(): Promise<WatchItem[]> {
   return items.sort((a, b) => a.order - b.order);
 }
 
-export async function addWatch(code: string, group = '預設'): Promise<void> {
+export async function addWatch(code: string, group = '預設', origin: WatchOrigin = 'user'): Promise<boolean> {
   const db = await getDb();
-  if (await db.get('watchlist', code)) return;
+  if (await db.get('watchlist', code)) return false;
   const count = await db.count('watchlist');
-  await db.put('watchlist', { code, group, addedAt: new Date().toISOString(), order: count });
+  await db.put('watchlist', { code, group, addedAt: new Date().toISOString(), order: count, origin });
   notify();
+  return true;
+}
+
+/** 一次加入多檔（同一個交易）；已在自選的略過。回傳實際加入的檔數。 */
+export async function addWatchMany(codes: string[], group: string, origin: WatchOrigin = 'user'): Promise<number> {
+  const db = await getDb();
+  const tx = db.transaction('watchlist', 'readwrite');
+  let order = await tx.store.count();
+  let added = 0;
+  const now = new Date().toISOString();
+  for (const code of codes) {
+    if (await tx.store.get(code)) continue;
+    await tx.store.put({ code, group, addedAt: now, order: order++, origin });
+    added++;
+  }
+  await tx.done;
+  if (added) notify();
+  return added;
+}
+
+/** 清除歡迎卡加入的範例自選（使用者自己加入或移到其他群組的不受影響）。 */
+export async function clearSampleWatch(): Promise<number> {
+  const db = await getDb();
+  const items = await db.getAllFromIndex('watchlist', 'origin', 'sample');
+  const tx = db.transaction('watchlist', 'readwrite');
+  for (const w of items) await tx.store.delete(w.code);
+  await tx.done;
+  if (items.length) notify();
+  return items.length;
 }
 
 export async function removeWatch(code: string): Promise<void> {
@@ -153,6 +199,19 @@ export async function getSetting<T>(key: string, fallback: T): Promise<T> {
 export async function setSetting(key: string, value: unknown): Promise<void> {
   await (await getDb()).put('settings', { key, value });
   notify();
+}
+
+// ------------------------------------------------------------------ 最近搜尋（存在設定；最多 8 筆，最新在前）
+export const RECENT_MAX = 8;
+export async function listRecentSearches(): Promise<string[]> {
+  return getSetting<string[]>('recentSearches', []);
+}
+export async function pushRecentSearch(code: string): Promise<void> {
+  const cur = await listRecentSearches();
+  await setSetting('recentSearches', [code, ...cur.filter((c) => c !== code)].slice(0, RECENT_MAX));
+}
+export async function clearRecentSearches(): Promise<void> {
+  await setSetting('recentSearches', []);
 }
 
 // ------------------------------------------------------------------ 選股條件

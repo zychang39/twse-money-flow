@@ -132,6 +132,8 @@ export default function Methodology() {
           <li>持股警示：收盤 ≤ 停損價為「觸及停損」；距停損 ≤ {uiConfig.significance.near_stop_pct}% 為「接近停損」；新的或嚴重的風險旗標。</li>
           <li>冷靜卡：新增持倉時若資金環境為保守、股價高於 20 日均線超過 {uiConfig.impulse.ma20_gap_pct}%、或近 5 日上漲超過 {uiConfig.impulse.price_change_5d_pct}%，先列出事實並需多確認一步。</li>
           <li>回測可信度：樣本 &lt; {uiConfig.backtest_confidence.low_below} 筆為低、≥ {uiConfig.backtest_confidence.high_from} 筆為高，其餘為中。</li>
+          <li>系統清單「{uiConfig.hot_momentum.label}」（依規則產生，非推薦）：每個交易日收盤後，從{uiConfig.hot_momentum.exclude_etf ? '普通股（不含 ETF／ETN）' : '所有證券'}中取成交值排名前 {uiConfig.hot_momentum.value_rank_top} 名、RS 百分位 ≥ {uiConfig.hot_momentum.min_rs_percentile}、沒有{uiConfig.hot_momentum.max_danger_flags ? `超過 ${uiConfig.hot_momentum.max_danger_flags} 個` : ''}危險級風險旗標、注意級風險旗標最多 {uiConfig.hot_momentum.max_warn_flags} 個者，依 RS 百分位由高到低（同分依成交值）取前 {uiConfig.hot_momentum.size} 檔。只是篩選條件的結果，不代表未來表現。</li>
+          <li>範例自選（新用戶歡迎卡）：{uiConfig.sample_watchlist.codes.join('、')}，放在「{uiConfig.sample_watchlist.group}」群組並標示為範例，可一鍵清除。</li>
           <li>遊戲化只獎勵紀律行為（看完簡報、完成檢查表〔含決定不進場〕、平倉檢討、備份、回測自己的條件），並設每日上限；不因下單次數、交易頻率或獲利給予任何獎勵。連續天數只計交易日，休市日不中斷。</li>
         </ul>
       </Section>

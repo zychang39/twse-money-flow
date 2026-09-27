@@ -18,6 +18,7 @@ from pipeline.sources.base import (
     frame_from_fields,
     load_json,
     match_interval_minutes,
+    opt,
     split_period,
 )
 from pipeline.sources.twse import (
@@ -33,6 +34,7 @@ from pipeline.sources.twse import (
     QUOTE_COLS,
     SPLIT_COLS,
     VALUATION_COLS,
+    VALUATION_REQUIRED,
 )
 
 
@@ -223,17 +225,20 @@ def parse_valuation(payload: bytes | str | dict[str, Any]) -> ParseResult:
         t["fields"],
         t.get("data", []),
         {
-            "code": "股票代號",
-            "name": "公司名稱",
+            "code": ("股票代號", "代號", "證券代號"),
+            "name": ("公司名稱", "名稱", "證券名稱"),
             "pe": "本益比",
             "dividend_year": "股利年度",
             "dividend_yield": "殖利率(%)",
             "pb": "股價淨值比",
-            "fin_period": "財報年/季",
+            # 2024 年（含）以前的回應沒有「財報年/季」欄位
+            "fin_period": opt("財報年/季", "財報年季"),
         },
+        required=VALUATION_REQUIRED,
+        source="上櫃本益比",
     )
     df = finalize(df, numeric=["pe", "dividend_year", "dividend_yield", "pb"])
-    df["fin_period"] = [strip_tags(v) for v in df["fin_period"]]
+    df["fin_period"] = [strip_tags(v) or None for v in df["fin_period"]]
     df["close"] = None
     df["date"] = d.isoformat() if d else None
     return ParseResult(df[VALUATION_COLS].reset_index(drop=True), response_date=d)

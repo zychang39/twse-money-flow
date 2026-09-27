@@ -3,7 +3,7 @@
  * 次要層級：主要服務「大盤環境能不能積極？」與「自選股有什麼新變化？」的延伸研究。
  */
 import type { ComponentChildren } from 'preact';
-import { PageHead, SearchFloat, TopBar } from '../components/Chrome';
+import { PageHead, TopBar } from '../components/Chrome';
 import { DataStatus } from '../components/DataStatus';
 import { Sparkline } from '../components/Viz';
 import { IconCalendar, IconFilter, IconGrid, IconHistory, IconLayers, IconShield, IconThermo } from '../components/Icons';
@@ -13,6 +13,7 @@ import { TAIEX, TAIEX_TR, TPEX } from '../data/types';
 import { envInfo } from '../lib/envState';
 import { screenerConfig } from '../lib/config';
 import { arrow, fmtNum } from '../lib/format';
+import { PAGE_SOURCES } from '../lib/health';
 
 function IndexCard({ name, values }: { name: string; values: (number | null)[] | undefined }) {
   const v = (values ?? []).filter((x): x is number => x !== null);
@@ -58,7 +59,7 @@ export default function Explore() {
     <div class="page">
       <TopBar caption="探索" />
       <PageHead twoLine eyebrow="大盤環境與可研究的新變化" title={title} />
-      <DataStatus date={market.data?.date} />
+      <DataStatus date={market.data?.date} uses={PAGE_SOURCES.explore} />
       <div class="hscroll" style={{ marginTop: 'var(--s-5)' }} role="group" aria-label="指數">
         <IndexCard name="加權指數" values={index.data?.series[TAIEX]} />
         <IndexCard name="櫃買指數" values={index.data?.series[TPEX]} />
@@ -73,7 +74,6 @@ export default function Explore() {
         <Tile href="#/explore/calendar" icon={<IconCalendar />} label="行事曆" status="除權息、營收、法說會" />
         <Tile href="#/explore/disposition" icon={<IconShield />} label="處置預警" status={disp.data ? `處置中 ${disp.data.disposition.length} 檔・可能進入 ${disp.data.watch.filter((w) => w.risk).length} 檔` : '注意與處置'} />
       </div>
-      <SearchFloat />
     </div>
   );
 }

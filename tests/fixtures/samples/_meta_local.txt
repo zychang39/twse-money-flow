@@ -46,3 +46,4 @@ etf_fubon_00405A.html|GET stkId=00405A&ddate=2026/09/24（保留標題、資料�
 etf_cathay_list.json|GET ETFType=06（主動式）|https://cwapi.cathaysite.com.tw/api/ETF/GetETFList|200
 etf_cathay_EA.json|GET FundCode=EA&SearchDate=2026/09/24（00400A；裁切為前 6 列）|https://cwapi.cathaysite.com.tw/api/ETF/GetETFDetailStockList|200
 etf_cathay_nodata.json|GET FundCode=EA&SearchDate=2026/09/26（非交易日）|https://cwapi.cathaysite.com.tw/api/ETF/GetETFDetailStockList|200
+tpex_pe_hist.json|GET|https://www.tpex.org.tw/www/zh-tw/afterTrading/peQryDate?date=2024%2F01%2F02&id=&response=json|200 57692

@@ -2,15 +2,12 @@ import { useMemo, useState } from 'preact/hooks';
 import type { StockRow } from '../data/types';
 import { ChangePill } from './Change';
 import { fmtPrice } from '../lib/format';
+import { searchStocks } from '../lib/search';
 
-/** 以代號或名稱搜尋（從全市場摘要）。 */
+/** 以代號或名稱搜尋（從全市場摘要；排序規則與搜尋頁相同，見 lib/search）。 */
 export function StockSearch({ rows, onPick, placeholder = '輸入代號或名稱', autoFocus }: { rows: StockRow[]; onPick: (row: StockRow) => void; placeholder?: string; autoFocus?: boolean }) {
   const [q, setQ] = useState('');
-  const hits = useMemo(() => {
-    const s = q.trim().toUpperCase();
-    if (!s) return [];
-    return rows.filter((r) => r.code.startsWith(s) || r.name.toUpperCase().includes(s)).slice(0, 12);
-  }, [q, rows]);
+  const hits = useMemo(() => searchStocks(rows, q, 12), [q, rows]);
   return (
     <div>
       <input class="input" type="search" inputMode="search" aria-label="搜尋股票" placeholder={placeholder} value={q}

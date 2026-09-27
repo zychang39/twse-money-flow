@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Ambient, Block, PageHead, TopBar } from '../components/Chrome';
 import { DataStatus, EmptyState, ErrorState, Loading } from '../components/DataStatus';
-import { HeroChart, usePeriod } from '../components/HeroChart';
+import { HeroChart } from '../components/HeroChart';
 import { AiCard, EnvDetail, FlowsRow } from '../components/Market';
 import { RitualPanel } from '../components/Ritual';
 import { Sheet } from '../components/Sheet';
@@ -23,7 +23,8 @@ import { tonightConclusion } from '../lib/conclusion';
 import { diffAll, makeSnapshot, sinceLabel, type Snapshot } from '../lib/changes';
 import { holdingAlerts } from '../lib/holdings';
 import { levelFor, ritualRings, streaks, totalXp } from '../lib/ritual';
-import { sliceWindow } from '../lib/periods';
+import { TONIGHT_DEFAULT_PERIOD, TONIGHT_PERIODS, sliceWindow, type Period } from '../lib/periods';
+import { PAGE_SOURCES } from '../lib/health';
 import { baseline, commit, commitHero, heroSeen } from '../lib/seen';
 import { setListContext } from '../lib/listContext';
 import { todayTpe } from '../lib/dates';
@@ -41,7 +42,8 @@ export default function Tonight() {
   const index = useAsync(loadIndex, []);
   const ai = useAsync(loadAiSummary, []);
   const user = useUser();
-  const [period, setPeriod] = usePeriod('taiex');
+  // 每晚都從 3M 開始（盤後簡報的脈絡）；期間只影響走勢圖，主角數字下方固定是「今日」漲跌
+  const [period, setPeriod] = useState<Period>(TONIGHT_DEFAULT_PERIOD);
   const [envOpen, setEnvOpen] = useState(false);
   const [showCalm, setShowCalm] = useState(false);
   const [showQuiet, setShowQuiet] = useState(false);
@@ -102,7 +104,7 @@ export default function Tonight() {
     logActivityOnce('ritual_done', day).then((added) => added && setAnimate(true));
   }, [ritual?.complete, day, user]);
 
-  const [c1, c2] = tonightConclusion({ holdings: open.length, alerts: risky.length, env: env.state, watchChanges: sig.length });
+  const conclusion = tonightConclusion({ holdings: open.length, alerts: risky.length, env: env.state, watchChanges: sig.length, watchCount: user?.watch.length ?? 0 });
   const openStock = (code: string, name: string, codes: string[]) => { setListContext({ name, codes }); navigate(`/stock/${code}`); };
   const envAnswer = !market.data ? '' : env.state === 'conservative'
     ? `資金環境偏保守：${env.red.length} 項指標亮起風險`
@@ -112,7 +114,7 @@ export default function Tonight() {
     <div class="page">
       <Ambient mood={tonightMood(env.state)} />
       <TopBar caption={day ? `${md(day)}盤後簡報` : '盤後簡報'} />
-      <PageHead twoLine title={summary.data && market.data && user ? <>{c1}<br />{c2}</> : '今晚的盤後簡報'}>
+      <PageHead twoLine title={summary.data && market.data && user ? conclusion : '今晚的盤後簡報'}>
         <div class="row" style={{ marginTop: 'var(--s-4)' }}>
           <button class="env-pill" onClick={() => setEnvOpen(true)} aria-haspopup="dialog" disabled={!market.data}>
             <span class={`env-dot ${env.state}`} aria-hidden="true" />
@@ -120,7 +122,7 @@ export default function Tonight() {
             <span class="muted">{env.counts}</span>
           </button>
         </div>
-        <DataStatus date={day} />
+        <DataStatus date={day} uses={PAGE_SOURCES.tonight} />
       </PageHead>
 
       <Block question="大盤環境能不能積極？" answer={envAnswer}>
@@ -128,7 +130,7 @@ export default function Tonight() {
         <div class="block-body">
           {index.data ? (
             <HeroChart label="加權指數" win={taiex} period={period} onPeriod={setPeriod} seen={seen ?? null}
-              format={(v) => fmtNum(v, 2)} periodsLabel="加權指數走勢期間" />
+              format={(v) => fmtNum(v, 2)} periodsLabel="加權指數走勢期間" periods={TONIGHT_PERIODS} heroChange="daily" />
           ) : index.loading ? <Loading hero /> : null}
           <FlowsRow flow={flow} />
           {market.data ? (
@@ -175,8 +177,8 @@ export default function Tonight() {
         {watchRows.length ? <p class="caption muted">{sinceLabel(snap ?? null)}；門檻見設定。</p> : null}
         <div class="block-body stock-list">
           {user && !user.watch.length ? (
-            <EmptyState icon={<IconStar />} title="加入想追蹤的股票" text="加入自選後，每晚只列出自上次查看以來有顯著變化的股票。"
-              action={<a class="btn primary" href="#/mine?seg=watch&add=1">加入自選股</a>} />
+            <EmptyState icon={<IconStar />} title="加入想追蹤的股票" text="可以先加入範例自選，或從依規則產生的「熱門動能」挑幾檔；每晚只列出有顯著變化的。"
+              action={<a class="btn primary" href="#/mine">開始加入自選</a>} />
           ) : null}
           {sig.map((c) => <StockMiniRow key={c.code} row={c.row} text={c.reasons.slice(0, 2).map((r) => r.text).join('、')} onOpen={() => openStock(c.code, '自選的新變化', changes.map((x) => x.code))} />)}
           {quiet.length ? (

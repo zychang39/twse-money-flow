@@ -73,6 +73,9 @@ def build_health(ds: Dataset, market_date: str | None) -> dict[str, Any]:
         if last and market_date and cfg.get("frequency") == "daily":
             lag = sum(1 for d in trading if last < d <= market_date)
         status = cfg.get("status", "unverified")
+        failed = entry.get("last_status") == "failed"
+        # 失敗是否影響「最新」資料：每日型只有落後（或從未成功）才算；回補歷史日期失敗不影響今天的畫面
+        affects_latest = failed and (cfg.get("frequency") != "daily" or not last or lag is None or lag > 0)
         rows.append(
             {
                 "id": sid,
@@ -88,6 +91,9 @@ def build_health(ds: Dataset, market_date: str | None) -> dict[str, Any]:
                 "rows": entry.get("rows"),
                 "lag_days": lag,
                 "consecutive_failures": entry.get("consecutive_failures", 0),
+                "affects_latest": bool(affects_latest),
+                "format_warnings": entry.get("format_warnings") or [],
+                "format_warning_date": entry.get("format_warning_date"),
             }
         )
     return {
@@ -118,6 +124,8 @@ def build_web(data_dir: Path, out: Path, *, demo: bool = False) -> dict[str, Any
         "demo": demo,
         "status": "ok" if market_date else "no_data",
         "sources_failed": [s["id"] for s in health["sources"] if s["last_status"] == "failed"],
+        # 影響最新資料的異常來源（頁首「N 個資料源異常」只依這份清單與該頁用到的來源判斷）
+        "sources_affected": [s["id"] for s in health["sources"] if s["affects_latest"]],
     }
     if not market_date:
         write_json(out / "meta.json", meta)

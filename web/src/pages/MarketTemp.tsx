@@ -12,6 +12,7 @@ import { envInfo } from '../lib/envState';
 import { setListContext } from '../lib/listContext';
 import { fmtNum, fmtYiUnit } from '../lib/format';
 import { navigate } from '../router';
+import { PAGE_SOURCES } from '../lib/health';
 
 export default function MarketTemp() {
   const market = useAsync(loadMarket, []);
@@ -28,7 +29,7 @@ export default function MarketTemp() {
     <div class="page">
       <TopBar back="/explore" />
       <PageHead twoLine eyebrow="大盤環境能不能積極？" title={m ? <>資金環境{env.label}<br />{env.counts}</> : '市場溫度'} />
-      <DataStatus date={m?.date} />
+      <DataStatus date={m?.date} uses={PAGE_SOURCES.market} />
       {market.error ? <ErrorState error={market.error} /> : null}
       {market.loading ? <Loading /> : null}
       {m ? (

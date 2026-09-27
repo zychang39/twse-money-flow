@@ -58,7 +58,7 @@
 | tpex_index | 櫃買指數（月） | `…/indexInfo/inx?date=YYYY/MM/DD&response=json` | 每日 | ✅ |
 | tpex_insti | 上櫃三大法人 | `…/insti/dailyTrade?type=Daily&sect=EW&date=…&id=&response=json` | 約 15:00–16:30 | ✅ |
 | tpex_margin | 上櫃融資融券 | `…/margin/balance?date=…&id=&response=json` | 約 21:00 | ✅ |
-| tpex_valuation | 上櫃本益比等 | `…/afterTrading/peQryDate?date=…&id=&response=json` | 約 14:30 | ✅ |
+| tpex_valuation | 上櫃本益比等 | `…/afterTrading/peQryDate?date=…&id=&response=json`（**格式隨年份不同**：2025 年起有 8 欄含「財報年/季」；2024 年（含）以前只有 7 欄 `股票代號,公司名稱,本益比,每股股利,股利年度,殖利率(%),股價淨值比`，2026-09-27 實測 2023-10-02、2024-01-02 為舊格式、2025-06-02 起為新格式；「財報年/季」改為選用欄位，兩種格式都可解析，舊格式記錄「格式變動警告」） | 約 14:30 | ✅ |
 | tpex_exright | 上櫃除權息結果 | `…/bulletin/exDailyQ?startDate=…&endDate=…&response=json` | 除權息日 | ✅ |
 | tpex_exright_notice | 上櫃除權息預告 | `www.tpex.org.tw/openapi/v1/tpex_exright_prepost` | 隨時 | ✅ |
 | tpex_capreduce | 上櫃減資恢復買賣 | `…/bulletin/revivt?startDate=…&endDate=…&response=json` | 事件 | ✅ |
@@ -154,6 +154,12 @@
 | fred_dtwexbgs | FRED 美元指數 | `fred.stlouisfed.org/graph/fredgraph.csv?id=DTWEXBGS` | ⛔ Actions 實測連線失敗，依規則不加入 |
 | investor_conference | 法說會日期 | `mopsov.twse.com.tw/mops/web/ajax_t100sb02_1?…&TYPEK={sii\|otc}&year={民國年}&month={MM}`（GET） | ✅ Actions 實測（DECISIONS #26） |
 | intraday | 盤中即時報價（盤中到價提醒用，每 15 分鐘一次批次請求） | `mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_2330.tw\|otc_6488.tw&json=1&delay=0` | ✅ Actions 可用（`pipeline/alerts.py`） |
+
+## 格式變動的偵測與相容
+
+- **解析策略**（所有來源）：欄位以「主名稱＋別名」對應，只有必要欄位缺少才整批失敗；其他欄位缺少時補空值並在 manifest 的 `sources.{id}.format_warnings` 記錄警告（資料健康頁顯示「相容模式」，技術細節收在「詳細資訊」）。詳見 METHODOLOGY 第 1 節。
+- **冒煙測試**：`python -m pipeline smoke --date YYYY-MM-DD [--source a,b] [--strict]` 對每個已登錄來源抓取＋解析一次，檢查必要欄位（鍵＋關鍵數值欄位）是否存在並可解析，輸出 Markdown 表格（正常／相容模式／無資料／格式變動／連線失敗）。`smoke-test.yml` 的 `fields` job 會執行這個指令（`--strict`：有格式變動時 job 失敗）。
+- **樣本**：`tests/fixtures/samples/tpex_pe.json`（2026-09-24，新格式）與 `tpex_pe_hist.json`（2024-01-02，舊格式，本環境 2026-09-27 抓取）都有測試。
 
 ## 爬取禮節
 - 依序請求（不並行），間隔 3–5 秒加隨機抖動；失敗以 2／4／8／16 秒指數退避重試。

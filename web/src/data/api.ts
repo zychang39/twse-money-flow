@@ -46,4 +46,6 @@ export function loadSummary() {
 export const loadStock = (code: string) => getJson<StockHistory>(`stocks/${encodeURIComponent(code)}.json`);
 export const loadJson = <T>(path: string) => getJson<T>(path);
 export const loadMarket = () => getJson<import('./types').MarketData>('market.json');
+/** 系統清單（熱門動能）；舊版部署沒有這個檔案時回傳 null，不影響其他畫面。 */
+export const loadLists = () => getJson<import('./types').Lists>('lists.json').catch(() => null);
 export const loadIndex = () => getJson<import('./types').IndexData>('index.json');

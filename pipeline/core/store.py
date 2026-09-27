@@ -147,10 +147,23 @@ def record(
     data_date: date | None = None,
     rows: int | None = None,
     message: str | None = None,
+    format_warnings: list[str] | None = None,
 ) -> None:
-    """更新 manifest 中某來源的狀態。status：ok / failed / no_data / skipped / pending。"""
+    """更新 manifest 中某來源的狀態。status：ok / failed / no_data / skipped / pending。
+
+    format_warnings：本次解析的格式變動警告（欄位改名、缺少選用欄位…）。有警告就記錄（相容模式）；
+    一次沒有警告的成功解析才清除，讓資料健康頁能持續顯示「已改用相容模式」直到格式恢復。
+    """
     entry = manifest.setdefault("sources", {}).setdefault(source, {})
     now = datetime.now(TPE).isoformat(timespec="seconds")
+    if format_warnings:
+        entry["format_warnings"] = sorted(set(format_warnings))
+        entry["format_warning_at"] = now
+        if data_date is not None:
+            entry["format_warning_date"] = data_date.isoformat()
+    elif status == "ok" and "format_warnings" in entry and format_warnings is not None:
+        for k in ("format_warnings", "format_warning_at", "format_warning_date"):
+            entry.pop(k, None)
     entry["last_attempt"] = now
     entry["last_status"] = status
     entry["last_message"] = message

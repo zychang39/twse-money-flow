@@ -15,6 +15,11 @@ type ExportMigration = (data: BackupFile) => BackupFile;
 export const EXPORT_MIGRATIONS: Record<number, ExportMigration> = {
   // v2：新增紀律行為紀錄（遊戲化），舊備份沒有這個 store
   2: (d) => ({ ...d, stores: { ...d.stores, activity: d.stores.activity ?? [] } }),
+  // v3：自選加上來源（origin）；舊備份的自選都是使用者自己加入的
+  3: (d) => ({
+    ...d,
+    stores: { ...d.stores, watchlist: (d.stores.watchlist ?? []).map((w) => ({ origin: 'user', ...(w as object) })) },
+  }),
 };
 
 export async function exportAll(): Promise<BackupFile> {

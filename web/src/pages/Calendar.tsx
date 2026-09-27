@@ -4,6 +4,7 @@ import { DataStatus, ErrorState, Loading } from '../components/DataStatus';
 import { useAsync, useDb } from '../hooks';
 import { loadJson } from '../data/api';
 import { listTrades, listWatch } from '../db/db';
+import { PAGE_SOURCES } from '../lib/health';
 
 export interface CalEvent { date: string; type: string; code: string | null; name: string | null; text: string }
 
@@ -22,7 +23,7 @@ export default function CalendarPage() {
     <div class="page">
       <TopBar back="/explore" />
       <PageHead eyebrow="接下來有哪些已知事件？" title={cal.data ? `近期 ${events.length} 件事件` : '行事曆'} />
-      <DataStatus date={cal.data?.date} />
+      <DataStatus date={cal.data?.date} uses={PAGE_SOURCES.calendar} />
       <div class="segmented" role="group" aria-label="範圍" style={{ marginTop: 'var(--s-4)' }}>
         <button aria-pressed={!all} onClick={() => setAll(false)}>自選與持股</button>
         <button aria-pressed={all} onClick={() => setAll(true)}>全部</button>

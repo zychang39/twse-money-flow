@@ -190,6 +190,21 @@ def cmd_demo_data(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_smoke(args: argparse.Namespace) -> int:
+    from pipeline.smoke import run_smoke, to_markdown
+
+    d = _date(args.date) or now_tpe().date()
+    sources = [s.strip() for s in (args.source or "").split(",") if s.strip()] or None
+    results = run_smoke(PoliteClient.from_config(), d, sources)
+    text = to_markdown(results, d)
+    print(text)
+    if args.summary:
+        with open(args.summary, "a", encoding="utf-8") as fh:
+            fh.write(text)
+    bad = [r for r in results if r.is_format_problem]
+    return 1 if args.strict and bad else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="python -m pipeline", description="twse-money-flow 資料 pipeline")
     p.add_argument("-v", "--verbose", action="store_true")
@@ -252,6 +267,13 @@ def build_parser() -> argparse.ArgumentParser:
     demo = sub.add_parser("demo-data", help="以測試樣本產生示範資料（本機開發）")
     demo.add_argument("--out", default="web/public/data")
     demo.set_defaults(func=cmd_demo_data)
+
+    smoke = sub.add_parser("smoke", help="資料源冒煙測試：抓取＋解析，檢查每個來源的必要欄位（不寫資料）")
+    smoke.add_argument("--date", default="", help="交易日 YYYY-MM-DD 或 YYYYMMDD（預設今天）")
+    smoke.add_argument("--source", default="", help="逗號分隔的來源 id（預設全部）")
+    smoke.add_argument("--summary", default="", help="把 Markdown 結果附加到這個檔案（GITHUB_STEP_SUMMARY）")
+    smoke.add_argument("--strict", action="store_true", help="有格式變動（必要欄位缺少）時回傳非 0")
+    smoke.set_defaults(func=cmd_smoke)
     return p
 
 

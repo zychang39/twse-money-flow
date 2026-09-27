@@ -2,6 +2,7 @@ import { PageHead, TopBar } from '../components/Chrome';
 import { DataStatus, ErrorState, Loading } from '../components/DataStatus';
 import { useAsync } from '../hooks';
 import { loadJson } from '../data/api';
+import { PAGE_SOURCES } from '../lib/health';
 
 interface Data {
   date: string;
@@ -20,7 +21,7 @@ export default function Disposition() {
       <PageHead eyebrow="哪些股票可能被分盤撮合？" title={data ? `處置中 ${data.disposition.length} 檔・可能進入 ${data.watch.filter((w) => w.risk).length} 檔` : '處置風險預警'}>
         <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>依交易所注意／處置標準簡化；官方名單優先。</p>
       </PageHead>
-      <DataStatus date={data?.date} />
+      <DataStatus date={data?.date} uses={PAGE_SOURCES.disposition} />
       {d.error ? <ErrorState error={d.error} /> : null}
       {d.loading ? <Loading /> : null}
       {data ? (

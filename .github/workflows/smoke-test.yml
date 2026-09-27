@@ -69,3 +69,23 @@ jobs:
           done < list.txt
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "失敗數：${fail}" >> "$GITHUB_STEP_SUMMARY"
+
+  # 對每個已登錄的資料源抓取＋解析一次，檢查必要欄位（鍵＋關鍵數值欄位）是否存在，提早發現格式變動。
+  # 欄位改名或缺少選用欄位時列為「相容模式」；必要欄位缺少時此 job 失敗。
+  fields:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+      - run: pip install -r pipeline/requirements.txt
+      - name: Check required fields per source
+        env:
+          D: ${{ inputs.date }}
+        run: python -m pipeline smoke --date "$D" --summary "$GITHUB_STEP_SUMMARY" --strict

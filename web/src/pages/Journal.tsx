@@ -15,6 +15,7 @@ import { hasReview } from '../lib/ritual';
 import { fmtMoney, fmtPrice } from '../lib/format';
 import { useRoute } from '../router';
 import type { StockRow } from '../data/types';
+import { PAGE_SOURCES } from '../lib/health';
 
 export default function Journal({ startChecklist }: { startChecklist?: boolean }) {
   const route = useRoute();
@@ -48,7 +49,7 @@ export default function Journal({ startChecklist }: { startChecklist?: boolean }
       <PageHead eyebrow="我該記錄或檢討什麼？" title={pending.length ? `${pending.length} 筆平倉等待檢討` : `持倉 ${open.length} 筆・已平倉 ${closed.length} 筆`}>
         <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>總資金 {fmtMoney(portfolio.capital)}・單筆風險 {portfolio.riskPct}%・<a href="#/me/settings">調整</a></p>
       </PageHead>
-      <DataStatus date={summary.data?.date} />
+      <DataStatus date={summary.data?.date} uses={PAGE_SOURCES.journal} />
       <div class="segmented" role="group" aria-label="日誌分頁" style={{ marginTop: 'var(--s-4)' }}>
         <button aria-pressed={tab === 'open'} onClick={() => setTab('open')}>持倉<span class="count">{open.length}</span></button>
         <button aria-pressed={tab === 'closed'} onClick={() => setTab('closed')}>已平倉<span class="count">{closed.length}</span></button>
