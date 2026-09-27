@@ -10,7 +10,7 @@ import { HeroChart, usePeriod } from '../components/HeroChart';
 import { ScoreRings, compositeCompleteness, categoryName, scoreText } from '../components/Scores';
 import { ScoreDetailView } from '../components/ScoreDetail';
 import { StockExtras, FairRange } from '../components/StockExtras';
-import { ChipStats, ChipTable } from '../components/Chips';
+import { ChipDaily, ChipStats } from '../components/Chips';
 import { Sheet } from '../components/Sheet';
 import { NetBars } from '../components/Viz';
 import { Signed } from '../components/Change';
@@ -188,7 +188,7 @@ export default function Stock({ code }: { code: string }) {
             {chip ? (
               <>
                 <ChipStats block={chip} sharesOut={h.shares} />
-                <ChipTable block={chip} code={code} name={h.name} market={h.market} />
+                <ChipDaily block={chip} code={code} name={h.name} market={h.market} />
               </>
             ) : <Accumulating what="每日籌碼明細" detail="需要至少兩個交易日的法人與融資融券資料。" />}
           </Block>
