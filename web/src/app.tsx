@@ -30,6 +30,7 @@ const Methodology = lazy(() => import('./pages/Methodology'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Backup = lazy(() => import('./pages/Backup'));
 const Search = lazy(() => import('./pages/Search'));
+const Institutional = lazy(() => import('./pages/Institutional'));
 
 function Page({ parts }: { parts: string[] }) {
   const [a, b, c] = parts;
@@ -37,7 +38,13 @@ function Page({ parts }: { parts: string[] }) {
     case undefined: return <Tonight />;
     case 'mine': return <Mine />;
     case 'search': return <Search />;
-    case 'stock': return b ? <Stock code={b} /> : <Placeholder title="個股" back="/mine" />;
+    case 'stock':
+      if (!b) return <Placeholder title="個股" back="/mine" />;
+      switch (c) {
+        case undefined: return <Stock code={b} />;
+        case 'institutional': return <Institutional code={b} />;
+        default: return <Placeholder title="找不到頁面" back={`/stock/${b}`} />;
+      }
     case 'explore':
       switch (b) {
         case undefined: return <Explore />;

@@ -1,0 +1,81 @@
+/*
+ * 個股工具頁（法人買賣超報表、大戶／散戶持股、多空對照）與共用小倍數圖（StackedChart）。
+ * 只在這些頁面載入（隨頁面的 JS 分塊一起下載），不增加首頁的 CSS。
+ * 顏色：紅＝買超／增加、綠＝賣超／減少；線條以實線／虛線＋線尾標註區分，不靠顏色；藍只給可互動元素。
+ */
+
+/* ---------- 共用日期軸的小倍數圖 ---------- */
+.stacked { margin: var(--s-3) 0 0; }
+.stacked-plot { position: relative; width: 100%; touch-action: pan-y; border-radius: var(--r-sm); }
+.stacked-plot:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.stacked-plot svg { display: block; overflow: visible; }
+.sc-title { fill: var(--text-1); font-size: var(--fs-caption); font-weight: var(--fw-medium); }
+.sc-tick { fill: var(--text-2); font-size: var(--fs-micro); font-variant-numeric: tabular-nums; }
+.sc-grid { stroke: var(--surface-row); stroke-width: 1; }
+.sc-zero { stroke: var(--text-3); stroke-width: 1; }
+.sc-up { fill: var(--up); }
+.sc-down { fill: var(--down); }
+.sc-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.sc-line.solid { stroke: var(--text-1); }
+.sc-line.dashed { stroke: var(--text-2); stroke-dasharray: 5 4; }
+.sc-line.faint { stroke: var(--text-3); stroke-width: 1.5; }
+.sc-legend-text { fill: var(--text-2); font-size: var(--fs-micro); font-weight: var(--fw-medium); }
+.sc-dot { fill: var(--surface-1); stroke: var(--text-1); stroke-width: 2; }
+.sc-cross { stroke: var(--text-2); stroke-width: 1; stroke-dasharray: 2 3; }
+.sc-tip {
+  position: absolute; top: 0; z-index: 2; transform: translateX(var(--s-2)); min-width: 9rem; max-width: 13rem;
+  padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); background: var(--glass-strong); box-shadow: var(--shadow-float);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); pointer-events: none;
+  font-size: var(--fs-caption); line-height: var(--lh-caption);
+}
+.sc-tip.left { transform: translateX(calc(-100% - var(--s-2))); }
+.sc-tip-row { display: flex; justify-content: space-between; gap: var(--s-3); white-space: nowrap; }
+.sc-tip-row .num { font-weight: var(--fw-medium); }
+
+/* ---------- 法人買賣超報表 ---------- */
+.tool-page .page-head .title { text-wrap: balance; }
+.ir-tabs { margin-top: var(--s-4); }
+.ir-tabs button, .ir-months button { min-height: var(--tap); padding: 0 var(--s-1); white-space: nowrap; }
+.ir-months { margin-top: var(--s-2); }
+.ir-months button:disabled { opacity: 0.4; cursor: default; }
+.ir-sentence { margin-top: var(--s-4); text-wrap: pretty; }
+.ir-card { margin-top: var(--s-4); padding: var(--s-3) var(--s-3) var(--s-2); border-radius: var(--r-card); background: var(--surface-1); box-shadow: var(--shadow-card); }
+.ir-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); flex-wrap: wrap; }
+.ir-sum { width: 100%; margin-top: var(--s-1); border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.ir-sum th, .ir-sum td { padding: 0 0.125rem; text-align: right; white-space: nowrap; overflow: hidden; font-size: var(--fs-caption); line-height: var(--lh-caption); }
+.ir-sum thead th { color: var(--text-2); font-weight: var(--fw-medium); padding-bottom: var(--s-1); }
+.ir-sum th:first-child { text-align: left; }
+.ir-sum .ir-c-party { width: 4.25rem; }
+.ir-sum .ir-c-net { width: 26%; }
+.ir-sum .ir-c-pct { width: 3.5rem; }
+.ir-sum tbody th, .ir-sum tbody td { height: var(--tap); box-shadow: inset 0 0.5px 0 var(--surface-row); }
+.ir-sum tbody td .num { font-weight: var(--fw-medium); }
+.ir-sum tbody tr { cursor: pointer; }
+.ir-sum tbody tr.on > * { background: var(--surface-row); }
+.ir-sum tbody tr.on th { box-shadow: inset 3px 0 0 var(--text-1), inset 0 0.5px 0 var(--surface-row); }
+.ir-sum sup { font-size: var(--fs-micro); margin-left: 1px; }
+.ir-rowbtn { display: flex; align-items: center; width: 100%; min-height: var(--tap); padding: 0 0 0 var(--s-2); border: 0; background: none; color: var(--text-1); font: inherit; font-weight: var(--fw-medium); text-align: left; cursor: pointer; border-radius: var(--r-xs); }
+.ir-rowbtn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--brand); }
+.ir-sum tbody tr.on .ir-rowbtn { font-weight: var(--fw-semibold); }
+.ir-note { margin-top: var(--s-2); text-wrap: pretty; }
+.ir-h2 { margin-top: var(--s-8); }
+.ir-h3 { margin-top: var(--s-6); display: block; }
+.ir-table-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); }
+.ir-wrap { margin-top: var(--s-2); }
+.ir-table .ir-col-date { width: 5rem; }
+.ir-table th, .ir-table td { padding-left: 0.125rem; padding-right: 0.125rem; }
+.ir-table th:first-child, .ir-table td:first-child { padding-left: var(--s-2); }
+.ir-table td:last-child, .ir-table thead th:last-child { padding-right: var(--s-2); }
+.ir-table .cd-sub { overflow: hidden; }
+.ir-table .cd-v .num.flat { color: var(--text-1); }
+.ir-day { margin-top: 0; }
+.ir-day tbody tr { cursor: default; }
+.ir-day th:first-child { padding-left: 0; }
+.ir-banks { margin-top: var(--s-4); }
+.ir-planned tbody th, .ir-planned tbody td { color: var(--text-2); }
+.ir-planned th:first-child { width: 4rem; }
+.ir-links { margin-top: var(--s-2); padding: 0; }
+.ir-links li { list-style: none; }
+.ir-links li + li { box-shadow: inset 0 0.5px 0 var(--surface-row); }
+.ir-links .list-item { color: var(--brand); }
+.ir-link-sub { display: block; color: var(--text-2); }

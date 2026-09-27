@@ -30,6 +30,15 @@ export interface ChipBlock {
   sblb?: N[];
   /** 當沖成交股數；舊版部署沒有 */
   dtv?: N[];
+  /** 買進／賣出股數（法人買賣超報表）：外資（含外資自營商）、投信、自營商自行買賣、自營商避險；舊版部署沒有 */
+  fb?: N[];
+  fs?: N[];
+  tb?: N[];
+  ts?: N[];
+  dsb?: N[];
+  dss?: N[];
+  dhb?: N[];
+  dhs?: N[];
 }
 
 export interface ChipRow {

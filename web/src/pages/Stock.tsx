@@ -175,6 +175,12 @@ export default function Stock({ code }: { code: string }) {
                 </div>
               </>
             ) : null}
+            <div class="list">
+              <a class="list-item brand" href={`#/stock/${code}/institutional`}>
+                <span class="grow">法人買賣超報表<span class="caption muted tool-sub">近 3 個月逐日買張、賣張・外資／投信／自營商／三大法人／八大行庫</span></span>
+                <span class="chev"><IconChevron /></span>
+              </a>
+            </div>
           </Block>
 
           <Block question="籌碼" answer={mb !== null && mb5 ? `融資 5 日${mb >= mb5 ? '增加' : '減少'} ${fmtPct(((mb - mb5) / mb5) * 100, 1, false).replace('-', '')}` : '融資融券'}>

@@ -123,14 +123,14 @@ const UNIT_SHORT: Record<Unit, string> = { lots: '張', amount: '億元', pct: '
 const OPEN_KEY = 'chipDailyOpen';
 type Mode = 'table' | 'cards' | 'all';
 
-function mdLabel(iso: string): string {
+export function mdLabel(iso: string): string {
   return `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
 }
 function weekday(iso: string): string {
   return '日一二三四五六'[new Date(`${iso}T12:00:00Z`).getUTCDay()];
 }
 /** 日期下方的小字：「176.0 ▼2.49%」 */
-function priceLine(r: ChipRow): { price: string; chg: string; dir: string } {
+export function priceLine(r: Pick<ChipRow, 'close' | 'chgPct'>): { price: string; chg: string; dir: string } {
   const d = direction(r.chgPct);
   return { price: fmtPrice(r.close), chg: r.chgPct === null ? '' : `${arrow(r.chgPct)}${Math.abs(r.chgPct).toFixed(2)}%`, dir: d };
 }
@@ -139,7 +139,7 @@ function priceLine(r: ChipRow): { price: string; chg: string; dir: string } {
  * Dynamic Type：iOS 的 `font: -apple-system-body` 會跟著系統字級（預設 17pt）；換算成比例 --dt 套在表格字級上。
  * 其他平台（或不支援）為 1，只跟著瀏覽器的預設字級（rem）。
  */
-function useDynamicTypeScale(): number {
+export function useDynamicTypeScale(): number {
   const [scale, setScale] = useState(1);
   useEffect(() => {
     if (typeof CSS === 'undefined' || !CSS.supports('font', '-apple-system-body')) return;
@@ -218,7 +218,7 @@ function useChipLayout(
 }
 
 /** 右上角「⋯」選單（HIG pull-down menu）。 */
-function MoreMenu({ items }: { items: { label: string; onSelect: () => void }[] }) {
+export function MoreMenu({ items, label = '每日籌碼的更多動作' }: { items: { label: string; onSelect: () => void }[]; label?: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -234,7 +234,7 @@ function MoreMenu({ items }: { items: { label: string; onSelect: () => void }[] 
     <div class="cd-more" ref={ref}>
       <button class="icon-btn" aria-label="更多動作" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><IconMore /></button>
       {open ? (
-        <div class="cd-menu" role="menu" aria-label="每日籌碼的更多動作">
+        <div class="cd-menu" role="menu" aria-label={label}>
           {items.map((it) => (
             <button key={it.label} role="menuitem" class="cd-menuitem" onClick={() => { setOpen(false); it.onSelect(); }}>{it.label}</button>
           ))}
@@ -474,8 +474,10 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
   );
 }
 
-/** 點一列：底部面板顯示當天完整資料（含自營商避險、收盤、漲跌、成交量、官方資料來源）。 */
-function DaySheet({ day, onClose, unit, market, onCopy }: { day: ChipRow | null; onClose: () => void; unit: Unit; market: string | null | undefined; onCopy: (r: ChipRow) => void }) {
+/** 點一列：底部面板顯示當天完整資料（含自營商避險、收盤、漲跌、成交量、官方資料來源）；extra 放在最前面（例：各法人買張／賣張）。 */
+export function DaySheet({ day, onClose, unit, market, onCopy, extra }: {
+  day: ChipRow | null; onClose: () => void; unit: Unit; market: string | null | undefined; onCopy: (r: ChipRow) => void; extra?: (r: ChipRow) => ComponentChildren;
+}) {
   const [last, setLast] = useState<ChipRow | null>(day);
   useEffect(() => { if (day) setLast(day); }, [day]);
   const r = day ?? last;
@@ -488,6 +490,7 @@ function DaySheet({ day, onClose, unit, market, onCopy }: { day: ChipRow | null;
             <div><dt>漲跌</dt><dd><Sig v={r.chgPct} digits={2} suffix="%" /></dd></div>
             <div><dt>成交量</dt><dd class="num">{r.volume === null ? '—' : `${fmtNum(r.volume / 1000, 0)} 張`}</dd></div>
           </dl>
+          {extra ? extra(r) : null}
           <p class="caption muted">以下單位：{UNIT_LABEL[unit]}（比率為 %）</p>
           {DAY_FIELDS.map((g) => (
             <section key={g.group} aria-label={g.group}>
