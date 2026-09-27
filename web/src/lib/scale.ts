@@ -16,14 +16,15 @@ export function niceScale(values: number[], kind: 'bars' | 'lines', opts: { fixe
   }
   if (!values.length) return { lo: 0, hi: 1, ticks: [1, 0] };
   if (kind === 'bars') {
-    const m = niceStep(Math.max(1, ...values.map(Math.abs)));
+    const mx = Math.max(...values.map(Math.abs));
+    const m = niceStep(mx > 0 ? mx : 1);
     return { lo: -m, hi: m, ticks: [m, 0, -m] };
   }
   let lo = Math.min(...values);
   let hi = Math.max(...values);
   if (opts.zero) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
   if (hi === lo) { const d = Math.abs(hi) * 0.05 || 1; hi += d; lo -= d; }
-  const step = niceStep((hi - lo) / 2);
+  const step = niceStep((hi - lo) / 3); // 最多 3 格（4 個刻度），範圍貼近資料
   const nlo = Math.floor(lo / step + 1e-9) * step;
   const nhi = Math.ceil(hi / step - 1e-9) * step;
   const ticks: number[] = [];

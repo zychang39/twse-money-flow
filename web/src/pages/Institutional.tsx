@@ -23,6 +23,7 @@ import {
   buySellSince,
   headline,
   lotsText,
+  lotsUnit,
   partyFlow,
   partyTotal,
   reportCsv,
@@ -108,7 +109,7 @@ export default function Institutional({ code }: { code: string }) {
   const title = !block ? '每日法人資料累積中'
     : tab === 'banks' ? '八大行庫：資料源待處理'
     : total.net === null ? `${PARTY_NAME[party]}沒有買賣超資料`
-    : `${PARTY_NAME[party]}近 ${rows.length} 日${Math.round(total.net) === 0 ? '買賣超持平' : `${total.net > 0 ? '買超' : '賣超'} ${lotsText(Math.abs(total.net))} 張`}`;
+    : `${PARTY_NAME[party]}近 ${rows.length} 日${Math.round(total.net) === 0 ? '買賣超持平' : `${total.net > 0 ? '買超' : '賣超'} ${lotsUnit(Math.abs(total.net))}`}`;
 
   const panels: ChartPanel[] = [];
   if (rows.length) {
@@ -117,11 +118,11 @@ export default function Institutional({ code }: { code: string }) {
       panels.push({
         id: 'bs', title: '買張與賣張（張）', kind: 'lines', height: 88,
         series: [{ key: 'buy', label: '買張', values: rows.map((r) => r.buy) }, { key: 'sell', label: '賣張', values: rows.map((r) => r.sell), style: 'dashed' }],
-        format: axisLots, tipFormat: (v) => `${lotsText(v)} 張`, zero: true,
+        format: axisLots, tipFormat: (v) => lotsUnit(v), zero: true,
       });
     }
-    panels.push({ id: 'net', title: '每日買賣超（張）', kind: 'bars', height: 96, series: [{ key: 'net', label: '買賣超', values: rows.map((r) => r.net) }], format: axisLots, tipFormat: (v) => `${signedLots(v).text} 張` });
-    panels.push({ id: 'cum', title: '累計買賣超（張）', kind: 'lines', height: 72, series: [{ key: 'cum', label: '累計', values: rows.map((r) => r.cum) }], format: axisLots, tipFormat: (v) => `${signedLots(v).text} 張`, zero: true });
+    panels.push({ id: 'net', title: '每日買賣超（張）', kind: 'bars', height: 96, series: [{ key: 'net', label: '買賣超', values: rows.map((r) => r.net) }], format: axisLots, tipFormat: (v) => `${signedLots(v).text.endsWith('萬') ? `${signedLots(v).text}張` : `${signedLots(v).text} 張`}` });
+    panels.push({ id: 'cum', title: '累計買賣超（張）', kind: 'lines', height: 72, series: [{ key: 'cum', label: '累計', values: rows.map((r) => r.cum) }], format: axisLots, tipFormat: (v) => `${signedLots(v).text.endsWith('萬') ? `${signedLots(v).text}張` : `${signedLots(v).text} 張`}`, zero: true });
   }
 
   async function copy(text: string, ok: string) {

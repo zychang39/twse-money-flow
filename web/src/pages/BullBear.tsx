@@ -2,7 +2,7 @@
  * 多空對照（#/stock/:code/bullbear）：基本面、籌碼面、量價面、技術面的規則式條件，多方與空方並排比較。
  * - 上方：多方／中性／空方的項數比例條＋結論句（只做條件統計）。
  * - 每個面向一張卡：左欄多方、右欄空方；沒有觸發的條件收在「中性與資料不足」。
- * 定義與門檻見 METHODOLOGY §4.9、config/ui.yml bull_bear；設計紀錄見 docs/design/ROUND3.md。
+ * 定義與門檻見 METHODOLOGY §4.7.4、config/ui.yml bull_bear；設計紀錄見 docs/design/ROUND3.md。
  */
 import { useMemo, useState } from 'preact/hooks';
 import { StockToolFrame, useStock } from '../components/StockTool';

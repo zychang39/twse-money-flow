@@ -4,7 +4,7 @@
  * - 指標：持股比例｜人數｜人均張數；期間：3 個月｜6 個月｜1 年。
  * - 走勢：收盤價、大戶、散戶、大戶週增減（共用週別軸，各自一個 y 軸）。
  * - 最新一週的分級分布：依目前門檻分成散戶／中實戶／大戶三段，並列出期間內的變化。
- * 定義見 METHODOLOGY §4.8；設計紀錄見 docs/design/ROUND3.md。
+ * 定義見 METHODOLOGY §4.7.3；設計紀錄見 docs/design/ROUND3.md。
  */
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Banner } from '../components/DataStatus';

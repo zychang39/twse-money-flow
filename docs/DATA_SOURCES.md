@@ -78,6 +78,7 @@
   - 上櫃 `dailyQuotes` 含權證、債券等 1 萬餘筆 → 只保留 4–6 碼股票與 ETF（代號以數字開頭且長度 ≤ 6，排除權證 7 碼以上）。上櫃另有 `avg`（均價）欄。
 - **insti**（單位：股）：`foreign_buy, foreign_sell, foreign_net`（外陸資不含外資自營商）`, foreign_dealer_net, trust_buy, trust_sell, trust_net, dealer_net`（自營商合計）`, dealer_self_net, dealer_hedge_net, total_net`
   - 上櫃 24 欄順序：外資(不含自營) 買/賣/超、外資自營 買/賣/超、外資合計 買/賣/超、投信 買/賣/超、自營(自行) 買/賣/超、自營(避險) 買/賣/超、自營合計 買/賣/超、三大法人合計。
+  - **買進／賣出股數（2026-09-27 起保存）**：另存 `foreign_dealer_buy, foreign_dealer_sell, dealer_self_buy, dealer_self_sell, dealer_hedge_buy, dealer_hedge_sell`（選用欄位；官方一直都有提供，但較早的檔案只存了買賣超）。舊檔可用 `python -m pipeline backfill --source twse_insti,tpex_insti --start … --end … --refresh true`（或 Data workflow 的 `refresh` 選項）重抓補齊；驗證失敗時仍保留原檔。法人買賣超報表的外資、投信買賣張數舊檔就有，自營商與三大法人的買賣張數要回補後才完整。
 - **margin**（單位：張）：`margin_buy, margin_sell, margin_redeem, margin_prev, margin_balance, margin_limit, short_sell, short_buy, short_redeem, short_prev, short_balance, short_limit, offset, note`
   - 上市「融資融券彙總」表 16 欄；上櫃 20 欄（另有資使用率、券使用率、資屬證金等）。
 - **valuation**：`pe, pb, dividend_yield, dividend_year, fin_period`（本益比 `-` 代表虧損 → 空值）
@@ -91,6 +92,7 @@
 | id | 名稱 | 端點 | 更新 | 狀態 |
 |---|---|---|---|---|
 | tdcc_holders | 集保股權分散表 | `opendata.tdcc.com.tw/getOD.ashx?id=1-5`（CSV，約 2.3MB，6.9 萬列） | 每週最後營業日資料，次日公布 | ✅ |
+| tdcc_history | 集保股權分散表（個股歷史） | POST `www.tdcc.com.tw/portal/zh/smWeb/qryStock`（HTML；表單 token＋`scaDate`＋`stockNo`） | 官方保存約一年（51 週）；只在回補時執行 | ✅ 本機實測（2026-09-27） |
 | twse_sbl / tpex_sbl | 融券＋借券賣出餘額 | `…/rwd/zh/marginTrading/TWT93U?date=…`、`…/www/zh-tw/margin/sbl?date=…` | 約 21:30 | ✅ |
 | twse_qfii / tpex_qfii | 外資持股比率 | `…/rwd/zh/fund/MI_QFIIS?date=…&selectType=ALLBUT0999`、`…/insti/qfii?date=…` | 約 15:30 | ✅ |
 | twse_daytrade / tpex_daytrade | 當沖交易 | `…/rwd/zh/dayTrading/TWTB4U?date=…&selectType=All`、`…/intraday/stat?date=…&type=Daily` | 當日晚間（T+2 前可能修正） | ✅ |
@@ -144,6 +146,20 @@
 - 實測（2026-09-27，真實網站）：24 次請求、約 160 秒取得 8 檔的 2–3 個持股日（834 列）；樣本在 `tests/fixtures/samples/etf_*`，測試在 `tests/pipeline/test_etf_holdings.py`。
 - 限制：只涵蓋 8／32 檔，跨檔加碼／減碼排行只反映這 4 家投信，市場頁與個股頁都標示「部分涵蓋」。
 
+### 集保個股歷史（tdcc_history）
+- 開放資料 1-5 只有最新一週；集保官網「股權分散表查詢」可逐檔查過去一年（無驗證碼）。頁面上也註明多檔需求請用開放資料，因此**只對關注清單回補一次**，之後每週的新資料一律由開放資料取得，不排入排程。
+- 流程：GET 查詢頁取得 `SYNCHRONIZER_TOKEN` 與可查詢的週別（`scaDate` 選單，新到舊）→ 逐檔逐週 POST（`method=submit&firDate={最新週}&scaDate={週}&sqlMethod=StockNo&stockNo={代號}`，附 Referer／Origin），每次回應會帶下一次用的新 token；token 失效時重新 GET。
+- 解析（`advanced.parse_tdcc_stock`）：`資料日期：114年09月26日`＋表格「序、持股/單位數分級、人數、股數/單位數、占集保庫存數比例 (%)」；分級 1–15 與開放資料相同，「合計」存成分級 17（開放資料的 16 為差異數調整，這裡沒有）。查無資料的代號只查一次就停止。
+- 關注清單：`config/ui.yml` → `holders.history`（指定代號＋範例自選＋最近交易日成交值前 30 名，不含 ETF；最多 60 檔），每次執行最多 1,500 次查詢（3–5 秒間隔約 1.5 小時），可中斷續跑（已有的週別與股票略過）。
+- 儲存：`raw/tdcc_history/{YYYY}/{YYYYMMDD}.csv.gz`（同一週、同一檔以新資料取代）；衍生時與開放資料合併，同一週以開放資料為準。
+- 執行：`python -m pipeline backfill --source tdcc_history`（或 Data workflow：task＝backfill、source＝tdcc_history）。失敗只記錄在資料健康頁，不影響「最新資料」的警示。
+- 樣本：`tests/fixtures/samples/tdcc_qryStock_3406.html`（本環境 2026-09-27 抓取，裁切保留表單與結果表格）。
+
+### 研究報告與法人分析
+- **券商（賣方）研究報告、目標價**：由各券商發布給自己的客戶，多數需要付費或開戶；證交所、櫃買中心、公開資訊觀測站都沒有彙整，也沒有免費的開放資料或 API。新聞網站轉述的目標價屬於媒體著作，擷取或轉載有著作權疑慮。因此**不擷取**，個股頁只提供連結並標示「第三方」：Google 新聞搜尋（目標價、研究報告）、鉅亨網個股頁、Yahoo 股市個股新聞。
+- **官方可用的替代**：公開資訊觀測站的法說會一覽表（`investor_conference`，已在排程中）。公告文字常寫明受哪家券商邀請或由誰主辦（例：「受 BofA 邀請參加投資人會議」），個股頁「研究參考」整理成「主辦／邀請券商」，並連到觀測站一覽表下載簡報。
+- **八大行庫（公股行庫）買賣超**：來自券商分點進出資料；證交所「買賣日報表查詢系統」（`bsr.twse.com.tw/bshtm/`）與櫃買「券商買賣證券日報表查詢」都需要輸入驗證碼，本環境對證交所頁面直接回應「因為安全性考量，您所執行的頁面無法呈現」。沒有官方開放資料 → 標示「資料源待處理」。第三方彙整網站（例：HiStock 八大官股銀行買賣超排名）只列為連結；其「庫存」「持股比率」是以分點買賣超自某日起累計推估，並非官方持股資料。
+
 ## 選配資料
 
 | id | 名稱 | 端點 | 狀態 |
@@ -171,6 +187,7 @@
 
 | 資料 | 原因 |
 |---|---|
-| 分點券商進出 | 證交所買賣日報表、櫃買券商買賣日報表皆需驗證碼；無官方開放資料（DECISIONS #28） |
+| 分點券商進出（含八大行庫） | 證交所買賣日報表、櫃買券商買賣日報表皆需驗證碼；無官方開放資料（DECISIONS #28、#69） |
+| 券商研究報告、目標價 | 付費或只提供客戶，無官方來源；新聞轉述有著作權疑慮，只提供標示「第三方」的連結（DECISIONS #72） |
 | 證交所 e添富（ETF 專區）持股 | 個別 ETF 頁沒有持股或申購買回清單，且使用條款禁止以爬蟲等自動化方式下載（主動式 ETF 持股改由各投信官網取得，見上方） |
 | FRED 美元指數 | Actions 與本環境皆連線失敗 |

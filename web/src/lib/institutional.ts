@@ -180,6 +180,12 @@ export function lotsText(v: number): string {
   return INT.format(Math.round(a));
 }
 
+/** 張數加單位：「12,345 張」「15.1 萬張」 */
+export function lotsUnit(v: number): string {
+  const t = lotsText(v);
+  return t.endsWith('萬') ? `${t}張` : `${t} 張`;
+}
+
 /** 有正負的張數：▲／▼＋絕對值（四捨五入後為 0 → 不加符號）。 */
 export function signedLots(v: N): { text: string; dir: 'up' | 'down' | 'flat' | 'none' } {
   if (v === null) return { text: '—', dir: 'none' };

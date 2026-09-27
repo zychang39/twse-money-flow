@@ -1,4 +1,4 @@
-"""WCAG AA 對比檢查：直接讀 src/styles/tokens.css 的淺色與深色 tokens，檢查所有文字色 × 背景（含環境光最亮處、漲跌膠囊底色）≥ 4.5:1。
+"""WCAG AA 對比檢查：直接讀 src/styles/tokens.css 的淺色與深色 tokens，檢查所有文字色 × 背景（含環境光最亮處、漲跌膠囊底色、表格選取列、圖表提示框、已選取的門檻）≥ 4.5:1。
 
 用法：python3 scripts/contrast.py（有任何一組低於 4.5 時以非 0 結束）
 """
@@ -50,6 +50,9 @@ for name, t in (("light", light), ("dark", dark)):
     bgs = {"bg": P["bg"], "surface-1": P["surface-1"], "surface-2": P["surface-2"]}
     for g in ("up", "down", "risk", "neutral"):
         bgs[f"glow-{g}"] = over(P[f"glow-{g}"], P["bg"])
+    # 第三輪：表格選取列（surface-row 疊在卡片上）、圖表提示框（glass-strong 疊在背景上）
+    bgs["surface-row on surface-1"] = over(P["surface-row"], P["surface-1"])
+    bgs["glass-strong on bg"] = over(P["glass-strong"], P["bg"])
     worst = 99.0
     for fg in ("text-1", "text-2", "up", "down", "risk", "brand"):
         for bk, b in bgs.items():
@@ -65,6 +68,12 @@ for name, t in (("light", light), ("dark", dark)):
             worst = min(worst, r)
             if r < 4.5:
                 failed.append((name, fg, f"{tint} on {base}", round(r, 2)))
+    # 已選取的常用門檻（藍字、淡藍底，疊在卡片上）
+    for base in ("surface-1", "surface-2"):
+        r = ratio(P["brand"], over(P["brand-tint"], P[base]))
+        worst = min(worst, r)
+        if r < 4.5:
+            failed.append((name, "brand", f"brand-tint on {base}", round(r, 2)))
     r = ratio(P["on-brand"], P["brand-fill"])
     worst = min(worst, r)
     if r < 4.5:

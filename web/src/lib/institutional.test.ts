@@ -86,7 +86,10 @@ describe('座標軸取整', () => {
   });
   it('柱狀圖對稱、線圖取整並可包含 0', () => {
     expect(niceScale([-3872, 1200], 'bars')).toEqual({ lo: -5000, hi: 5000, ticks: [5000, 0, -5000] });
+    expect(niceScale([-0.18, 0.07], 'bars').hi).toBeCloseTo(0.2); // 小於 1 的變化（百分點）不會被壓扁
+    expect(niceScale([0, 0], 'bars').hi).toBe(1);
     expect(niceScale([499.5, 591.6], 'lines')).toEqual({ lo: 450, hi: 600, ticks: [600, 550, 500, 450] });
-    expect(niceScale([120, 4697], 'lines', { zero: true }).ticks).toEqual([5000, 2500, 0]);
+    expect(niceScale([120, 4697], 'lines', { zero: true }).ticks).toEqual([6000, 4000, 2000, 0]);
+    expect(niceScale([0, 61000], 'lines', { zero: true }).hi).toBe(75000); // 不會多出一半空白（原本 10 萬）
   });
 });
