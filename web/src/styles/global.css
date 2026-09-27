@@ -140,9 +140,22 @@ a.card, button.card { display: block; color: inherit; width: 100%; text-align: l
 .bb-seg.bear { background: var(--down); }
 .bb-seg.neutral { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--text-3); }
 .bb-legend { display: flex; justify-content: space-between; margin-top: var(--s-1); font-size: var(--fs-caption); line-height: var(--lh-caption); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+/* 研究參考：法說會清單與外部連結 */
+.rs-card { margin-top: var(--s-4); }
+.rs-hosts { margin-top: var(--s-1); }
+.rs-list { list-style: none; margin: var(--s-2) 0 0; padding: 0; }
+.rs-item { display: flex; gap: var(--s-3); padding: var(--s-2) 0; box-shadow: inset 0 0.5px 0 var(--surface-row); }
+.rs-date { flex: none; width: 2.75rem; font-size: var(--fs-caption); line-height: var(--lh-caption); font-weight: var(--fw-medium); }
+.rs-body { display: flex; flex-direction: column; min-width: 0; }
+.rs-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rs-note { margin-top: var(--s-2); }
+.rs-links { padding: 0; }
+.rs-links li { list-style: none; }
+.rs-links li + li { box-shadow: inset 0 0.5px 0 var(--surface-row); }
 /* 個股頁的工具入口：標題（藍）＋ 一行說明（灰） */
 .list-item .tool-sub { display: block; color: var(--text-2); text-wrap: pretty; }
 button.list-item, a.list-item { cursor: pointer; }
+a.list-item { text-decoration: none; }
 .collapsed-row {
   display: flex; align-items: center; justify-content: space-between; width: 100%;
   min-height: var(--tap); padding: 0 var(--s-1); border: 0; background: none; color: var(--text-2); cursor: pointer;

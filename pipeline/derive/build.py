@@ -295,6 +295,7 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
     etf_holders = etfmod.holders_by_stock(etf_changes, p.names)
     chip_src = stockdetail.chip_sources(ds)
     holder_src = stockdetail.holder_sources(ds)
+    conf_src = stockdetail.conference_sources(ds)
     for code in active:
         m = stock_metrics(p, code)
         if not m:
@@ -356,6 +357,7 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
             "etf_holders": etf_holders.get(code),
             "chip": stockdetail.chip_block(p, mp, chip_src, code, idx),
             "holders": stockdetail.holders_block(holder_src, code),
+            "conferences": stockdetail.conferences_for(conf_src, code, since),
         }
         write_json(out / "stocks" / f"{code}.json", stock_file(p, code, m, extra_file))
         written += 1

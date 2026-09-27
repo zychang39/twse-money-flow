@@ -215,3 +215,21 @@ for (const width of [375, 393]) {
     expect(doc.sw).toBeLessThanOrEqual(doc.cw);
   });
 }
+
+// ---------------------------------------------------------------- M5 研究參考
+test('M5：個股頁列出近一年法說會（含主辦／邀請券商）與研究參考連結；第三方連結清楚標示', async ({ page }) => {
+  await page.goto('#/stock/2330');
+  const block = page.getByRole('region', { name: '研究參考' });
+  await expect(block.getByRole('heading', { level: 2 })).toHaveText(/^近一年 \d+ 場法說會$/);
+  await expect(block).toContainText('主辦／邀請券商：BofA、元大證券');
+  await expect(block.locator('.rs-item')).toHaveCount(4);
+  const official = block.getByRole('link', { name: /公開資訊觀測站・法人說明會一覽表/ });
+  await expect(official).toHaveAttribute('href', 'https://mopsov.twse.com.tw/mops/web/t100sb02_1');
+  for (const name of [/新聞搜尋/, /鉅亨網/, /Yahoo 股市/]) {
+    const link = block.getByRole('link', { name });
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', /noopener/);
+    await expect(link).toContainText('第三方');
+  }
+  await expect(block).toContainText('券商研究報告多為付費或只提供給客戶');
+});

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import numpy as np
@@ -218,6 +219,57 @@ def chip_buy_sell(ins: pd.DataFrame | None, sel: list[str]) -> dict[str, list[An
         ("dealer_hedge_sell", "dhs"),
     ):
         out[key] = arr(c(col).to_numpy(), 0)
+    return out
+
+
+# ------------------------------------------------------------------ 法說會（研究參考）
+_HOST_PATTERNS = [
+    re.compile(r"受邀參加(.{2,40}?)(?:所?舉辦|主辦|之)"),
+    re.compile(r"受(.{2,30}?)(?:之)?邀(?:請)?"),
+    re.compile(r"應(.{2,30}?)(?:之)?邀(?:請)?"),
+    re.compile(r"參加(.{2,40}?)(?:所?舉辦|主辦)"),
+]
+
+
+def conference_host(text: str) -> str | None:
+    """由法說會說明文字擷取主辦或邀請單位（例：「受BofA邀請參加投資人會議」→ BofA）；擷取不到回傳 None。"""
+    for pat in _HOST_PATTERNS:
+        m = pat.search(str(text or ""))
+        if not m:
+            continue
+        h = m.group(1).strip(" 「」()（）")
+        h = re.sub(r"^由", "", h)
+        h = re.sub(r"(辦理|合辦|共同|聯合|於.*)$", "", h).strip()
+        if len(h) >= 2 and "本公司" not in h:
+            return h
+    return None
+
+
+def conference_sources(ds: Any) -> dict[str, pd.DataFrame]:
+    conf = ds.table("conference")
+    if conf.empty or "code" not in conf.columns:
+        return {}
+    return {str(code): part for code, part in conf.groupby("code")}
+
+
+def conferences_for(src: dict[str, pd.DataFrame], code: str, since: str, limit: int = 8) -> list[dict[str, Any]]:
+    """近一年的法說會（新到舊，最多 limit 筆）：日期、時間、地點、說明，以及由說明擷取的主辦／邀請單位。"""
+    part = src.get(code)
+    if part is None or part.empty:
+        return []
+    part = part[part["date"].astype(str) >= since].sort_values("date", ascending=False).head(limit)
+    out = []
+    for _, r in part.iterrows():
+        text = str(r.get("text") or "")
+        out.append(
+            {
+                "date": str(r["date"]),
+                "time": str(r.get("time") or "") or None,
+                "place": str(r.get("place") or "") or None,
+                "text": text[:200],
+                "host": conference_host(text),
+            }
+        )
     return out
 
 

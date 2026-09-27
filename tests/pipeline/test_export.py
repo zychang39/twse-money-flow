@@ -81,3 +81,29 @@ def test_chip_buy_sell_old_files_without_dealer_columns():
     assert out["tb"] == [10, 20] and out["ts"] == [5, 0]
     assert out["dsb"] == [None, None] and out["dhs"] == [None, None]
     assert chip_buy_sell(None, sel)["fb"] == [None, None]
+
+
+def test_conference_host_extraction():
+    """法說會說明文字 → 主辦／邀請單位（公開資訊觀測站的實際文字）。"""
+    from pipeline.derive.stockdetail import conference_host
+
+    assert conference_host("115年10月1日受BofA邀請參加投資人會議，說明本公司營運概況。") == "BofA"
+    assert (
+        conference_host("本公司受邀參加香港上海匯豐證券舉辦之法人說明會「13th Annual China Conference」")
+        == "香港上海匯豐證券"
+    )
+    assert conference_host("本公司受邀參加統一證券與IR Trust共同舉辦之廣華(1338)法說會") == "統一證券與IR Trust"
+    assert conference_host("應凱基證券之邀參加法人說明會") == "凱基證券"
+    assert conference_host("本公司自辦法人說明會") is None
+    assert conference_host("營運概況說明") is None
+
+
+def test_stock_file_conferences(tmp_path):
+    store_dir = tmp_path / "data"
+    out = tmp_path / "out"
+    build_store(store_dir, days=260)
+    build_web(store_dir, out, demo=True)
+    stock = json.loads((out / "stocks" / "2330.json").read_text())
+    conf = stock["conferences"]
+    assert [c["date"] for c in conf] == sorted((c["date"] for c in conf), reverse=True)
+    assert {c["host"] for c in conf} >= {"BofA", "元大證券", None}

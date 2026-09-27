@@ -33,6 +33,7 @@ import { navigate } from '../router';
 import { PAGE_SOURCES } from '../lib/health';
 import { evaluate, tally, title as bbTitle } from '../lib/bullbear';
 import { BullBearBar } from '../components/BullBearBar';
+import { type Conference, Research } from '../components/Research';
 
 const AdvancedChart = lazy(() => import('../components/AdvancedChart'));
 
@@ -228,6 +229,10 @@ export default function Stock({ code }: { code: string }) {
               ) : null}
               <button class="list-item brand" onClick={() => setSheet({ kind: 'more' })}>基本數據、月營收、季財報與事件<span class="chev"><IconChevron /></span></button>
             </div>
+          </Block>
+
+          <Block question="研究參考" answer={(() => { const n = ((h.conferences as Conference[] | undefined) ?? []).length; return n ? `近一年 ${n} 場法說會` : '法說會與研究報告'; })()}>
+            <Research code={code} name={h.name} market={h.market} conferences={(h.conferences as Conference[] | undefined) ?? []} />
           </Block>
 
           <Block question="估值" answer={h.fair ? '合理價區間' : `本益比 ${fmtNum(lastOf(h.pe))}`}>

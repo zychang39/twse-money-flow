@@ -66,6 +66,25 @@ def _tdcc_rows(iso: str, code: str, whale: float) -> list[dict[str, object]]:
     return rows
 
 
+def _demo_conferences(store: DataStore, end: date) -> None:
+    """示範用法說會（依月份存檔，與 conference 來源相同）：自辦、受券商邀請各幾場。"""
+    items = [
+        (end - timedelta(days=200), "2330", "受邀參加元大證券舉辦之法人說明會，說明本公司營運概況。"),
+        (end - timedelta(days=120), "2330", "本公司召開 2026 年第一季法人說明會。"),
+        (end - timedelta(days=60), "2330", "受BofA邀請參加投資人會議，說明本公司營運概況。"),
+        (end - timedelta(days=20), "2330", "本公司召開 2026 年第二季法人說明會。"),
+        (end - timedelta(days=40), "2317", "應凱基證券之邀參加法人說明會。"),
+    ]
+    by_month: dict[date, list[dict[str, object]]] = {}
+    for d, code, text in items:
+        name = next(n for c, n, *_ in DEMO_STOCKS if c == code)
+        by_month.setdefault(d.replace(day=1), []).append(
+            {"date": d.isoformat(), "code": code, "name": name, "time": "14:00", "place": "台北", "text": text}
+        )
+    for m, rows in by_month.items():
+        store.write("conference", m, pd.DataFrame(rows))
+
+
 def _trading_days(end: date, n: int) -> list[date]:
     out: list[date] = []
     d = end
@@ -251,6 +270,7 @@ def build_store(root: Path, *, days: int = 320, end: date | None = None, seed: i
     )
     store.write("twse_company", end, comp[comp["market"] == "twse"])
     store.write("tpex_company", end, comp[comp["market"] == "tpex"])
+    _demo_conferences(store, end)
     store.save_manifest(
         {
             "version": 1,
