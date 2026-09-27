@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { addWatch, getSetting, listTrades, listWatch, resetDbConnection, saveTrade, setSetting, DB_VERSION } from './db';
+import { addWatch, addWatchMany, clearSampleWatch, getSetting, listRecentSearches, listTrades, listWatch, pushRecentSearch, resetDbConnection, saveTrade, setSetting, DB_VERSION, RECENT_MAX } from './db';
 import { EXPORT_MIGRATIONS, exportAll, importAll, migrateBackup, type BackupFile } from './backup';
 
 beforeEach(async () => {
@@ -42,5 +42,56 @@ describe('IndexedDB 與備份', () => {
     expect(() => migrateBackup({ ...old, app: 'other' })).toThrow();
     expect(() => migrateBackup({ ...old, schemaVersion: DB_VERSION + 5 })).toThrow();
     delete EXPORT_MIGRATIONS[DB_VERSION + 1];
+  });
+
+  it('v2 → v3 升級：既有自選、設定、交易原樣保留，自選補上來源 user', async () => {
+    // 以 v2 結構建立舊資料庫（模擬既有使用者）
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open('twse-money-flow', 2);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        const w = db.createObjectStore('watchlist', { keyPath: 'code' });
+        w.createIndex('group', 'group');
+        db.createObjectStore('settings', { keyPath: 'key' });
+        db.createObjectStore('screens', { keyPath: 'id' });
+        const t = db.createObjectStore('trades', { keyPath: 'id' });
+        t.createIndex('status', 'status');
+        t.createIndex('code', 'code');
+        const a = db.createObjectStore('activity', { keyPath: 'id' });
+        a.createIndex('type', 'type');
+        a.createIndex('day', 'day');
+        w.put({ code: '2330', group: '半導體', addedAt: '2026-01-01', order: 0, note: '核心' });
+        w.put({ code: '2317', group: '預設', addedAt: '2026-01-02', order: 1 });
+        req.transaction!.objectStore('settings').put({ key: 'theme', value: 'dark' });
+      };
+      req.onsuccess = () => { req.result.close(); resolve(); };
+      req.onerror = () => reject(req.error);
+    });
+    const items = await listWatch();
+    expect(items.map((w) => [w.code, w.group, w.origin, w.note])).toEqual([['2330', '半導體', 'user', '核心'], ['2317', '預設', 'user', undefined]]);
+    expect(await getSetting('theme', 'auto')).toBe('dark');
+  });
+
+  it('範例自選：一次加入、標示來源，一鍵清除不影響自己加入的', async () => {
+    await addWatch('2603');
+    expect(await addWatchMany(['2330', '2317', '2603'], '範例', 'sample')).toBe(2);
+    expect((await listWatch()).map((w) => `${w.code}:${w.origin}`)).toEqual(['2603:user', '2330:sample', '2317:sample']);
+    expect(await clearSampleWatch()).toBe(2);
+    expect((await listWatch()).map((w) => w.code)).toEqual(['2603']);
+  });
+
+  it('最近搜尋：最新在前、不重複、最多 RECENT_MAX 筆', async () => {
+    for (let i = 0; i < RECENT_MAX + 2; i++) await pushRecentSearch(String(1000 + i));
+    await pushRecentSearch('1003');
+    const r = await listRecentSearches();
+    expect(r[0]).toBe('1003');
+    expect(r.length).toBe(RECENT_MAX);
+    expect(new Set(r).size).toBe(r.length);
+  });
+
+  it('v2 備份檔匯入時自選補上來源 user', () => {
+    const old: BackupFile = { app: 'twse-money-flow', schemaVersion: 2, exportedAt: '', stores: { watchlist: [{ code: '2330', group: '預設', addedAt: '', order: 0 }] } };
+    const up = migrateBackup(old);
+    expect((up.stores.watchlist as { origin: string }[])[0].origin).toBe('user');
   });
 });

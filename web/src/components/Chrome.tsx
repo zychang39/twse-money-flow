@@ -1,13 +1,10 @@
-/** App 外框：頂列（含頭像選單）、底部 4 個圖示 Tab、漂浮搜尋膠囊、環境光。 */
+/** App 外框：頂列（含頭像選單）、底部導覽（4 個圖示 Tab＋圓形搜尋按鈕）、環境光。 */
 import type { ComponentChildren } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { Sheet } from './Sheet';
 import {
   IconBack, IconDiscipline, IconDoc, IconExplore, IconExport, IconMine, IconPerson, IconPulse, IconSearch, IconSliders, IconTonight,
 } from './Icons';
-import { StockSearch } from './StockSearch';
-import { useScoredSummary } from '../data/useSummary';
-import { navigate } from '../router';
 
 const TABS = [
   { path: '/', label: '今晚', icon: IconTonight, match: (p: string) => p === '/' },
@@ -16,21 +13,78 @@ const TABS = [
   { path: '/discipline', label: '紀律', icon: IconDiscipline, match: (p: string) => p.startsWith('/discipline') },
 ];
 
-/** 底部 Tab：只有線條圖示，文字標籤給輔助科技（aria-label）。 */
-export function TabBar({ path }: { path: string }) {
+/**
+ * 底部導覽（iOS 26 慣例）：4 個圖示 Tab 的膠囊＋右側獨立的圓形搜尋按鈕，合併成一列。
+ * - 固定在 bottom: 0，以 env(safe-area-inset-bottom) 補齊（不另加 margin）；內容底部保留剛好等於這一列的高度。
+ * - 往下捲動時縮小成精簡型態；往上捲、停止捲動或換頁時恢復（useScrollCompact）。
+ * - 搜尋頁（#/search）有自己的底部搜尋列，這一列隱藏。
+ */
+export function Dock({ path }: { path: string }) {
+  const compact = useScrollCompact(path);
   return (
-    <nav class="tabbar glass" aria-label="主要分頁">
-      {TABS.map((t) => {
-        const Icon = t.icon;
-        const current = t.match(path);
-        return (
-          <a key={t.path} href={`#${t.path}`} aria-label={t.label} aria-current={current ? 'page' : undefined}>
-            <Icon />
-          </a>
-        );
-      })}
-    </nav>
+    <div class={`dock ${compact ? 'compact' : ''}`}>
+      <nav class="tabbar glass" aria-label="主要分頁">
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          const current = t.match(path);
+          return (
+            <a key={t.path} href={`#${t.path}`} aria-label={t.label} aria-current={current ? 'page' : undefined}>
+              <Icon />
+            </a>
+          );
+        })}
+      </nav>
+      <a class="search-btn glass" href="#/search" aria-label="搜尋代號或名稱" onClick={primeKeyboard}>
+        <IconSearch />
+      </a>
+    </div>
   );
+}
+
+/** 捲動方向 → 精簡型態。門檻避免手指微動造成閃爍；停止捲動 700ms 後恢復。 */
+export function useScrollCompact(path: string): boolean {
+  const [compact, setCompact] = useState(false);
+  useEffect(() => setCompact(false), [path]);
+  useEffect(() => {
+    let lastY = window.scrollY;
+    let raf = 0;
+    let idle = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const y = window.scrollY;
+        const dy = y - lastY;
+        if (Math.abs(dy) > 6) {
+          setCompact(dy > 0 && y > 64);
+          lastY = y;
+        }
+        clearTimeout(idle);
+        idle = window.setTimeout(() => { setCompact(false); lastY = window.scrollY; }, 700);
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); clearTimeout(idle); };
+  }, []);
+  return compact;
+}
+
+/**
+ * iOS 只在使用者手勢內聚焦輸入框時才會叫出鍵盤；換頁後才聚焦搜尋框會沒有鍵盤。
+ * 點搜尋按鈕時先同步聚焦一個隱形輸入框（#kb-primer），搜尋頁掛載後再把焦點移到真正的搜尋框，鍵盤會保持開啟。
+ */
+export function primeKeyboard(): void {
+  let el = document.getElementById('kb-primer') as HTMLInputElement | null;
+  if (!el) {
+    el = document.createElement('input');
+    el.id = 'kb-primer';
+    el.type = 'search';
+    el.setAttribute('aria-hidden', 'true');
+    el.tabIndex = -1;
+    el.className = 'kb-primer';
+    document.body.appendChild(el);
+  }
+  el.focus({ preventScroll: true });
 }
 
 const MENU = [
@@ -121,23 +175,5 @@ export function Ambient({ mood }: { mood: Mood }) {
     <div class="ambient" aria-hidden="true" data-mood={m}>
       {(['up', 'down', 'risk', 'neutral'] as const).map((k) => <i key={k} class={`${k} ${k === m ? 'on' : ''}`} />)}
     </div>
-  );
-}
-
-/** 漂浮搜尋膠囊：搜尋全市場代號或名稱，直接開啟個股頁。 */
-export function SearchFloat() {
-  const [open, setOpen] = useState(false);
-  const summary = useScoredSummary();
-  return (
-    <>
-      <button class="search-float glass" onClick={() => setOpen(true)} aria-label="搜尋代號或名稱">
-        <IconSearch /><span>搜尋代號或名稱</span>
-      </button>
-      <Sheet open={open} onClose={() => setOpen(false)} title="搜尋" detent="full">
-        {summary.data ? (
-          <StockSearch rows={summary.data.rows} autoFocus onPick={(r) => { setOpen(false); navigate(`/stock/${r.code}`); }} />
-        ) : <div class="skeleton" />}
-      </Sheet>
-    </>
   );
 }

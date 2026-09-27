@@ -73,5 +73,7 @@ export interface UiConfig {
     sentence_min_pct: number;
     streak_min: number;
   };
+  hot_momentum: { label: string; exclude_etf: boolean; value_rank_top: number; min_rs_percentile: number; max_warn_flags: number; max_danger_flags: number; size: number };
+  sample_watchlist: { group: string; codes: string[] };
 }
 export const uiConfig = uiYml as UiConfig;

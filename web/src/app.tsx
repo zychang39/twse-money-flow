@@ -1,6 +1,6 @@
 import { useEffect } from 'preact/hooks';
 import { useRoute } from './router';
-import { TabBar } from './components/Chrome';
+import { Dock } from './components/Chrome';
 import { Footer } from './components/Footer';
 import { lazy } from './lazy';
 import Tonight from './pages/Tonight';
@@ -28,12 +28,14 @@ const Health = lazy(() => import('./pages/Health'));
 const Methodology = lazy(() => import('./pages/Methodology'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Backup = lazy(() => import('./pages/Backup'));
+const Search = lazy(() => import('./pages/Search'));
 
 function Page({ parts }: { parts: string[] }) {
   const [a, b, c] = parts;
   switch (a) {
     case undefined: return <Tonight />;
     case 'mine': return <Mine />;
+    case 'search': return <Search />;
     case 'stock': return b ? <Stock code={b} /> : <Placeholder title="個股" back="/mine" />;
     case 'explore':
       switch (b) {
@@ -93,6 +95,7 @@ export function App() {
   }, []);
   return (
     <>
+      <div class="status-scrim" aria-hidden="true" />
       <main class="app" id="main">
         <div class="page-body">
           <BackupReminder />
@@ -100,7 +103,7 @@ export function App() {
         </div>
         <Footer />
       </main>
-      <TabBar path={route.path} />
+      {route.path === '/search' ? null : <Dock path={route.path} />}
     </>
   );
 }

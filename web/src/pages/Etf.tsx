@@ -7,6 +7,7 @@ import { useAsync } from '../hooks';
 import { loadMarket } from '../data/api';
 import { setListContext } from '../lib/listContext';
 import { fmtLots, fmtNum } from '../lib/format';
+import { PAGE_SOURCES } from '../lib/health';
 
 export default function Etf() {
   const market = useAsync(loadMarket, []);
@@ -16,7 +17,7 @@ export default function Etf() {
     <div class="page">
       <TopBar back="/explore" />
       <PageHead eyebrow="主動式 ETF" title={m ? `${list.length} 檔主動式 ETF` : '主動式 ETF'} />
-      <DataStatus date={m?.date} />
+      <DataStatus date={m?.date} uses={PAGE_SOURCES.etf} />
       {market.error ? <ErrorState error={market.error} /> : null}
       {market.loading ? <Loading /> : null}
       {m ? (

@@ -6,6 +6,7 @@ import type { ComponentChildren } from 'preact';
 import { useAsync } from '../hooks';
 import { loadMeta } from '../data/api';
 import { businessDaysSince, todayTpe } from '../lib/dates';
+import { affectedFor } from '../lib/health';
 import { IconClock, IconCloudOff, IconMoonRest, IconRisk, IconSeed } from './Icons';
 
 function md(iso: string): string {
@@ -28,8 +29,12 @@ export function dataPhase(date: string, now = new Date()): { phase: DataPhase; l
   return { phase: lag === 0 ? 'holiday' : 'pending', lag };
 }
 
-/** 頁首下方的一行資料說明：資料日期、更新時間；休市／過期／異常時以平靜的提示呈現。 */
-export function DataStatus({ date, extra }: { date?: string | null; extra?: ComponentChildren }) {
+/**
+ * 頁首下方的一行資料說明：資料日期、更新時間；休市／過期／異常時以平靜的提示呈現。
+ * uses：這一頁實際用到的資料來源 id（見 lib/health 的 PAGE_SOURCES）。只有其中有來源異常、
+ * 而且影響最新資料時，才在最後加一段琥珀色小字「N 個資料源異常」（連到資料健康頁）；沒傳 uses 的頁面不顯示。
+ */
+export function DataStatus({ date, extra, uses }: { date?: string | null; extra?: ComponentChildren; uses?: string[] }) {
   const meta = useAsync(loadMeta, []);
   if (meta.error) return <ErrorState error={meta.error} title="尚無可用資料" />;
   if (!meta.data) return <div class="meta-line" aria-hidden="true">&nbsp;</div>;
@@ -38,7 +43,7 @@ export function DataStatus({ date, extra }: { date?: string | null; extra?: Comp
   const gen = meta.data.generated_at ? new Date(meta.data.generated_at) : null;
   const genText = gen ? new Date(gen.getTime() + 8 * 3600 * 1000).toISOString().slice(11, 16) : null;
   const { phase, lag } = dataPhase(d);
-  const failed = meta.data.sources_failed?.length ?? 0;
+  const failed = affectedFor(uses, meta.data.sources_affected ?? meta.data.sources_failed).length;
   return (
     <>
       <p class="meta-line">
@@ -46,7 +51,7 @@ export function DataStatus({ date, extra }: { date?: string | null; extra?: Comp
         {phase === 'pending' ? <span class="meta-phase" title="通常在 17:30 與 21:30 更新"><IconClock />今天的資料尚未更新・</span> : null}
         {meta.data.demo ? <span class="meta-demo w6">示範資料（合成數據）・</span> : null}
         資料至 {md(d)} 收盤{genText ? `・${genText} 更新` : ''}{extra ? <>・{extra}</> : null}
-        {failed ? <>・<a href="#/me/health">{failed} 個資料源異常</a></> : null}
+        {failed ? <>・<a class="meta-alert" href="#/me/health">{failed} 個資料源異常</a></> : null}
       </p>
       {phase === 'stale' ? <Banner kind="risk" icon={<IconRisk />} title="資料可能過期">最新資料停在 {md(d)}，落後 {lag} 個工作日。可到「資料健康」查看原因。</Banner> : null}
     </>

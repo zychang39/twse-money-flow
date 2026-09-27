@@ -4,6 +4,8 @@
  * - 期間選擇器 1D～ALL：選中者為實心膠囊；切換時走勢線以 spring 平滑變形。
  * - 首次出現時走勢線由左到右描繪；主角數字從「上次查看的值」滾動到最新值，變化量以淡色標籤短暫浮現。
  * 線的顏色＝所選期間的漲跌（紅漲綠跌），與頁首環境光一致（由頁面以同一個 window 計算）。
+ * heroChange='daily'（今晚頁）：主角數字下方固定顯示「今日」漲跌（拖曳時為該日漲跌），
+ *   期間選擇器只改變走勢圖，區間漲跌標示在圖表上方（chart-range）。
  */
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -34,10 +36,10 @@ function dateLabel(iso: string): string {
   return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}（${'日一二三四五六'[d.getUTCDay()]}）`;
 }
 
-export function PeriodSelector({ value, onChange, label = '期間' }: { value: Period; onChange: (p: Period) => void; label?: string }) {
+export function PeriodSelector({ value, onChange, label = '期間', periods = PERIODS }: { value: Period; onChange: (p: Period) => void; label?: string; periods?: Period[] }) {
   return (
     <div class="periods" role="group" aria-label={label}>
-      {PERIODS.map((p) => (
+      {periods.map((p) => (
         <button key={p} aria-pressed={value === p} onClick={() => onChange(p)}>{p}<span class="sr-only">（{PERIOD_LABEL[p]}）</span></button>
       ))}
     </div>
@@ -73,6 +75,7 @@ function useRoll(to: number | null, from: number | null | undefined, format: (v:
 
 export function HeroChart({
   label, win, period, onPeriod, format, formatDelta, seen, height = 176, area = false, caption, emptyText = '資料累積中', periodsLabel,
+  periods = PERIODS, heroChange = 'period',
 }: {
   label: ComponentChildren;
   win: Window | null;
@@ -87,6 +90,10 @@ export function HeroChart({
   caption?: ComponentChildren;
   emptyText?: string;
   periodsLabel?: string;
+  /** 期間選擇器的選項（今晚頁從 1W 開始：只有盤後日資料，1D 沒有意義） */
+  periods?: Period[];
+  /** 主角數字下方顯示：period＝所選期間漲跌（預設）；daily＝今日（拖曳時為該日）漲跌 */
+  heroChange?: 'period' | 'daily';
 }) {
   const fd = formatDelta ?? format;
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -152,7 +159,10 @@ export function HeroChart({
   const last = win ? win.values.length - 1 : 0;
   const at = scrub ?? last;
   const latest = win ? win.values[last] : null;
-  const chg = win ? change(win.values, at) : null;
+  const daily = heroChange === 'daily';
+  // daily：與前一個交易日比較（視窗第一點是區間基準，沒有前一日可比）
+  const chg = !win ? null : daily ? (at >= 1 ? change(win.values.slice(at - 1, at + 1)) : null) : change(win.values, at);
+  const range = win ? change(win.values) : null;
   const dir: Dir = win ? change(win.values).dir : 'flat';
   const color = dirColor(dir);
   const rolled = useRoll(latest, seen, format);
@@ -199,13 +209,22 @@ export function HeroChart({
               <span aria-hidden="true">{arrow(chg.abs)} {fd(Math.abs(chg.abs))}（{chg.pct === null ? '—' : `${Math.abs(chg.pct).toFixed(2)}%`}）</span>
               <span class="sr-only">{chg.dir === 'up' ? '上漲' : chg.dir === 'down' ? '下跌' : '持平'} {fd(Math.abs(chg.abs))}</span>
             </span>
-            <span class="caption">{scrub !== null ? dateLabel(win.dates[scrub]) : PERIOD_LABEL[period]}</span>
+            <span class="caption">{scrub !== null ? dateLabel(win.dates[scrub]) : daily ? '今日' : PERIOD_LABEL[period]}</span>
             {scrub === null && seenDelta !== null ? (
               <span class="delta-tag" aria-label={`較上次查看${seenDelta > 0 ? '增加' : '減少'} ${fd(Math.abs(seenDelta))}`}>較上次查看 {arrow(seenDelta)} {fd(Math.abs(seenDelta))}</span>
             ) : null}
           </>
-        ) : <span class="caption">{emptyText}</span>}
+        ) : win && daily ? <span class="caption">{dateLabel(win.dates[at])}</span> : <span class="caption">{emptyText}</span>}
       </div>
+      {daily && range && win ? (
+        <div class="chart-range">
+          <span>{PERIOD_LABEL[period]}</span>
+          <span class={range.dir}>
+            <span aria-hidden="true">{arrow(range.abs)} {fd(Math.abs(range.abs))}（{range.pct === null ? '—' : `${Math.abs(range.pct).toFixed(2)}%`}）</span>
+            <span class="sr-only">{PERIOD_LABEL[period]}區間{range.dir === 'up' ? '上漲' : range.dir === 'down' ? '下跌' : '持平'} {fd(Math.abs(range.abs))}</span>
+          </span>
+        </div>
+      ) : null}
       <div ref={wrapRef} class="chart-wrap bleed" style={{ height: `${height / 16}rem` }}
         tabIndex={win ? 0 : -1} role="img" aria-label={`${summary}。可用左右鍵查看每日數值。`}
         onPointerMove={onMove} onPointerDown={onDown} onPointerUp={(e) => e.pointerType !== 'mouse' && end()} onPointerCancel={end} onPointerLeave={end}
@@ -240,7 +259,7 @@ export function HeroChart({
       {caption || win?.truncated ? (
         <div class="chart-caption">{win?.truncated ? `資料自 ${win.dates[0]} 起，未滿所選期間。` : ''}{caption}</div>
       ) : null}
-      <PeriodSelector value={period} onChange={onPeriod} label={periodsLabel ?? '走勢期間'} />
+      <PeriodSelector value={period} onChange={onPeriod} label={periodsLabel ?? '走勢期間'} periods={periods} />
     </div>
   );
 }

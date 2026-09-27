@@ -10,6 +10,7 @@ import { deleteScreen, listScreens, saveScreen, uid, type SavedScreen } from '..
 import { screenerConfig, type Condition } from '../lib/config';
 import { describeCondition, encodeConditions, screen } from '../lib/screener';
 import { fmtNum } from '../lib/format';
+import { PAGE_SOURCES } from '../lib/health';
 
 const OPS: Condition['op'][] = ['>=', '>', '<=', '<', '==', 'between'];
 const fields = screenerConfig.fields;
@@ -86,7 +87,7 @@ export default function Screener() {
     <div class="page">
       <TopBar back="/explore" actions={<a class="btn small" href={`#/explore/backtest?c=${encodeConditions(conditions)}&name=${encodeURIComponent(name)}${saved.some((s) => s.id === active) ? '&own=1' : ''}`}>一鍵回測</a>} />
       <PageHead eyebrow="自選股以外，有哪些符合條件的股票？" title={summary.data ? `${name}：${results.length} 檔符合` : '選股'} />
-      <DataStatus date={summary.data?.date} />
+      <DataStatus date={summary.data?.date} uses={PAGE_SOURCES.screener} />
       <h2 class="section-title">內建組合</h2>
       <div class="chips" role="group" aria-label="內建組合">
         {screenerConfig.presets.map((p) => (

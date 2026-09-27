@@ -7,7 +7,7 @@ import { holdingAlerts } from './holdings';
 import { badgeMetrics, badges, levelFor, ritualRings, stopRespected, streaks, totalXp } from './ritual';
 import { impulseFacts } from './impulse';
 import { holdingsSeries } from './portfolioSeries';
-import { tonightConclusion } from './conclusion';
+import { holdConclusion, mineConclusion, tonightConclusion } from './conclusion';
 import { uiConfig } from './config';
 
 const L = (id: string, state: Light['state']): Light => ({ id, label: id, state, value: '', basis: '' });
@@ -131,8 +131,28 @@ describe('持股組合走勢與結論句', () => {
     expect(s.values).toEqual([500, 500]);
   });
   it('結論句不含交易建議字眼', () => {
-    const text = tonightConclusion({ holdings: 3, alerts: 2, env: 'conservative', watchChanges: 1 }).join('');
-    expect(text).toBe('今晚 2 檔持股需要注意，大盤資金環境偏保守。');
+    const text = tonightConclusion({ holdings: 3, alerts: 2, env: 'conservative', watchChanges: 1 });
+    expect(text).toBe('持股\u00a02\u00a0檔需要注意，資金環境偏保守。');
     expect(text).not.toMatch(/買進|賣出/);
+  });
+  it('我的股票結論以自選為主，有持股時再加上持股狀況', () => {
+    expect(mineConclusion({ watchCount: 8, watchChanges: 2, holdings: 0, alerts: 0 })).toBe('自選\u00a08\u00a0檔，其中\u00a02\u00a0檔有顯著變化。');
+    expect(mineConclusion({ watchCount: 8, watchChanges: 2, holdings: 3, alerts: 1 })).toBe('自選\u00a02\u00a0檔有顯著變化，持股\u00a01\u00a0檔需要注意。');
+    expect(mineConclusion({ watchCount: 0, watchChanges: 0, holdings: 0, alerts: 0 })).toBe('還沒有自選股。');
+    expect(holdConclusion({ holdings: 2, alerts: 0, dir: 'up', periodName: '近 3 個月' })).toBe('持股近 3 個月上漲，沒有需要注意的。');
+  });
+  it('結論句每個子句不超過 12 個全形字寬（手機寬度最多兩行）', () => {
+    const width = (s: string) => [...s].reduce((w, ch) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(ch) ? 1 : 0.55), 0);
+    const all = [
+      tonightConclusion({ holdings: 3, alerts: 12, env: 'conservative', watchChanges: 1 }),
+      tonightConclusion({ holdings: 0, alerts: 0, env: 'unknown', watchChanges: 12 }),
+      mineConclusion({ watchCount: 88, watchChanges: 12, holdings: 0, alerts: 0 }),
+      mineConclusion({ watchCount: 88, watchChanges: 12, holdings: 3, alerts: 12 }),
+    ];
+    for (const s of all) {
+      const clauses = s.split(/(?<=[，。])/);
+      expect(clauses.length).toBeLessThanOrEqual(2);
+      for (const c of clauses) expect(width(c)).toBeLessThanOrEqual(12.5);
+    }
   });
 });

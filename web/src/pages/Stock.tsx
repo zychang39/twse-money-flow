@@ -30,6 +30,7 @@ import { getListContext } from '../lib/listContext';
 import { commitHero, heroSeen } from '../lib/seen';
 import { fmtInt, fmtLots, fmtNum, fmtPct, fmtPrice } from '../lib/format';
 import { navigate } from '../router';
+import { PAGE_SOURCES } from '../lib/health';
 
 const AdvancedChart = lazy(() => import('../components/AdvancedChart'));
 
@@ -138,7 +139,7 @@ export default function Stock({ code }: { code: string }) {
                 format={(v) => fmtPrice(v)} formatDelta={(v) => fmtNum(v, v >= 100 ? 1 : 2)} area height={200} periodsLabel="股價走勢期間" />
             )}
           </div>
-          <DataStatus date={h.d[h.d.length - 1]} />
+          <DataStatus date={h.d[h.d.length - 1]} uses={PAGE_SOURCES.stock} />
 
           <p class="body" style={{ marginTop: 'var(--s-6)' }}>{healthLine(h.summary_text) ?? '健檢摘要資料不足。'}</p>
           {row?.flags?.length ? (

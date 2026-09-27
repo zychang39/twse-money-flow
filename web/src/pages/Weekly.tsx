@@ -11,6 +11,7 @@ import { addDays } from '../lib/dates';
 import { fmtLots } from '../lib/format';
 import type { CalEvent } from './Calendar';
 import type { StockRow } from '../data/types';
+import { PAGE_SOURCES } from '../lib/health';
 
 export default function Weekly() {
   const summary = useScoredSummary();
@@ -26,7 +27,7 @@ export default function Weekly() {
       <PageHead eyebrow="這一週我的股票發生了什麼？" title={summary.data ? `本週 ${newFlags.length} 個新風險旗標・下週 ${upcoming.length} 件事件` : '週報'}>
         <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>自選與持股：本週分數、籌碼、風險旗標變化與下週事件。</p>
       </PageHead>
-      <DataStatus date={date} />
+      <DataStatus date={date} uses={PAGE_SOURCES.weekly} />
       {summary.loading ? <Loading /> : null}
       <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>本週分數與籌碼</h2>
       <div class="scroll-x">
@@ -45,7 +46,7 @@ export default function Weekly() {
             ))}
           </tbody>
         </table>
-        {!rows.length ? <div class="empty"><p>尚未加入自選或持股。</p><a class="btn primary" href="#/mine?seg=watch&add=1">加入自選股</a></div> : null}
+        {!rows.length ? <div class="empty"><p>尚未加入自選或持股。</p><a class="btn primary" href="#/mine">加入自選股</a></div> : null}
       </div>
       <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>本週新出現的風險旗標</h2>
       <div class="list">

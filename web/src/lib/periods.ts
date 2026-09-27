@@ -2,6 +2,9 @@
 
 export type Period = '1D' | '1W' | '1M' | '3M' | 'YTD' | '1Y' | 'ALL';
 export const PERIODS: Period[] = ['1D', '1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
+/** 今晚頁：只有盤後日資料，1D 只是兩點直線，期間選擇器從 1W 開始；預設 3M。 */
+export const TONIGHT_PERIODS: Period[] = ['1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
+export const TONIGHT_DEFAULT_PERIOD: Period = '3M';
 export const PERIOD_LABEL: Record<Period, string> = {
   '1D': '今日',
   '1W': '近 1 週',
