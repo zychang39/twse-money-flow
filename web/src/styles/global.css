@@ -233,6 +233,14 @@ label.field > span { display: block; font-size: var(--fs-caption); line-height: 
 .hero-change { display: flex; align-items: center; flex-wrap: wrap; font-weight: var(--fw-medium); min-height: var(--lh-body); }
 .hero-change .caption { color: var(--text-2); margin-left: var(--s-2); font-weight: var(--fw-regular); }
 .chart-wrap { position: relative; margin-top: var(--s-4); touch-action: pan-y; cursor: crosshair; user-select: none; -webkit-user-select: none; }
+.netbars { margin: 0; }
+.k-readout { display: flex; flex-wrap: wrap; gap: 0 var(--s-2); min-height: 2.5rem; align-items: flex-start; font-variant-numeric: tabular-nums; }
+.netbars-plot { display: flex; gap: var(--s-2); }
+.nb-axes { flex: none; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; min-width: 4.25rem; font-size: 0.6875rem; line-height: 1; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nb-bars { position: relative; flex: 1; min-width: 0; touch-action: pan-y; cursor: crosshair; user-select: none; -webkit-user-select: none; }
+.nb-bars:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
+.nb-tip { position: absolute; top: 0; transform: translateX(0.5rem); display: flex; flex-direction: column; gap: 0.125rem; padding: var(--s-1) var(--s-2); border-radius: var(--r-sm); background: var(--surface-3); box-shadow: var(--shadow-card); font-size: var(--fs-caption); white-space: nowrap; pointer-events: none; z-index: 2; }
+.nb-tip.left { transform: translateX(calc(-100% - 0.5rem)); }
 .chart-wrap svg { display: block; width: 100%; overflow: visible; }
 .chart-line { fill: none; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; transition: stroke var(--dur-slow) var(--ease-out); }
 .chart-glow { fill: none; stroke-width: 5; stroke-linejoin: round; opacity: var(--line-glow-opacity); transition: stroke var(--dur-slow) var(--ease-out); }
@@ -387,7 +395,35 @@ table.table th { color: var(--text-2); font-weight: var(--fw-medium); }
 table.table tbody tr:nth-child(odd) td { background: var(--surface-row); }
 table.table tbody tr td:first-child { border-radius: var(--r-xs) 0 0 var(--r-xs); }
 table.table tbody tr td:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0; }
-.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* 橫向捲動容器要成為定位容器：內部 .sr-only（absolute）才會被裁切，不會撐寬整頁 */
+.scroll-x { position: relative; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ---------- 個股籌碼：區間統計與每日明細（第一欄固定，其餘橫向捲動；數字等寬） ---------- */
+.chip-stats, .chip-table { border-collapse: separate; border-spacing: 0; font-size: var(--fs-caption); line-height: var(--lh-caption); font-variant-numeric: tabular-nums; }
+.chip-stats { width: 100%; margin-top: var(--s-3); }
+.chip-stats th, .chip-stats td { padding: var(--s-2) var(--s-1); text-align: right; border-bottom: 1px solid var(--line); vertical-align: top; }
+.chip-stats thead th { color: var(--text-2); font-weight: var(--fw-medium); white-space: normal; }
+.chip-stats tbody th { text-align: left; color: var(--text-2); font-weight: var(--fw-regular); white-space: nowrap; }
+.chip-stats td { white-space: nowrap; }
+.chip-controls { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: var(--s-3) 0; }
+.chip-controls .segmented { flex: 1 1 100%; }
+.segmented.chip-seg button { padding: 0 var(--s-1); white-space: nowrap; }
+.chip-stats thead th .sub { display: block; font-size: 0.6875rem; }
+.chip-scroll { position: relative; overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; background: var(--surface-1); border-radius: var(--r-card); margin: var(--s-2) 0; }
+.chip-scroll:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.chip-table { min-width: 100%; }
+.chip-table th, .chip-table td { padding: var(--s-2) var(--s-3); text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.chip-table thead th { color: var(--text-2); font-weight: var(--fw-medium); white-space: normal; min-width: 4.75rem; vertical-align: bottom; }
+.chip-table th:first-child, .chip-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface-1); text-align: left; box-shadow: 1px 0 0 var(--line); min-width: 4.5rem; }
+.chip-table tbody th { font-weight: var(--fw-medium); }
+.chip-table tr.total > * { background: var(--surface-2); font-weight: var(--fw-semibold); }
+.chip-table tr.total > th:first-child { background: var(--surface-2); }
+.chip-table tr.day { cursor: pointer; }
+.chip-table tr.day.open > * { background: var(--surface-2); }
+.chip-table tr.streaks > * { color: var(--text-2); border-bottom: 0; }
+.chip-table tr.detail td { position: static; text-align: left; white-space: normal; box-shadow: none; background: var(--surface-2); }
+.chip-links { position: sticky; left: var(--s-3); display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-3); max-width: calc(100vw - 4rem); }
+.chip-date { border: 0; background: none; padding: 0; font: inherit; color: var(--brand); cursor: pointer; min-height: 1.75rem; text-decoration: underline; text-underline-offset: 2px; }
 
 /* ---------- 狀態：提示、空狀態、骨架、錯誤 ---------- */
 .banner { display: flex; align-items: flex-start; gap: var(--s-3); border-radius: var(--r-md); padding: var(--s-3) var(--s-4); margin: var(--s-3) 0; font-size: var(--fs-caption); line-height: var(--lh-caption); background: var(--surface-1); color: var(--text-1); }

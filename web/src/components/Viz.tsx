@@ -1,6 +1,8 @@
 /** 小型視覺元件：sparkline（含基準虛線）、分數環、紀律三環。 */
 import { extent, pathD, points, yOf } from '../lib/chartMath';
 import { fillForward } from '../lib/periods';
+import { useRef, useState } from 'preact/hooks';
+import { fmtLotsUnit } from '../lib/format';
 import { IconCheck } from './Icons';
 
 /**
@@ -68,20 +70,74 @@ export function Rings3({ progress, complete, animate }: { progress: number[]; co
   );
 }
 
-/** 法人淨買賣超柱狀圖：淨買超紅、淨賣超綠（台股慣例）；最近 5 日不透明，其餘略淡。 */
-export function NetBars({ values, label, height = 120 }: { values: (number | null)[]; label: string; height?: number }) {
+/** 法人淨買賣超柱狀圖：淨買超紅、淨賣超綠（台股慣例）；最近 5 日不透明，其餘略淡。
+ * 座標軸與數值標籤都帶單位（預設張，1 萬張以上縮寫為萬張）；手指拖曳、滑鼠移動或方向鍵可逐日查看日期與數值。 */
+export function NetBars({ values, dates, label, height = 120, unit = '張', format = fmtLotsUnit, caption }: {
+  values: (number | null)[];
+  dates?: string[];
+  label: string;
+  height?: number;
+  /** 單位名稱（無障礙說明用） */
+  unit?: string;
+  /** 數值＋單位的格式（例：fmtLotsUnit → −4.0 萬張） */
+  format?: (v: number | null | undefined, sign?: boolean) => string;
+  caption?: string;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const n = values.length;
   if (!n) return null;
   const max = Math.max(1, ...values.map((v) => Math.abs(v ?? 0)));
   const W = n * 6;
   const mid = height / 2;
+  const idxAt = (x: number) => {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r || !r.width) return null;
+    return Math.min(n - 1, Math.max(0, Math.floor(((x - r.left) / r.width) * n)));
+  };
+  const onPointer = (e: PointerEvent) => {
+    if (e.pointerType === 'mouse' || e.buttons || e.type === 'pointerdown') setHover(idxAt(e.clientX));
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const cur = hover ?? n;
+    setHover(Math.min(n - 1, Math.max(0, cur + (e.key === 'ArrowLeft' ? -1 : 1))));
+  };
+  const hv = hover !== null ? values[hover] : null;
   return (
-    <svg viewBox={`0 0 ${W} ${height}`} width="100%" height={height} preserveAspectRatio="none" role="img" aria-label={label} style={{ display: 'block' }}>
-      {values.map((v, i) => {
-        if (v === null || v === undefined) return null;
-        const bh = Math.max(1.5, (Math.abs(v) / max) * (mid - 4));
-        return <rect key={i} x={i * 6 + 1} y={v >= 0 ? mid - bh : mid} width={4} height={bh} rx={1.5} fill={v >= 0 ? 'var(--up)' : 'var(--down)'} opacity={i >= n - 5 ? 1 : 0.7} />;
-      })}
-    </svg>
+    <figure class="netbars">
+      <div class="netbars-plot" style={{ height: `${height / 16}rem` }}>
+      <div class="nb-axes" aria-hidden="true">
+        <span>{format(max)}</span><span>0</span><span>{format(-max)}</span>
+      </div>
+      <div ref={ref} class="nb-bars" tabIndex={0}
+        role="img" aria-label={`${label}。單位：${unit}；可用左右方向鍵逐日查看。`}
+        onPointerDown={onPointer} onPointerMove={onPointer} onPointerLeave={() => setHover(null)} onPointerCancel={() => setHover(null)}
+        onKeyDown={onKey} onBlur={() => setHover(null)}>
+        <svg viewBox={`0 0 ${W} ${height}`} width="100%" height={height} preserveAspectRatio="none" aria-hidden="true" style={{ display: 'block' }}>
+          <line x1={0} x2={W} y1={mid} y2={mid} stroke="var(--line)" stroke-width={1} vector-effect="non-scaling-stroke" />
+          {hover !== null ? <rect x={hover * 6} y={0} width={6} height={height} fill="var(--surface-2)" /> : null}
+          {values.map((v, i) => {
+            if (v === null || v === undefined) return null;
+            const bh = Math.max(1.5, (Math.abs(v) / max) * (mid - 4));
+            return <rect key={i} x={i * 6 + 1} y={v >= 0 ? mid - bh : mid} width={4} height={bh} rx={1.5} fill={v >= 0 ? 'var(--up)' : 'var(--down)'} opacity={hover === null ? (i >= n - 5 ? 1 : 0.7) : i === hover ? 1 : 0.45} />;
+          })}
+        </svg>
+        {hover !== null ? (
+          <div class={`nb-tip ${hover > n / 2 ? 'left' : ''}`} style={{ left: `${((hover + 0.5) / n) * 100}%` }} role="status">
+            <span class="caption muted">{dates?.[hover] ?? `第 ${hover + 1} 日`}</span>
+            <span class={`num ${hv === null || hv === undefined || hv === 0 ? '' : hv > 0 ? 'up' : 'down'}`}>
+              {hv === null || hv === undefined ? '無資料' : `${hv > 0 ? '▲ 淨買超 ' : hv < 0 ? '▼ 淨賣超 ' : ''}${format(hv, false)}`}
+            </span>
+          </div>
+        ) : null}
+      </div>
+      </div>
+      <figcaption class="row between wrap caption muted" style={{ marginTop: 'var(--s-1)', gap: '0 var(--s-3)' }}>
+        <span>{caption ?? `${n} 個交易日`}</span>
+        <span style={{ whiteSpace: 'nowrap' }}><span class="up" aria-hidden="true">■</span> 紅色＝淨買超{' '}<span class="down" aria-hidden="true">■</span> 綠色＝淨賣超</span>
+      </figcaption>
+    </figure>
   );
 }

@@ -5,20 +5,20 @@ import type { StockHistory } from '../data/types';
 import { series, toOhlc, volumeSeries, type PriceMode } from '../lib/history';
 import { fmtPrice } from '../lib/format';
 
-export interface LowerDef { id: string; label: string; key: keyof StockHistory; kind: 'histogram' | 'line'; signed?: boolean }
+export interface LowerDef { id: string; label: string; key: keyof StockHistory; kind: 'histogram' | 'line'; signed?: boolean; unit: string }
 export const LOWER_PANELS: LowerDef[] = [
-  { id: 'foreign', label: '外資', key: 'fn', kind: 'histogram', signed: true },
-  { id: 'trust', label: '投信', key: 'tn', kind: 'histogram', signed: true },
-  { id: 'dealer', label: '自營商', key: 'dn', kind: 'histogram', signed: true },
-  { id: 'margin', label: '融資', key: 'mb', kind: 'line' },
-  { id: 'short', label: '融券', key: 'sb', kind: 'line' },
-  { id: 'sbl', label: '借券', key: 'sbl', kind: 'line' },
-  { id: 'whale', label: '大戶持股比', key: 'whale', kind: 'line' },
-  { id: 'qfii', label: '外資持股比', key: 'qfii', kind: 'line' },
-  { id: 'daytrade', label: '當沖比率', key: 'dt', kind: 'histogram' },
-  { id: 'pe', label: '本益比', key: 'pe', kind: 'line' },
-  { id: 'pb', label: '淨值比', key: 'pb', kind: 'line' },
-  { id: 'dy', label: '殖利率', key: 'dy', kind: 'line' },
+  { id: 'foreign', label: '外資', key: 'fn', kind: 'histogram', signed: true, unit: '張' },
+  { id: 'trust', label: '投信', key: 'tn', kind: 'histogram', signed: true, unit: '張' },
+  { id: 'dealer', label: '自營商', key: 'dn', kind: 'histogram', signed: true, unit: '張' },
+  { id: 'margin', label: '融資餘額', key: 'mb', kind: 'line', unit: '張' },
+  { id: 'short', label: '融券餘額', key: 'sb', kind: 'line', unit: '張' },
+  { id: 'sbl', label: '借券餘額', key: 'sbl', kind: 'line', unit: '張' },
+  { id: 'whale', label: '大戶持股比', key: 'whale', kind: 'line', unit: '%' },
+  { id: 'qfii', label: '外資持股比', key: 'qfii', kind: 'line', unit: '%' },
+  { id: 'daytrade', label: '當沖比率', key: 'dt', kind: 'histogram', unit: '%' },
+  { id: 'pe', label: '本益比', key: 'pe', kind: 'line', unit: '倍' },
+  { id: 'pb', label: '淨值比', key: 'pb', kind: 'line', unit: '倍' },
+  { id: 'dy', label: '殖利率', key: 'dy', kind: 'line', unit: '%' },
 ];
 
 function cssVar(name: string): string {
@@ -33,7 +33,7 @@ export default function AdvancedChart({ h }: { h: StockHistory }) {
     const ohlc = toOhlc(h, mode);
     const volume = volumeSeries(h, cssVar('--up') || '#ff5c4d', cssVar('--down') || '#2ed47a');
     const def = LOWER_PANELS.find((p) => p.id === lower) ?? LOWER_PANELS[0];
-    const lowerPanel: LowerPanel = { label: def.label, kind: def.kind, signed: def.signed, data: series(h, def.key) };
+    const lowerPanel: LowerPanel = { label: def.label, kind: def.kind, signed: def.signed, unit: def.unit, data: series(h, def.key) };
     const overlays: Overlay[] = [];
     const cl = h.cost as Record<string, (number | null)[]> | undefined;
     if (costLines && cl && mode === 'raw') {
@@ -62,6 +62,11 @@ export default function AdvancedChart({ h }: { h: StockHistory }) {
       </div>
       <KChart ohlc={chart.ohlc} volume={chart.volume} overlays={chart.overlays} lower={chart.lowerPanel}
         ariaLabel={`${h.name} ${mode === 'adj' ? '還原' : '原始'} K 線圖，最新收盤 ${fmtPrice(h.c[last])}`} />
+      <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>
+        成交量單位：張（1 萬張以上以萬張表示）・下方指標：{(LOWER_PANELS.find((p) => p.id === lower) ?? LOWER_PANELS[0]).label}（{(LOWER_PANELS.find((p) => p.id === lower) ?? LOWER_PANELS[0]).unit}）
+        {(LOWER_PANELS.find((p) => p.id === lower) ?? LOWER_PANELS[0]).signed ? <>・<span class="up" aria-hidden="true">■</span> 紅色＝淨買超 <span class="down" aria-hidden="true">■</span> 綠色＝淨賣超</> : null}
+        ・拖曳或移動游標可查看每日數值。
+      </p>
       <div class="chips" role="group" aria-label="下方指標" style={{ marginTop: 'var(--s-2)' }}>
         {available.map((p) => <button key={p.id} class="chip" aria-pressed={lower === p.id} onClick={() => setLower(p.id)}>{p.label}</button>)}
       </div>

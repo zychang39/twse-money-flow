@@ -79,3 +79,13 @@ gamification:
       description: 第一次匯出本機資料備份。
       metric: backups
       target: 1
+
+# ---------- 個股籌碼明細與區間統計（METHODOLOGY §4.7.1） ----------
+chip:
+  days: 60                        # 匯出與顯示的最長交易日數（pipeline 另多帶前一日算增減）
+  table_periods: [5, 10, 20, 60]  # 每日明細表的期間
+  table_default: 10
+  stats_periods: [1, 3, 5, 10, 20, 60]  # 區間統計卡的天數
+  stats_default: 5
+  sentence_min_pct: 0.5           # 各法人區間買賣超都不到成交量的此 % 時，結論寫「都不到」
+  streak_min: 3                   # 連買／連賣達此天數才寫進結論

@@ -10,7 +10,7 @@ import { useScoredSummary } from '../data/useSummary';
 import { loadMarket } from '../data/api';
 import { envInfo } from '../lib/envState';
 import { setListContext } from '../lib/listContext';
-import { fmtNum } from '../lib/format';
+import { fmtNum, fmtYiUnit } from '../lib/format';
 import { navigate } from '../router';
 
 export default function MarketTemp() {
@@ -41,8 +41,8 @@ export default function MarketTemp() {
             {(Object.keys(WHO) as (typeof who)[]).map((k) => <button key={k} aria-pressed={who === k} onClick={() => setWho(k)}>{k === 'all' ? '合計' : WHO[k]}</button>)}
           </div>
           <div style={{ marginTop: 'var(--s-4)' }}>
-            <NetBars values={series} label={`${WHO[who]}每日買賣超金額（近 60 日）`} />
-            <div class="row between caption muted"><span>{WHO[who]}（億元）・近 60 個交易日</span><span><span class="up" aria-hidden="true">■</span> 買超 <span class="down" aria-hidden="true">■</span> 賣超</span></div>
+            <NetBars values={series} dates={flows.slice(-60).map((f) => f.date)} unit="億元" format={fmtYiUnit}
+              label={`${WHO[who]}每日買賣超金額（近 60 日）`} caption={`${WHO[who]}每日買賣超（億元）・近 ${series.length} 個交易日`} />
           </div>
           <h2 class="section" style={{ marginTop: 'var(--s-10)' }}>全市場法人買超（外資＋投信，金額）</h2>
           <div class="stock-list">

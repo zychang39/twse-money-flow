@@ -42,6 +42,11 @@ def scores() -> dict[str, Any]:
     return load("scores")
 
 
+def ui() -> dict[str, Any]:
+    """介面行為參數（config/ui.yml）；pipeline 只用到個股籌碼明細的天數。"""
+    return load("ui")
+
+
 def costs() -> dict[str, Any]:
     return load("costs")
 

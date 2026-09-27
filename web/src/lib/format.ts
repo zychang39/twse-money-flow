@@ -51,6 +51,23 @@ export function fmtLots(v: number | null | undefined): string {
   return `${sign}${Math.round(abs).toLocaleString('zh-TW')}`;
 }
 
+/** 張數＋單位（圖表座標軸、數值標籤、提示框用）：不顯示小數，1 萬張以上縮寫為「萬張」，例：−4.0 萬張、+812 張。 */
+export function fmtLotsUnit(v: number | null | undefined, sign = true): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+  const abs = Math.abs(v);
+  const s = !sign ? '' : v > 0 ? '+' : v < 0 ? '−' : '';
+  if (abs >= 10000) return `${s}${(abs / 10000).toFixed(1)} 萬張`;
+  const r = Math.round(abs);
+  return `${r === 0 ? '' : s}${r.toLocaleString('zh-TW')} 張`;
+}
+
+/** 億元＋單位（市場法人金額圖）：1 位小數。 */
+export function fmtYiUnit(v: number | null | undefined, sign = true): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+  const s = !sign ? '' : v > 0 ? '+' : v < 0 ? '−' : '';
+  return `${s}${Math.abs(v).toFixed(1)} 億元`;
+}
+
 /** 張數（不帶正負號）：萬張以上以「萬」表示。方向由文字（買／賣、增加／減少）或 ▲▼ 表達。 */
 export function fmtLotsAbs(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return '—';
