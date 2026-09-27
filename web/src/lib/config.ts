@@ -64,5 +64,14 @@ export interface UiConfig {
     level_step: number;
     badges: BadgeConfig[];
   };
+  chip: {
+    days: number;
+    table_periods: number[];
+    table_default: number;
+    stats_periods: number[];
+    stats_default: number;
+    sentence_min_pct: number;
+    streak_min: number;
+  };
 }
 export const uiConfig = uiYml as UiConfig;

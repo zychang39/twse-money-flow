@@ -10,6 +10,7 @@ import { HeroChart, usePeriod } from '../components/HeroChart';
 import { ScoreRings, compositeCompleteness, categoryName, scoreText } from '../components/Scores';
 import { ScoreDetailView } from '../components/ScoreDetail';
 import { StockExtras, FairRange } from '../components/StockExtras';
+import { ChipStats, ChipTable } from '../components/Chips';
 import { Sheet } from '../components/Sheet';
 import { NetBars } from '../components/Viz';
 import { Signed } from '../components/Change';
@@ -21,6 +22,7 @@ import { loadStock } from '../data/api';
 import { useScoredSummary } from '../data/useSummary';
 import { addWatch, isWatched, removeWatch } from '../db/db';
 import type { CategoryId } from '../lib/config';
+import type { ChipBlock } from '../lib/chips';
 import { adjClose } from '../lib/history';
 import { change, sliceWindow } from '../lib/periods';
 import { instInsight, type Who } from '../lib/insights';
@@ -31,7 +33,7 @@ import { navigate } from '../router';
 
 const AdvancedChart = lazy(() => import('../components/AdvancedChart'));
 
-type SheetKind = { kind: 'score'; id?: CategoryId } | { kind: 'chip' } | { kind: 'more' } | null;
+type SheetKind = { kind: 'score'; id?: CategoryId } | { kind: 'more' } | null;
 
 function lastOf(a: unknown): number | null {
   if (!Array.isArray(a)) return null;
@@ -73,7 +75,7 @@ export default function Stock({ code }: { code: string }) {
     if (next) navigate(`/stock/${next}`, true, step > 0 ? 'push' : 'pop');
   }
   const onDown = (e: PointerEvent) => {
-    if (!ctx || (e.target as HTMLElement).closest('.chart-wrap, .chips, .periods, .sheet, button, a, input, .chart-box, .scroll-x')) return;
+    if (!ctx || (e.target as HTMLElement).closest('.chart-wrap, .chips, .periods, .sheet, button, a, input, .chart-box, .scroll-x, .chip-scroll, .nb-bars')) return;
     g.current = { x: e.clientX, y: e.clientY, lock: null };
   };
   const onMove = (e: PointerEvent) => {
@@ -99,6 +101,7 @@ export default function Stock({ code }: { code: string }) {
   const revenue = (h?.revenue as { ym: string; revenue: number; yoy: number | null; mom: number | null }[] | undefined) ?? [];
   const rev = revenue[revenue.length - 1];
   const pePct = h ? lastOf((h.series as Record<string, unknown> | undefined)?.pe_percentile) : null;
+  const chip = (h?.chip as ChipBlock | null | undefined) ?? null;
 
   return (
     <div class="page swipe-page" style={{ transform: drag ? `translateX(${drag * 0.4}px)` : undefined, opacity: drag ? 1 - Math.min(0.4, Math.abs(drag) / 600) : undefined }}
@@ -160,10 +163,8 @@ export default function Stock({ code }: { code: string }) {
             {inst ? (
               <>
                 <div style={{ marginTop: 'var(--s-5)' }}>
-                  <NetBars values={inst.values} label={`${{ foreign: '外資', trust: '投信', dealer: '自營商' }[who]}近 60 日每日淨買賣超柱狀圖：${inst.title}`} />
-                </div>
-                <div class="row between caption muted" style={{ marginTop: 'var(--s-1)' }}>
-                  <span>60 個交易日</span><span><span class="up" aria-hidden="true">■</span> 淨買超{' '}<span class="down" aria-hidden="true">■</span> 淨賣超</span>
+                  <NetBars values={inst.values} dates={h.d.slice(-inst.values.length)} caption={`${{ foreign: '外資', trust: '投信', dealer: '自營商' }[who]}每日淨買賣超（張）・近 ${inst.values.length} 個交易日`}
+                    label={`${{ foreign: '外資', trust: '投信', dealer: '自營商' }[who]}近 60 日每日淨買賣超柱狀圖：${inst.title}`} />
                 </div>
                 <div class="card">
                   <div class="body w6">白話重點</div>
@@ -181,9 +182,14 @@ export default function Stock({ code }: { code: string }) {
               <div class="list-item"><span class="grow">融券餘額</span><span class="body">{fmtInt(sb)} 張</span><span class="caption" style={{ minWidth: '4.5rem', textAlign: 'right' }}><Signed value={sb !== null && sb5 !== null ? sb - sb5 : null} format={fmtLots} label="5 日" /></span></div>
               {row?.whale_pct !== null && row?.whale_pct !== undefined ? <div class="list-item"><span class="grow">千張大戶持股比</span><span class="body">{fmtNum(row.whale_pct as number, 1)}%</span></div> : null}
               {row?.foreign_hold_pct !== null && row?.foreign_hold_pct !== undefined ? <div class="list-item"><span class="grow">外資持股比</span><span class="body">{fmtNum(row.foreign_hold_pct as number, 1)}%</span></div> : null}
-              <button class="list-item brand" onClick={() => setSheet({ kind: 'chip' })}>近期每日籌碼明細<span class="chev"><IconChevron /></span></button>
             </div>
             {row && (row.whale_pct === null || row.whale_pct === undefined) ? <Accumulating what="集保大戶持股" detail="集保股權分散表官方只提供最新一週，每週六起逐週累積。" /> : null}
+            {chip ? (
+              <>
+                <ChipStats block={chip} sharesOut={h.shares} />
+                <ChipTable block={chip} code={code} name={h.name} market={h.market} />
+              </>
+            ) : <Accumulating what="每日籌碼明細" detail="需要至少兩個交易日的法人與融資融券資料。" />}
           </Block>
 
           <Block question="營收" answer={rev ? `${rev.ym.slice(0, 4)} 年 ${Number(rev.ym.slice(5, 7))} 月營收年增 ${rev.yoy === null ? '—' : `${rev.yoy.toFixed(1)}%`}` : '沒有月營收資料（ETF 或資料累積中）'}>
@@ -210,28 +216,8 @@ export default function Stock({ code }: { code: string }) {
           </Block>
 
           <Sheet open={!!sheet} onClose={() => setSheet(null)} detent={sheet?.kind === 'score' && sheet.id ? 'half' : 'full'}
-            title={sheet?.kind === 'score' ? (sheet.id ? `${categoryName(sheet.id)}分數明細` : '分數明細') : sheet?.kind === 'chip' ? '近期每日籌碼' : '基本數據、營收、財報與事件'}>
+            title={sheet?.kind === 'score' ? (sheet.id ? `${categoryName(sheet.id)}分數明細` : '分數明細') : '基本數據、營收、財報與事件'}>
             {sheet?.kind === 'score' && h.scores ? <ScoreDetailView detail={h.scores} only={sheet.id} /> : null}
-            {sheet?.kind === 'chip' ? (
-              <div class="scroll-x">
-                <table class="table">
-                  <thead><tr><th>日期</th><th>收盤</th><th>外資</th><th>投信</th><th>自營商</th><th>融資</th><th>融券</th></tr></thead>
-                  <tbody>
-                    {h.d.slice(-15).reverse().map((d, k) => {
-                      const i = h.d.length - 1 - k;
-                      return (
-                        <tr key={d}>
-                          <td>{d.slice(5)}</td><td>{fmtPrice(h.c[i])}</td>
-                          <td><Signed value={h.fn[i]} format={fmtLots} /></td><td><Signed value={h.tn[i]} format={fmtLots} /></td><td><Signed value={h.dn[i]} format={fmtLots} /></td>
-                          <td>{fmtInt(h.mb[i])}</td><td>{fmtInt(h.sb[i])}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <p class="caption muted">單位：張（法人為淨買賣超張數）。</p>
-              </div>
-            ) : null}
             {sheet?.kind === 'more' ? <StockExtras h={h} /> : null}
           </Sheet>
         </>

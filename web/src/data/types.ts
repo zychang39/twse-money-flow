@@ -9,7 +9,13 @@ export interface Meta {
   stocks?: number;
   /** 有 ANTHROPIC_API_KEY 時產生 ai_summary.json */
   ai_summary?: boolean;
+  /** 還原價事件總數（官方＋推估） */
+  adjust_events?: number;
+  /** 以價格跳空推估的還原事件（沒有任何官方事件可以解釋的跳空） */
+  adjust_inferred?: InferredEvent[];
 }
+
+export interface InferredEvent { date: string; code: string; name: string; factor: number }
 
 export interface AiSummary { date: string; lines: string[]; model: string; generated_at: string }
 
@@ -134,7 +140,7 @@ export interface MarketData {
   sectors: Sector[];
   env?: { summary: string; lights: MarketLight[] };
   temperature?: { lights: MarketLight[]; retail?: { date: string; mtx: number | null; tmf: number | null }[] };
-  etf_ranking?: { date: string | null; add: EtfMove[]; reduce: EtfMove[]; status?: string };
+  etf_ranking?: { date: string | null; add: EtfMove[]; reduce: EtfMove[]; status?: string; coverage?: string };
   active_etfs?: { code: string; name: string; close: number; value_million_20d: number | null }[];
 }
 

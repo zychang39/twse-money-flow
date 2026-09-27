@@ -79,6 +79,96 @@ def events_for(ds: Any, code: str, since: str) -> list[dict[str, Any]]:
     return ev[:30]
 
 
+# ------------------------------------------------------------------ 個股籌碼明細（近 N 日，股數精確值）
+CHIP_INSTI = [
+    "foreign_net",
+    "foreign_dealer_net",
+    "trust_net",
+    "dealer_net",
+    "dealer_self_net",
+    "dealer_hedge_net",
+    "total_net",
+]
+CHIP_KEYS = {
+    "foreign_net": "fn",
+    "foreign_dealer_net": "ffd",
+    "trust_net": "tn",
+    "dealer_net": "dn",
+    "dealer_self_net": "dself",
+    "dealer_hedge_net": "dhedge",
+    "total_net": "tot",
+}
+
+
+def _by_code(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame | None:
+    cols = [c for c in cols if c in df.columns]
+    if df.empty or not cols:
+        return None
+    return (
+        df[["code", "date", *cols]]
+        .drop_duplicates(["code", "date"], keep="last")
+        .set_index(["code", "date"])
+        .sort_index()
+    )
+
+
+def chip_sources(ds: Any) -> dict[str, pd.DataFrame]:
+    """三大法人（含外資自營商、自營商自行買賣／避險、官方合計）與借券賣出，依代號索引，供逐檔取用。"""
+    out: dict[str, pd.DataFrame] = {}
+    ins = _by_code(ds.insti, CHIP_INSTI)
+    if ins is not None:
+        out["insti"] = ins
+    sbl = _by_code(ds.table("sbl"), ["sbl_sell"])
+    if sbl is not None:
+        out["sbl"] = sbl
+    return out
+
+
+def _sub(src: dict[str, pd.DataFrame], name: str, code: str) -> pd.DataFrame | None:
+    frame = src.get(name)
+    if frame is None:
+        return None
+    try:
+        return frame.xs(code, level=0)
+    except KeyError:
+        return None
+
+
+def chip_block(p: Any, mp: Any, src: dict[str, pd.DataFrame], code: str, idx: list[str]) -> dict[str, Any] | None:
+    """近 chip.days 個交易日＋前一日（算增減與漲跌用）的每日籌碼。
+
+    法人、借券賣出以「股」為單位（精確值，前端再換算張、金額、佔成交量）；融資融券餘額為「張」。
+    avg＝當日成交金額 ÷ 成交股數（均價）；af＝還原因子（估計成本用還原後均價）；chg＝還原收盤的日漲跌 %。
+    """
+    days = int(config.ui().get("chip", {}).get("days", 60))
+    if len(idx) < 2:
+        return None
+    sel = idx[-(days + 1) :]
+    adj = (p.close[code] * p.af[code]).reindex(idx)
+    chg = ((adj / adj.shift(1) - 1) * 100).reindex(sel)
+    vol = p.volume[code].reindex(sel)
+    avg = (p.value[code].reindex(sel) / vol).where(vol > 0)
+    out: dict[str, Any] = {
+        "d": sel,
+        "c": arr(p.close[code].reindex(sel).to_numpy(), 2),
+        "chg": arr(chg.to_numpy(), 2),
+        "v": arr(vol.to_numpy(), 0),
+        "avg": arr(avg.to_numpy(), 2),
+        "af": arr(p.af[code].reindex(sel).to_numpy(), 6),
+        "mb": arr(p.margin_balance[code].reindex(sel).to_numpy(), 0),
+        "sb": arr(p.short_balance[code].reindex(sel).to_numpy(), 0),
+    }
+    ins = _sub(src, "insti", code)
+    for col, key in CHIP_KEYS.items():
+        vals = ins[col].reindex(sel) if ins is not None and col in ins.columns else pd.Series(np.nan, index=sel)
+        out[key] = arr(vals.to_numpy(), 0)
+    sbl = _sub(src, "sbl", code)
+    out["sbls"] = arr((sbl["sbl_sell"].reindex(sel) if sbl is not None else pd.Series(np.nan, index=sel)).to_numpy(), 0)
+    dt = mp.get("daytrade_pct")[code].reindex(sel) if "daytrade_pct" in mp.panels else pd.Series(np.nan, index=sel)
+    out["dt"] = arr(dt.to_numpy(), 2)
+    return out
+
+
 def cost_lines(p: Any, code: str, idx: list[str]) -> dict[str, list[Any]]:
     windows = config.thresholds()["indicators"]["cost_line_windows"]
     avg = (p.value[code] / p.volume[code]).where(p.volume[code] > 0)

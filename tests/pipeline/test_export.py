@@ -27,6 +27,15 @@ def test_build_web_outputs(tmp_path):
     assert abs(stock["af"][ex_idx - 1] - 32 / 33) < 1e-6 and stock["af"][ex_idx] == 1
     health = json.loads((out / "health.json").read_text())
     assert any(s["id"] == "twse_quotes" for s in health["sources"])
+    # 籌碼明細：近 60 日＋前一日；法人以股為單位且官方合計＝外陸資＋外資自營商＋投信＋自營商、自營商＝自行買賣＋避險
+    chip = stock["chip"]
+    assert len(chip["d"]) == 61 and chip["d"][-1] == "2026-09-24" and chip["d"] == stock["d"][-61:]
+    for i in range(61):
+        assert chip["tot"][i] == chip["fn"][i] + chip["ffd"][i] + chip["tn"][i] + chip["dn"][i]
+        assert chip["dn"][i] == chip["dself"][i] + chip["dhedge"][i]
+        assert abs(chip["fn"][i] / 1000 - stock["fn"][-61 + i]) <= 0.5  # 股數精確值；主陣列為四捨五入後的張數
+    assert chip["avg"][-1] is not None and abs(chip["v"][-1] / 1000 - stock["v"][-1]) <= 0.5
+    assert all(len(v) == 61 for v in chip.values())
 
 
 def test_build_web_without_data(tmp_path):

@@ -91,6 +91,8 @@ def build_store(root: Path, *, days: int = 320, end: date | None = None, seed: i
                     "foreign_net": fnet,
                     "trust_net": tnet,
                     "dealer_net": dnet,
+                    "dealer_self_net": int(dnet * 0.6),
+                    "dealer_hedge_net": dnet - int(dnet * 0.6),
                     "foreign_dealer_net": 0,
                     "total_net": fnet + tnet + dnet,
                 }
@@ -233,7 +235,13 @@ def _advanced(store: DataStore, dates: list[date], rng: np.random.Generator, pat
                 d,
                 pd.DataFrame(
                     [
-                        {"date": iso, "code": c, "name": n, "sbl_balance": int(5e6 + 1e6 * np.sin(i / 15 + k))}
+                        {
+                            "date": iso,
+                            "code": c,
+                            "name": n,
+                            "sbl_balance": int(5e6 + 1e6 * np.sin(i / 15 + k)),
+                            "sbl_sell": int(abs(2e5 * np.sin(i / 7 + k))),
+                        }
                         for k, (c, n) in enumerate(recs)
                     ]
                 ),

@@ -99,13 +99,50 @@
 | taifex_oi | 各契約全市場未平倉 | POST `www.taifex.com.tw/cht/3/futDataDown`（Big5 CSV，依到期月份，取「一般」時段加總） | 約 15:00 | ✅ |
 | fx_usdtwd | 美元兌台幣 | POST `www.taifex.com.tw/cht/3/dailyFXRateDown`（Big5 CSV） | 每日 | ✅ |
 | financials | 季財報（上市＋上櫃） | MOPS `ajax_t163sb04`（綜合損益彙總）、`ajax_t163sb05`（資產負債彙總），GET 帶 `TYPEK=sii/otc&year=民國年&season=季`；一次涵蓋一般業、金融、證券、保險等所有格式 | 法定期限後 | ✅（Actions 實測；OpenAPI t187ap06／07 只有最新一季且依產業分檔，改用 MOPS） |
-| active_etf | 主動式 ETF 每日持股 | 各投信官網 PCF（無集中端點；證交所 ETF 專區、櫃買 ETF 訊息中心、FundClear 皆無持股明細 API） | 每日 | ⛔ 資料源待處理（DECISIONS #22；清單由行情代號 00xxxA 判定，計算框架已完成） |
+| active_etf | 主動式 ETF 每日持股 | 各發行投信官網的持股揭露／申購買回清單（PCF），逐家實作（見下方「主動式 ETF 持股」） | 每日（多為當晚或次一營業日） | 🟡 部分涵蓋：4 家投信、8／32 檔（DECISIONS #22） |
 
 其他：`twse_insider`／`tpex_insider`（內部人轉讓事前申報，OpenAPI t187ap12_L／mopsfin_t187ap12_O）列為選配資料並用於風險旗標。
 
 集保欄位：`資料日期, 證券代號, 持股分級, 人數, 股數, 占集保庫存數比例%`；證券代號右側補空白（如 `2330  `）。分級 1–15 為持股區間，16 為差異數調整，17 為合計。
 
 期交所三大法人欄位：`日期, 商品名稱, 身份別, 多方交易口數, 多方交易契約金額(千元), 空方交易口數, …, 多方未平倉口數, 多方未平倉契約金額(千元), 空方未平倉口數, 空方未平倉契約金額(千元), 多空未平倉口數淨額, 多空未平倉契約金額淨額(千元)`。
+
+## 主動式 ETF 持股（各投信官網，部分涵蓋）
+
+法規要求投信每日揭露主動式 ETF 的完整持股，但只公告在各投信官網，格式不一；證交所、櫃買「ETF 訊息中心」與 FundClear 都沒有集中的持股明細端點。2026-09-27 再試兩個方向：
+
+**1. 證交所 ETF 專區（e添富，`www.twse.com.tw/zh/ETFortune/…`）**：本環境連不到證交所，改由 Actions 取樣 `ETFortune/index` 與 `ETFortune/etfInfo/00980A`（`tests/fixtures/raw/twse_etfortune_*.html`）。個別 ETF 頁只有基本資料、規模、受益人數、配息、淨值與折溢價、分割預告與績效，**沒有持股或申購買回清單**；而且 e添富使用條款寫明「非依臺灣證券交易所同意之方式……禁止透過包括但不限於自動化裝置、指令碼、自動程式、蜘蛛程式、爬蟲程式或擷取程式等方式下載本網站之軟體或資料」→ 不採用。
+
+**2. 各投信官網的持股揭露／申購買回清單（PCF）**：以行情代號 `00xxxA` 找出 32 檔主動式 ETF（2026-09-24：上市 30、上櫃 2），依名稱判定 16 家發行投信，逐家實測（遇到反爬、導向循環或驗證機制就跳過，不嘗試繞過）：
+
+| 投信 | 主動式 ETF | 狀態 | 端點／原因 |
+|---|---|---|---|
+| 野村 | 00980A、00985A、00999A | ✅ 已實作 | POST JSON `www.nomurafunds.com.tw/API/ETFAPI/api/Fund/GetFundAssets`（`FundID`、`SearchDate`）；可查歷史；非交易日回 `StatusCode 5`；持股日＝`FundAsset.NavDate` |
+| 群益 | 00982A、00992A、00997A（00415A 待掛牌） | ✅ 已實作 | POST JSON `www.capitalfund.com.tw/CFWeb/api/etf/items` 取內部基金代碼 → `…/etf/buyback`（`fundId`、`date`＝清單適用日，`null`＝最新）；持股日＝`pcf.date2`（比查詢日早 1 個交易日） |
+| 元大 | 00990A | ✅ 已實作 | GET `etfapi.yuantaetfs.com/ectranslation/api/bridge?APIType=ETFAPI&AppName=ETF&Device=3&Platform=ETF&FuncId=PCF/Daily&ticker=…[&date=公告日]`；持股日＝`PCF.trandate`（00990A 為全球型，比公告日早 2 個交易日）；海外持股不列入 |
+| 富邦 | 00405A | ✅ 已實作 | GET HTML `websys.fsit.com.tw/FubonETF/Trade/Assets.aspx?stkId=…&ddate=YYYY/MM/DD`；非交易日會回傳最近一次的資料，以頁面「資料日期」為準 |
+| 國泰 | 00400A | ⛔ 跳過（反爬） | `cwapi.cathaysite.com.tw/api/ETF/GetETFDetailStockList` 前有網站防火牆（Akamai）：以本工具的 User-Agent（含專案網址）請求回 403 Access Denied；換成瀏覽器 User-Agent 雖可取得，但屬繞過反爬機制，依規則不做。解析器已依真實樣本完成並有測試，網站開放後把 `config/sources.yml` 的 `status` 改為 `verified` 即可啟用 |
+| 統一 | 00403A、00411A、00981A、00988A | ⛔ 跳過（導向循環） | `www.ezmoney.com.tw` 302 導向超過 50 次 |
+| 兆豐 | 00996A | ⛔ 跳過（拒絕存取） | `www.megafunds.com.tw` 回 403 |
+| 安聯 | 00402A、00984A、00993A | ⛔ 跳過（驗證機制） | `etf.allianzgi.com.tw` 的 API 需先取得 AntiForgery 權杖 |
+| 永豐 | 00410A | ⏳ 待處理 | `www.sinopacfunds.com.tw` 本環境連線逾時，未取得樣本 |
+| 台新 | 00986A、00987A | ⏳ 待處理 | `www.tsit.com.tw`／`www.taishinfunds.com.tw` 本環境連線逾時 |
+| 摩根 | 00401A、00989A | ⏳ 待處理 | `am.jpmorgan.com/tw` 回 HTTP 500 |
+| 凱基 | 00407A | ⏳ 待處理 | 首頁可連，基金明細頁逾時，未找到持股端點 |
+| 聯博 | 00404A | ⏳ 待處理 | 首頁可連（靜態網站），未找到持股端點 |
+| 中國信託 | 00406A、00983A、00995A | ⏳ 待處理 | 單頁應用程式，未找到持股端點 |
+| 第一金 | 00408A、00994A | ⏳ 待處理 | 首頁可連，未找到主動式 ETF 持股端點 |
+| 復華 | 00409A、00991A、00998A | ⏳ 待處理 | 首頁可連，未找到持股端點 |
+
+實作細節（`pipeline/sources/etf_holdings.py`、`pipeline/tasks_advanced.py::run_etf_holdings`；投信清單與狀態在 `config/sources.yml` 的 `active_etf.issuers`）：
+
+- 欄位：`date`（持股日＝淨值日）、`etf`、`code`、`name`、`shares`（股）、`weight`（%）；存成 `raw/etf_holdings/{YYYY}/{YYYYMM01}.csv.gz`（月檔），同一檔 ETF 同一天整批取代。
+- 只保留台灣掛牌證券（4–6 碼，可帶 1 碼英文）；期貨、現金、海外持股不列入。
+- 日期定義以「淨值 ÷ 收盤價」對照驗證：各家的持股日欄位都與當日收盤價對應（例：國泰 00400A 淨值 15.53／15.66／15.74 對應 9/22–9/24 收盤 15.49／15.57／15.66）。
+- 每日任務：最近 3 個交易日缺的持股日各試一次；第一次看到的 ETF 若不到兩天，最多往回 20 個交易日取得第二天（計算加碼／減碼需要）。同一投信出現 HTTP 4xx 或基金清單取不到，本輪就不再請求該投信。回補：`python -m pipeline backfill --source active_etf --start … --end …`。
+- 禮節：與其他來源相同（依序、3–5 秒間隔、退避、斷路器）；robots.txt：群益、元大允許全部，富邦允許 `/FubonETF`，野村與元大 API 主機沒有 robots.txt；富邦使用條款未見禁止自動化擷取的條文，其他投信未找到條款頁。
+- 實測（2026-09-27，真實網站）：24 次請求、約 160 秒取得 8 檔的 2–3 個持股日（834 列）；樣本在 `tests/fixtures/samples/etf_*`，測試在 `tests/pipeline/test_etf_holdings.py`。
+- 限制：只涵蓋 8／32 檔，跨檔加碼／減碼排行只反映這 4 家投信，市場頁與個股頁都標示「部分涵蓋」。
 
 ## 選配資料
 
@@ -129,5 +166,5 @@
 | 資料 | 原因 |
 |---|---|
 | 分點券商進出 | 證交所買賣日報表、櫃買券商買賣日報表皆需驗證碼；無官方開放資料（DECISIONS #28） |
-| 主動式 ETF 持股 | 僅各投信官網揭露、無集中來源（DECISIONS #22，框架已完成） |
+| 證交所 e添富（ETF 專區）持股 | 個別 ETF 頁沒有持股或申購買回清單，且使用條款禁止以爬蟲等自動化方式下載（主動式 ETF 持股改由各投信官網取得，見上方） |
 | FRED 美元指數 | Actions 與本環境皆連線失敗 |

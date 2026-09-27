@@ -287,7 +287,7 @@ BACKFILL_DEFAULT = [
 
 
 # 回補未指定來源時的完整清單：區間／月查詢 → 期交所、美債、財報、央行 → 每日（核心 3 年、進階近一年）
-CUSTOM_BACKFILL = ["taifex", "ust_10y", "financials", "cbc_money", "investor_conference"]
+CUSTOM_BACKFILL = ["taifex", "ust_10y", "financials", "cbc_money", "investor_conference", "active_etf"]
 BACKFILL_FULL = [
     *CORE_RANGE,
     "tpex_index",

@@ -1,4 +1,4 @@
-/** 主動式 ETF：清單（依 20 日均成交值）與跨檔加碼／減碼排行（持股資料源待處理時如實標示）。 */
+/** 主動式 ETF：清單（依 20 日均成交值）與跨檔加碼／減碼排行（持股為部分涵蓋，如實標示來源與範圍）。 */
 import { PageHead, TopBar } from '../components/Chrome';
 import { Banner, DataStatus, ErrorState, Loading } from '../components/DataStatus';
 import { Signed } from '../components/Change';
@@ -36,10 +36,11 @@ export default function Etf() {
               ))}
             </div>
           ) : (
-            <Banner icon={<IconInfo />} title="持股變化：資料源待處理">
+            <Banner icon={<IconInfo />} title="持股變化：部分涵蓋">
               {m.etf_ranking?.status ?? '主動式 ETF 的每日持股只公布在各投信官網，尚未取得集中且可自動化的來源。清單與成交資訊照常顯示。'}
             </Banner>
           )}
+          {m.etf_ranking?.coverage ? <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>{m.etf_ranking.coverage}{m.etf_ranking.date ? `（${m.etf_ranking.date}）` : ''}</p> : null}
           <div class="list" style={{ marginTop: 'var(--s-4)' }}>
             {list.map((e) => (
               <a key={e.code} class="list-item" href={`#/stock/${e.code}`} onClick={() => setListContext({ name: '主動式 ETF', codes: list.map((x) => x.code) })}>

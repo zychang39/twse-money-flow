@@ -383,11 +383,104 @@ sources:
     publish: "法定期限：Q1 5/15、Q2 8/14、Q3 11/14、年報 3/31"
     status: verified
   active_etf:
-    label: 主動式 ETF 清單與每日持股揭露
-    market: twse
+    label: 主動式 ETF 每日持股（各投信官網持股揭露／PCF，部分涵蓋）
+    market: both
     tier: advanced
     frequency: daily
-    status: pending
+    status: partial   # 只涵蓋無反爬、無導向循環、無驗證機制的投信；其餘標示狀態與原因（docs/DATA_SOURCES.md）
+    backfill_days: 20   # 每日任務若某檔 ETF 尚無前一次揭露，最多往回補幾個交易日（計算加碼／減碼需要兩天）
+    # keyword：由行情名稱（主動○○…）判定發行投信。status：verified 已實作；skipped 依規則跳過；pending 待處理。
+    issuers:
+      nomura:
+        label: 野村投信
+        keyword: 野村
+        status: verified
+        method: 'POST JSON {"FundID": 代號, "SearchDate": "YYYY-MM-DD"}'
+        url: https://www.nomurafunds.com.tw/API/ETFAPI/api/Fund/GetFundAssets
+      capital:
+        label: 群益投信
+        keyword: 群益
+        status: verified
+        method: 'POST JSON {"fundId": 基金代碼, "date": "YYYY/MM/DD" 或 null＝最新}（基金代碼由 list_url 取得）；date＝申購買回清單適用日，回應 pcf.date2 為持股日'
+        lag_days: 1   # 查詢日（公告日）比持股日晚 1 個交易日
+        list_url: https://www.capitalfund.com.tw/CFWeb/api/etf/items
+        url: https://www.capitalfund.com.tw/CFWeb/api/etf/buyback
+      yuanta:
+        label: 元大投信
+        keyword: 元大
+        status: verified
+        method: 'GET；date＝申購買回清單公告日（不帶＝最新），回應的 trandate 為持股日'
+        lag_days: 2   # 00990A（全球型）公告日比持股日晚 2 個交易日
+        url: https://etfapi.yuantaetfs.com/ectranslation/api/bridge?APIType=ETFAPI&AppName=ETF&Device=3&Platform=ETF&FuncId=PCF/Daily&ticker={etf}   # 查歷史時加上 &date=YYYYMMDD
+      fubon:
+        label: 富邦投信
+        keyword: 富邦
+        status: verified
+        method: 'GET HTML；非交易日回傳最近一個有資料的日期（以頁面「資料日期」為準）'
+        url: https://websys.fsit.com.tw/FubonETF/Trade/Assets.aspx?stkId={etf}&ddate={slash}&lan=TW
+      cathay:
+        label: 國泰投信
+        keyword: 國泰
+        status: skipped
+        reason: API 前有網站防火牆（Akamai），以本工具的 User-Agent（含聯絡網址）請求回 403 Access Denied；改用瀏覽器 User-Agent 雖可取得，但屬繞過反爬機制，依規則跳過。解析器已依真實樣本完成（pipeline/sources/etf_holdings.py），網站開放後把 status 改為 verified 即可啟用
+        method: 'GET；基金代碼由 list_url（ETFType=06 主動式）取得'
+        list_url: https://cwapi.cathaysite.com.tw/api/ETF/GetETFList?FundType=&Keyword=&CurrentPage=1&PerPageCount=100&ETFType=06
+        url: https://cwapi.cathaysite.com.tw/api/ETF/GetETFDetailStockList?FundCode={fund}&SearchDate={slash}
+      uni:
+        label: 統一投信
+        keyword: 統一
+        status: skipped
+        reason: 官網（ezmoney.com.tw）導向循環（302 超過 50 次），依規則不繞過
+      mega:
+        label: 兆豐投信
+        keyword: 兆豐
+        status: skipped
+        reason: 官網回應 403（拒絕存取），依規則不繞過
+      allianz:
+        label: 安聯投信
+        keyword: 安聯
+        status: skipped
+        reason: ETF 網站 API 需先取得 AntiForgery 權杖（驗證機制），依規則不繞過
+      sinopac:
+        label: 永豐投信
+        keyword: 永豐
+        status: pending
+        reason: 開發環境連線失敗（逾時），尚未取得樣本
+      taishin:
+        label: 台新投信
+        keyword: 台新
+        status: pending
+        reason: 開發環境連線失敗（逾時），尚未取得樣本
+      jpmorgan:
+        label: 摩根投信
+        keyword: 摩根
+        status: pending
+        reason: 官網回應 HTTP 500，尚未取得樣本
+      kgi:
+        label: 凱基投信
+        keyword: 凱基
+        status: pending
+        reason: 首頁可連，基金明細頁逾時，尚未找到持股端點
+      ab:
+        label: 聯博投信
+        keyword: 聯博
+        status: pending
+        reason: 首頁可連（靜態網站），尚未找到持股端點
+      ctbc:
+        label: 中國信託投信
+        keyword: 中信
+        status: pending
+        reason: 單頁應用程式，尚未找到持股端點
+      fsitc:
+        label: 第一金投信
+        keyword: 第一金
+        status: pending
+        reason: 首頁可連，尚未找到主動式 ETF 持股端點
+      fhtrust:
+        label: 復華投信
+        keyword: 復華
+        status: pending
+        reason: 首頁可連，尚未找到持股端點
 
   # ---------- 選配 ----------
   twse_insider:
