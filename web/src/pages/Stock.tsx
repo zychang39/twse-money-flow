@@ -191,6 +191,12 @@ export default function Stock({ code }: { code: string }) {
               {row?.foreign_hold_pct !== null && row?.foreign_hold_pct !== undefined ? <div class="list-item"><span class="grow">外資持股比</span><span class="body">{fmtNum(row.foreign_hold_pct as number, 1)}%</span></div> : null}
             </div>
             {row && (row.whale_pct === null || row.whale_pct === undefined) ? <Accumulating what="集保大戶持股" detail="集保股權分散表官方只提供最新一週，每週六起逐週累積。" /> : null}
+            <div class="list">
+              <a class="list-item brand" href={`#/stock/${code}/holders`}>
+                <span class="grow">大戶與散戶持股<span class="caption muted tool-sub">門檻可調・持股比例、人數、人均張數的逐週走勢</span></span>
+                <span class="chev"><IconChevron /></span>
+              </a>
+            </div>
             {chip ? (
               <>
                 <ChipStats block={chip} sharesOut={h.shares} />

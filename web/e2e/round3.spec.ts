@@ -41,7 +41,7 @@ test('M2：個股頁有入口；報表一次列出四個法人的區間合計，
   await page.goto('#/stock/2330');
   await page.getByRole('link', { name: /法人買賣超報表/ }).click();
   await expect(page).toHaveURL(/#\/stock\/2330\/institutional$/);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^外資近 60 日(買超|賣超|買賣超持平)/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^外資近\s60\s日(買超|賣超|買賣超持平)/);
   const sum = page.locator('table.ir-sum').first();
   await expect(sum.getByRole('row')).toHaveCount(5);
   for (const name of ['外資', '投信', '自營商', '三大法人']) await expect(sum.getByRole('button', { name: new RegExp(`^${name}：`) })).toBeVisible();
@@ -54,15 +54,15 @@ test('M2：個股頁有入口；報表一次列出四個法人的區間合計，
   await expect(page.locator('.ir-table tbody tr')).toHaveCount(61);
   // 切到投信：標題、圖、明細一起換
   await page.getByRole('group', { name: '法人' }).getByRole('button', { name: '投信' }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^投信近 60 日/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^投信近\s60\s日/);
   await expect(page.getByRole('img', { name: /投信買賣超走勢/ })).toBeVisible();
   // 點區間合計的一列也能切換
   await sum.getByRole('button', { name: /^自營商：/ }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^自營商近 60 日/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^自營商近\s60\s日/);
   // 期間 1 個月＝20 日
   await page.getByRole('group', { name: '期間' }).getByRole('button', { name: '1 個月' }).click();
   await expect(page.locator('.ir-table tbody tr')).toHaveCount(21);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^自營商近 20 日/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^自營商近\s20\s日/);
 });
 
 for (const width of [375, 393]) {
@@ -113,3 +113,67 @@ test('M2：點一列打開當天完整籌碼（含四個法人的買張、賣張
   await page.keyboard.press('Escape');
   await expect(page.locator('.sc-tip')).toHaveCount(0);
 });
+
+// ---------------------------------------------------------------- M3 大戶與散戶持股
+test('M3：個股頁有入口；門檻可用常用組合或滑桿（鍵盤）調整，重新開啟後仍記得', async ({ page }) => {
+  await page.goto('#/stock/2330');
+  await page.getByRole('link', { name: /大戶與散戶持股/ }).click();
+  await expect(page).toHaveURL(/#\/stock\/2330\/holders$/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^大戶持股\s[\d.]+%/);
+  const groups = page.locator('.hd-groups');
+  await expect(groups).toContainText('10 張以下');
+  await expect(groups).toContainText('超過 400 張');
+  // 常用組合：千張大戶
+  await page.getByRole('group', { name: '常用門檻' }).getByRole('button', { name: '千張大戶' }).click();
+  await expect(groups).toContainText('超過 1000 張');
+  await expect(page.locator('.sc-title', { hasText: '大戶（超過 1000 張）持股比例（%）' })).toHaveCount(1);
+  // 滑桿（鍵盤）：大戶門檻往左一格＝800 張；散戶門檻往右一格＝15 張
+  const big = page.getByRole('slider', { name: '大戶門檻' });
+  await big.focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(big).toHaveAttribute('aria-valuetext', '大戶：超過 800 張');
+  const small = page.getByRole('slider', { name: '散戶門檻' });
+  await small.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(small).toHaveAttribute('aria-valuetext', '散戶：15 張以下');
+  await expect(page.getByTestId('hd-sentence')).toContainText('超過 800 張');
+  await expect(page.getByTestId('hd-sentence')).not.toHaveText(/買進|賣出|建議/);
+  // 兩個門檻不會交叉：散戶門檻一路往右，最多停在大戶門檻的前一格
+  for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowRight');
+  await expect(small).toHaveAttribute('aria-valuetext', '散戶：600 張以下');
+  // 記住設定
+  await page.reload();
+  await expect(page.getByRole('slider', { name: '大戶門檻' })).toHaveAttribute('aria-valuetext', '大戶：超過 800 張');
+  await expect(page.getByRole('slider', { name: '散戶門檻' })).toHaveAttribute('aria-valuetext', '散戶：600 張以下');
+});
+
+test('M3：指標與期間切換走勢圖；分級分布依門檻分成散戶／中實戶／大戶', async ({ page }) => {
+  await page.goto('#/stock/2330/holders');
+  await page.getByRole('group', { name: '常用門檻' }).getByRole('button', { name: '400 張大戶' }).click();
+  await page.getByRole('group', { name: '指標' }).getByRole('button', { name: '人數' }).click();
+  await expect(page.locator('.sc-title', { hasText: '大戶（超過 400 張）人數（人）' })).toHaveCount(1);
+  await page.getByRole('group', { name: '指標' }).getByRole('button', { name: '人均張數' }).click();
+  await expect(page.locator('.sc-title', { hasText: '散戶（10 張以下）人均張數（張）' })).toHaveCount(1);
+  await page.getByRole('group', { name: '期間' }).getByRole('button', { name: '3 個月' }).click();
+  await expect(page.getByRole('heading', { name: /^走勢・\d+ 週$/ })).toHaveText(/走勢・(1[0-3]) 週/);
+  const sections = page.locator('.hd-table tbody');
+  await expect(sections).toHaveCount(3);
+  await expect(sections.nth(0).getByRole('row')).toHaveCount(1 + 3); // 散戶：不到 1、1–5、5–10 張
+  await expect(sections.nth(2).getByRole('row')).toHaveCount(1 + 4); // 大戶：400–600、600–800、800–1000、超過 1000
+});
+
+for (const width of [375, 393]) {
+  test(`M3：${width}pt 寬度不需要左右滑動，數字沒有被裁切`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 852 });
+    await page.goto('#/stock/2330/holders');
+    await expect(page.locator('.hd-table')).toBeVisible();
+    for (const m of ['持股比例', '人數', '人均張數']) {
+      await page.getByRole('group', { name: '指標' }).getByRole('button', { name: m }).click();
+      const doc = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
+      expect(doc.sw).toBeLessThanOrEqual(doc.cw);
+      const clipped = await page.evaluate(() => [...document.querySelectorAll('.hd-table th, .hd-table td, .hd-groups dd span, .hd-groups dt')]
+        .filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent));
+      expect(clipped).toEqual([]);
+    }
+  });
+}

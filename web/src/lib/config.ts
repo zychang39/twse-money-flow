@@ -75,5 +75,12 @@ export interface UiConfig {
   };
   hot_momentum: { label: string; exclude_etf: boolean; value_rank_top: number; min_rs_percentile: number; max_warn_flags: number; max_danger_flags: number; size: number };
   sample_watchlist: { group: string; codes: string[] };
+  holders: {
+    breakpoints: number[];
+    default_big: number;
+    default_small: number;
+    presets: { label: string; big: number; small: number }[];
+    weeks: number;
+  };
 }
 export const uiConfig = uiYml as UiConfig;

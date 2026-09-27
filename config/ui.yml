@@ -116,7 +116,7 @@ holders:
     - { label: 千張大戶, big: 1000, small: 10 }
     - { label: 400 張大戶, big: 400, small: 10 }
     - { label: 百張大戶, big: 100, small: 5 }
-    - { label: 散戶＜50 張, big: 400, small: 50 }
+    - { label: 散戶放寬到 50 張, big: 400, small: 50 }
   weeks: 52                 # 個股檔輸出的週數
   # 集保個股歷史查詢（backfill --source tdcc_history）：官方保存一年；逐檔逐週查詢，每次執行有請求上限
   history:

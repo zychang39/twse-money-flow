@@ -30,7 +30,8 @@ export function StockToolFrame({ code, h, loading, error, tool, title, actions, 
       <TopBar back={`/stock/${code}`} avatar={false} caption={h ? `${h.name} ${code}` : code} actions={actions} />
       <header class="page-head">
         <div class="eyebrow">{h ? `${h.name}・${code}・` : ''}{tool}</div>
-        <h1 class="title two-line">{h ? title : ' '}</h1>
+        {/* 標題的空白換成不換行空白：搭配 keep-all，只在標點後換行（數字與單位不拆開） */}
+        <h1 class="title two-line">{h ? (typeof title === 'string' ? title.replace(/ /g, '\u00a0') : title) : '\u00a0'}</h1>
       </header>
       {error ? <ErrorState error={error} title="找不到這檔股票的資料" /> : null}
       {loading && !h ? <Loading hero /> : null}
