@@ -7,6 +7,8 @@ interface Fair { methods: FairMethod[]; combined: { cheap: number; fair: number;
 interface RevenueRow { ym: string; revenue: number; yoy: number | null; mom: number | null }
 interface EventRow { date: string; type: string; text: string }
 interface EtfHolder { etf: string; name: string; weight: number | null; change_shares: number | null; date: string }
+interface QuarterRow { period: string; revenue: number | null; gross_margin: number | null; net_income: number | null }
+interface ShortHalt { last_cover_date: string; end: string; reason: string | null }
 
 /** 個股頁的延伸區塊：健檢摘要、合理價、月營收、ETF 持有、近期事件（有資料才顯示）。 */
 export function StockExtras({ h }: { h: StockHistory }) {
@@ -15,6 +17,8 @@ export function StockExtras({ h }: { h: StockHistory }) {
   const revenue = h.revenue as RevenueRow[] | undefined;
   const events = h.events as EventRow[] | undefined;
   const etfs = h.etf_holders as EtfHolder[] | undefined;
+  const quarters = h.quarters as QuarterRow[] | undefined;
+  const halt = h.short_halt as ShortHalt | null | undefined;
   return (
     <>
       {summary && summary.length ? (
@@ -68,6 +72,29 @@ export function StockExtras({ h }: { h: StockHistory }) {
                 ))}
               </tbody>
             </table>
+          </div>
+        </>
+      ) : null}
+
+      {halt ? (
+        <div class="banner" role="status">融券最後回補日 {halt.last_cover_date}（停券至 {halt.end}{halt.reason ? `，${halt.reason}` : ''}）</div>
+      ) : null}
+
+      {quarters && quarters.length ? (
+        <>
+          <h2 class="title-2">季財報（單季）</h2>
+          <div class="card scroll-x">
+            <table class="table">
+              <thead><tr><th>季度</th><th>營收（億）</th><th>毛利率</th><th>稅後淨利（億）</th></tr></thead>
+              <tbody>
+                {quarters.slice().reverse().map((q) => (
+                  <tr key={q.period}><td>{q.period}</td><td>{fmtNum(q.revenue === null ? null : q.revenue / 1e5, 1)}</td>
+                    <td>{q.gross_margin === null ? '—' : `${fmtNum(q.gross_margin, 1)}%`}</td>
+                    <td><Signed value={q.net_income === null ? null : q.net_income / 1e5} format={(v) => fmtNum(v, 2)} /></td></tr>
+                ))}
+              </tbody>
+            </table>
+            <p class="tiny muted">MOPS 財報彙總（仟元換算為億元）；單季 = 本季累計 − 上季累計。</p>
           </div>
         </>
       ) : null}

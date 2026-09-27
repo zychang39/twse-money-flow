@@ -123,7 +123,7 @@ export default function Screener() {
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div class="small"><Change change={row.change} pct={row.change_pct} showPrice={row.close} /></div>
-                <div class="bold num" aria-label={`綜合分 ${scoreText(row.composite)}`}>{scoreText(row.composite)} <span class="tiny muted">分</span></div>
+                <div class="bold num"><span class="sr-only">綜合分 </span>{scoreText(row.composite)} <span class="tiny muted">分</span></div>
               </div>
             </a>
           );

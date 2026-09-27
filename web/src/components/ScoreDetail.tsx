@@ -15,7 +15,7 @@ export function ScoreDetailView({ detail }: { detail: ScoreDetail }) {
           <div class="card" key={cid}>
             <div class="row between">
               <div class="headline">{cat.label}</div>
-              <div class="bold num" aria-label={`${cat.label} ${scoreText(got?.score)}`}>{scoreText(got?.score)}</div>
+              <div class="bold num"><span class="sr-only">{`${cat.label} `}</span>{scoreText(got?.score)}</div>
             </div>
             <p class="small muted" style={{ margin: '0.25rem 0 0.5rem' }}>{cat.description}</p>
             {cat.factors.map((f) => {

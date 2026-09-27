@@ -1,7 +1,11 @@
-# 盤中到價提醒（由 App「匯出提醒設定」產生後貼上，commit 到 main）
-# above：盤中成交價 ≥ 此價推送；below：≤ 此價推送；note：備註
+# 盤中到價提醒與盤後日報（由 App「更多 → 設定 → 匯出提醒設定」產生後貼上，commit 到 main）
+# digest：Telegram 盤後日報要列出的代號（自選股＋持股）；留空則列綜合分數上升最多的 5 檔
+# alerts：above＝盤中價格（含當日最高）≥ 此價推送；below＝（含當日最低）≤ 此價推送；note：備註
+# 同一條件每天只推送一次；需在 repo secrets 設定 TELEGRAM_BOT_TOKEN、TELEGRAM_CHAT_ID
 version: 1
+digest: []
 alerts: []
 # 範例：
+# digest: ["2330", "0050"]
 # alerts:
 #   - { code: "2330", above: 2600, below: 2300, note: 前高／停損 }

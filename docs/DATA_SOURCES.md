@@ -98,8 +98,10 @@
 | taifex_insti | 三大法人期貨（TXF/MXF/TMF） | POST `www.taifex.com.tw/cht/3/futContractsDateDown`（Big5 CSV） | 約 15:00 | ✅ |
 | taifex_oi | 各契約全市場未平倉 | POST `www.taifex.com.tw/cht/3/futDataDown`（Big5 CSV，依到期月份，取「一般」時段加總） | 約 15:00 | ✅ |
 | fx_usdtwd | 美元兌台幣 | POST `www.taifex.com.tw/cht/3/dailyFXRateDown`（Big5 CSV） | 每日 | ✅ |
-| twse_financials / tpex_financials | 季財報 | `t187ap06_L_ci`（損益）、`t187ap17_L`（營益分析）、`t187ap07_L_ci`（資產負債）；上櫃 `mopsfin_*_O` | 最新一季 | ✅（僅一般業；金融業等另有端點，暫以 EPS／營益分析為主） |
-| active_etf | 主動式 ETF 每日持股 | 各投信官網 PCF（無集中端點） | 每日 | ⛔ 資料源待處理（見 DECISIONS） |
+| financials | 季財報（上市＋上櫃） | MOPS `ajax_t163sb04`（綜合損益彙總）、`ajax_t163sb05`（資產負債彙總），GET 帶 `TYPEK=sii/otc&year=民國年&season=季`；一次涵蓋一般業、金融、證券、保險等所有格式 | 法定期限後 | ✅（Actions 實測；OpenAPI t187ap06／07 只有最新一季且依產業分檔，改用 MOPS） |
+| active_etf | 主動式 ETF 每日持股 | 各投信官網 PCF（無集中端點；證交所 ETF 專區、櫃買 ETF 訊息中心、FundClear 皆無持股明細 API） | 每日 | ⛔ 資料源待處理（DECISIONS #22；清單由行情代號 00xxxA 判定，計算框架已完成） |
+
+其他：`twse_insider`／`tpex_insider`（內部人轉讓事前申報，OpenAPI t187ap12_L／mopsfin_t187ap12_O）列為選配資料並用於風險旗標。
 
 集保欄位：`資料日期, 證券代號, 持股分級, 人數, 股數, 占集保庫存數比例%`；證券代號右側補空白（如 `2330  `）。分級 1–15 為持股區間，16 為差異數調整，17 為合計。
 
@@ -111,13 +113,21 @@
 |---|---|---|---|
 | ust_10y | 美國 10 年期公債殖利率 | `home.treasury.gov/.../daily-treasury-rates.csv/{年}/all?type=daily_treasury_yield_curve&field_tdr_date_value={年}&page&_format=csv` | ✅ |
 | twse_insider / tpex_insider | 內部人持股轉讓事前申報 | `openapi t187ap12_L`、`mopsfin_t187ap12_O` | ✅ |
-| cbc_money | 央行 M1B／M2 | 政府開放資料 dataset 6024（見 M10） | ⛔ 待處理 |
+| cbc_money | 央行 M1B／M2（日平均，月資料） | `www.cbc.gov.tw/public/data/OpenData/經研處/EF15M01.csv`（data.gov.tw dataset 6024，政府資料開放授權第 1 版） | ✅ 本環境實測（DECISIONS #25） |
 | fred_dtwexbgs | FRED 美元指數 | `fred.stlouisfed.org/graph/fredgraph.csv?id=DTWEXBGS` | ⛔ Actions 實測連線失敗，依規則不加入 |
-| investor_conference | 法說會日期 | MOPS（需 POST 查詢） | ⛔ 待處理 |
-| intraday | 盤中即時報價 | `mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_2330.tw|otc_6488.tw&json=1&delay=0` | ✅ Actions 可用 |
+| investor_conference | 法說會日期 | `mopsov.twse.com.tw/mops/web/ajax_t100sb02_1?…&TYPEK={sii\|otc}&year={民國年}&month={MM}`（GET） | ✅ Actions 實測（DECISIONS #26） |
+| intraday | 盤中即時報價（盤中到價提醒用，每 15 分鐘一次批次請求） | `mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_2330.tw\|otc_6488.tw&json=1&delay=0` | ✅ Actions 可用（`pipeline/alerts.py`） |
 
 ## 爬取禮節
 - 依序請求（不並行），間隔 3–5 秒加隨機抖動；失敗以 2／4／8／16 秒指數退避重試。
 - 同一網域連續失敗 5 次觸發斷路器，本輪停止對該網域的請求並記錄於 manifest。
 - 休市日以證交所休市日曆判斷（時區 Asia/Taipei）；週末與休市日不請求。
 - 嚴禁繞過驗證碼或違反網站使用條款；User-Agent 標示專案網址。
+
+## 評估後不採用
+
+| 資料 | 原因 |
+|---|---|
+| 分點券商進出 | 證交所買賣日報表、櫃買券商買賣日報表皆需驗證碼；無官方開放資料（DECISIONS #28） |
+| 主動式 ETF 持股 | 僅各投信官網揭露、無集中來源（DECISIONS #22，框架已完成） |
+| FRED 美元指數 | Actions 與本環境皆連線失敗 |

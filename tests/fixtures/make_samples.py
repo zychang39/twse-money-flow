@@ -100,6 +100,18 @@ def trim_html(src: Path, dst: Path, limit: int = 40000) -> None:
     dst.write_bytes(cut[: end + 5] + b"</table></td></tr></table></body></html>")
 
 
+def trim_mops_financial(src: Path, dst: Path, rows_per_table: int = 6) -> None:
+    """MOPS 財報彙總：保留每張表的標題列與前幾列（含常見代號）。"""
+    text = src.read_text(encoding="utf-8", errors="replace")
+    out = []
+    for tb in re.findall(r"<table class='hasBorder'.*?</table>", text, re.S):
+        rows = re.findall(r"<tr class='(?:even|odd)'>.*?</tr>", tb, re.S)
+        keep = [r for i, r in enumerate(rows) if i < rows_per_table or any(f">{c}<" in r for c in KEEP_CODES)]
+        head = re.search(r"<tr class='tblHead'>.*?</tr>", tb, re.S)
+        out.append("<table class='hasBorder'>" + (head.group(0) if head else "") + "".join(keep) + "</table>")
+    dst.write_text("<html><body>" + "\n".join(out) + "</body></html>", encoding="utf-8")
+
+
 def main() -> None:
     out = HERE / "samples"
     out.mkdir(exist_ok=True)
@@ -116,6 +128,8 @@ def main() -> None:
             elif src.suffix == ".csv":
                 enc = "big5" if src.name.startswith("taifex_") else "utf-8-sig"
                 trim_csv(src, dst, enc if enc != "utf-8-sig" else "utf-8")
+            elif src.name.startswith("mops_t163"):
+                trim_mops_financial(src, dst)
             elif src.suffix == ".html":
                 trim_html(src, dst)
     # 詮釋資料
@@ -125,7 +139,6 @@ def main() -> None:
             (out / Path(meta).name).write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
     sizes = sum(p.stat().st_size for p in out.glob("*"))
     print(f"samples: {len(list(out.glob('*')))} files, {sizes / 1024:.0f} KB")
-    _ = re  # 保留 import 供未來擴充
 
 
 if __name__ == "__main__":

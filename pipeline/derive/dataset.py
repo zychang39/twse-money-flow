@@ -49,6 +49,11 @@ class Dataset:
     company: pd.DataFrame = field(default_factory=pd.DataFrame)
     margin_total: pd.DataFrame = field(default_factory=pd.DataFrame)
     extra: dict[str, list[pd.DataFrame]] = field(default_factory=dict)
+    tables: dict[str, pd.DataFrame] = field(default_factory=dict)
+
+    def table(self, name: str) -> pd.DataFrame:
+        return self.tables.get(name, pd.DataFrame())
+
     manifest: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -76,6 +81,30 @@ def load(store: DataStore) -> Dataset:
     ds.disposition = _concat(store, ["twse_disposition", "tpex_disposition"], ["twse", "tpex"])
     ds.margin_total = _concat(store, ["twse_margin_total", "tpex_margin_total"], ["twse", "tpex"])
     ds.revenue = store.read_range("revenue")
+    for name, sources in {
+        "sbl": ["twse_sbl", "tpex_sbl"],
+        "qfii": ["twse_qfii", "tpex_qfii"],
+        "daytrade": ["twse_daytrade", "tpex_daytrade"],
+        "tdcc": ["tdcc_holders"],
+        "taifex_insti": ["taifex_insti"],
+        "taifex_oi": ["taifex_oi"],
+        "fx": ["fx_usdtwd"],
+        "ust": ["ust_10y"],
+        "financials": ["financials"],
+        "margin_total": [],
+        "daytrade_total": ["twse_daytrade_total", "tpex_daytrade_total"],
+        "etf_holdings": ["etf_holdings"],  # 主動式 ETF 持股（資料源待處理；有資料即生效）
+        "conference": ["conference"],
+    }.items():
+        if sources:
+            ds.tables[name] = _concat(store, sources)
+    for name, sources in {
+        "short_halt": ["twse_short_halt", "tpex_short_halt"],
+        "insider": ["twse_insider", "tpex_insider"],
+        "cbc_money": ["cbc_money"],
+    }.items():
+        frames = [latest[1] for latest in (store.latest(s) for s in sources) if latest is not None]
+        ds.tables[name] = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
     splits = [store.read_range(s) for s in ("twse_parchange", "twse_etfsplit", "tpex_etfsplit", "tpex_etfrevsplit")]
     ds.extra["splits"] = [s for s in splits if not s.empty]
     # 快照：取最新一份

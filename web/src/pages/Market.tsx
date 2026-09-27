@@ -19,7 +19,8 @@ export interface MarketData {
   sectors: Sector[];
   env?: { summary: string; lights: Light[] };
   temperature?: { lights: Light[]; retail?: { date: string; mtx: number | null; tmf: number | null }[] };
-  etf_ranking?: { date: string; add: EtfMove[]; reduce: EtfMove[]; status?: string };
+  etf_ranking?: { date: string | null; add: EtfMove[]; reduce: EtfMove[]; status?: string };
+  active_etfs?: { code: string; name: string; close: number; value_million_20d: number | null }[];
 }
 
 function heatColor(v: number | null, scale: number): string {
@@ -155,6 +156,17 @@ export default function Market({ sector }: { sector?: string }) {
               ))}
             </div>
           ) : <div class="card small muted">{m.etf_ranking?.status ?? '資料源待處理：主動式 ETF 每日持股揭露尚未取得。'}</div>}
+          {m.active_etfs && m.active_etfs.length ? (
+            <div class="card">
+              <div class="headline">主動式 ETF 清單（{m.active_etfs.length} 檔，依 20 日均成交值）</div>
+              {m.active_etfs.slice(0, 30).map((e) => (
+                <a key={e.code} class="row between small" href={`#/stock/${e.code}`} style={{ minHeight: '2.25rem', color: 'inherit' }}>
+                  <span>{e.name} <span class="muted">{e.code}</span></span>
+                  <span class="num">{fmtNum(e.close, 2)} · {e.value_million_20d === null ? '—' : `${fmtNum(e.value_million_20d, 0)} 百萬`}</span>
+                </a>
+              ))}
+            </div>
+          ) : null}
         </>
       ) : null}
     </div>

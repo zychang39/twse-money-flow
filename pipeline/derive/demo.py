@@ -180,6 +180,7 @@ def build_store(root: Path, *, days: int = 320, end: date | None = None, seed: i
                 }
             )
         store.write("revenue", ym_date, pd.DataFrame(recs))
+    _advanced(store, dates, rng, paths)
     comp = pd.DataFrame(
         [
             {
@@ -213,3 +214,185 @@ def build_demo(out: Path) -> dict[str, object]:
     with tempfile.TemporaryDirectory() as tmp:
         build_store(Path(tmp))
         return build_web(Path(tmp), out, demo=True)
+
+
+def _advanced(store: DataStore, dates: list[date], rng: np.random.Generator, paths: dict[str, np.ndarray]) -> None:
+    """示範用進階資料：借券、外資持股、當沖、集保、期貨、匯率、美債、季財報、停券、內部人、注意／處置。"""
+    fx, y10 = 31.5, 4.2
+    whale = {c: 50 + rng.normal(0, 5) for c, *_ in DEMO_STOCKS}
+    fut: list[dict[str, object]] = []
+    oi: list[dict[str, object]] = []
+    fxs: list[dict[str, object]] = []
+    ust: list[dict[str, object]] = []
+    for i, d in enumerate(dates):
+        iso = d.isoformat()
+        for market in ("twse", "tpex"):
+            recs = [(c, n) for c, n, m, _, _ in DEMO_STOCKS if m == market]
+            store.write(
+                f"{market}_sbl",
+                d,
+                pd.DataFrame(
+                    [
+                        {"date": iso, "code": c, "name": n, "sbl_balance": int(5e6 + 1e6 * np.sin(i / 15 + k))}
+                        for k, (c, n) in enumerate(recs)
+                    ]
+                ),
+            )
+            store.write(
+                f"{market}_qfii",
+                d,
+                pd.DataFrame(
+                    [
+                        {"date": iso, "code": c, "name": n, "foreign_pct": round(40 + 10 * np.sin(i / 40 + k), 2)}
+                        for k, (c, n) in enumerate(recs)
+                    ]
+                ),
+            )
+            store.write(
+                f"{market}_daytrade",
+                d,
+                pd.DataFrame(
+                    [{"date": iso, "code": c, "name": n, "dt_volume": int(abs(rng.normal(2e6, 1e6)))} for c, n in recs]
+                ),
+            )
+        if d.weekday() == 4:
+            rows = []
+            for c, *_ in DEMO_STOCKS:
+                whale[c] += rng.normal(0, 0.4)
+                for level in range(1, 18):
+                    pct = whale[c] if level == 15 else (100 if level == 17 else (100 - whale[c]) / 14)
+                    rows.append(
+                        {"date": iso, "code": c, "level": level, "holders": 1000, "shares": 1e6, "pct": round(pct, 2)}
+                    )
+            store.write("tdcc_holders", d, pd.DataFrame(rows))
+        for contract, scale in (("TXF", 1), ("MXF", 4), ("TMF", 20)):
+            for party in ("自營商", "投信", "外資及陸資"):
+                long_oi = int(abs(rng.normal(20000, 3000)) * scale / 4)
+                short_oi = int(abs(rng.normal(30000 if party == "外資及陸資" else 15000, 3000)) * scale / 4)
+                fut.append(
+                    {
+                        "date": iso,
+                        "contract": contract,
+                        "party": party,
+                        "long_oi": long_oi,
+                        "short_oi": short_oi,
+                        "net_oi": long_oi - short_oi,
+                    }
+                )
+        for contract in ("TX", "MTX", "TMF"):
+            oi.append({"date": iso, "contract": contract, "total_oi": int(abs(rng.normal(80000, 5000)))})
+        fx *= 1 + rng.normal(0, 0.002)
+        y10 += rng.normal(0, 0.02)
+        fxs.append({"date": iso, "usd_twd": round(fx, 3)})
+        ust.append({"date": iso, "y10": round(y10, 2)})
+    for name, rows_, keys in (
+        ("taifex_insti", fut, ["date", "contract", "party"]),
+        ("taifex_oi", oi, ["date", "contract"]),
+        ("fx_usdtwd", fxs, ["date"]),
+    ):
+        df = pd.DataFrame(rows_)
+        for key, part in df.groupby(pd.to_datetime(df["date"]).dt.to_period("M")):
+            store.upsert(name, key.to_timestamp().date(), part.reset_index(drop=True), keys)
+    store.write("ust_10y", date(dates[-1].year, 1, 1), pd.DataFrame(ust))
+    # 季財報（YTD 累計）
+    last = dates[-1]
+    for y in (last.year - 1, last.year):
+        for q in (1, 2, 3, 4):
+            if (y, q) > (last.year, 2):
+                break
+            rows = []
+            for c, n, m, _, base in DEMO_STOCKS:
+                rev_q = base * 3e4
+                gm = 0.3 + 0.02 * (y - last.year) + rng.normal(0, 0.01)
+                rows.append(
+                    {
+                        "code": c,
+                        "name": n,
+                        "market": m,
+                        "year": y,
+                        "quarter": q,
+                        "revenue": rev_q * q,
+                        "gross_profit": rev_q * gm * q,
+                        "ni_parent": rev_q * 0.1 * q,
+                        "eps": 2.0 * q,
+                        "equity_parent": base * 2e5,
+                    }
+                )
+            store.write("financials", date(y, q * 3, 1), pd.DataFrame(rows))
+    iso = last.isoformat()
+    store.write(
+        "twse_short_halt",
+        last,
+        pd.DataFrame(
+            [
+                {
+                    "code": "2412",
+                    "name": "中華電",
+                    "last_cover_date": (last + timedelta(days=12)).isoformat(),
+                    "end": (last + timedelta(days=17)).isoformat(),
+                    "reason": "股東常會",
+                }
+            ]
+        ),
+    )
+    store.write(
+        "twse_exright_notice",
+        last,
+        pd.DataFrame(
+            [
+                {
+                    "date": (last + timedelta(days=20)).isoformat(),
+                    "code": "2412",
+                    "name": "中華電",
+                    "kind": "息",
+                    "cash_dividend": 4.7,
+                }
+            ]
+        ),
+    )
+    store.write(
+        "twse_insider",
+        last,
+        pd.DataFrame(
+            [
+                {
+                    "report_date": iso,
+                    "code": "2317",
+                    "name": "鴻海",
+                    "holder_type": "董事",
+                    "holder": "示範",
+                    "method": "一般交易",
+                    "shares": 500000,
+                    "start": iso,
+                    "end": (last + timedelta(days=30)).isoformat(),
+                }
+            ]
+        ),
+    )
+    att = pd.DataFrame(
+        [
+            {"date": dates[-k].isoformat(), "code": "6182", "name": "合晶", "count": 3 - k, "reason": "示範：漲幅異常"}
+            for k in (1, 2)
+        ]
+    )
+    store.write("tpex_attention", last.replace(day=1), att)
+    store.write(
+        "tpex_disposition",
+        last.replace(day=1),
+        pd.DataFrame(
+            [
+                {
+                    "announce_date": dates[-3].isoformat(),
+                    "code": "3105",
+                    "name": "穩懋",
+                    "count": 1,
+                    "start": dates[-2].isoformat(),
+                    "end": (last + timedelta(days=8)).isoformat(),
+                    "reason": "連續3個營業日",
+                    "measure": "處置",
+                    "interval_minutes": 5,
+                    "detail": "示範：約每五分鐘撮合一次",
+                }
+            ]
+        ),
+    )

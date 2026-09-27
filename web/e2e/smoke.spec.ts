@@ -128,3 +128,20 @@ test('今日：加入自選後出現日報卡片', async ({ page }) => {
   await expect(page.getByRole('link', { name: '台泥 日報' })).toBeVisible();
   await expect(page.getByText('全市場法人買超（外資＋投信，金額）')).toBeVisible();
 });
+
+test('處置預警、行事曆、週報顯示資料', async ({ page }) => {
+  await page.goto('#/more/disposition');
+  await expect(page.getByText('可能進入處置').first()).toBeVisible();
+  await expect(page.getByText(/分盤撮合約每 5 分鐘/)).toBeVisible();
+  await page.goto('#/more/calendar');
+  await page.getByRole('button', { name: '全部' }).click();
+  await expect(page.getByText(/融券最後回補日/)).toBeVisible();
+  await page.goto('#/more/weekly');
+  await expect(page.getByRole('heading', { name: '下週事件' })).toBeVisible();
+});
+
+test('市場：資金環境燈號與市場溫度', async ({ page }) => {
+  await page.goto('#/market');
+  await expect(page.getByText('外資台指期淨未平倉')).toBeVisible();
+  await expect(page.getByText('散戶多空比（小台）')).toBeVisible();
+});

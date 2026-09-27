@@ -6,7 +6,7 @@ import { Flags } from '../components/Flags';
 import { scoreText } from '../components/Scores';
 import { useAsync, useDb } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
-import { loadJson } from '../data/api';
+import { loadAiSummary, loadJson } from '../data/api';
 import { listTrades, listWatch } from '../db/db';
 import { fmtLots, fmtNum } from '../lib/format';
 import { sortDaily } from '../lib/today';
@@ -49,6 +49,7 @@ function DailyRow({ r, holding }: { r: StockRow; holding: boolean }) {
 export default function Today() {
   const summary = useScoredSummary();
   const market = useAsync(() => loadJson<MarketData>('market.json'), []);
+  const ai = useAsync(() => loadAiSummary(), []);
   const mine = useDb(async () => {
     const w = await listWatch();
     const t = (await listTrades()).filter((x) => x.status === 'open');
@@ -88,6 +89,15 @@ export default function Today() {
             </div>
           ) : null}
         </a>
+      ) : market.loading ? <div class="card glass skeleton" style={{ minHeight: '6.75rem' }} role="status" aria-busy="true" aria-label="載入大盤資料" /> : null}
+      {ai.data && ai.data.date === m?.date ? (
+        <div class="card">
+          <div class="row between"><span class="headline">盤後摘要</span><span class="flag">AI 生成</span></div>
+          <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>
+            {ai.data.lines.map((l) => <li key={l} class="small">{l}</li>)}
+          </ul>
+          <p class="tiny muted">由 AI 依當日衍生數據自動摘要，可能有誤，僅供參考；分數與依據以各頁明細為準。</p>
+        </div>
       ) : null}
       {summary.error ? <ErrorState error={summary.error} /> : null}
       {summary.loading && !summary.data ? <Loading /> : null}

@@ -7,7 +7,11 @@ export interface Meta {
   status: 'ok' | 'no_data';
   sources_failed: string[];
   stocks?: number;
+  /** 有 ANTHROPIC_API_KEY 時產生 ai_summary.json */
+  ai_summary?: boolean;
 }
+
+export interface AiSummary { date: string; lines: string[]; model: string; generated_at: string }
 
 export interface Factor {
   id: string;

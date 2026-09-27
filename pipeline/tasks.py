@@ -24,10 +24,14 @@ from pipeline.core.http import CircuitOpenError, FetchError, PoliteClient
 from pipeline.core.store import DataStore, record
 from pipeline.core.validate import validate_frame
 from pipeline.registry import (
-    BACKFILL_DEFAULT,
+    ADVANCED_BACKFILL_DAYS,
+    ADVANCED_DAILY,
+    ADVANCED_SNAPSHOT,
+    BACKFILL_FULL,
     CORE_DAILY,
     CORE_RANGE,
     CORE_SNAPSHOT,
+    CUSTOM_BACKFILL,
     SPECS,
     Spec,
     build_url,
@@ -297,7 +301,7 @@ def task_daily(ctx: RunContext, sources: list[str] | None = None, heal_days: int
     target = target_trading_date(ctx)
     ctx.manifest["last_target_date"] = target.isoformat()
     recent = [d for d in ctx.calendar.trading_days(target - timedelta(days=heal_days * 2), target)][-heal_days:]
-    wanted = sources or (CORE_DAILY + CORE_RANGE + CORE_SNAPSHOT + ["tpex_index"])
+    wanted = sources or (CORE_DAILY + ADVANCED_DAILY + CORE_RANGE + CORE_SNAPSHOT + ADVANCED_SNAPSHOT + ["tpex_index"])
     # 1) 每日型：收盤行情優先（無行情 → 臨時休市，略過其他來源）
     daily = [s for s in wanted if s in SPECS and SPECS[s].kind == "daily"]
     for d in recent:
@@ -316,6 +320,22 @@ def task_daily(ctx: RunContext, sources: list[str] | None = None, heal_days: int
     # 4) 快照
     for sid in [s for s in wanted if s in SPECS and SPECS[s].kind == "snapshot"]:
         run_snapshot(ctx, SPECS[sid], target)
+    # 5) 期交所、匯率、美債（sources 未指定時）
+    if not sources:
+        from pipeline import tasks_advanced
+
+        tasks_advanced.run_taifex(ctx, target - timedelta(days=10), target)
+        tasks_advanced.run_ust(ctx, target.year)
+
+
+def _after_financial_deadline(today: date) -> bool:
+    """季報法定期限後的 1–5 天（對應 data.yml 的季報排程）。"""
+    for md in config.thresholds()["backtest"]["financial_deadlines"].values():
+        m, d = (int(x) for x in str(md).split("-"))
+        deadline = date(today.year, m, d)
+        if timedelta(days=1) <= today - deadline <= timedelta(days=5):
+            return True
+    return False
 
 
 def task_periodic(ctx: RunContext, sources: list[str] | None = None) -> None:
@@ -326,6 +346,21 @@ def task_periodic(ctx: RunContext, sources: list[str] | None = None) -> None:
         run_mops_revenue(ctx, prev_month(ctx.today))
     if ctx.today.month == 1 or "twse_holidays" in wanted:
         load_calendar(ctx, [ctx.today.year + 1])
+    from pipeline import tasks_advanced
+
+    if "tdcc_holders" in wanted or (not wanted and ctx.today.weekday() in (5, 6)):
+        tasks_advanced.run_tdcc(ctx)
+    if "financials" in wanted or (not wanted and _after_financial_deadline(ctx.today)):
+        from pipeline import financials
+
+        financials.run_latest(ctx)
+    # 選配：央行貨幣總計數（每週檢查一次，約每月下旬公布上月）、法說會（本月與下月）
+    weekly = not wanted and ctx.today.weekday() in (5, 6)
+    if "cbc_money" in wanted or weekly:
+        tasks_advanced.run_cbc_money(ctx)
+    if "investor_conference" in wanted or weekly:
+        for m in (month_start(ctx.today), next_month(ctx.today)):
+            tasks_advanced.run_conference(ctx, m)
 
 
 def _months_desc(start: date, end: date) -> list[date]:
@@ -337,45 +372,108 @@ def _months_desc(start: date, end: date) -> list[date]:
     return months
 
 
-def task_backfill(ctx: RunContext, sources: list[str] | None, start: date, end: date) -> dict[str, Any]:
-    """回補：由近到遠，逐日抓齊所有每日型來源（中斷時最近的資料是完整的）。
+def _month_done(ctx: RunContext, key: str, m: date) -> bool:
+    return m.strftime("%Y-%m") in ctx.manifest.get("backfilled", {}).get(key, [])
 
-    可中斷、可續跑：已存在的檔案略過；時間預算用完就停止並回報剩餘天數。
+
+def _mark_month(ctx: RunContext, key: str, m: date, failures_before: int) -> None:
+    """已結束（早於上個月）且無失敗的月份記為完成，續跑時略過；近兩個月可能仍有更新，不記。"""
+    if len(ctx.failures) > failures_before or m >= prev_month(month_start(ctx.today)):
+        return
+    done = ctx.manifest.setdefault("backfilled", {}).setdefault(key, [])
+    ym = m.strftime("%Y-%m")
+    if ym not in done:
+        done.append(ym)
+        done.sort()
+
+
+def task_backfill(ctx: RunContext, sources: list[str] | None, start: date, end: date) -> dict[str, Any]:
+    """回補：未指定來源時做完整回補（見 registry.BACKFILL_FULL）。
+
+    順序：區間／月查詢型與期交所等（以月為單位，由近到遠）→ 每日型（由近到遠、一天抓齊所有來源；
+    進階每日來源只補近 ADVANCED_BACKFILL_DAYS 天）。可中斷、可續跑：已存在的檔案與已完成的月份略過；
+    時間預算用完就停止並回報剩餘量。
     """
-    sources = sources or BACKFILL_DEFAULT
+    full = not sources
+    sources = sources or BACKFILL_FULL
     load_calendar(ctx, list(range(start.year, end.year + 1)))
     remaining: dict[str, int] = {}
+    months = _months_desc(start, end)
+    # 0) 期交所／匯率／美債／財報／央行／法說會（自訂來源）
+    custom = [s for s in sources if s in CUSTOM_BACKFILL]
+    sources = [s for s in sources if s not in custom]
+    if custom:
+        from pipeline import tasks_advanced
+
+        if "taifex" in custom:
+            for i, m in enumerate(months):
+                if ctx.out_of_time():
+                    remaining["taifex"] = len(months) - i
+                    break
+                if _month_done(ctx, "taifex", m):
+                    continue
+                before = len(ctx.failures)
+                tasks_advanced.run_taifex(ctx, max(m, start), min(next_month(m) - timedelta(days=1), end))
+                _mark_month(ctx, "taifex", m, before)
+        if "ust_10y" in custom and not ctx.out_of_time():
+            for y in range(start.year, end.year + 1):
+                if y < ctx.today.year and ctx.store.exists("ust_10y", date(y, 1, 1)) and full:
+                    continue
+                tasks_advanced.run_ust(ctx, y)
+        if "financials" in custom and not ctx.out_of_time():
+            from pipeline import financials
+
+            financials.run_history(ctx, start, end)
+        if "cbc_money" in custom and not ctx.out_of_time():
+            tasks_advanced.run_cbc_money(ctx)
+        if "investor_conference" in custom:
+            for m in months:
+                if not ctx.out_of_time() and not _month_done(ctx, "investor_conference", m):
+                    before = len(ctx.failures)
+                    tasks_advanced.run_conference(ctx, m)
+                    _mark_month(ctx, "investor_conference", m, before)
     # 1) 非每日型（區間、月查詢、MOPS 月營收）：以月為單位，由近到遠
     for sid in [s for s in sources if s == "mops_revenue" or SPECS[s].kind != "daily"]:
-        months = _months_desc(start, end)
         for i, m in enumerate(months):
             if ctx.out_of_time():
                 remaining[sid] = len(months) - i
                 break
+            if _month_done(ctx, sid, m):
+                continue
+            before = len(ctx.failures)
             if sid == "mops_revenue":
                 run_mops_revenue(ctx, m)
-                continue
-            spec = SPECS[sid]
-            if spec.kind == "range":
-                run_range_source(ctx, spec, max(m, start), min(next_month(m) - timedelta(days=1), end))
-            elif spec.kind == "month_query":
-                run_month_query(ctx, spec, m)
-    # 2) 每日型：由近到遠，一天抓齊所有來源
+            else:
+                spec = SPECS[sid]
+                if spec.kind == "range":
+                    run_range_source(ctx, spec, max(m, start), min(next_month(m) - timedelta(days=1), end))
+                elif spec.kind == "month_query":
+                    run_month_query(ctx, spec, m)
+            _mark_month(ctx, sid, m, before)
+    # 2) 每日型：由近到遠，一天抓齊所有來源（完整回補時，進階來源只補近一段期間）
     daily = [s for s in sources if s != "mops_revenue" and SPECS[s].kind == "daily"]
     if daily:
+        adv_from = (end - timedelta(days=ADVANCED_BACKFILL_DAYS)).isoformat() if full else ""
+
+        def wanted(d: date) -> list[str]:
+            if d.isoformat() >= adv_from:
+                return daily
+            return [s for s in daily if s not in ADVANCED_DAILY]
+
         closed = set(ctx.manifest.get("closed_days", []))
         days = [
             d
             for d in reversed(ctx.calendar.trading_days(start, end))
-            if d.isoformat() not in closed and any(not ctx.store.exists(s, d) for s in daily)
+            if d.isoformat() not in closed and any(not ctx.store.exists(s, d) for s in wanted(d))
         ]
         for i, d in enumerate(days):
             if ctx.out_of_time():
                 remaining["daily_days"] = len(days) - i
                 break
-            if "twse_quotes" in daily and run_daily_source(ctx, SPECS["twse_quotes"], d) == "closed":
+            todo = wanted(d)
+            if "twse_quotes" in todo and run_daily_source(ctx, SPECS["twse_quotes"], d) == "closed":
                 continue
-            for sid in daily:
+            for sid in todo:
                 if sid != "twse_quotes":
                     run_daily_source(ctx, SPECS[sid], d)
     progressed = any(r["status"] == "ok" for r in ctx.results)

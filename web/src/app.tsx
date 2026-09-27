@@ -61,7 +61,7 @@ export function App() {
     <>
       <main class="app" id="main">
         <BackupReminder />
-        <Page parts={route.parts} />
+        <div class="page-body"><Page parts={route.parts} /></div>
         <Footer />
       </main>
       <TabBar path={route.path} />
