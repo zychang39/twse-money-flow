@@ -96,7 +96,13 @@ export function Dock({ path }: { path: string }) {
       navigate(TAB_DEFS[to].path);
     }
   };
-  const onCancel = () => { drag.current = null; setLens(false); };
+  // 拖曳被取消（例：頁面開始捲動）：膠囊回到目前分頁
+  const onCancel = () => {
+    const wasDragging = drag.current?.on;
+    drag.current = null;
+    setLens(false);
+    if (wasDragging && indRef.current) indRef.current.style.transform = `translateX(${Math.max(0, active) * 100}%)`;
+  };
 
   return (
     <div class={`dock ${compact ? 'compact' : ''}`}>

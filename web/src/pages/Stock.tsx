@@ -61,7 +61,7 @@ function StockHero({ code, fallbackName, fallbackIndustry, period, onPeriod, see
   advanced?: boolean;
   holdToScrub?: boolean;
 }) {
-  const { data: h } = useStockData(code);
+  const { data: h, error } = useStockData(code);
   const adj = useMemo(() => (h ? adjClose(h) : []), [h]);
   const win = h ? sliceWindow(h.d, adj, period) : null;
   return (
@@ -77,7 +77,7 @@ function StockHero({ code, fallbackName, fallbackIndustry, period, onPeriod, see
               format={(v) => fmtPrice(v)} formatDelta={(v) => fmtNum(v, v >= 100 ? 1 : 2)} area height={200} periodsLabel="股價走勢期間" holdToScrub={holdToScrub} />
           )}
         </div>
-      ) : <Loading hero />}
+      ) : error ? null : <Loading hero />}
     </>
   );
 }

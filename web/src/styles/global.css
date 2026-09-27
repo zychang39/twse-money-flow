@@ -744,7 +744,7 @@ details.tech ul { margin: var(--s-1) 0 0; padding-left: var(--s-4); color: var(-
 @supports (overflow: clip) { .pager { overflow-x: clip; overflow-y: visible; } }
 .pager-track { display: flex; align-items: flex-start; will-change: transform; }
 .pager-pane { flex: 0 0 100%; min-width: 0; box-sizing: border-box; padding: 0 var(--gutter); }
-.pager.dragging { cursor: grabbing; }
+.pager.dragging { cursor: grabbing; -webkit-user-select: none; user-select: none; }
 .pager.dragging .chart-wrap { cursor: grabbing; }
 
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-base); animation-timing-function: var(--ease-out); }
