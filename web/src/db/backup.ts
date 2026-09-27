@@ -12,7 +12,10 @@ export interface BackupFile {
 
 type ExportMigration = (data: BackupFile) => BackupFile;
 /** key = 目標版本；把 (key-1) 版的匯出格式轉為 key 版。 */
-export const EXPORT_MIGRATIONS: Record<number, ExportMigration> = {};
+export const EXPORT_MIGRATIONS: Record<number, ExportMigration> = {
+  // v2：新增紀律行為紀錄（遊戲化），舊備份沒有這個 store
+  2: (d) => ({ ...d, stores: { ...d.stores, activity: d.stores.activity ?? [] } }),
+};
 
 export async function exportAll(): Promise<BackupFile> {
   const db = await getDb();

@@ -2,10 +2,15 @@ import { defineConfig } from 'vitest/config';
 import preact from '@preact/preset-vite';
 import { configYaml } from './build/config-yaml.ts';
 import { serviceWorker } from './build/service-worker.ts';
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
   base: '/twse-money-flow/',
   plugins: [configYaml(), preact(), serviceWorker()],
+  resolve: {
+    // 自託管 Inter（數字與英文）；只打包 CSS 實際引用的拉丁子集
+    alias: { '@inter': fileURLToPath(new URL('./node_modules/@fontsource-variable/inter/files', import.meta.url)) },
+  },
   server: { fs: { allow: ['..'] } },
   build: {
     target: 'es2022',

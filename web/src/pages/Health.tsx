@@ -1,4 +1,4 @@
-import { Nav } from '../components/Nav';
+import { PageHead, TopBar } from '../components/Chrome';
 import { ErrorState, Loading } from '../components/DataStatus';
 import { useAsync } from '../hooks';
 import { loadHealth, loadMeta } from '../data/api';
@@ -6,21 +6,23 @@ import type { HealthSource } from '../data/types';
 
 const TIER_LABEL: Record<string, string> = { core: '核心', advanced: '進階', optional: '選配' };
 
-function statusIcon(s: HealthSource): { icon: string; text: string } {
-  if (s.verified === 'pending') return { icon: '⛔', text: '資料源待處理' };
-  if (s.last_status === 'failed') return { icon: '❌', text: '最近一次失敗' };
-  if (s.last_status === 'pending') return { icon: '⏳', text: '等待公布' };
-  if (!s.last_success) return { icon: '○', text: '尚未抓取' };
-  if (s.lag_days !== null && s.lag_days > 2) return { icon: '⚠️', text: `落後 ${s.lag_days} 個交易日` };
-  return { icon: '✅', text: '正常' };
+/** 狀態點：正常＝實心、需注意＝琥珀、等待或待處理＝空心（不使用 emoji）。 */
+function statusIcon(s: HealthSource): { dot: 'green' | 'red' | 'gray'; text: string } {
+  if (s.verified === 'pending') return { dot: 'gray', text: '資料源待處理' };
+  if (s.last_status === 'failed') return { dot: 'red', text: '最近一次失敗' };
+  if (s.last_status === 'pending') return { dot: 'gray', text: '等待公布' };
+  if (!s.last_success) return { dot: 'gray', text: '尚未抓取' };
+  if (s.lag_days !== null && s.lag_days > 2) return { dot: 'red', text: `落後 ${s.lag_days} 個交易日` };
+  return { dot: 'green', text: '正常' };
 }
 
 export default function Health() {
   const health = useAsync(loadHealth, []);
   const meta = useAsync(loadMeta, []);
   return (
-    <div>
-      <Nav title="資料健康" back="/more" />
+    <div class="page">
+      <TopBar back="/" avatar={false} />
+      <PageHead eyebrow="我的" title={health.data ? `${health.data.sources.filter((s) => s.last_status === 'failed').length ? `${health.data.sources.filter((s) => s.last_status === 'failed').length} 個資料源最近失敗` : '資料源大致正常'}` : '資料健康'} />
       {health.error ? <ErrorState error={health.error} /> : null}
       {health.loading ? <Loading /> : null}
       {health.data ? (
@@ -39,14 +41,14 @@ export default function Health() {
                   const st = statusIcon(s);
                   return (
                     <div key={s.id} class="list-item" style={{ alignItems: 'flex-start' }}>
-                      <span aria-hidden="true">{st.icon}</span>
+                      <span class={`light-dot ${st.dot}`} aria-hidden="true" />
                       <div class="grow">
-                        <div class="small bold">{s.label}</div>
-                        <div class="tiny muted">
+                        <div class="body">{s.label}</div>
+                        <div class="caption muted">
                           {st.text} · 最後成功 {s.last_success ?? '—'}{s.rows !== null && s.rows !== undefined ? ` · ${s.rows} 筆` : ''}
                           {s.verified === 'unverified' ? ' · 未以真實樣本驗證' : ''}
                         </div>
-                        {s.last_message && s.last_status !== 'ok' ? <div class="tiny" style={{ color: 'var(--danger-text)' }}>{s.last_message}</div> : null}
+                        {s.last_message && s.last_status !== 'ok' ? <div class="caption risk">{s.last_message}</div> : null}
                       </div>
                     </div>
                   );
@@ -59,9 +61,9 @@ export default function Health() {
             {health.data.runs.map((r) => (
               <div key={r.at} class="list-item" style={{ alignItems: 'flex-start' }}>
                 <span class="badge">{r.task}</span>
-                <div class="grow small">
+                <div class="grow caption">
                   <div>{r.at.replace('T', ' ').slice(0, 16)} · {r.requests} 次請求 · 成功 {r.ok}</div>
-                  {r.failed.length ? <div class="tiny" style={{ color: 'var(--danger-text)' }}>失敗：{r.failed.slice(0, 5).join('；')}</div> : null}
+                  {r.failed.length ? <div class="caption risk">失敗：{r.failed.slice(0, 5).join('；')}</div> : null}
                 </div>
               </div>
             ))}

@@ -1,0 +1,248 @@
+/**
+ * 主角數字＋走勢圖（無座標軸、無格線）。
+ * - 手指拖曳／滑鼠 hover：數字與日期即時跟著變動，放開後恢復最新值；鍵盤可用左右鍵逐日移動、Esc 恢復。
+ * - 期間選擇器 1D～ALL：選中者為實心膠囊；切換時走勢線以 spring 平滑變形。
+ * - 首次出現時走勢線由左到右描繪；主角數字從「上次查看的值」滾動到最新值，變化量以淡色標籤短暫浮現。
+ * 線的顏色＝所選期間的漲跌（紅漲綠跌），與頁首環境光一致（由頁面以同一個 window 計算）。
+ */
+import type { ComponentChildren } from 'preact';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { PERIODS, PERIOD_LABEL, change, type Dir, type Period, type Window } from '../lib/periods';
+import { areaD, extent, lerpPts, nearestIndex, pathD, points, resample, springEase, yOf, type Frame } from '../lib/chartMath';
+import { arrow, fmtNum } from '../lib/format';
+
+const N = 160;
+const reduceMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+export function usePeriod(id: string, fallback: Period = '3M'): [Period, (p: Period) => void] {
+  const key = `period:${id}`;
+  const [p, setP] = useState<Period>(() => {
+    try {
+      const v = localStorage.getItem(key) as Period | null;
+      return v && PERIODS.includes(v) ? v : fallback;
+    } catch { return fallback; }
+  });
+  return [p, (v: Period) => { setP(v); try { localStorage.setItem(key, v); } catch { /* 無痕模式 */ } }];
+}
+
+export function dirColor(d: Dir): string {
+  return d === 'up' ? 'var(--up)' : d === 'down' ? 'var(--down)' : 'var(--text-2)';
+}
+
+function dateLabel(iso: string): string {
+  const d = new Date(`${iso}T12:00:00Z`);
+  return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}（${'日一二三四五六'[d.getUTCDay()]}）`;
+}
+
+export function PeriodSelector({ value, onChange, label = '期間' }: { value: Period; onChange: (p: Period) => void; label?: string }) {
+  return (
+    <div class="periods" role="group" aria-label={label}>
+      {PERIODS.map((p) => (
+        <button key={p} aria-pressed={value === p} onClick={() => onChange(p)} aria-label={PERIOD_LABEL[p]}>{p}</button>
+      ))}
+    </div>
+  );
+}
+
+/** 滾動數字：從 from 到 to，ease-out；減少動態效果時直接顯示。 */
+function useRoll(to: number | null, from: number | null | undefined, format: (v: number) => string): string {
+  const [shown, setShown] = useState<number | null>(from !== null && from !== undefined && to !== null ? from : to);
+  const done = useRef(false);
+  useEffect(() => {
+    if (to === null) return;
+    if (done.current || from === null || from === undefined || from === to || reduceMotion()) {
+      setShown(to);
+      done.current = true;
+      return;
+    }
+    done.current = true;
+    const t0 = performance.now();
+    const dur = 800;
+    let raf = 0;
+    const tick = (now: number) => {
+      const k = Math.min(1, (now - t0) / dur);
+      const e = 1 - Math.pow(1 - k, 3);
+      setShown(from + (to - from) * e);
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [to]);
+  return shown === null ? '—' : format(shown);
+}
+
+export function HeroChart({
+  label, win, period, onPeriod, format, formatDelta, seen, height = 176, area = false, caption, emptyText = '資料累積中', periodsLabel,
+}: {
+  label: ComponentChildren;
+  win: Window | null;
+  period: Period;
+  onPeriod: (p: Period) => void;
+  format: (v: number) => string;
+  formatDelta?: (v: number) => string;
+  /** 上次查看時的值（數字滾動的起點；沒有則不滾動） */
+  seen?: number | null;
+  height?: number;
+  area?: boolean;
+  caption?: ComponentChildren;
+  emptyText?: string;
+  periodsLabel?: string;
+}) {
+  const fd = formatDelta ?? format;
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const lineRef = useRef<SVGPathElement>(null);
+  const glowRef = useRef<SVGPathElement>(null);
+  const areaRef = useRef<SVGPathElement>(null);
+  const prevPts = useRef<[number, number][] | null>(null);
+  const [w, setW] = useState(360);
+  const [scrub, setScrub] = useState<number | null>(null);
+  const [drawn, setDrawn] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((es) => setW(Math.max(200, Math.round(es[0].contentRect.width))));
+    ro.observe(el);
+    setW(Math.max(200, Math.round(el.getBoundingClientRect().width)));
+    return () => ro.disconnect();
+  }, []);
+
+  const frame: Frame = { w, h: height, padX: 12, padY: 14 };
+  const geo = useMemo(() => {
+    if (!win || win.values.length < 2) return null;
+    const range = extent(win.values, win.values[0]);
+    const pts = points(win.values, frame, range);
+    return { range, pts, baseY: yOf(win.values[0], frame, range) };
+  }, [win, w, height]);
+
+  // 期間切換或資料更新：把舊路徑平滑變形成新路徑（直接改 DOM，不每幀重繪元件）
+  useEffect(() => {
+    if (!geo) return;
+    const target = resample(geo.pts, N);
+    const from = prevPts.current;
+    prevPts.current = target;
+    const set = (p: [number, number][]) => {
+      const d = pathD(p);
+      lineRef.current?.setAttribute('d', d);
+      glowRef.current?.setAttribute('d', d);
+      areaRef.current?.setAttribute('d', areaD(p, height));
+    };
+    if (!from || reduceMotion()) {
+      set(target);
+      return;
+    }
+    const t0 = performance.now();
+    const dur = 520;
+    let raf = 0;
+    const tick = (now: number) => {
+      const k = Math.min(1, (now - t0) / dur);
+      set(lerpPts(from, target, springEase(k)));
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [geo]);
+
+  useEffect(() => {
+    if (!geo || drawn) return;
+    const t = setTimeout(() => setDrawn(true), 950);
+    return () => clearTimeout(t);
+  }, [geo]);
+
+  const last = win ? win.values.length - 1 : 0;
+  const at = scrub ?? last;
+  const latest = win ? win.values[last] : null;
+  const chg = win ? change(win.values, at) : null;
+  const dir: Dir = win ? change(win.values).dir : 'flat';
+  const color = dirColor(dir);
+  const rolled = useRoll(latest, seen, format);
+  const heroText = scrub !== null && win ? format(win.values[scrub]) : rolled;
+  const seenDelta = seen !== null && seen !== undefined && latest !== null && Math.abs(latest - seen) > 1e-9 ? latest - seen : null;
+
+  function idxFromEvent(e: PointerEvent): number | null {
+    const el = wrapRef.current;
+    if (!el || !win) return null;
+    const r = el.getBoundingClientRect();
+    return nearestIndex(((e.clientX - r.left) / r.width) * w, frame, win.values.length);
+  }
+  const onMove = (e: PointerEvent) => {
+    if (e.pointerType === 'mouse' || e.buttons || (e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) setScrub(idxFromEvent(e));
+  };
+  const onDown = (e: PointerEvent) => {
+    if (e.pointerType !== 'mouse') (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setScrub(idxFromEvent(e));
+  };
+  const end = () => setScrub(null);
+  const onKey = (e: KeyboardEvent) => {
+    if (!win) return;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      const cur = scrub ?? last;
+      setScrub(Math.max(0, Math.min(last, cur + (e.key === 'ArrowLeft' ? -1 : 1))));
+    } else if (e.key === 'Escape' || e.key === 'Enter') setScrub(null);
+  };
+
+  const scrubPt = geo && scrub !== null ? geo.pts[scrub] : null;
+  const endPt = geo ? geo.pts[geo.pts.length - 1] : null;
+  const summary = win && latest !== null && chg
+    ? `${typeof label === 'string' ? label : ''}${PERIOD_LABEL[period]}走勢：${dateLabel(win.dates[0])}到${dateLabel(win.dates[last])}，最新 ${format(latest)}，${dir === 'up' ? '上漲' : dir === 'down' ? '下跌' : '持平'} ${fd(Math.abs(change(win.values).abs))}`
+    : '走勢圖資料不足';
+
+  return (
+    <div class="hero-block">
+      <div class="hero-label">{label}</div>
+      <div class="hero" aria-live="off">{heroText}</div>
+      <div class="hero-change">
+        {chg && win ? (
+          <>
+            <span class={chg.dir}>
+              <span aria-hidden="true">{arrow(chg.abs)} {fd(Math.abs(chg.abs))}（{chg.pct === null ? '—' : `${Math.abs(chg.pct).toFixed(2)}%`}）</span>
+              <span class="sr-only">{chg.dir === 'up' ? '上漲' : chg.dir === 'down' ? '下跌' : '持平'} {fd(Math.abs(chg.abs))}</span>
+            </span>
+            <span class="caption">{scrub !== null ? dateLabel(win.dates[scrub]) : PERIOD_LABEL[period]}</span>
+            {scrub === null && seenDelta !== null ? (
+              <span class="delta-tag" aria-label={`較上次查看${seenDelta > 0 ? '增加' : '減少'} ${fd(Math.abs(seenDelta))}`}>較上次查看 {arrow(seenDelta)} {fd(Math.abs(seenDelta))}</span>
+            ) : null}
+          </>
+        ) : <span class="caption">{emptyText}</span>}
+      </div>
+      <div ref={wrapRef} class="chart-wrap bleed" style={{ height: `${height / 16}rem` }}
+        tabIndex={win ? 0 : -1} role="img" aria-label={`${summary}。可用左右鍵查看每日數值。`}
+        onPointerMove={onMove} onPointerDown={onDown} onPointerUp={(e) => e.pointerType !== 'mouse' && end()} onPointerCancel={end} onPointerLeave={end}
+        onKeyDown={onKey} onBlur={end}>
+        {geo ? (
+          <svg class={`chart ${drawn ? '' : 'draw'}`} viewBox={`0 0 ${w} ${height}`} height={height} preserveAspectRatio="none" aria-hidden="true" style={{ ['--len' as string]: 1 }}>
+            <defs>
+              <linearGradient id="hero-area" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color={color} stop-opacity="0.18" />
+                <stop offset="1" stop-color={color} stop-opacity="0" />
+              </linearGradient>
+              <filter id="hero-glow" x="-5%" y="-40%" width="110%" height="180%"><feGaussianBlur stdDeviation="4" /></filter>
+            </defs>
+            <line class="chart-base" x1={frame.padX} x2={w - frame.padX} y1={0} y2={0} style={{ transform: `translateY(${geo.baseY}px)`, transition: 'transform var(--dur-slow) var(--ease-spring)' }} />
+            {area ? <path ref={areaRef} class="chart-area" fill="url(#hero-area)" /> : null}
+            <path ref={glowRef} class="chart-glow" stroke={color} filter="url(#hero-glow)" pathLength={1} />
+            <path ref={lineRef} class="chart-line" stroke={color} pathLength={1} />
+            {scrubPt ? (
+              <>
+                <line class="chart-scrub" x1={scrubPt[0]} x2={scrubPt[0]} y1={0} y2={height} />
+                <circle cx={scrubPt[0]} cy={scrubPt[1]} r={5} fill={color} stroke="var(--bg)" stroke-width={2} />
+              </>
+            ) : endPt ? (
+              <>
+                <circle class="dot-halo" cx={endPt[0]} cy={endPt[1]} r={9} fill={color} />
+                <circle cx={endPt[0]} cy={endPt[1]} r={3.5} fill={color} />
+              </>
+            ) : null}
+          </svg>
+        ) : <div class="chart-empty" style={{ height: '100%' }}>{emptyText}</div>}
+      </div>
+      {caption || win?.truncated ? (
+        <div class="chart-caption">{win?.truncated ? `資料自 ${win.dates[0]} 起，未滿所選期間。` : ''}{caption}</div>
+      ) : null}
+      <PeriodSelector value={period} onChange={onPeriod} label={periodsLabel ?? '走勢期間'} />
+    </div>
+  );
+}
+
+export { fmtNum };

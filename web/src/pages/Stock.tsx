@@ -1,160 +1,237 @@
-import { useMemo, useState } from 'preact/hooks';
-import { Nav } from '../components/Nav';
-import { DataStatus, ErrorState, Loading } from '../components/DataStatus';
-import { Change, Signed } from '../components/Change';
-import { Composite, ScoreRow } from '../components/Scores';
-import { Flags } from '../components/Flags';
-import { KChart, type LowerPanel, type Overlay } from '../components/KChart';
-import { IconStar, IconStarFill } from '../components/Icons';
+/**
+ * 個股頁：預設只顯示主角數字、走勢、一句話健檢、四環分數；往下捲才展開法人、籌碼、營收、估值等區塊。
+ * 左右滑動切換同一清單的上一檔／下一檔；「進階」切換成 lightweight-charts 完整 K 線；細節用底部面板。
+ * 環境光與走勢線同一個期間、同一個顏色。
+ */
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { Ambient, Block, TopBar } from '../components/Chrome';
+import { Accumulating, DataStatus, ErrorState, Loading } from '../components/DataStatus';
+import { HeroChart, usePeriod } from '../components/HeroChart';
+import { ScoreRings, compositeCompleteness, categoryName, scoreText } from '../components/Scores';
 import { ScoreDetailView } from '../components/ScoreDetail';
-import { StockExtras } from '../components/StockExtras';
+import { StockExtras, FairRange } from '../components/StockExtras';
+import { Sheet } from '../components/Sheet';
+import { NetBars } from '../components/Viz';
+import { Signed } from '../components/Change';
+import { healthLine } from '../components/QuickPreview';
+import { IconChevron, IconStar, IconStarFill } from '../components/Icons';
+import { lazy } from '../lazy';
 import { useAsync, useDb } from '../hooks';
 import { loadStock } from '../data/api';
 import { useScoredSummary } from '../data/useSummary';
 import { addWatch, isWatched, removeWatch } from '../db/db';
-import { fmtInt, fmtLots, fmtNum, fmtPrice } from '../lib/format';
-import { series, toOhlc, volumeSeries, type PriceMode } from '../lib/history';
-import type { StockHistory } from '../data/types';
+import type { CategoryId } from '../lib/config';
+import { adjClose } from '../lib/history';
+import { change, sliceWindow } from '../lib/periods';
+import { instInsight, type Who } from '../lib/insights';
+import { getListContext } from '../lib/listContext';
+import { commitHero, heroSeen } from '../lib/seen';
+import { fmtInt, fmtLots, fmtNum, fmtPct, fmtPrice } from '../lib/format';
+import { navigate } from '../router';
 
-export interface LowerDef { id: string; label: string; key: keyof StockHistory; kind: 'histogram' | 'line'; signed?: boolean }
-export const LOWER_PANELS: LowerDef[] = [
-  { id: 'foreign', label: '外資', key: 'fn', kind: 'histogram', signed: true },
-  { id: 'trust', label: '投信', key: 'tn', kind: 'histogram', signed: true },
-  { id: 'dealer', label: '自營商', key: 'dn', kind: 'histogram', signed: true },
-  { id: 'margin', label: '融資', key: 'mb', kind: 'line' },
-  { id: 'short', label: '融券', key: 'sb', kind: 'line' },
-  { id: 'sbl', label: '借券', key: 'sbl', kind: 'line' },
-  { id: 'whale', label: '大戶持股比', key: 'whale', kind: 'line' },
-  { id: 'qfii', label: '外資持股比', key: 'qfii', kind: 'line' },
-  { id: 'daytrade', label: '當沖比率', key: 'dt', kind: 'histogram' },
-  { id: 'pe', label: '本益比', key: 'pe', kind: 'line' },
-  { id: 'pb', label: '淨值比', key: 'pb', kind: 'line' },
-  { id: 'dy', label: '殖利率', key: 'dy', kind: 'line' },
-];
+const AdvancedChart = lazy(() => import('../components/AdvancedChart'));
 
-function cssVar(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+type SheetKind = { kind: 'score'; id?: CategoryId } | { kind: 'chip' } | { kind: 'more' } | null;
+
+function lastOf(a: unknown): number | null {
+  if (!Array.isArray(a)) return null;
+  for (let i = a.length - 1; i >= 0; i--) if (a[i] !== null && a[i] !== undefined) return a[i] as number;
+  return null;
+}
+function agoOf(a: unknown, n: number): number | null {
+  if (!Array.isArray(a) || a.length <= n) return null;
+  return (a[a.length - 1 - n] as number | null) ?? null;
 }
 
 export default function Stock({ code }: { code: string }) {
   const hist = useAsync(() => loadStock(code), [code]);
   const summary = useScoredSummary();
   const watched = useDb(() => isWatched(code), [code]);
-  const [mode, setMode] = useState<PriceMode>('adj');
-  const [lower, setLower] = useState('foreign');
-  const [costLines, setCostLines] = useState(true);
+  const [period, setPeriod] = usePeriod('stock');
+  const [advanced, setAdvanced] = useState(false);
+  const [sheet, setSheet] = useState<SheetKind>(null);
+  const [who, setWho] = useState<Who>('foreign');
+  const [seen, setSeen] = useState<number | null | undefined>(undefined);
+  const [drag, setDrag] = useState(0);
+  const g = useRef<{ x: number; y: number; lock: 'h' | 'v' | null } | null>(null);
   const row = summary.data?.byCode.get(code);
   const h = hist.data;
+  const ctx = getListContext(code);
 
-  const chart = useMemo(() => {
-    if (!h) return null;
-    const ohlc = toOhlc(h, mode);
-    const volume = volumeSeries(h, cssVar('--up') || '#e5352b', cssVar('--down') || '#1e9e4a');
-    const def = LOWER_PANELS.find((p) => p.id === lower) ?? LOWER_PANELS[0];
-    const lowerPanel: LowerPanel = { label: def.label, kind: def.kind, signed: def.signed, data: series(h, def.key) };
-    const overlays: Overlay[] = [];
-    const cl = h.cost as Record<string, (number | null)[]> | undefined;
-    if (costLines && cl && mode === 'raw') {
-      const palette: Record<string, string> = { foreign20: '#af52de', trust20: '#ff9500', foreign60: '#5856d6', trust60: '#ffcc00' };
-      const labels: Record<string, string> = { foreign20: '外資20日成本', trust20: '投信20日成本', foreign60: '外資60日成本', trust60: '投信60日成本' };
-      for (const [k, arr] of Object.entries(cl)) {
-        const data = arr.map((v, i) => (v === null ? null : { time: h.d[i], value: v })).filter((x): x is { time: string; value: number } => x !== null);
-        if (data.length) overlays.push({ label: labels[k] ?? k, color: palette[k] ?? '#8e8e93', data });
-      }
-    }
-    return { ohlc, volume, lowerPanel, overlays };
-  }, [h, mode, lower, costLines]);
+  useEffect(() => { setSeen(undefined); heroSeen(`stock:${code}`).then(setSeen); setAdvanced(false); setSheet(null); }, [code]);
+  const adj = useMemo(() => (h ? adjClose(h) : []), [h]);
+  const win = h ? sliceWindow(h.d, adj, period) : null;
+  const dir = win ? change(win.values).dir : 'flat';
+  const latest = lastOf(adj);
+  useEffect(() => { if (seen !== undefined) commitHero(`stock:${code}`, latest); }, [seen, latest, code]);
+  const inst = h ? instInsight(h, who) : null;
 
-  const available = LOWER_PANELS.filter((p) => h && Array.isArray(h[p.key]) && (h[p.key] as unknown[]).some((v) => v !== null));
-  const last = h ? h.d.length - 1 : -1;
+  // 左右滑動切換同一清單的上一檔／下一檔（圖表區與橫向捲動區除外）
+  function go(step: 1 | -1) {
+    if (!ctx) return;
+    const next = ctx.codes[ctx.index + step];
+    if (next) navigate(`/stock/${next}`, true, step > 0 ? 'push' : 'pop');
+  }
+  const onDown = (e: PointerEvent) => {
+    if (!ctx || (e.target as HTMLElement).closest('.chart-wrap, .chips, .periods, .sheet, button, a, input, .chart-box, .scroll-x')) return;
+    g.current = { x: e.clientX, y: e.clientY, lock: null };
+  };
+  const onMove = (e: PointerEvent) => {
+    const s = g.current;
+    if (!s) return;
+    const dx = e.clientX - s.x, dy = e.clientY - s.y;
+    if (!s.lock) s.lock = Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5 ? 'h' : Math.abs(dy) > 12 ? 'v' : null;
+    if (s.lock === 'h') setDrag(dx);
+  };
+  const onUp = () => {
+    const s = g.current;
+    g.current = null;
+    if (!s || s.lock !== 'h') { setDrag(0); return; }
+    if (drag < -80 && ctx && ctx.index < ctx.codes.length - 1) go(1);
+    else if (drag > 80 && ctx && ctx.index > 0) go(-1);
+    setDrag(0);
+  };
+
+  const comp = (row?.composite as number | null | undefined) ?? h?.scores?.composite ?? null;
+  const cc = compositeCompleteness(h?.scores);
+  const mb = h ? lastOf(h.mb) : null, mb5 = h ? agoOf(h.mb, 5) : null;
+  const sb = h ? lastOf(h.sb) : null, sb5 = h ? agoOf(h.sb, 5) : null;
+  const revenue = (h?.revenue as { ym: string; revenue: number; yoy: number | null; mom: number | null }[] | undefined) ?? [];
+  const rev = revenue[revenue.length - 1];
+  const pePct = h ? lastOf((h.series as Record<string, unknown> | undefined)?.pe_percentile) : null;
 
   return (
-    <div>
-      <Nav
-        title={h?.name ?? row?.name ?? code}
-        back="/watchlist"
-        subtitle={<span class="num">{code} · {h?.market === 'tpex' ? '上櫃' : '上市'} · {h?.industry ?? row?.industry ?? '—'}</span>}
+    <div class="page swipe-page" style={{ transform: drag ? `translateX(${drag * 0.4}px)` : undefined, opacity: drag ? 1 - Math.min(0.4, Math.abs(drag) / 600) : undefined }}
+      onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+      <Ambient mood={win ? dir : 'neutral'} />
+      <TopBar back="/mine" avatar={false}
+        caption={ctx ? (
+          <span class="row" style={{ justifyContent: 'center', gap: 'var(--s-1)' }}>
+            <button class="text-btn" disabled={ctx.index === 0} onClick={() => go(-1)} aria-label="上一檔">‹</button>
+            {ctx.name} {ctx.index + 1} / {ctx.codes.length}
+            <button class="text-btn" disabled={ctx.index === ctx.codes.length - 1} onClick={() => go(1)} aria-label="下一檔">›</button>
+          </span>
+        ) : null}
         actions={
-          <button class="icon-btn" aria-pressed={!!watched} aria-label={watched ? '從自選移除' : '加入自選'} onClick={() => (watched ? removeWatch(code) : addWatch(code))}>
-            {watched ? <IconStarFill /> : <IconStar />}
-          </button>
-        }
-      />
-      <DataStatus date={h ? h.d[last] : undefined} />
-      {hist.error ? <ErrorState error={hist.error} /> : null}
-      {hist.loading && !h ? <Loading /> : null}
-      {h && chart ? (
-        <>
-          <div class="card">
-            <div class="row between">
-              <div>
-                <div style={{ fontSize: '1.75rem', fontWeight: 700 }} class="num">{fmtPrice(h.c[last])}</div>
-                <Change change={row?.change ?? null} pct={row?.change_pct ?? null} />
-              </div>
-              <Composite value={(row?.composite as number | null) ?? h.scores?.composite ?? null} />
-            </div>
-            {row ? <div style={{ marginTop: '0.75rem' }}><ScoreRow row={row} /></div> : null}
-            <Flags flags={row?.flags} />
-          </div>
+          <>
+            <button class="icon-btn" aria-pressed={!!watched} aria-label={watched ? '從自選移除' : '加入自選'} onClick={() => (watched ? removeWatch(code) : addWatch(code))}>
+              {watched ? <IconStarFill /> : <IconStar />}
+            </button>
+            <button class="text-btn" aria-pressed={advanced} onClick={() => setAdvanced(!advanced)}>{advanced ? '簡潔' : '進階'}</button>
+          </>
+        } />
+      <header class="page-head">
+        <div class="eyebrow">{code}・{h?.market === 'tpex' ? '上櫃' : '上市'}・{h?.industry ?? row?.industry ?? '—'}</div>
+        <h1 class="title">{h?.name ?? row?.name ?? code}</h1>
+      </header>
+      {hist.error ? <ErrorState error={hist.error} title="找不到這檔股票的資料" /> : null}
+      {hist.loading && !h ? <Loading hero /> : null}
 
-          <div class="card">
-            <div class="row between wrap">
-              <div class="segmented" role="group" aria-label="價格模式">
-                <button aria-pressed={mode === 'adj'} onClick={() => setMode('adj')}>還原</button>
-                <button aria-pressed={mode === 'raw'} onClick={() => setMode('raw')}>原始</button>
-              </div>
-              {h.cost ? (
-                <label class="row small"><input type="checkbox" checked={costLines} onChange={(e) => setCostLines((e.target as HTMLInputElement).checked)} /> 法人成本線（原始價）</label>
-              ) : null}
+      {h ? (
+        <>
+          <div style={{ marginTop: 'var(--s-2)' }}>
+            {advanced ? <AdvancedChart h={h} /> : (
+              <HeroChart label="收盤價（還原）" win={win} period={period} onPeriod={setPeriod} seen={seen ?? null}
+                format={(v) => fmtPrice(v)} formatDelta={(v) => fmtNum(v, v >= 100 ? 1 : 2)} area height={200} periodsLabel="股價走勢期間" />
+            )}
+          </div>
+          <DataStatus date={h.d[h.d.length - 1]} />
+
+          <p class="body" style={{ marginTop: 'var(--s-6)' }}>{healthLine(h.summary_text) ?? '健檢摘要資料不足。'}</p>
+          {row?.flags?.length ? (
+            <div class="row wrap" style={{ gap: 'var(--s-1)', marginTop: 'var(--s-2)' }} role="group" aria-label="風險旗標">
+              {row.flags.map((f) => <span key={f.id} class="tag risk" title={f.detail}>{f.label}</span>)}
             </div>
-            <KChart ohlc={chart.ohlc} volume={chart.volume} overlays={chart.overlays} lower={chart.lowerPanel}
-              ariaLabel={`${h.name} ${mode === 'adj' ? '還原' : '原始'} K 線圖，最新收盤 ${fmtPrice(h.c[last])}`} />
-            <div class="chips" role="group" aria-label="下方指標" style={{ marginTop: '0.5rem' }}>
-              {available.map((p) => (
-                <button key={p.id} class="chip" aria-pressed={lower === p.id} onClick={() => setLower(p.id)}>{p.label}</button>
+          ) : null}
+          <div style={{ marginTop: 'var(--s-6)' }}>
+            <ScoreRings row={row} detail={h.scores} onPick={(id) => setSheet({ kind: 'score', id })} />
+          </div>
+          <button class="collapsed-row" style={{ marginTop: 'var(--s-3)' }} onClick={() => setSheet({ kind: 'score' })}>
+            <span>綜合分 {scoreText(comp)}（資料完整度 {cc === null ? '—' : `${Math.round(cc * 100)}%`}）・查看全部因子</span>
+            <IconChevron />
+          </button>
+
+          <Block question="法人" answer={inst?.title}>
+            <div class="segmented" role="group" aria-label="法人" style={{ marginTop: 'var(--s-4)' }}>
+              {(['foreign', 'trust', 'dealer'] as const).map((w) => (
+                <button key={w} aria-pressed={who === w} onClick={() => setWho(w)}>{{ foreign: '外資', trust: '投信', dealer: '自營商' }[w]}</button>
               ))}
             </div>
-            {mode === 'raw' && h.cost ? <p class="tiny muted">法人成本線為估算值：以淨買超日股數 × 當日均價加權（見方法說明）。</p> : null}
-          </div>
+            {inst ? (
+              <>
+                <div style={{ marginTop: 'var(--s-5)' }}>
+                  <NetBars values={inst.values} label={`${{ foreign: '外資', trust: '投信', dealer: '自營商' }[who]}近 60 日每日淨買賣超柱狀圖：${inst.title}`} />
+                </div>
+                <div class="row between caption muted" style={{ marginTop: 'var(--s-1)' }}>
+                  <span>60 個交易日</span><span><span class="up" aria-hidden="true">■</span> 淨買超{' '}<span class="down" aria-hidden="true">■</span> 淨賣超</span>
+                </div>
+                <div class="card">
+                  <div class="body w6">白話重點</div>
+                  {inst.lines.map((l) => <p key={l} class="caption t1" style={{ marginTop: 'var(--s-1)' }}>{l}</p>)}
+                  {inst.est ? <p class="caption t1" style={{ marginTop: 'var(--s-1)' }}>{inst.est}<span class="est">估</span></p> : null}
+                  {!inst.lines.length && !inst.est ? <p class="caption muted">資料累積中。</p> : null}
+                </div>
+              </>
+            ) : null}
+          </Block>
 
-          <StockExtras h={h} />
-          {h.scores ? <ScoreDetailView detail={h.scores} /> : null}
+          <Block question="籌碼" answer={mb !== null && mb5 ? `融資 5 日${mb >= mb5 ? '增加' : '減少'} ${fmtPct(((mb - mb5) / mb5) * 100, 1, false).replace('-', '')}` : '融資融券'}>
+            <div class="list" style={{ marginTop: 'var(--s-4)' }}>
+              <div class="list-item"><span class="grow">融資餘額</span><span class="body">{fmtInt(mb)} 張</span><span class="caption" style={{ minWidth: '4.5rem', textAlign: 'right' }}><Signed value={mb !== null && mb5 !== null ? mb - mb5 : null} format={fmtLots} label="5 日" /></span></div>
+              <div class="list-item"><span class="grow">融券餘額</span><span class="body">{fmtInt(sb)} 張</span><span class="caption" style={{ minWidth: '4.5rem', textAlign: 'right' }}><Signed value={sb !== null && sb5 !== null ? sb - sb5 : null} format={fmtLots} label="5 日" /></span></div>
+              {row?.whale_pct !== null && row?.whale_pct !== undefined ? <div class="list-item"><span class="grow">千張大戶持股比</span><span class="body">{fmtNum(row.whale_pct as number, 1)}%</span></div> : null}
+              {row?.foreign_hold_pct !== null && row?.foreign_hold_pct !== undefined ? <div class="list-item"><span class="grow">外資持股比</span><span class="body">{fmtNum(row.foreign_hold_pct as number, 1)}%</span></div> : null}
+              <button class="list-item brand" onClick={() => setSheet({ kind: 'chip' })}>近期每日籌碼明細<span class="chev"><IconChevron /></span></button>
+            </div>
+            {row && (row.whale_pct === null || row.whale_pct === undefined) ? <Accumulating what="集保大戶持股" detail="集保股權分散表官方只提供最新一週，每週六起逐週累積。" /> : null}
+          </Block>
 
-          <h2 class="title-2">近期籌碼</h2>
-          <div class="card scroll-x">
-            <table class="table">
-              <thead>
-                <tr><th>日期</th><th>收盤</th><th>外資</th><th>投信</th><th>自營商</th><th>融資餘額</th><th>融券餘額</th></tr>
-              </thead>
-              <tbody>
-                {h.d.slice(-10).reverse().map((d, k) => {
-                  const i = last - k;
-                  return (
-                    <tr key={d}>
-                      <td>{d.slice(5)}</td>
-                      <td>{fmtPrice(h.c[i])}</td>
-                      <td><Signed value={h.fn[i]} format={fmtLots} /></td>
-                      <td><Signed value={h.tn[i]} format={fmtLots} /></td>
-                      <td><Signed value={h.dn[i]} format={fmtLots} /></td>
-                      <td>{fmtInt(h.mb[i])}</td>
-                      <td>{fmtInt(h.sb[i])}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <p class="tiny muted">單位：張（法人買賣超為淨買超張數）。</p>
-          </div>
+          <Block question="營收" answer={rev ? `${rev.ym.slice(0, 4)} 年 ${Number(rev.ym.slice(5, 7))} 月營收年增 ${rev.yoy === null ? '—' : `${rev.yoy.toFixed(1)}%`}` : '營收資料累積中'}>
+            {rev ? (
+              <div class="list" style={{ marginTop: 'var(--s-4)' }}>
+                <div class="list-item"><span class="grow">單月營收</span><span class="body">{fmtNum(rev.revenue / 1e5, 1)} 億</span></div>
+                <div class="list-item"><span class="grow">近 3 月年增率</span><span class="body"><Signed value={(row?.revenue_yoy_3m as number | null) ?? null} format={(v) => fmtPct(v, 1)} /></span></div>
+                <button class="list-item brand" onClick={() => setSheet({ kind: 'more' })}>月營收、季財報與事件<span class="chev"><IconChevron /></span></button>
+              </div>
+            ) : null}
+          </Block>
 
-          <h2 class="title-2">基本數據</h2>
-          <div class="list">
-            <div class="list-item"><span class="grow">成交量</span><span class="num">{fmtInt(h.v[last])} 張</span></div>
-            <div class="list-item"><span class="grow">成交值</span><span class="num">{fmtNum(h.val[last], 1)} 百萬</span></div>
-            <div class="list-item"><span class="grow">本益比</span><span class="num">{fmtNum(h.pe[last])}</span></div>
-            <div class="list-item"><span class="grow">股價淨值比</span><span class="num">{fmtNum(h.pb[last])}</span></div>
-            <div class="list-item"><span class="grow">殖利率</span><span class="num">{fmtNum(h.dy[last])}%</span></div>
-            {h.shares ? <div class="list-item"><span class="grow">發行股數</span><span class="num">{fmtNum(h.shares / 1e8, 2)} 億股</span></div> : null}
-          </div>
+          <Block question="估值" answer={h.fair ? '合理價區間' : `本益比 ${fmtNum(lastOf(h.pe))}`}>
+            <div class="card">
+              <FairRange h={h} />
+              <div class="row between caption" style={{ marginTop: 'var(--s-3)' }}>
+                <span>本益比 {fmtNum(lastOf(h.pe))}{pePct !== null ? `（3 年第 ${Math.round(pePct)} 百分位）` : ''}</span>
+                <span>淨值比 {fmtNum(lastOf(h.pb))}</span>
+                <span>殖利率 {fmtNum(lastOf(h.dy))}%</span>
+              </div>
+            </div>
+          </Block>
+
+          <Sheet open={!!sheet} onClose={() => setSheet(null)} detent={sheet?.kind === 'score' && sheet.id ? 'half' : 'full'}
+            title={sheet?.kind === 'score' ? (sheet.id ? `${categoryName(sheet.id)}分數明細` : '分數明細') : sheet?.kind === 'chip' ? '近期每日籌碼' : '營收、財報與事件'}>
+            {sheet?.kind === 'score' && h.scores ? <ScoreDetailView detail={h.scores} only={sheet.id} /> : null}
+            {sheet?.kind === 'chip' ? (
+              <div class="scroll-x">
+                <table class="table">
+                  <thead><tr><th>日期</th><th>收盤</th><th>外資</th><th>投信</th><th>自營商</th><th>融資</th><th>融券</th></tr></thead>
+                  <tbody>
+                    {h.d.slice(-15).reverse().map((d, k) => {
+                      const i = h.d.length - 1 - k;
+                      return (
+                        <tr key={d}>
+                          <td>{d.slice(5)}</td><td>{fmtPrice(h.c[i])}</td>
+                          <td><Signed value={h.fn[i]} format={fmtLots} /></td><td><Signed value={h.tn[i]} format={fmtLots} /></td><td><Signed value={h.dn[i]} format={fmtLots} /></td>
+                          <td>{fmtInt(h.mb[i])}</td><td>{fmtInt(h.sb[i])}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p class="caption muted">單位：張（法人為淨買賣超張數）。</p>
+              </div>
+            ) : null}
+            {sheet?.kind === 'more' ? <StockExtras h={h} /> : null}
+          </Sheet>
         </>
       ) : null}
     </div>
