@@ -1,4 +1,5 @@
-import { useEffect } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
+import { IconClose } from './components/Icons';
 import { useRoute } from './router';
 import { Dock } from './components/Chrome';
 import { Footer } from './components/Footer';
@@ -72,6 +73,24 @@ function Page({ parts }: { parts: string[] }) {
   }
 }
 
+/** 新版本已就緒（service worker 已更新）：由使用者點「重新載入」，不在使用中途自動重新整理。 */
+function UpdateToast() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const on = () => setReady(true);
+    window.addEventListener('app-updated', on);
+    return () => window.removeEventListener('app-updated', on);
+  }, []);
+  if (!ready) return null;
+  return (
+    <div class="update-toast glass" role="status">
+      <span>新版本已就緒</span>
+      <button class="btn small primary" onClick={() => location.reload()}>重新載入</button>
+      <button class="icon-btn" aria-label="稍後" onClick={() => setReady(false)}><IconClose /></button>
+    </div>
+  );
+}
+
 /** 外觀（淺／深／跟隨系統）與環境光開關：寫在 <html> 的 data-theme、data-ambient；狀態列顏色跟著背景。 */
 export async function applyAppearance(): Promise<void> {
   const theme = await getSetting<string>('theme', 'auto');
@@ -104,6 +123,7 @@ export function App() {
         <Footer />
       </main>
       {route.path === '/search' ? null : <Dock path={route.path} />}
+      <UpdateToast />
     </>
   );
 }
