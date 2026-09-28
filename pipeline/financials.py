@@ -12,7 +12,6 @@ from typing import Any
 
 import pandas as pd
 
-from pipeline.core.http import FetchError
 from pipeline.core.normalize import clean_code, clean_name, strip_tags, to_num
 from pipeline.sources.base import ParseError
 
@@ -101,10 +100,12 @@ def fetch_quarter(ctx: Any, year: int, quarter: int) -> pd.DataFrame:
 
 
 def run_quarter(ctx: Any, year: int, quarter: int) -> bool:
+    from pipeline.tasks import SOURCE_ERRORS, err_text
+
     try:
         df = fetch_quarter(ctx, year, quarter)
-    except (FetchError, ParseError) as exc:
-        ctx.note("financials", "failed", data_date=quarter_key(year, quarter), message=str(exc)[:300])
+    except SOURCE_ERRORS as exc:
+        ctx.note("financials", "failed", data_date=quarter_key(year, quarter), message=err_text(exc)[:300])
         return False
     if df.empty:
         ctx.note("financials", "no_data", data_date=quarter_key(year, quarter), message="該季尚未公布")

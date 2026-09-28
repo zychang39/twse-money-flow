@@ -15,15 +15,40 @@ from pipeline.core import config
 
 log = logging.getLogger(__name__)
 
-BLOCK_MARKERS = ("FOR SECURITY REASONS", "因為安全性考量")
+BLOCK_MARKERS = ("FOR SECURITY REASONS", "因為安全性考量", "Request Rejected")
+# 被阻擋時的退避秒數（每次 ×2）與同一請求最多再試幾次：WAF 阻擋時密集重試只會延長封鎖
+BLOCK_BACKOFF = 30.0
+BLOCK_RETRIES = 1
 
 
 class FetchError(RuntimeError):
     """抓取失敗（重試後仍失敗、被阻擋、HTTP 錯誤）。"""
 
 
+class BlockedError(FetchError):
+    """E-09：被網站安全機制（WAF）阻擋：HTTP 307 轉址到錯誤頁，或回應含「FOR SECURITY REASONS」。
+
+    不是格式變動：以較長的退避重試、計入斷路器；訊息含「阻擋」，資料健康頁顯示為暫時連不上。
+    """
+
+
 class CircuitOpenError(FetchError):
     """同一網域連續失敗達上限，本輪不再請求。"""
+
+
+def is_blocked(resp: Any, url: str) -> bool:
+    """E-09：證交所 WAF 以 307 轉到錯誤頁（或直接回 307），頁面含 FOR SECURITY REASONS。"""
+    if getattr(resp, "status_code", 200) == 307:
+        return True
+    for hop in getattr(resp, "history", None) or []:
+        if getattr(hop, "status_code", None) == 307:
+            final = urlparse(str(getattr(resp, "url", "") or url))
+            asked = urlparse(url)
+            if (final.netloc, final.path) != (asked.netloc, asked.path):
+                return True
+    head = bytes(resp.content[:4096])
+    text = head.decode("utf-8", errors="ignore") + head.decode("cp950", errors="ignore")
+    return any(m in text for m in BLOCK_MARKERS)
 
 
 @dataclass
@@ -85,9 +110,8 @@ class PoliteClient:
                     allow_redirects=True,
                 )
                 self._last_request = time.monotonic()
-                head = resp.content[:600].decode("utf-8", errors="ignore")
-                if any(m in head for m in BLOCK_MARKERS):
-                    raise FetchError(f"被網站安全機制阻擋：{url}")
+                if is_blocked(resp, url):
+                    raise BlockedError(f"被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：{url}")
                 if resp.status_code in (429, 500, 502, 503, 504):
                     raise FetchError(f"HTTP {resp.status_code}：{url}")
                 if resp.status_code >= 400:
@@ -100,6 +124,18 @@ class PoliteClient:
                 last_error = exc
                 if isinstance(exc, FetchError) and "HTTP 4" in str(exc):
                     break
+                if isinstance(exc, BlockedError):
+                    # 被阻擋：計入斷路器，較長退避後最多再試 BLOCK_RETRIES 次
+                    self._failures[host] = self._failures.get(host, 0) + 1
+                    if (
+                        attempt >= min(self.max_retries, BLOCK_RETRIES)
+                        or self._failures[host] >= self.breaker_threshold
+                    ):
+                        raise
+                    wait = BLOCK_BACKOFF * 2**attempt
+                    log.warning("被網站安全機制阻擋，%d 秒後重試：%s", wait, url)
+                    self.sleep(wait)
+                    continue
                 if attempt < self.max_retries:
                     backoff = 2 ** (attempt + 1)
                     log.warning("請求失敗（第 %d 次），%d 秒後重試：%s", attempt + 1, backoff, exc)

@@ -116,6 +116,11 @@ def write_json(path: Path, obj: Any) -> int:
 
 
 # ------------------------------------------------------------------ 健康頁
+def stale_warning(entry: dict[str, Any]) -> bool:
+    wd, last = entry.get("format_warning_date"), entry.get("last_success")
+    return bool(wd and last and str(wd) < str(last))
+
+
 def build_health(ds: Dataset, market_date: str | None) -> dict[str, Any]:
     manifest = ds.manifest
     src_cfg = config.sources()
@@ -152,8 +157,9 @@ def build_health(ds: Dataset, market_date: str | None) -> dict[str, Any]:
                 "lag_days": lag,
                 "consecutive_failures": entry.get("consecutive_failures", 0),
                 "affects_latest": bool(affects_latest),
-                "format_warnings": entry.get("format_warnings") or [],
-                "format_warning_date": entry.get("format_warning_date"),
+                # Q-08：警告日期早於最後成功日 → 是回補舊資料留下的，現在的格式正常，不顯示相容模式
+                "format_warnings": [] if stale_warning(entry) else entry.get("format_warnings") or [],
+                "format_warning_date": None if stale_warning(entry) else entry.get("format_warning_date"),
             }
         )
     return {

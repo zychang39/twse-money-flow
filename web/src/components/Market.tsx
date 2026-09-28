@@ -53,8 +53,9 @@ export function FlowsRow({ flow }: { flow: MarketData['flows'][number] | undefin
           <div key={k}>
             <div class="caption muted">{k}</div>
             <div class={`body w6 ${d}`}>
-              <span aria-hidden="true">{arrow(v)} {fmtNum(v === null ? null : Math.abs(v), 1)} 億</span>
-              <span class="sr-only">{`${k}${d === 'up' ? '買超' : d === 'down' ? '賣超' : ''} ${fmtNum(v === null ? null : Math.abs(v), 1)} 億元`}</span>
+              {/* D-08：法人資料缺漏時是 null → 顯示「—」，不是「0 億」 */}
+              <span aria-hidden="true">{v === null ? '—' : `${arrow(v)} ${fmtNum(Math.abs(v), 1)} 億`}</span>
+              <span class="sr-only">{v === null ? `${k}無資料` : `${k}${d === 'up' ? '買超' : d === 'down' ? '賣超' : ''} ${fmtNum(Math.abs(v), 1)} 億元`}</span>
             </div>
           </div>
         );

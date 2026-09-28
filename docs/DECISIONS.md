@@ -128,3 +128,21 @@
 109. **E-03**：權益曲線把建倉、平倉日對齊到「該日（含）之後的第一個交易日」（`portfolio.onOrAfter`）；表單仍預設今天，不改使用者輸入。
 110. **E-04 匯入**：`validateBackup` 先檢查 app、整數 schemaVersion、該版本應有的每個 store 是陣列、每列有主鍵；任何一項不符就在開交易前拒絕。寫入途中出錯 `tx.abort()`，清空一起撤銷。「取代全部」先以 `previewImport` 算出筆數，確認後才寫入。
 111. **U-11**：檢查表徽章＝`checklist_done` 活動次數（建立持倉與決定不進場都會記），不再用交易筆數。
+112. **D-02 解析器一律經過欄位輔助函式**：新增 `frame_from_records`（OpenAPI 的 list-of-dict），所有解析器都用 `frame_from_fields`／`expect_fields`／`resolve_fields`；必要欄位缺少丟 `ParseError`，選用欄位補空值並記格式警告。任務層以 `SOURCE_ERRORS` 攔下單一來源的任何解析或抓取錯誤（非預期的 KeyError 等標成「格式不符（KeyError）」），只記該來源失敗，不中斷每日任務。
+113. **D-03 期交所各商品獨立**：`config/sources.yml` 加上 `listed_since`（TMF 2024-07-29），查詢區間早於上市日的商品不發請求；每個商品各自 try，一個失敗不影響同月已抓到的其他商品（manifest 記失敗並註明「已保存其他商品 N 列」）。
+114. **D-04 查無資料不記 ok**：MOPS 月營收「查無資料」→ 法定期限（次月 10 日）前記 pending、之後記失敗；回補略過還沒到期限的月份。期交所區間內有交易日但 0 筆 → 失敗。
+115. **E-07**：期交所查詢迄日夾到 `target_trading_date`（最近一個已收盤的交易日），不用今天。
+116. **E-09 WAF**：`is_blocked` 判斷 307 轉到其他路徑、或前 4KB（UTF-8／Big5）含 FOR SECURITY REASONS 等標記 → `BlockedError`；計入斷路器、30 秒起跳的退避、同一請求最多再試一次（密集重試只會延長封鎖）。資料健康頁先判斷「阻擋」再判斷格式，顯示「暫時阻擋自動抓取」。
+117. **Q-08**：格式警告只在資料日 ≥ 最後成功日時記錄；build 時也把「警告日早於最後成功日」的舊警告視為過期。區間型來源的最後成功日＝實際資料最新日。證交所沒有行情時先確認櫃買也沒有，才寫入 closed_days。健康頁 id 更正（`investor_conference`、`twse_margin`），並以測試確保 PAGE_SOURCES 的 id 都存在於 config。
+118. **D-07**：月營收生效日＝min(first_seen, 次月 10 日)。法定期限日收盤後即可確定已公布，仍維持 T 日收盤計算、T+1 進場，不會前視。
+119. **D-08／D-09**：資金流與產業淨買超用 `sum(min_count=1)`，全部缺值輸出 null（畫面「—」）；市場漲跌家數改用官方漲跌欄（相對參考價），除權息日不會被算成下跌。
+120. **E-06**：日報只在「資料日期＝今天（台北）且這個日期還沒推播過」時送出；manifest 記 `digest_date`，digest 指令另外檢查 summary 日期。
+121. **E-05 回補與每日任務分開**（依使用者建議的設計）：
+    - 回補使用獨立的 concurrency group `data-backfill`，不再和每日任務共用佇列。
+    - 回補分段：每段最多 40 分鐘（`--max-minutes 40`，cli 另以 `BACKFILL_SEGMENT_MINUTES` 保底），結束時照常 commit-data 保存進度（已存檔的日期、manifest 的 backfilled 月份），剩餘量 > 0 就自動 dispatch 下一段。
+    - 交易日 16:30–22:30（台北，依交易日曆；休市日不受限）不開始新的一段：記錄 `backfill_pending`（來源、起訖、refresh、ref）後結束；新增 22:40 的排程（`40 14 * * 1-5`，任務 `resume`）以同樣參數重新觸發。已在執行中的分段最多 40 分鐘，16:30 前開始的最晚約 17:10 結束，不會和 17:30 的每日任務重疊太久。
+    - 每日任務被取消或失敗：下次執行從最後一個有收盤行情的交易日之後補抓（最多 30 個交易日），不只最近 5 天。
+    - 同時寫入 data 分支：推送被拒時 fetch → `rebase -X theirs`（本次的檔案為準；失敗改 merge）→ 以 `merge_manifests` 語意合併 manifest（各來源取較新的嘗試、成功日取較新、closed_days／backfilled 聯集、runs 依時間合併）→ 指數退避重試。每月 squash 改用 `--force-with-lease`，遠端被其他任務推進就放棄 squash，不會蓋掉別人的提交。
+122. **Q-01**：CI 在 push 到 main 時也執行；Deploy 改由 `workflow_run`（CI 在 main 的 push 成功）觸發並 checkout CI 測過的提交；data.yml 觸發的部署（workflow_call）照常，build 前以 `check-json` 嚴格掃描全部衍生 JSON。data.yml 的 cron 與 `SCHEDULE_TASKS` 以測試比對。
+123. **M5-1 還原／原始切換的根本原因與修法**：切換狀態原本放在 HeroChart 內部，只影響「拖曳區間時的報酬提示」（`rangeValues`），主角數字、走勢線、今日／期間漲跌與環境光一律用還原價，所以使用者點了看不出任何變化；週線期間（10Y、ALL）原始價與還原價點數不一致時切換鈕還會消失。改為由個股頁統一管理價格基準（記在 localStorage `tmf-range-basis`，前後一檔的主角區同步），`lib/heroSeries.heroWindows` 產生同一組日期與取樣點的還原／原始兩組價格，頁面依基準選一組傳給 HeroChart：主角數字、走勢線、今日與期間漲跌、區間報酬全部用同一組，主角數字旁顯示「還原／原始」標籤。進階 K 線改為受控，跟著同一個基準；法人成本線以原始價計算，還原模式時乘上當天的還原因子（`costLineFor`），兩種模式都顯示。
+124. **M5-2 手勢分工**：換股只從頁首區域開始——主角區的名稱列（`[data-swipe]`，StockPager 只在這裡開始拖曳）、頂列「自選 1／3」那一列（`SwipeCaption`，滑動 ≥ 40px 且以水平為主）、點 ‹ ›（44pt）、電腦版左右方向鍵（焦點在圖表、輸入框、底部面板時不換股）。走勢圖區域完全交給圖表：單指立即查價（不再需要先按住 0.2 秒）、兩指或「按住約 0.45 秒不動再拖曳」選區間、桌機按住拖曳選區間；圖表保留 `touch-action: pan-y`（垂直滑動仍可捲動頁面，水平手勢由圖表處理）並用 pointer capture 與 touchmove preventDefault 避免事件外洩。

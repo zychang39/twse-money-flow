@@ -11,8 +11,9 @@ import logging
 import os
 import sys
 import time
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
 from pipeline.core.dates import now_tpe, parse_date
 from pipeline.core.http import PoliteClient
@@ -29,7 +30,21 @@ SCHEDULE_TASKS = {
     "0 3 16 5,8,11 *": "periodic",
     "0 3 1 4 *": "periodic",
     "*/15 1-5 * * 1-5": "alerts",
+    "40 14 * * 1-5": "resume",
 }
+
+# E-05：回補分段執行。每段最多 BACKFILL_SEGMENT_MINUTES 分鐘，結束時提交進度並自動觸發下一段；
+# 交易日 16:30–22:30（台北）不開始新的一段，讓每日任務（17:30、21:30）先跑；延後的那段由 22:40 的 resume 排程接續。
+BACKFILL_SEGMENT_MINUTES = 40
+QUIET_WINDOW = ((16, 30), (22, 30))
+
+
+def in_quiet_window(now: datetime, calendar: Any) -> bool:
+    """交易日的 16:30（含）–22:30（不含）不開始新的回補分段。"""
+    if not calendar.is_trading_day(now.date()):
+        return False
+    hm = (now.hour, now.minute)
+    return QUIET_WINDOW[0] <= hm < QUIET_WINDOW[1]
 
 
 def _gh_output(**values: object) -> None:
@@ -56,9 +71,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     task = args.task or SCHEDULE_TASKS.get((args.schedule or "").strip(), "daily")
     if task == "alerts":  # 盤中提醒不碰 data 分支
         return cmd_alerts(args)
+    if task == "resume":
+        return cmd_resume(args)
     sources = [s.strip() for s in (args.source or "").split(",") if s.strip()] or None
     store = DataStore(args.data_dir)
-    ctx = tasks.RunContext(store=store, client=PoliteClient.from_config())
+    ctx = tasks.RunContext(store=store, client=PoliteClient.from_config(), now=now_tpe())
     ctx.manifest = store.load_manifest()
     if args.max_minutes:
         ctx.deadline = time.monotonic() + float(args.max_minutes) * 60
@@ -75,6 +92,23 @@ def cmd_run(args: argparse.Namespace) -> int:
             end = _date(args.end) or now_tpe().date()
             start = _date(args.start) or tasks.default_backfill_start(sources, end)
             refresh = _truthy(args.refresh)
+            tasks.load_calendar(ctx, [ctx.today.year], fetch_missing=False)
+            if in_quiet_window(ctx.now, ctx.calendar):
+                # E-05：每日任務時段不開始新的一段；記下待續的參數，由 22:40 的 resume 排程觸發
+                ctx.manifest["backfill_pending"] = {
+                    "source": args.source or "",
+                    "start": start.isoformat(),
+                    "end": end.isoformat(),
+                    "refresh": refresh,
+                    "ref": os.environ.get("GITHUB_REF_NAME", "main"),
+                    "deferred_at": ctx.now.isoformat(timespec="minutes"),
+                }
+                log.info("交易日 16:30–22:30 不開始回補分段，已記錄待續，22:40 自動接續")
+                extra = {"deferred": True}
+                raise _Deferred
+            ctx.manifest.pop("backfill_pending", None)
+            if ctx.deadline is None or ctx.deadline - time.monotonic() > BACKFILL_SEGMENT_MINUTES * 60:
+                ctx.deadline = time.monotonic() + BACKFILL_SEGMENT_MINUTES * 60
             extra = tasks.task_backfill(ctx, sources, start, end, refresh=refresh)
             deploy = "true" if not extra.get("remaining") else "false"
             # 重抓（refresh）不自動接續：下一輪會從最近的日期重抓起，無法前進；剩餘量請縮小區間後再執行
@@ -95,14 +129,23 @@ def cmd_run(args: argparse.Namespace) -> int:
         else:
             log.error("未知任務：%s", task)
             return 2
+    except _Deferred:
+        pass
     finally:
         summary = tasks.append_run(ctx, task, extra)
         store.save_manifest(ctx.manifest)
         Path(args.data_dir, "last_run.json").write_text(
             json.dumps(summary, ensure_ascii=False, indent=1), encoding="utf-8"
         )
-    # 每日任務的最後一次（台北 20:30 後）部署完成時推播 Telegram 日報
-    digest = "true" if task == "daily" and ctx.is_final_run else "false"
+    # 每日任務的最後一次（台北 20:30 後）部署完成時推播 Telegram 日報。
+    # E-06：今天休市（或同一交易日已推播過）不推播，避免重送前一個交易日的內容
+    digest = "false"
+    if task == "daily" and ctx.is_final_run:
+        target = ctx.manifest.get("last_target_date")
+        if should_send_digest(target, ctx.today.isoformat(), ctx.manifest.get("digest_date")):
+            digest = "true"
+            ctx.manifest["digest_date"] = target
+            store.save_manifest(ctx.manifest)
     _gh_output(
         task=task,
         failed="true" if ctx.failures else "false",
@@ -111,6 +154,45 @@ def cmd_run(args: argparse.Namespace) -> int:
         remaining=extra.get("remaining", 0),
     )
     return 0
+
+
+class _Deferred(Exception):
+    """回補分段延後（每日任務時段）。"""
+
+
+def cmd_resume(args: argparse.Namespace) -> int:
+    """E-05：22:40（台北）接續在每日任務時段延後的回補分段：以記錄的參數觸發 data.yml。"""
+    from pipeline.notify.github import dispatch_workflow
+
+    store = DataStore(args.data_dir)
+    manifest = store.load_manifest()
+    pending = manifest.get("backfill_pending")
+    if not pending:
+        print("沒有待續的回補")
+        _gh_output(task="resume", failed="false", deploy="false", digest="false", remaining=0)
+        return 0
+    ok = dispatch_workflow(
+        "data.yml",
+        {
+            "task": "backfill",
+            "source": str(pending.get("source") or ""),
+            "start": str(pending["start"]),
+            "end": str(pending["end"]),
+            "refresh": "true" if pending.get("refresh") else "false",
+        },
+        ref=str(pending.get("ref") or "main"),
+    )
+    print(f"接續回補：{'已觸發' if ok else '觸發失敗'} {pending}")
+    _gh_output(task="resume", failed="false" if ok else "true", deploy="false", digest="false", remaining=1)
+    return 0
+
+
+def should_send_digest(summary_date: str | None, today: str, last_sent: str | None) -> bool:
+    """E-06：日報只在「資料日期＝今天（台北）」而且這個日期還沒推播過時送出。
+
+    平日休市（9/25 中秋、9/28 教師節）的最後一次執行，資料日期仍是 9/24 → 不送。
+    """
+    return bool(summary_date) and summary_date == today and summary_date != last_sent
 
 
 def cmd_alerts(args: argparse.Namespace) -> int:
@@ -138,6 +220,12 @@ def cmd_digest(args: argparse.Namespace) -> int:
     if not site and "/" in repo:
         owner, name = repo.split("/", 1)
         site = f"https://{owner.lower()}.github.io/{name}/"
+    summary_path = Path(args.web_data, "summary.json")
+    if summary_path.exists():
+        sdate = json.loads(summary_path.read_text(encoding="utf-8")).get("date")
+        if not should_send_digest(sdate, now_tpe().date().isoformat(), None):
+            print(f"digest skipped：資料日期 {sdate} 不是今天（休市或資料未更新），不重送")
+            return 0
     ok = send_daily_digest(Path(args.web_data), load_rules()["digest"], site, failures)
     print("digest sent" if ok else "digest skipped")
     return 0
@@ -168,7 +256,7 @@ def cmd_report(args: argparse.Namespace) -> int:
     else:
         summary = json.loads(path.read_text(encoding="utf-8"))
         failures, task = summary.get("failed", []), summary.get("task", "unknown")
-    if task == "alerts":
+    if task in ("alerts", "resume"):
         return 0
     print(report_failures(failures, args.run_url, task))
     return 0

@@ -35,12 +35,18 @@ def rolling_own_percentile(frame: pd.DataFrame, lookback: int, min_obs: int) -> 
 
 
 def effective_date_for_month(ym: str, first_seen: str | None, fallback_day: int) -> str:
-    """月營收生效日：有 first_seen 用之；否則為次月 fallback_day 日。"""
-    if isinstance(first_seen, str) and first_seen:
-        return first_seen
+    """月營收生效日＝min(first_seen, 次月 fallback_day 日)。
+
+    D-07：first_seen 是 pipeline「第一次看到」的日期；排程中斷或剛開始運作時會晚於實際公布日
+    （8 月營收 first_seen＝9/27，但法定期限 9/10 前就已公布），所以不得晚於法定期限。
+    法定期限日當天收盤後生效（as_of 以 T 日收盤資料計算、T+1 進場），不會前視。
+    """
     y, m = int(ym[:4]), int(ym[5:7])
     ny, nm = (y + 1, 1) if m == 12 else (y, m + 1)
-    return date(ny, nm, fallback_day).isoformat()
+    deadline = date(ny, nm, fallback_day).isoformat()
+    if isinstance(first_seen, str) and first_seen:
+        return min(first_seen, deadline)
+    return deadline
 
 
 def as_of_panel(records: pd.DataFrame, value_col: str, dates: list[str], codes: list[str]) -> pd.DataFrame:
