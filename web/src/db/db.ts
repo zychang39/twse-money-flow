@@ -55,6 +55,10 @@ export interface Trade {
   errorTags?: string[];
   fees?: number;
   dividends?: { date: string; cash: number; shares: number }[];
+  /** D-01：平倉時計算的還原因子（進場日之後到平倉日的分割、減資、除權息）；平倉價是當時的價格基準。1 或省略＝沒有公司行動 */
+  adjFactor?: number;
+  /** D-01：平倉時的公司行動說明（例：已依 2025/6/18 分割調整） */
+  adjNote?: string;
 }
 
 /** 紀律行為紀錄（遊戲化）：只記錄紀律行為，不記錄下單次數或損益。day＝該晚儀式對應的資料日期。 */

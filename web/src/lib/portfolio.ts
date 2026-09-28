@@ -1,17 +1,34 @@
 /** 投資組合分析：權益曲線（計入除息現金股利與除權配股）、報酬、月報酬、最大回撤、相關性。 */
 import type { Trade } from '../db/db';
+import type { AdjEvent } from './corpActions';
 
 export interface PriceSeries { dates: string[]; close: (number | null)[] }
 export interface DividendEvent { date: string; cash: number; stockRatio: number }
 
 export interface EquityPoint { date: string; equity: number; cash: number; holdings: number }
 
+/** calendar（已排序的交易日）中 iso 當天（含）之後的第一個交易日；超出範圍回傳 null。 */
+export function onOrAfter(iso: string, calendar: string[]): string | null {
+  const d = iso.slice(0, 10);
+  let lo = 0, hi = calendar.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (calendar[mid] < d) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo < calendar.length ? calendar[lo] : null;
+}
+
 /**
  * 權益曲線：初始資金 capital；每筆交易於 openedAt 當日以進場價買入（扣手續費 fees 於平倉時計入），closedAt 賣出。
+ * E-03：建倉、平倉日若是休市日或週末，對齊到該日（含）之後的第一個交易日。
  * 持有期間遇除息日：現金 += 股數 × 現金股利；遇除權日：股數 += 股數 × 配股率。
+ * D-01：遇分割、減資（adj 中非 dividend 類型的事件）：股數 ÷ 因子、價格 × 因子（市值不變）。
  */
-export function equityCurve(capital: number, trades: Trade[], prices: Record<string, PriceSeries>, divs: Record<string, DividendEvent[]>, calendar: string[]): EquityPoint[] {
+export function equityCurve(capital: number, trades: Trade[], prices: Record<string, PriceSeries>, divs: Record<string, DividendEvent[]>, calendar: string[], adj: Record<string, AdjEvent[]> = {}): EquityPoint[] {
   const out: EquityPoint[] = [];
+  const openDay = new Map(trades.map((t) => [t.id, onOrAfter(t.openedAt, calendar)]));
+  const closeDay = new Map(trades.map((t) => [t.id, t.closedAt ? onOrAfter(t.closedAt, calendar) : null]));
   let cash = capital;
   const holdings = new Map<string, { shares: number; trade: Trade }>();
   const priceAt = new Map<string, Map<string, number>>();
@@ -24,7 +41,7 @@ export function equityCurve(capital: number, trades: Trade[], prices: Record<str
   const opens = [...trades].sort((a, b) => a.openedAt.localeCompare(b.openedAt));
   for (const d of calendar) {
     for (const t of opens) {
-      if (t.openedAt.slice(0, 10) === d && !holdings.has(t.id)) {
+      if (openDay.get(t.id) === d && !holdings.has(t.id)) {
         cash -= t.entry * t.shares;
         holdings.set(t.id, { shares: t.shares, trade: t });
         lastPx.set(t.code, t.entry);
@@ -37,7 +54,14 @@ export function equityCurve(capital: number, trades: Trade[], prices: Record<str
           h.shares += Math.floor(h.shares * ev.stockRatio);
         }
       }
-      if (h.trade.status === 'closed' && h.trade.closedAt && h.trade.closedAt.slice(0, 10) === d && h.trade.exit !== undefined) {
+      for (const [ed, f, kind] of adj[h.trade.code] ?? []) {
+        if (kind !== 'dividend' && ed === d && d > h.trade.openedAt.slice(0, 10) && f > 0) {
+          h.shares = Math.round(h.shares / f);
+          const lp = lastPx.get(h.trade.code);
+          if (lp !== undefined) lastPx.set(h.trade.code, lp * f);
+        }
+      }
+      if (h.trade.status === 'closed' && h.trade.closedAt && closeDay.get(id) === d && h.trade.exit !== undefined) {
         cash += h.trade.exit * h.shares - (h.trade.fees ?? 0);
         holdings.delete(id);
       }

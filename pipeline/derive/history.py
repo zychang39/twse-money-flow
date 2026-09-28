@@ -55,7 +55,7 @@ def long_history(full_quotes: pd.DataFrame, ds: Dataset, codes: list[str]) -> di
     close = pivot(q, "close", dates)
     open_ = pivot(q, "open", dates)
     change = pivot(q, "change", dates)
-    events = adjust.all_events(close, open_, change, ds.exright, ds.capreduce, *ds.extra.get("splits", []))
+    events = adjust.all_events(close, open_, change, *adjust.tag_official(ds))
     af = ind.adjustment_table(dates, list(close.columns), events)
     out: dict[str, dict[str, Any]] = {}
     for code in close.columns:

@@ -12,7 +12,8 @@ import { loadJson, loadStock } from '../data/api';
 import { getSetting, type Trade } from '../db/db';
 import type { StockHistory, StockRow } from '../data/types';
 import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
-import { byReason, closedStats, countBy, lossIfAllStopped } from '../lib/sizing';
+import { byReason, closedStats, countBy, lossIfAllStopped, tradePnl } from '../lib/sizing';
+import { adjustTrade, eventsFor, unrealizedPnl, type AdjEvent } from '../lib/corpActions';
 import { alignTo, correlation, equityCurve, maxDrawdown, monthlyReturns, normalize, type DividendEvent } from '../lib/portfolio';
 import { adjClose } from '../lib/history';
 import { fmtMoney, fmtPct } from '../lib/format';
@@ -29,12 +30,14 @@ function Portfolio({ trades, capital, byCode }: { trades: Trade[]; capital: numb
     if (cal.length < 2) return null;
     const prices: Record<string, { dates: string[]; close: (number | null)[] }> = {};
     const divs: Record<string, DividendEvent[]> = {};
+    const adj: Record<string, AdjEvent[]> = {};
     hist.data.forEach((h: StockHistory | null) => {
       if (!h) return;
       prices[h.code] = { dates: h.d, close: h.c };
+      adj[h.code] = eventsFor(null, h);
       divs[h.code] = ((h.dividends as { date: string; cash: number; stock_ratio: number }[] | undefined) ?? []).map((d) => ({ date: d.date, cash: d.cash, stockRatio: d.stock_ratio }));
     });
-    const eq = equityCurve(capital, trades, prices, divs, cal);
+    const eq = equityCurve(capital, trades, prices, divs, cal, adj);
     const tr = idx.data.series['發行量加權股價報酬指數'];
     const trAligned = cal.map((d) => tr[idx.data!.dates.indexOf(d)] ?? null);
     const etfAdj = etf.data ? alignTo(cal, { dates: etf.data.d, close: adjClose(etf.data) }) : cal.map(() => null);
@@ -44,8 +47,10 @@ function Portfolio({ trades, capital, byCode }: { trades: Trade[]; capital: numb
   const values = data.eq.map((p) => p.equity);
   const mdd = maxDrawdown(values);
   const months = monthlyReturns(data.eq);
-  const realized = trades.filter((t) => t.status === 'closed').reduce((s, t) => s + ((t.exit ?? 0) - t.entry) * t.shares - (t.fees ?? 0), 0);
-  const unrealized = trades.filter((t) => t.status === 'open').reduce((s, t) => s + ((byCode.get(t.code)?.close ?? t.entry) - t.entry) * t.shares, 0);
+  const realized = trades.filter((t) => t.status === 'closed').reduce((s, t) => s + tradePnl(t), 0);
+  const histBy = new Map((hist.data ?? []).filter((h): h is StockHistory => !!h).map((h) => [h.code, h]));
+  const unrealized = trades.filter((t) => t.status === 'open')
+    .reduce((s, t) => s + (unrealizedPnl(t, byCode.get(t.code)?.close ?? null, eventsFor(byCode.get(t.code), histBy.get(t.code))) ?? 0), 0);
   const total = values[values.length - 1] / capital - 1;
   const trRet = data.trAligned[0] && data.trAligned[data.trAligned.length - 1] ? (data.trAligned[data.trAligned.length - 1] as number) / (data.trAligned[0] as number) - 1 : null;
   const etfFirst = data.etfAdj.find((v) => v !== null);
@@ -83,7 +88,12 @@ function Portfolio({ trades, capital, byCode }: { trades: Trade[]; capital: numb
 function RiskPanel({ open, byCode }: { open: Trade[]; byCode: Map<string, StockRow> }) {
   const codes = [...new Set(open.map((t) => t.code))];
   const hist = useAsync(() => Promise.all(codes.map((c) => loadStock(c).catch(() => null))), [codes.join(',')]);
-  const positions = open.map((t) => ({ ...t, price: byCode.get(t.code)?.close ?? t.entry, industry: byCode.get(t.code)?.industry ?? '未知' }));
+  // D-01：股數、停損換算到目前的價格基準（分割後市值與停損虧損才正確）
+  const histBy = new Map((hist.data ?? []).filter((h): h is StockHistory => !!h).map((h) => [h.code, h]));
+  const positions = open.map((t) => {
+    const a = adjustTrade(t, eventsFor(byCode.get(t.code), histBy.get(t.code)));
+    return { ...t, shares: t.shares / a.factor, stop: a.stop, price: byCode.get(t.code)?.close ?? a.entry, industry: byCode.get(t.code)?.industry ?? '未知' };
+  });
   const total = positions.reduce((s, p) => s + p.price * p.shares, 0);
   const byInd = new Map<string, number>();
   positions.forEach((p) => byInd.set(p.industry ?? '未知', (byInd.get(p.industry ?? '未知') ?? 0) + p.price * p.shares));

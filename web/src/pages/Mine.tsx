@@ -220,7 +220,7 @@ export default function Mine() {
   const series = useMemo(() => (histReady ? holdingsSeries(open, holdCodes.map((c) => hist.get(c) ?? null)) : null), [open, holdCodes, hist, histReady]);
   const win = series ? sliceWindow(series.dates, series.values, period) : null;
   const dir = win ? change(win.values).dir : 'flat';
-  const alerts = useMemo(() => (byCode ? holdingAlerts(open, byCode) : []), [open, byCode]);
+  const alerts = useMemo(() => (byCode ? holdingAlerts(open, byCode, undefined, hist) : []), [open, byCode, hist]);
   const alertBy = new Map(alerts.map((a) => [a.trade.code, a]));
   const risky = new Set(alerts.filter((a) => a.risk).map((a) => a.trade.code));
 

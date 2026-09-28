@@ -7,7 +7,8 @@ import { Sheet } from './Sheet';
 import { StockSearch } from './StockSearch';
 import { Signed } from './Change';
 import { useAsync } from '../hooks';
-import { loadMarket } from '../data/api';
+import { loadMarket, loadStock } from '../data/api';
+import { adjustTrade, eventsFor } from '../lib/corpActions';
 import { logActivity, saveTrade, uid, type Trade } from '../db/db';
 import type { StockRow } from '../data/types';
 import type { PortfolioSettings } from '../lib/settings';
@@ -149,12 +150,16 @@ export function CloseSheet({ trade, onClose, costs, price, day }: { trade: Trade
   const [date, setDate] = useState(todayTpe());
   const [review, setReview] = useState('');
   const [tags, setTags] = useState<string[]>([]);
+  // D-01：持有期間的分割、減資、除權息 → 進場價與股數換算到平倉價的基準（使用者原始輸入不變，另存 adjFactor）
+  const hist = useAsync(() => (trade ? loadStock(trade.code).catch(() => null) : Promise.resolve(null)), [trade?.code]);
+  const adj = trade ? adjustTrade(trade, eventsFor(null, hist.data), date) : null;
   useEffect(() => { if (trade) { setExit(String(price ?? trade.entry)); setTags([]); setReview(''); setDate(todayTpe()); } }, [trade?.id]);
   const px = Number(exit);
-  const rt = trade && px > 0 ? roundTrip(trade.entry, px, trade.shares, trade.code, costs) : null;
+  const rt = trade && adj && px > 0 ? roundTrip(adj.entry, px, trade.shares / adj.factor, trade.code, costs) : null;
   async function done() {
     if (!trade || !(px > 0)) return;
-    await saveTrade({ ...trade, status: 'closed', closedAt: date, exit: px, review, errorTags: tags, fees: rt?.costs ?? 0 });
+    const extra = adj && adj.factor !== 1 ? { adjFactor: adj.factor, adjNote: adj.notes.join('、') || undefined } : {};
+    await saveTrade({ ...trade, status: 'closed', closedAt: date, exit: px, review, errorTags: tags, fees: rt?.costs ?? 0, ...extra });
     if (review.trim()) await logActivity('review_done', day, { trade: trade.id });
     onClose();
   }
@@ -166,6 +171,7 @@ export function CloseSheet({ trade, onClose, costs, price, day }: { trade: Trade
             <label class="field"><span>出場價</span><input class="input" type="number" inputMode="decimal" value={exit} onInput={(e) => setExit((e.target as HTMLInputElement).value)} /></label>
             <label class="field"><span>日期</span><input class="input" type="date" value={date} onInput={(e) => setDate((e.target as HTMLInputElement).value)} /></label>
           </div>
+          {adj?.notes.length ? <p class="caption muted" data-testid="close-adjusted">{adj.notes.join('、')}：進場價換算為 {fmtNum(adj.entry)}、股數 {Math.round(trade.shares / adj.factor).toLocaleString()} 股</p> : null}
           {rt ? <p class="caption">損益（扣手續費與證交稅 {fmtMoney(rt.costs)}）：<Signed value={rt.pnl} format={fmtMoney} /></p> : null}
           <label class="field"><span>檢討（可稍後在紀律頁補寫）</span><textarea class="input" rows={3} value={review} onInput={(e) => setReview((e.target as HTMLTextAreaElement).value)} /></label>
           <div class="chips wrap" role="group" aria-label="錯誤標籤" style={{ flexWrap: 'wrap' }}>

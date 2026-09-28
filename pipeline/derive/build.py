@@ -77,7 +77,7 @@ def build_panels(ds: Dataset) -> Panels:
     close = p(q, "close")
     open_ = p(q, "open")
     change = p(q, "change")
-    events = adjust.all_events(close, open_, change, ds.exright, ds.capreduce, *ds.extra.get("splits", []))
+    events = adjust.all_events(close, open_, change, *adjust.tag_official(ds))
     panels = Panels(
         dates=dates,
         codes=codes,
@@ -241,6 +241,7 @@ BASE_COLUMNS = [
     "dividend_yield",
     "last_trade_date",
     "trade_status",
+    "adj_ev",
 ]
 SCORE_COLUMNS = ["composite", "chip", "momentum", "fundamental", "valuation"]
 
@@ -281,6 +282,22 @@ def short_halt_for(ds: Dataset, code: str) -> dict[str, Any] | None:
         "end": text_or_none(r.get("end")),
         "reason": text_or_none(r.get("reason")),
     }
+
+
+# summary 的 adj_ev 只放最近這麼多個交易日內的還原事件（快照比較、持股警示用；更早的由個股檔的 adj_events 提供）
+ADJ_RECENT_DAYS = 120
+
+
+def adjust_events_by_code(events: pd.DataFrame) -> dict[str, list[list[Any]]]:
+    """還原事件依代號分組：[[日期, 因子, 類型], …]（日期由舊到新）。類型：dividend、capreduce、split、inferred。"""
+    if events.empty:
+        return {}
+    out: dict[str, list[list[Any]]] = {}
+    ev = events.sort_values("date")
+    kinds = ev["kind"] if "kind" in ev.columns else pd.Series("official", index=ev.index)
+    for d, c, f, k in zip(ev["date"], ev["code"], ev["factor"], kinds, strict=True):
+        out.setdefault(str(c), []).append([str(d), round(float(f), 6), str(k)])
+    return out
 
 
 def inactive_list(ds: Dataset, p: Panels, active: set[str], last_date: str) -> dict[str, Any]:
@@ -337,6 +354,8 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
     chip_src = stockdetail.chip_sources(ds)
     holder_src = stockdetail.holder_sources(ds)
     conf_src = stockdetail.conference_sources(ds)
+    ev_by_code = adjust_events_by_code(p.events)
+    recent_from = p.dates[max(0, len(p.dates) - ADJ_RECENT_DAYS)]
     for code in active:
         m = stock_metrics(p, code)
         if not m:
@@ -365,6 +384,8 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
         m.update(
             {"code": code, "name": p.names.get(code), "market": p.markets.get(code), "industry": p.industries.get(code)}
         )
+        code_ev = ev_by_code.get(code, [])
+        m["adj_ev"] = [e for e in code_ev if e[0] > recent_from] or None
         rows.append([clean(m.get(col)) for col in cols])
         fair = fairvalue.fair_detail(fv, p.close, code)
         idx = [d for d, ok in zip(p.dates, p.close[code].notna(), strict=True) if ok]
@@ -399,6 +420,8 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
             "chip": stockdetail.chip_block(p, mp, chip_src, code, idx),
             "holders": stockdetail.holders_block(holder_src, code),
             "conferences": stockdetail.conferences_for(conf_src, code, since),
+            # D-01：還原事件（日期、因子、類型），前端換算持倉的進場價、停損價、股數
+            "adj_events": [e for e in code_ev if idx and e[0] > idx[0]],
         }
         write_json(out / "stocks" / f"{code}.json", stock_file(p, code, m, extra_file))
         written += 1

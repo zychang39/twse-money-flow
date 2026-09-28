@@ -3,7 +3,7 @@ import { PageHead, TopBar } from '../components/Chrome';
 import { useDb } from '../hooks';
 import { getSetting, listActivity, listScreens, listTrades, listWatch, logActivity } from '../db/db';
 import { loadSummary } from '../data/api';
-import { downloadJson, exportAll, importAll, markBackedUp } from '../db/backup';
+import { downloadJson, exportAll, importAll, markBackedUp, previewImport } from '../db/backup';
 import { todayTpe } from '../lib/dates';
 
 export default function Backup() {
@@ -30,7 +30,19 @@ export default function Backup() {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (!file) return;
     try {
-      const counts = await importAll(JSON.parse(await file.text()), mode);
+      let raw: unknown;
+      try { raw = JSON.parse(await file.text()); } catch { throw new Error('檔案不是有效的 JSON'); }
+      // E-04：先驗證（不寫入）；取代全部前確認，說明會清除目前這台裝置上的資料
+      const { counts: incoming } = previewImport(raw);
+      if (mode === 'replace' && !confirm(
+        `取代全部會先清除這台裝置目前的資料（自選 ${info?.watch ?? 0} 檔、交易 ${info?.trades ?? 0} 筆、紀律紀錄 ${info?.activity ?? 0} 筆），` +
+        `再匯入備份檔的自選 ${incoming.watchlist} 檔、交易 ${incoming.trades} 筆、紀律紀錄 ${incoming.activity} 筆。確定要取代嗎？`,
+      )) {
+        setMsg('已取消匯入，現有資料沒有變更。');
+        (e.target as HTMLInputElement).value = '';
+        return;
+      }
+      const counts = await importAll(raw, mode);
       setMsg(`匯入完成：自選 ${counts.watchlist}、交易 ${counts.trades}、選股組合 ${counts.screens}、設定 ${counts.settings}、紀律紀錄 ${counts.activity ?? 0}。`);
     } catch (err) {
       setMsg(`匯入失敗：${(err as Error).message}`);

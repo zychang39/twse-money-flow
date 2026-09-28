@@ -275,3 +275,39 @@ def test_no_trade_halted_and_inactive(tmp_path):
     hit = [r for r in inactive["rows"] if r["code"] == "6182"]
     assert hit and hit[0]["name"] == "合晶" and hit[0]["last_trade_date"] == days[-26].isoformat()
     assert isinstance(date.fromisoformat(inactive["date"]), date)
+
+
+def test_adjust_events_exported_with_kind(tmp_path):
+    """D-01：0050 分割（真實事件 2025-06-18 因子 0.25；這裡放在示範資料範圍內）→ 個股檔 adj_events 與 summary adj_ev 標示 split。"""
+    import pandas as pd
+
+    from pipeline.core.store import DataStore
+
+    store_dir = tmp_path / "data"
+    out = tmp_path / "out"
+    build_store(store_dir, days=80)
+    store = DataStore(store_dir)
+    days = store.dates("twse_quotes")
+    split_day = days[-10]
+    # 分割日起價格變成 1/4（官方分割表＋行情一致）
+    for d in days[-10:]:
+        q = store.read("twse_quotes", d)
+        for col in ("open", "high", "low", "close", "change"):
+            q.loc[q["code"] == "0050", col] = q.loc[q["code"] == "0050", col] / 4
+        store.write("twse_quotes", d, q)
+    store.write(
+        "twse_etfsplit",
+        split_day,
+        pd.DataFrame([{"date": split_day.isoformat(), "code": "0050", "name": "元大台灣50", "factor": 0.25}]),
+    )
+    build_web(store_dir, out, demo=True)
+    stock = _strict_loads((out / "stocks" / "0050.json").read_text())
+    assert stock["adj_events"] == [[split_day.isoformat(), 0.25, "split"]]
+    i = stock["d"].index(split_day.isoformat())
+    assert abs(stock["af"][i - 1] - 0.25) < 1e-9 and stock["af"][i] == 1
+    summary = _strict_loads((out / "summary.json").read_text())
+    cols = summary["columns"]
+    row = next(dict(zip(cols, r, strict=True)) for r in summary["rows"] if r[0] == "0050")
+    assert row["adj_ev"] == [[split_day.isoformat(), 0.25, "split"]]
+    other = next(dict(zip(cols, r, strict=True)) for r in summary["rows"] if r[0] == "2330")
+    assert other["adj_ev"] is None

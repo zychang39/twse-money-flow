@@ -1,17 +1,19 @@
 /** 日誌：持倉與已平倉紀錄；新增持倉一律經過買進前檢查表；平倉後可立即或稍後補寫檢討。 */
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { PageHead, TopBar } from '../components/Chrome';
 import { DataStatus, EmptyState } from '../components/DataStatus';
 import { Signed } from '../components/Change';
 import { ChecklistSheet, CloseSheet, ReviewSheet } from '../components/Trades';
 import { IconClipboard, IconNotebook } from '../components/Icons';
-import { useDb } from '../hooks';
+import { useDb, useHistories } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { useUser } from '../data/useUser';
 import { deleteTrade, getSetting, type Trade } from '../db/db';
 import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
 import { DEFAULT_COSTS, type CostSettings } from '../lib/costs';
 import { hasReview } from '../lib/ritual';
+import { adjustTrade, eventsFor, unrealizedPnl } from '../lib/corpActions';
+import { tradePnl } from '../lib/sizing';
 import { fmtMoney, fmtPrice } from '../lib/format';
 import { useRoute } from '../router';
 import type { StockRow } from '../data/types';
@@ -30,6 +32,7 @@ export default function Journal({ startChecklist }: { startChecklist?: boolean }
   const [closing, setClosing] = useState<Trade | null>(null);
   const [reviewing, setReviewing] = useState<Trade | null>(null);
   const trades = user?.trades ?? [];
+  const hist = useHistories(useMemo(() => [...new Set(trades.filter((t) => t.status === 'open').map((t) => t.code))], [trades]));
   const byCode = summary.data?.byCode ?? new Map<string, StockRow>();
   const open = trades.filter((t) => t.status === 'open');
   const closed = trades.filter((t) => t.status === 'closed');
@@ -62,9 +65,12 @@ export default function Journal({ startChecklist }: { startChecklist?: boolean }
           ) : null}
           {open.map((t) => {
             const price = byCode.get(t.code)?.close ?? null;
-            const pnl = price !== null ? (price - t.entry) * t.shares : null;
-            const hitStop = price !== null && price <= t.stop;
-            const hitTarget = price !== null && price >= t.target;
+            // D-01：分割、減資、除權息後，進場價、停損、目標與股數換算到目前的價格基準再比較
+            const ev = eventsFor(byCode.get(t.code), hist.get(t.code));
+            const a = adjustTrade(t, ev);
+            const pnl = unrealizedPnl(t, price, ev);
+            const hitStop = price !== null && price <= a.stop;
+            const hitTarget = price !== null && price >= a.target;
             return (
               <div class="card" key={t.id}>
                 <div class="row between">
@@ -72,6 +78,9 @@ export default function Journal({ startChecklist }: { startChecklist?: boolean }
                   <span class="body"><Signed value={pnl} format={fmtMoney} label="未實現損益" /></span>
                 </div>
                 <div class="caption muted">{t.openedAt}・{t.shares.toLocaleString()} 股 @ {fmtPrice(t.entry)}・現價 {fmtPrice(price)}・停損 {fmtPrice(t.stop)}・目標 {fmtPrice(t.target)}</div>
+                {a.notes.length ? (
+                  <div class="caption muted" data-testid="adjusted-note">{a.notes.join('、')}：換算為 {a.shares.toLocaleString()} 股 @ {fmtPrice(a.entry)}・停損 {fmtPrice(a.stop)}・目標 {fmtPrice(a.target)}</div>
+                ) : null}
                 {hitStop || hitTarget ? (
                   <div class="row" style={{ gap: 'var(--s-1)', marginTop: 'var(--s-1)' }}>
                     {hitStop ? <span class="tag risk">已觸及停損</span> : null}
@@ -94,9 +103,10 @@ export default function Journal({ startChecklist }: { startChecklist?: boolean }
             <div key={t.id} class="card">
               <div class="row between">
                 <span class="body w6">{t.name} <span class="caption muted">{t.code}</span></span>
-                <span class="body"><Signed value={((t.exit ?? 0) - t.entry) * t.shares - (t.fees ?? 0)} format={fmtMoney} label="已實現損益" /></span>
+                <span class="body"><Signed value={tradePnl(t)} format={fmtMoney} label="已實現損益" /></span>
               </div>
               <div class="caption muted">{t.openedAt} → {t.closedAt}・{fmtPrice(t.entry)} → {fmtPrice(t.exit)}・{t.reasonType}{t.errorTags?.length ? `・${t.errorTags.join('、')}` : ''}</div>
+              {t.adjNote ? <div class="caption muted">{t.adjNote}（進場價換算為 {fmtPrice(t.entry * (t.adjFactor ?? 1))}）</div> : null}
               {hasReview(t) ? <p class="caption t1" style={{ marginTop: 'var(--s-2)' }}>{t.review}</p> : (
                 <button class="btn small" style={{ marginTop: 'var(--s-3)' }} onClick={() => setReviewing(t)}>寫下檢討</button>
               )}

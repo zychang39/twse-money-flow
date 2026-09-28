@@ -107,7 +107,12 @@ describe('紀律（遊戲化只獎勵紀律）', () => {
     expect(stopRespected(ignored)).toBe(false);
     expect(stopRespected({ ...respected, exit: 120 })).toBe(false);
     const m = badgeMetrics([act('checklist_done', day, undefined, { outcome: 'skip' })], [respected], 0, true);
-    expect(m.checklists).toBe(2);
+    // U-11：只算實際完成的檢查表次數；沒有檢查表紀錄的交易（匯入、補登）不計入
+    expect(m.checklists).toBe(1);
+    const m2 = badgeMetrics([act('checklist_done', day, undefined, { outcome: 'open' }), act('checklist_done', day, `${day}T15:00:00Z`, { outcome: 'skip' })], [respected, ignored, trade({ id: 'x' })], 0, false);
+    expect(m2.checklists).toBe(2);
+    // D-01：分割後以換算的停損判斷是否守住停損（原停損 90、分割因子 0.5 → 45）
+    expect(stopRespected(trade({ id: 's', status: 'closed', exit: 45, stop: 90, adjFactor: 0.5 }))).toBe(true);
     expect(m.backups).toBe(1);
     const bs = badges(m);
     expect(bs.find((b) => b.id === 'first_backup')?.earned).toBe(true);
