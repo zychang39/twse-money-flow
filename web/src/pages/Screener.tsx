@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'preact/hooks';
+import { useMemo } from 'preact/hooks';
 import { PageHead, TopBar } from '../components/Chrome';
 import { StockMiniRow } from '../components/StockRow';
 import { setListContext } from '../lib/listContext';
 import { navigate } from '../router';
 import { DataStatus, ErrorState, Loading } from '../components/DataStatus';
-import { useDb } from '../hooks';
+import { useDb, useRestoredState } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { deleteScreen, listScreens, saveScreen, uid, type SavedScreen } from '../db/db';
 import { screenerConfig, type Condition } from '../lib/config';
@@ -57,9 +57,9 @@ function ConditionEditor({ c, onChange, onRemove }: { c: Condition; onChange: (c
 export default function Screener() {
   const summary = useScoredSummary();
   const saved = useDb(listScreens) ?? [];
-  const [conditions, setConditions] = useState<Condition[]>(screenerConfig.presets[0].conditions);
-  const [active, setActive] = useState<string>(screenerConfig.presets[0].id);
-  const [name, setName] = useState(screenerConfig.presets[0].label);
+  const [conditions, setConditions] = useRestoredState<Condition[]>('screener.conditions', screenerConfig.presets[0].conditions);
+  const [active, setActive] = useRestoredState<string>('screener.active', screenerConfig.presets[0].id);
+  const [name, setName] = useRestoredState('screener.name', screenerConfig.presets[0].label);
   // 誠實呈現：條件欄位若多數股票還沒有資料（例如集保大戶逐週累積中），結果會偏少，要說清楚
   const sparse = useMemo(() => {
     if (!summary.data) return [];

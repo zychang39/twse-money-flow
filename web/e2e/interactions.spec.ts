@@ -38,7 +38,7 @@ test('期間選擇器：選中者為實心膠囊，選擇會被記住；線與�
   const btn = page.getByRole('group', { name: '股價走勢期間' }).getByRole('button', { name: /^1Y/ });
   await btn.click();
   await expect(btn).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('.hero-change .caption').first()).toHaveText('近 1 年');
+  await expect(page.getByTestId('hero-period-change').first()).toContainText('近 1 年');
   const stroke = await page.locator('.chart-line').first().getAttribute('stroke');
   const mood = await page.locator('.ambient').first().getAttribute('data-mood');
   expect(stroke === 'var(--up)' ? 'up' : stroke === 'var(--down)' ? 'down' : 'neutral').toBe(mood);

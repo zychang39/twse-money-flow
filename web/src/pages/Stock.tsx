@@ -4,6 +4,7 @@
  * 「進階」切換成 lightweight-charts 完整 K 線；細節用底部面板。
  * 環境光與走勢線同一個期間、同一個顏色。
  */
+import { Fragment, type ComponentChildren } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Ambient, Block, TopBar } from '../components/Chrome';
 import { Accumulating, DataStatus, ErrorState, Loading } from '../components/DataStatus';
@@ -11,32 +12,59 @@ import { HeroChart, usePeriod } from '../components/HeroChart';
 import { type PagerApi, StockPager } from '../components/StockPager';
 import { ScoreRings, compositeCompleteness, categoryName, scoreText } from '../components/Scores';
 import { ScoreDetailView } from '../components/ScoreDetail';
-import { StockExtras, FairRange } from '../components/StockExtras';
-import { ChipDaily, ChipStats } from '../components/Chips';
+import { creditAnswer, creditSummary } from '../lib/credit';
+import { type HolderBlock, structureSentence } from '../lib/holders';
 import { Sheet } from '../components/Sheet';
 import { NetBars } from '../components/Viz';
-import { Signed } from '../components/Change';
-import { healthLine } from '../components/QuickPreview';
 import { IconChevron, IconStar, IconStarFill } from '../components/Icons';
-import { lazy } from '../lazy';
-import { useDb, useStockData } from '../hooks';
+import { lazy, lazyPick } from '../lazy';
+import type { EventRow } from '../components/StockSections';
+import type { Conference } from '../components/Research';
+import { useAsync, useDb, useStockData } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { addWatch, isWatched, removeWatch } from '../db/db';
 import type { CategoryId } from '../lib/config';
 import type { ChipBlock } from '../lib/chips';
 import { adjClose } from '../lib/history';
-import { change, sliceWindow, type Period } from '../lib/periods';
+import { LONG_PERIODS, STOCK_PERIODS, WEEKLY_PERIODS, change, periodStart, pick, sliceWindow, weeklyIndices, type Period, type Window as ChartWindow } from '../lib/periods';
+import { loadLongHistory } from '../data/api';
+import type { StockHistory } from '../data/types';
+import { SECTION_ORDER, STYLE_DESC, STYLE_NAME, STYLE_PERIOD, type SectionId } from '../lib/style';
+import { useInvestStyle } from '../hooks';
+import { type QuarterRow, type RevenueRow, momentumAnswer, momentumFacts, profitAnswer, profitFacts, revenueAnswer, revenueFacts } from '../lib/fundamentals';
+import { conclusionLine, valuationPhrase } from '../lib/verdict';
 import { instInsight, type Who } from '../lib/insights';
 import { getListContext } from '../lib/listContext';
 import { commitHero, heroSeen } from '../lib/seen';
-import { fmtInt, fmtLots, fmtNum, fmtPct, fmtPrice } from '../lib/format';
+import { fmtNum, fmtPrice } from '../lib/format';
 import { navigate } from '../router';
+import { restorePending } from '../lib/scrollRestore';
 import { PAGE_SOURCES } from '../lib/health';
 import { evaluate, tally, title as bbTitle } from '../lib/bullbear';
 import { BullBearBar } from '../components/BullBearBar';
-import { type Conference, Research } from '../components/Research';
+
+/** 第一次繪製時先畫的區塊數（主角區之下） */
+const FIRST_SECTIONS = 2;
 
 const AdvancedChart = lazy(() => import('../components/AdvancedChart'));
+// 下方區塊的細節元件延後載入：個股頁的 JS 先只包含主角區與區塊標題（一句話結論），縮短 LCP 與 TBT
+const chips = () => import('../components/Chips');
+const credit = () => import('../components/Credit');
+const sections = () => import('../components/StockSections');
+const ChipDaily = lazyPick(chips, 'ChipDaily');
+const ChipStats = lazyPick(chips, 'ChipStats');
+const ForeignHolding = lazyPick(credit, 'ForeignHolding');
+const MarginCard = lazyPick(credit, 'MarginCard');
+const ShortCard = lazyPick(credit, 'ShortCard');
+const StructureBlock = lazyPick(() => import('../components/Structure'), 'StructureBlock');
+const EventsList = lazyPick(sections, 'EventsList');
+const ForeignTrend = lazyPick(sections, 'ForeignTrend');
+const MomentumSection = lazyPick(sections, 'MomentumSection');
+const ProfitSection = lazyPick(sections, 'ProfitSection');
+const RevenueSection = lazyPick(sections, 'RevenueSection');
+const ValuationSection = lazyPick(sections, 'ValuationSection');
+const Research = lazyPick(() => import('../components/Research'), 'Research');
+const StockExtras = lazyPick(() => import('../components/StockExtras'), 'StockExtras');
 
 type SheetKind = { kind: 'score'; id?: CategoryId } | { kind: 'more' } | null;
 
@@ -45,9 +73,30 @@ function lastOf(a: unknown): number | null {
   for (let i = a.length - 1; i >= 0; i--) if (a[i] !== null && a[i] !== undefined) return a[i] as number;
   return null;
 }
-function agoOf(a: unknown, n: number): number | null {
-  if (!Array.isArray(a) || a.length <= n) return null;
-  return (a[a.length - 1 - n] as number | null) ?? null;
+
+/**
+ * 主角走勢的視窗（v3 M5）：期間在個股檔範圍內（約 4.5 年）直接用；5Y／10Y／ALL 超過時載入長歷史股價檔
+ * （收盤回補 10 年）；10Y、ALL 改為週線取樣。回傳還原價與原始價（區間報酬切換用，同一組點）。
+ */
+function useHeroWindow(code: string, h: StockHistory | null, period: Period): { win: ChartWindow | null; raw: ChartWindow | null } {
+  const needLong = !!h && LONG_PERIODS.includes(period) && (period === 'ALL' || periodStart(h.d, period).truncated);
+  const long = useAsync(() => (needLong ? loadLongHistory(code) : Promise.resolve(null)), [code, needLong]);
+  return useMemo(() => {
+    if (!h) return { win: null, raw: null };
+    const L = needLong && long.data && long.data.d.length > h.d.length ? long.data : null;
+    const d = L ? L.d : h.d;
+    const c = L ? L.c : h.c;
+    const af = L ? L.af : h.af;
+    const adj = c.map((x, i) => (x === null ? null : x * (af[i] ?? 1)));
+    let win = sliceWindow(d, adj, period);
+    let raw = sliceWindow(d, c, period);
+    if (win && WEEKLY_PERIODS.includes(period)) {
+      const idx = weeklyIndices(win.dates);
+      raw = raw && raw.values.length === win.values.length ? { ...raw, dates: pick(raw.dates, idx), values: pick(raw.values, idx) } : null;
+      win = { ...win, dates: pick(win.dates, idx), values: pick(win.values, idx) };
+    }
+    return { win, raw };
+  }, [h, long.data, period, needLong]);
 }
 
 /** 主角區（名稱、股價、走勢圖）：個股頁左右換股時，前一檔／目前／後一檔各一份。 */
@@ -62,8 +111,7 @@ function StockHero({ code, fallbackName, fallbackIndustry, period, onPeriod, see
   holdToScrub?: boolean;
 }) {
   const { data: h, error } = useStockData(code);
-  const adj = useMemo(() => (h ? adjClose(h) : []), [h]);
-  const win = h ? sliceWindow(h.d, adj, period) : null;
+  const { win, raw } = useHeroWindow(code, h, period);
   return (
     <>
       <header class="page-head">
@@ -74,7 +122,8 @@ function StockHero({ code, fallbackName, fallbackIndustry, period, onPeriod, see
         <div style={{ marginTop: 'var(--s-2)' }}>
           {advanced ? <AdvancedChart h={h} /> : (
             <HeroChart label="收盤價（還原）" win={win} period={period} onPeriod={onPeriod} seen={seen}
-              format={(v) => fmtPrice(v)} formatDelta={(v) => fmtNum(v, v >= 100 ? 1 : 2)} area height={200} periodsLabel="股價走勢期間" holdToScrub={holdToScrub} />
+              format={(v) => fmtPrice(v)} formatDelta={(v) => fmtNum(v, v >= 100 ? 1 : 2)} area height={200} periodsLabel="股價走勢期間" holdToScrub={holdToScrub}
+              periods={STOCK_PERIODS} heroChange="both" rangeAlt={raw && win && raw.values.length === win.values.length ? raw.values : null} />
           )}
         </div>
       ) : error ? null : <Loading hero />}
@@ -86,12 +135,28 @@ export default function Stock({ code }: { code: string }) {
   const hist = useStockData(code);
   const summary = useScoredSummary();
   const watched = useDb(() => isWatched(code), [code]);
-  const [period, setPeriod] = usePeriod('stock');
+  const style = useInvestStyle();
+  // v3：鍵名改為 stock-v3-{風格}，讓預設期間（波段 1Y、長期 5Y）對既有使用者也生效（舊鍵可能存 1D）
+  const [period, setPeriod] = usePeriod(`stock-v3-${style}`, STYLE_PERIOD[style], STOCK_PERIODS);
   const [advanced, setAdvanced] = useState(false);
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [who, setWho] = useState<Who>('foreign');
   const [seen, setSeen] = useState<number | null | undefined>(undefined);
   const pagerRef = useRef<PagerApi>(null);
+  // 首次繪製只畫前兩個區塊；其餘在捲動接近時（哨兵進入下一個畫面高度內）一次補一個，降低個股頁的主執行緒阻塞（TBT）。
+  // 返回時要還原捲動位置（restorePending）則直接畫出全部，頁面高度才夠。
+  const [shown, setShown] = useState(FIRST_SECTIONS);
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => { setShown(restorePending() ? SECTION_ORDER.swing.length : FIRST_SECTIONS); }, [code]);
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!hist.data || !el || shown >= SECTION_ORDER.swing.length) return;
+    if (restorePending()) { setShown(SECTION_ORDER.swing.length); return; }
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setShown((n) => n + 1); }, { rootMargin: '0px 0px 100% 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [code, !!hist.data, shown]);
+  const allSections = shown >= SECTION_ORDER.swing.length;
   // 下方內容只在「換股之後」淡入；第一次開啟直接顯示（淡入會延後最大內容繪製 LCP）
   const firstCode = useRef(code);
   const row = summary.data?.byCode.get(code);
@@ -100,7 +165,7 @@ export default function Stock({ code }: { code: string }) {
 
   useEffect(() => { setSeen(undefined); heroSeen(`stock:${code}`).then(setSeen); setAdvanced(false); setSheet(null); }, [code]);
   const adj = useMemo(() => (h ? adjClose(h) : []), [h]);
-  const win = h ? sliceWindow(h.d, adj, period) : null;
+  const { win } = useHeroWindow(code, h, period);
   const dir = win ? change(win.values).dir : 'flat';
   const latest = lastOf(adj);
   useEffect(() => { if (seen !== undefined) commitHero(`stock:${code}`, latest); }, [seen, latest, code]);
@@ -118,13 +183,132 @@ export default function Stock({ code }: { code: string }) {
 
   const comp = (row?.composite as number | null | undefined) ?? h?.scores?.composite ?? null;
   const cc = compositeCompleteness(h?.scores);
-  const mb = h ? lastOf(h.mb) : null, mb5 = h ? agoOf(h.mb, 5) : null;
-  const sb = h ? lastOf(h.sb) : null, sb5 = h ? agoOf(h.sb, 5) : null;
-  const revenue = (h?.revenue as { ym: string; revenue: number; yoy: number | null; mom: number | null }[] | undefined) ?? [];
-  const rev = revenue[revenue.length - 1];
+  const credit = useMemo(() => creditSummary({
+    d: h?.d ?? [], adj, mb: h?.mb ?? [], sb: h?.sb ?? [], sbl: h?.sbl as (number | null)[] | undefined, qfii: h?.qfii as (number | null)[] | undefined,
+    marginUsage: (row?.margin_usage as number | null | undefined) ?? null,
+    lastCover: ((h?.short_halt as { last_cover_date?: string | null } | null | undefined)?.last_cover_date) ?? null,
+  }), [h, adj, row]);
+  const holders = (h?.holders as HolderBlock | null | undefined) ?? null;
   const pePct = h ? lastOf((h.series as Record<string, unknown> | undefined)?.pe_percentile) : null;
   const chip = (h?.chip as ChipBlock | null | undefined) ?? null;
   const bb = useMemo(() => (h ? tally(evaluate(h)) : null), [h]);
+  const mom = useMemo(() => momentumFacts(adj, (h?.metrics ?? {}) as Record<string, unknown>), [adj, h]);
+  const rev = useMemo(() => revenueFacts((h?.revenue as RevenueRow[] | undefined) ?? []), [h]);
+  const profit = useMemo(() => profitFacts((h?.quarters as QuarterRow[] | undefined) ?? []), [h]);
+  const metrics = (h?.metrics ?? {}) as Record<string, unknown>;
+  const verdict = h ? conclusionLine(style, {
+    mom, rev, profit, pePct, pv: credit.pv.label,
+    foreignStreak: Number(metrics.foreign_streak ?? 0) || 0, trustStreak: Number(metrics.trust_streak ?? 0) || 0,
+  }) : '';
+  const events = (h?.events as EventRow[] | undefined) ?? [];
+  const confs = (h?.conferences as Conference[] | undefined) ?? [];
+  const WHO_NAME = { foreign: '外資', trust: '投信', dealer: '自營商' } as const;
+
+  /** 各區塊：標題＝一個問題＋一句結論，細節在下方；順序見 lib/style.ts 的 SECTION_ORDER。 */
+  const sections: Record<SectionId, () => ComponentChildren> = !h ? {} as Record<SectionId, () => ComponentChildren> : {
+    conclusion: () => (
+      <Block id="sec-conclusion" question={`整體狀態如何？（${STYLE_NAME[style]}）`} answer={verdict}>
+        {row?.flags?.length ? (
+          <div class="row wrap" style={{ gap: 'var(--s-1)', marginTop: 'var(--s-2)' }} role="group" aria-label="風險旗標">
+            {row.flags.map((f) => <span key={f.id} class="tag risk" title={f.detail}>{f.label}</span>)}
+          </div>
+        ) : null}
+        <div style={{ marginTop: 'var(--s-4)' }}>
+          <ScoreRings row={row} detail={h.scores} onPick={(id) => setSheet({ kind: 'score', id })} />
+        </div>
+        <button class="collapsed-row" style={{ marginTop: 'var(--s-3)' }} onClick={() => setSheet({ kind: 'score' })}>
+          <span>綜合分 {scoreText(comp)}（資料完整度 {cc === null ? '—' : `${Math.round(cc * 100)}%`}）・查看全部因子</span>
+          <IconChevron />
+        </button>
+        {bb ? (
+          <section class="sx-bb" aria-label="多空">
+            <p class="caption muted">多空條件：{bbTitle(bb)}</p>
+            <BullBearBar t={bb} />
+          </section>
+        ) : null}
+        <div class="list">
+          <a class="list-item brand" href={`#/stock/${code}/bullbear`}>
+            <span class="grow">多空對照<span class="caption muted tool-sub">基本面、籌碼面、量價面、技術面的多方與空方並排比較</span></span>
+            <span class="chev"><IconChevron /></span>
+          </a>
+        </div>
+      </Block>
+    ),
+    momentum: () => (
+      <Block id="sec-momentum" question="動能夠不夠強？" answer={momentumAnswer(mom)}>
+        <MomentumSection f={mom} />
+      </Block>
+    ),
+    institutional: () => (
+      <Block id="sec-institutional" question="法人在買還是賣？" answer={inst?.title}>
+        <div class="segmented" role="group" aria-label="法人" style={{ marginTop: 'var(--s-4)' }}>
+          {(['foreign', 'trust', 'dealer'] as const).map((w) => (
+            <button key={w} aria-pressed={who === w} onClick={() => setWho(w)}>{WHO_NAME[w]}</button>
+          ))}
+        </div>
+        {inst ? (
+          <>
+            <div style={{ marginTop: 'var(--s-5)' }}>
+              <NetBars values={inst.values} dates={h.d.slice(-inst.values.length)} caption={`${WHO_NAME[who]}每日淨買賣超（張）・近 ${inst.values.length} 個交易日`}
+                label={`${WHO_NAME[who]}近 60 日每日淨買賣超柱狀圖：${inst.title}`} />
+            </div>
+            <div class="card">
+              <div class="body w6">白話重點</div>
+              {inst.lines.map((l) => <p key={l} class="caption t1" style={{ marginTop: 'var(--s-1)' }}>{l}</p>)}
+              {inst.est ? <p class="caption t1" style={{ marginTop: 'var(--s-1)' }}>{inst.est}<span class="est">估</span></p> : null}
+              {!inst.lines.length && !inst.est ? <p class="caption muted">資料累積中。</p> : null}
+            </div>
+          </>
+        ) : null}
+        <ForeignHolding s={credit} />
+        {chip ? (
+          <>
+            <ChipStats block={chip} sharesOut={h.shares} />
+            <ChipDaily block={chip} code={code} name={h.name} market={h.market} />
+          </>
+        ) : <Accumulating what="每日籌碼明細" detail="需要至少兩個交易日的法人與融資融券資料。" />}
+        <div class="list">
+          <a class="list-item brand" href={`#/stock/${code}/institutional`}>
+            <span class="grow">法人買賣超報表<span class="caption muted tool-sub">近 3 個月逐日買張、賣張・外資／投信／自營商／三大法人</span></span>
+            <span class="chev"><IconChevron /></span>
+          </a>
+        </div>
+      </Block>
+    ),
+    credit: () => (
+      <Block id="sec-credit" question="融資與空方在做什麼？" answer={creditAnswer(credit)}>
+        <MarginCard s={credit} />
+        <ShortCard s={credit} />
+      </Block>
+    ),
+    structure: () => (
+      <Block id="sec-structure" question="大戶在增加還是減少？" answer={holders && holders.d.length ? structureSentence(holders) : '集保資料累積中'}>
+        <StructureBlock block={holders} d={h.d} c={h.c} name={h.name} code={code}
+          extra={style === 'long' ? <ForeignTrend d={h.d} qfii={h.qfii as (number | null)[] | undefined} /> : undefined} />
+      </Block>
+    ),
+    revenue: () => (
+      <Block id="sec-revenue" question={style === 'long' ? '營收有沒有在成長？' : '營收與基本面如何？'} answer={revenueAnswer(rev)}>
+        <RevenueSection f={rev} onMore={() => setSheet({ kind: 'more' })} />
+      </Block>
+    ),
+    profit: () => (
+      <Block id="sec-profit" question="獲利品質好不好？" answer={profitAnswer(profit)}>
+        <ProfitSection f={profit} />
+      </Block>
+    ),
+    valuation: () => (
+      <Block id="sec-valuation" question="現在貴不貴？" answer={valuationPhrase(pePct) ?? (h.fair ? '合理價區間（估）' : `本益比 ${fmtNum(lastOf(h.pe))}`)}>
+        <ValuationSection h={h} pePct={pePct} river={style === 'long'} />
+      </Block>
+    ),
+    events: () => (
+      <Block id="sec-events" question="最近有什麼事件？" answer={events.length || confs.length ? `近一年 ${events.length} 筆事件、${confs.length} 場法說會` : '近一年沒有事件紀錄'}>
+        <EventsList events={events} />
+        <Research code={code} name={h.name} market={h.market} conferences={confs} />
+      </Block>
+    ),
+  };
 
   return (
     <div class="page stock-page">
@@ -160,109 +344,13 @@ export default function Stock({ code }: { code: string }) {
 
       {h ? (
         /* 換股後下方內容整段換成新的一檔（淡入）；頂列與主角區不重新載入 */
-        <div key={code} class={`stock-lower ${code !== firstCode.current ? 'fade-in' : ''}`}>
+        <div key={code} class={`stock-lower ${code !== firstCode.current ? 'fade-in' : ''}`} data-style={style}>
           <DataStatus date={h.d[h.d.length - 1]} uses={PAGE_SOURCES.stock} />
-
-          <p class="body" style={{ marginTop: 'var(--s-6)' }}>{healthLine(h.summary_text) ?? '健檢摘要資料不足。'}</p>
-          {row?.flags?.length ? (
-            <div class="row wrap" style={{ gap: 'var(--s-1)', marginTop: 'var(--s-2)' }} role="group" aria-label="風險旗標">
-              {row.flags.map((f) => <span key={f.id} class="tag risk" title={f.detail}>{f.label}</span>)}
-            </div>
-          ) : null}
-          <div style={{ marginTop: 'var(--s-6)' }}>
-            <ScoreRings row={row} detail={h.scores} onPick={(id) => setSheet({ kind: 'score', id })} />
-          </div>
-          <button class="collapsed-row" style={{ marginTop: 'var(--s-3)' }} onClick={() => setSheet({ kind: 'score' })}>
-            <span>綜合分 {scoreText(comp)}（資料完整度 {cc === null ? '—' : `${Math.round(cc * 100)}%`}）・查看全部因子</span>
-            <IconChevron />
-          </button>
-
-          <Block question="法人" answer={inst?.title}>
-            <div class="segmented" role="group" aria-label="法人" style={{ marginTop: 'var(--s-4)' }}>
-              {(['foreign', 'trust', 'dealer'] as const).map((w) => (
-                <button key={w} aria-pressed={who === w} onClick={() => setWho(w)}>{{ foreign: '外資', trust: '投信', dealer: '自營商' }[w]}</button>
-              ))}
-            </div>
-            {inst ? (
-              <>
-                <div style={{ marginTop: 'var(--s-5)' }}>
-                  <NetBars values={inst.values} dates={h.d.slice(-inst.values.length)} caption={`${{ foreign: '外資', trust: '投信', dealer: '自營商' }[who]}每日淨買賣超（張）・近 ${inst.values.length} 個交易日`}
-                    label={`${{ foreign: '外資', trust: '投信', dealer: '自營商' }[who]}近 60 日每日淨買賣超柱狀圖：${inst.title}`} />
-                </div>
-                <div class="card">
-                  <div class="body w6">白話重點</div>
-                  {inst.lines.map((l) => <p key={l} class="caption t1" style={{ marginTop: 'var(--s-1)' }}>{l}</p>)}
-                  {inst.est ? <p class="caption t1" style={{ marginTop: 'var(--s-1)' }}>{inst.est}<span class="est">估</span></p> : null}
-                  {!inst.lines.length && !inst.est ? <p class="caption muted">資料累積中。</p> : null}
-                </div>
-              </>
-            ) : null}
-            <div class="list">
-              <a class="list-item brand" href={`#/stock/${code}/institutional`}>
-                <span class="grow">法人買賣超報表<span class="caption muted tool-sub">近 3 個月逐日買張、賣張・外資／投信／自營商／三大法人／八大行庫</span></span>
-                <span class="chev"><IconChevron /></span>
-              </a>
-            </div>
-          </Block>
-
-          <Block question="籌碼" answer={mb !== null && mb5 ? `融資 5 日${mb >= mb5 ? '增加' : '減少'} ${fmtPct(((mb - mb5) / mb5) * 100, 1, false).replace('-', '')}` : '融資融券'}>
-            <div class="list" style={{ marginTop: 'var(--s-4)' }}>
-              <div class="list-item"><span class="grow">融資餘額</span><span class="body">{fmtInt(mb)} 張</span><span class="caption" style={{ minWidth: '4.5rem', textAlign: 'right' }}><Signed value={mb !== null && mb5 !== null ? mb - mb5 : null} format={fmtLots} label="5 日" /></span></div>
-              <div class="list-item"><span class="grow">融券餘額</span><span class="body">{fmtInt(sb)} 張</span><span class="caption" style={{ minWidth: '4.5rem', textAlign: 'right' }}><Signed value={sb !== null && sb5 !== null ? sb - sb5 : null} format={fmtLots} label="5 日" /></span></div>
-              {row?.whale_pct !== null && row?.whale_pct !== undefined ? <div class="list-item"><span class="grow">千張大戶持股比</span><span class="body">{fmtNum(row.whale_pct as number, 1)}%</span></div> : null}
-              {row?.foreign_hold_pct !== null && row?.foreign_hold_pct !== undefined ? <div class="list-item"><span class="grow">外資持股比</span><span class="body">{fmtNum(row.foreign_hold_pct as number, 1)}%</span></div> : null}
-            </div>
-            {row && (row.whale_pct === null || row.whale_pct === undefined) ? <Accumulating what="集保大戶持股" detail="集保股權分散表官方只提供最新一週，每週六起逐週累積。" /> : null}
-            <div class="list">
-              <a class="list-item brand" href={`#/stock/${code}/holders`}>
-                <span class="grow">大戶與散戶持股<span class="caption muted tool-sub">門檻可調・持股比例、人數、人均張數的逐週走勢</span></span>
-                <span class="chev"><IconChevron /></span>
-              </a>
-            </div>
-            {chip ? (
-              <>
-                <ChipStats block={chip} sharesOut={h.shares} />
-                <ChipDaily block={chip} code={code} name={h.name} market={h.market} />
-              </>
-            ) : <Accumulating what="每日籌碼明細" detail="需要至少兩個交易日的法人與融資融券資料。" />}
-          </Block>
-
-          <Block question="多空" answer={bb ? bbTitle(bb) : undefined}>
-            {bb ? <BullBearBar t={bb} /> : null}
-            <div class="list">
-              <a class="list-item brand" href={`#/stock/${code}/bullbear`}>
-                <span class="grow">多空對照<span class="caption muted tool-sub">基本面、籌碼面、量價面、技術面的多方與空方並排比較</span></span>
-                <span class="chev"><IconChevron /></span>
-              </a>
-            </div>
-          </Block>
-
-          <Block question="營收" answer={rev ? `${rev.ym.slice(0, 4)} 年 ${Number(rev.ym.slice(5, 7))} 月營收年增 ${rev.yoy === null ? '—' : `${rev.yoy.toFixed(1)}%`}` : '沒有月營收資料（ETF 或資料累積中）'}>
-            <div class="list" style={{ marginTop: 'var(--s-4)' }}>
-              {rev ? (
-                <>
-                  <div class="list-item"><span class="grow">單月營收</span><span class="body">{fmtNum(rev.revenue / 1e5, 1)} 億</span></div>
-                  <div class="list-item"><span class="grow">近 3 月年增率</span><span class="body"><Signed value={(row?.revenue_yoy_3m as number | null) ?? null} format={(v) => fmtPct(v, 1)} /></span></div>
-                </>
-              ) : null}
-              <button class="list-item brand" onClick={() => setSheet({ kind: 'more' })}>基本數據、月營收、季財報與事件<span class="chev"><IconChevron /></span></button>
-            </div>
-          </Block>
-
-          <Block question="研究參考" answer={(() => { const n = ((h.conferences as Conference[] | undefined) ?? []).length; return n ? `近一年 ${n} 場法說會` : '法說會與研究報告'; })()}>
-            <Research code={code} name={h.name} market={h.market} conferences={(h.conferences as Conference[] | undefined) ?? []} />
-          </Block>
-
-          <Block question="估值" answer={h.fair ? '合理價區間' : `本益比 ${fmtNum(lastOf(h.pe))}`}>
-            <div class="card">
-              <FairRange h={h} />
-              <div class="row between caption" style={{ marginTop: 'var(--s-3)' }}>
-                <span>本益比 {fmtNum(lastOf(h.pe))}{pePct !== null ? `（3 年第 ${Math.round(pePct)} 百分位）` : ''}</span>
-                <span>淨值比 {fmtNum(lastOf(h.pb))}</span>
-                <span>殖利率 {fmtNum(lastOf(h.dy))}%</span>
-              </div>
-            </div>
-          </Block>
+          {SECTION_ORDER[style].slice(0, shown).map((id) => <Fragment key={id}>{sections[id]()}</Fragment>)}
+          {!allSections ? <div ref={sentinel} class="skeleton sections-placeholder" aria-hidden="true" /> : null}
+          <p class="caption muted style-note" data-testid="style-note">
+            區塊順序依投資風格「{STYLE_NAME[style]}」排列（{STYLE_DESC[style]}），可在 <a href="#/me/settings">設定</a> 變更。
+          </p>
 
           <Sheet open={!!sheet} onClose={() => setSheet(null)} detent={sheet?.kind === 'score' && sheet.id ? 'half' : 'full'}
             title={sheet?.kind === 'score' ? (sheet.id ? `${categoryName(sheet.id)}分數明細` : '分數明細') : '基本數據、營收、財報與事件'}>

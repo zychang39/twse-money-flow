@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { StockRow } from '../data/types';
 import { ChangePill } from '../components/Change';
 import { IconCheck, IconClose, IconPlus, IconSearch } from '../components/Icons';
-import { useAsync, useDb } from '../hooks';
+import { useAsync, useDb, useRestoredState } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { loadLists } from '../data/api';
 import { addWatch, clearRecentSearches, listRecentSearches, listWatch, pushRecentSearch } from '../db/db';
@@ -143,7 +143,7 @@ export default function Search() {
   const watch = watchDb ?? [];
   // 所有來源都到齊才一次畫出（避免各區塊先後出現、把彼此往上推造成版面位移）
   const ready = !!summary.data && recentDb !== null && watchDb !== null && !lists.loading;
-  const [q, setQ] = useState('');
+  const [q, setQ] = useRestoredState('search.q', '');
   const [status, setStatus] = useState('');
   const screenRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);

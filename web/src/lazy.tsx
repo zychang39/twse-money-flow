@@ -16,3 +16,9 @@ export function lazy<P extends object>(loader: () => Promise<{ default: Componen
     return Comp ? <Comp {...props} /> : <Loading />;
   };
 }
+
+/** 從模組取出具名匯出的元件並延後載入（個股頁下方區塊：主角區與區塊標題先畫，細節元件在背景下載）。 */
+export function lazyPick<M, K extends keyof M>(loader: () => Promise<M>, key: K): M[K] {
+  const load = (): Promise<{ default: ComponentType<object> }> => loader().then((m) => ({ default: m[key] as unknown as ComponentType<object> }));
+  return lazy(load) as unknown as M[K];
+}

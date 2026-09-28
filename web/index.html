@@ -10,6 +10,8 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="資金流向" />
+    <!-- 深淺色：第一次繪製前套用（預設深色；與 src/lib/theme.ts 的 THEME_KEY 相同），避免閃白 -->
+    <script>(function(){var t='dark';try{t=localStorage.getItem('tmf-theme')||'dark'}catch(e){}if(t==='system')return;if(t!=='light')t='dark';document.documentElement.setAttribute('data-theme',t);var c=t==='light'?'#f4f4f6':'#000000';var m=document.querySelectorAll('meta[name="theme-color"]');for(var i=0;i<m.length;i++)m[i].content=c})()</script>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" type="image/png" href="./icons/icon-192.png" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />

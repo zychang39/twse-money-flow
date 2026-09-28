@@ -7,6 +7,8 @@ import {
   VIEW_COLS,
   cellPhrase,
   cellText,
+  colFormat,
+  formatAbs,
   chipRows,
   colStreak,
   colTotal,
@@ -226,7 +228,7 @@ describe('每日籌碼：三種檢視、單位、縮寫與無障礙句子', () =
     for (const v of ['insti', 'credit', 'sbl'] as const) expect(VIEW_COLS[v]).toHaveLength(4);
     expect(VIEW_COLS.insti.map((c) => c.full)).toEqual(['外資', '投信', '自營商（自行買賣）', '三大法人合計']);
     expect(VIEW_COLS.credit.map((c) => c.label)).toEqual(['融資增減', '融券增減', '融資餘額', '券資比']);
-    expect(VIEW_COLS.sbl.map((c) => c.label)).toEqual(['借券賣出', '借券餘額', '當沖比率', '當沖量']);
+    expect(VIEW_COLS.sbl.map((c) => c.label)).toEqual(['借券賣出', '借券賣出餘額', '當沖比率', '當沖量']);
     expect(UNIT_NAME.pct).toBe('佔成交量 %');
     expect([...UNIT_NAME.pct][0].codePointAt(0)).toBe(0x4f54); // 佔（U+4F54），不是 估（U+4F30）
     expect(Object.values(UNIT_NAME).join()).not.toContain('估成交量');
@@ -244,11 +246,36 @@ describe('每日籌碼：三種檢視、單位、縮寫與無障礙句子', () =
 
   it('儲存格：正負同時用 ▲▼ 與方向；比率加 %；沒有資料為「—」', () => {
     const r = rows[0];
-    expect(cellText(colValue(r, col('foreign'), 'lots'), col('foreign'), 'lots')).toEqual({ text: '▼485', dir: 'down' });
-    expect(cellText(colValue(r, col('trust'), 'lots'), col('trust'), 'lots')).toEqual({ text: '▲12', dir: 'up' });
-    expect(cellText(colValue(r, col('shortRatio'), 'lots'), col('shortRatio'), 'lots')).toEqual({ text: '5.0%', dir: 'none' });
+    expect(cellText(colValue(r, col('foreign'), 'lots'), col('foreign'), 'lots')).toMatchObject({ text: '▼485', arrow: '▼', body: '485', dir: 'down' });
+    expect(cellText(colValue(r, col('trust'), 'lots'), col('trust'), 'lots')).toMatchObject({ text: '▲12', dir: 'up' });
+    expect(cellText(colValue(r, col('shortRatio'), 'lots'), col('shortRatio'), 'lots')).toMatchObject({ text: '5.0%', dir: 'none' });
     expect(cellText(null, col('foreign'), 'lots').text).toBe('—');
     expect(cellText(colValue(all[1], col('foreign'), 'lots'), col('foreign'), 'lots').text).toBe('▲2.0\u00a0萬');
+  });
+
+  it('整欄格式（v3）：最大絕對值 ≥ 10,000 張 → 整欄萬張 1 位小數；否則整欄千分位整數；0 顯示「0」', () => {
+    const f = col('foreign');
+    // 手算：[−485, 20,000, 12] 的最大絕對值 20,000 ≥ 10,000 → 萬張
+    const wan = colFormat([-485, 20_000, 12], f, 'lots');
+    expect(wan).toEqual({ wan: true, digits: 1 });
+    expect(formatAbs(485, wan)).toBe('0.0');
+    expect(cellText(-485, f, 'lots', true, wan).text).toBe('▼0.0'); // 非 0 但四捨五入為 0：保留方向與小數位
+    expect(cellText(0, f, 'lots', true, wan)).toMatchObject({ text: '0', dir: 'flat' });
+    expect(cellText(20_000, f, 'lots', true, wan).text).toBe('▲2.0');
+    expect(cellText(-12_345, f, 'lots', true, wan).text).toBe('▼1.2');
+    expect(cellText(155_000, f, 'lots', true, wan).text).toBe('▲15.5');
+    // 手算：[−9,999, 1,234] → 千分位整數
+    const int = colFormat([-9_999, 1_234, null], f, 'lots');
+    expect(int).toEqual({ wan: false, digits: 0 });
+    expect(cellText(-9_999, f, 'lots', true, int).text).toBe('▼9,999');
+    expect(cellText(0, f, 'lots', true, int)).toMatchObject({ text: '0', dir: 'flat' });
+    expect(cellText(null, f, 'lots', true, int).text).toBe('—');
+    // 億元、佔量整欄 2 位；比率 1 位
+    expect(colFormat([12.3456, -3], f, 'amount')).toEqual({ wan: false, digits: 2 });
+    expect(colFormat([123.456, 1], f, 'amount')).toEqual({ wan: false, digits: 1 });
+    expect(colFormat([-1234.5], f, 'amount')).toEqual({ wan: false, digits: 0 });
+    expect(cellText(1.5, f, 'amount', true, colFormat([1.5], f, 'amount')).text).toBe('▲1.50');
+    expect(colFormat([3.21], col('shortRatio'), 'lots')).toEqual({ wan: false, digits: 1 });
   });
 
   it('單位換算：融資以張計、餘額在「佔成交量」時仍以張顯示、比率不隨單位變動', () => {

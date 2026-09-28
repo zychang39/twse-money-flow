@@ -17,7 +17,7 @@ import { Sheet } from '../components/Sheet';
 import { StockSearch } from '../components/StockSearch';
 import { ChecklistSheet, CloseSheet } from '../components/Trades';
 import { IconChevron, IconChevronDown, IconClipboard, IconPlus } from '../components/Icons';
-import { useAsync, useDb, useHistories } from '../hooks';
+import { useAsync, useDb, useHistories, useRestoredState } from '../hooks';
 import { loadLists } from '../data/api';
 import { useScoredSummary } from '../data/useSummary';
 import { useUser } from '../data/useUser';
@@ -189,13 +189,13 @@ export default function Mine() {
     costs: await getSetting<CostSettings>('costs', DEFAULT_COSTS),
   }));
   const [period, setPeriod] = usePeriod('portfolio');
-  const [group, setGroup] = useState('全部');
+  const [group, setGroup] = useRestoredState('mine.group', '全部');
   const [adding, setAdding] = useState(route.query.get('add') === '1');
   const [preview, setPreview] = useState<string | null>(null);
   const [closing, setClosing] = useState<Trade | null>(null);
   const [moving, setMoving] = useState<WatchItem | null>(null);
-  const [showQuiet, setShowQuiet] = useState(false);
-  const [sort, setSort] = useState<SortKey>('change');
+  const [showQuiet, setShowQuiet] = useRestoredState('mine.showQuiet', false);
+  const [sort, setSort] = useRestoredState<SortKey>('mine.sort', 'change');
   const [snap, setSnap] = useState<Snapshot | null | undefined>(undefined);
   const [seen, setSeen] = useState<number | null | undefined>(undefined);
   const [picking, setPicking] = useState(false);

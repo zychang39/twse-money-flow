@@ -3,7 +3,8 @@
  * 資料：個股檔的 holders 區塊（集保股權分散表，15 個持股分級、近 52 週）。
  * 門檻只能落在集保分級的邊界（張）：1、5、10、15、20、30、40、50、100、200、400、600、800、1000。
  * - 散戶門檻 X：持有「X 張以下」（X＝1 時為「不到 1 張」，只含零股分級）。
- * - 大戶門檻 Y：持有「超過 Y 張」。兩者之間為中實戶。
+ * - 大戶門檻 Y：持有 Y 張以上（集保分級邊界為 Y×1000+1 股起）。兩者之間為中實戶。
+ * v3 全站統一分級（config/ui.yml holders.tiers）：散戶 ≤ 5 張｜中實戶｜大戶 ≥ 400 張｜千張大戶 ≥ 1,000 張。
  */
 import { uiConfig } from './config';
 import { numberFormat } from './format';
@@ -59,11 +60,13 @@ export function groupOf(level: number, small: number, big: number): Group {
   return 'mid';
 }
 
+const LOTS = numberFormat(0);
+
 export function smallLabel(small: number): string {
-  return small === BREAKPOINTS[0] ? '不到 1 張' : `${small} 張以下`;
+  return small === BREAKPOINTS[0] ? '不到 1 張' : `≤ ${LOTS.format(small)} 張`;
 }
 export function bigLabel(big: number): string {
-  return `超過 ${big} 張`;
+  return `≥ ${LOTS.format(big)} 張`;
 }
 export function groupRange(g: Group, small: number, big: number): string {
   if (g === 'small') return smallLabel(small);
@@ -211,4 +214,97 @@ export function alignClose(weeks: string[], d: string[], c: N[]): N[] {
     out.push(last);
   }
   return out;
+}
+
+// ------------------------------------------------------------------ v3：全站統一的四級（籌碼結構）
+export const TIERS = uiConfig.holders.tiers;
+export type Tier = 'retail' | 'mid' | 'big' | 'whale';
+export const TIER_ORDER: Tier[] = ['retail', 'mid', 'big', 'whale'];
+export const TIER_NAME: Record<Tier, string> = { retail: '散戶', mid: '中實戶', big: '大戶', whale: '千張大戶' };
+
+/** 比例條上各段的範圍（互斥）：大戶段不含千張大戶。 */
+export function tierRange(t: Tier): string {
+  const { retail_max: r, big_min: b, whale_min: w } = TIERS;
+  if (t === 'retail') return `≤ ${LOTS.format(r)} 張`;
+  if (t === 'mid') return `${LOTS.format(r)}–${LOTS.format(b)} 張`;
+  if (t === 'big') return `${LOTS.format(b)}–${LOTS.format(w)} 張`;
+  return `≥ ${LOTS.format(w)} 張`;
+}
+
+/** 畫面上的定義句：「散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 ≥ 400 張（含千張大戶）｜千張大戶 ≥ 1,000 張」 */
+export function tierDefinition(): string {
+  return `散戶 ${tierRange('retail')}｜中實戶 ${tierRange('mid')}｜大戶 ${bigLabel(TIERS.big_min)}（含千張大戶）｜千張大戶 ${tierRange('whale')}`;
+}
+
+/** 分級（1–15）→ 比例條上的段（互斥）。 */
+export function tierOf(level: number): Tier {
+  if (level <= smallMaxLevel(TIERS.retail_max)) return 'retail';
+  if (level >= bigMinLevel(TIERS.whale_min)) return 'whale';
+  if (level >= bigMinLevel(TIERS.big_min)) return 'big';
+  return 'mid';
+}
+
+/** 某一週四段的合計（比例、人數、人均張數；任一分級缺值 → 該段 null）。 */
+export function tierWeek(b: HolderBlock, w: number): Record<Tier, GroupWeek> {
+  const out = {} as Record<Tier, GroupWeek>;
+  for (const t of TIER_ORDER) {
+    let pct = 0;
+    let holders = 0;
+    let bad = false;
+    for (let lv = 1; lv <= 15; lv++) {
+      if (tierOf(lv) !== t) continue;
+      const p = b.p[lv - 1]?.[w] ?? null;
+      const n = b.n[lv - 1]?.[w] ?? null;
+      if (p === null || n === null) { bad = true; break; }
+      pct += p;
+      holders += n;
+    }
+    const ts = b.ts[w] ?? null;
+    out[t] = bad ? { pct: null, holders: null, avg: null } : { pct, holders, avg: ts !== null && holders > 0 ? (pct / 100) * ts / holders / 1000 : null };
+  }
+  return out;
+}
+
+export interface TierStat {
+  tier: Tier;
+  pct: N;
+  /** 與上週相比（百分點） */
+  change: N;
+  /** 連續增加（正）／減少（負）週數（比例變化 |Δ| < 0.005 視為持平，中斷連續） */
+  streak: number;
+}
+
+/** 最新一週四段的比例、週變化與連續週數。 */
+export function tierStats(b: HolderBlock): TierStat[] {
+  const n = b.d.length;
+  if (!n) return [];
+  const weeks = Array.from({ length: n }, (_, w) => tierWeek(b, w));
+  return TIER_ORDER.map((t) => {
+    const pct = weeks[n - 1][t].pct;
+    const prev = n >= 2 ? weeks[n - 2][t].pct : null;
+    let streak = 0;
+    let sign = 0;
+    for (let w = n - 1; w >= 1; w--) {
+      const a = weeks[w][t].pct;
+      const p = weeks[w - 1][t].pct;
+      if (a === null || p === null || Math.abs(a - p) < 0.005) break;
+      const sg = a > p ? 1 : -1;
+      if (sign === 0) sign = sg;
+      if (sg !== sign) break;
+      streak += sg;
+    }
+    return { tier: t, pct, change: pct !== null && prev !== null ? pct - prev : null, streak };
+  });
+}
+
+/** 一句話結論：「千張大戶本週 +0.30 個百分點，連 3 週增加」（只有 1 週 → 只寫目前比例）。 */
+export function structureSentence(b: HolderBlock): string {
+  const st = tierStats(b);
+  const whale = st.find((s) => s.tier === 'whale');
+  if (!whale || whale.pct === null) return '集保資料累積中';
+  if (whale.change === null) return `千張大戶持股 ${F2.format(whale.pct)}%（目前只有 1 週資料，下週起可比較週變化）`;
+  const d = whale.change;
+  if (Math.abs(d) < 0.005) return `千張大戶本週持平（${F2.format(whale.pct)}%）`;
+  const k = Math.abs(whale.streak);
+  return `千張大戶本週 ${d > 0 ? '+' : '−'}${F2.format(Math.abs(d))} 個百分點${k >= 2 ? `，連 ${k} 週${d > 0 ? '增加' : '減少'}` : ''}`;
 }

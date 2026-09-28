@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
-import { PageHead, TopBar } from '../components/Chrome';
-import { useDb } from '../hooks';
+import { PageHead, ThemeSwitch, TopBar } from '../components/Chrome';
+import { useDb, useInvestStyle } from '../hooks';
+import { STYLE_DESC, STYLE_NAME, setStyle } from '../lib/style';
 import { getSetting, setSetting } from '../db/db';
 import { CATEGORY_IDS, scoresConfig } from '../lib/config';
 import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
@@ -13,32 +14,35 @@ export default function Settings() {
   const stored = useDb(async () => ({
     weights: await getSetting<Weights>('weights', DEFAULT_WEIGHTS),
     costs: await getSetting<CostSettings>('costs', DEFAULT_COSTS),
-    theme: await getSetting<string>('theme', 'auto'),
     ambient: await getSetting<boolean>('ambient', true),
     gamification: await getSetting<boolean>('gamification', true),
     portfolio: await getSetting<PortfolioSettings>('portfolio', DEFAULT_PORTFOLIO),
   }));
   const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS);
+  const style = useInvestStyle();
   useEffect(() => { if (stored) setWeights(stored.weights); }, [stored?.weights]);
   if (!stored) return <div class="page"><TopBar back="/" avatar={false} /><PageHead title="設定" /></div>;
   const total = CATEGORY_IDS.reduce((s, c) => s + weights[c], 0) || 1;
-
-  function applyTheme(t: string) {
-    setSetting('theme', t);
-  }
 
   return (
     <div class="page">
       <TopBar back="/" avatar={false} />
       <PageHead eyebrow="我的" title="設定" />
 
-      <h2 class="section-title">外觀</h2>
+      <h2 class="section-title">投資風格</h2>
       <div class="card">
-        <div class="segmented" role="group" aria-label="外觀">
-          {[['auto', '跟隨系統'], ['light', '淺色'], ['dark', '深色']].map(([v, l]) => (
-            <button key={v} aria-pressed={stored.theme === v} onClick={() => applyTheme(v)}>{l}</button>
+        <div class="segmented" role="group" aria-label="投資風格">
+          {(['swing', 'long'] as const).map((v) => (
+            <button key={v} aria-pressed={style === v} onClick={() => setStyle(v)}>{STYLE_NAME[v]}</button>
           ))}
         </div>
+        <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>{STYLE_DESC[style]}。決定個股頁區塊順序、預設期間與一句話結論的側重點；不影響分數計算。</p>
+      </div>
+
+      <h2 class="section-title">外觀</h2>
+      <div class="card">
+        <ThemeSwitch />
+        <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>預設深色，不跟隨系統；也可以從右上角頭像選單的第一列切換。</p>
         <div class="switch-row" style={{ marginTop: 'var(--s-3)' }}>
           <span><span class="body" style={{ display: 'block' }}>環境光</span><span class="caption muted">頁首柔和光暈：今晚頁代表資金環境（有風險偏琥珀），我的股票與個股頁跟著所選期間的漲跌。關閉即為純黑的「夜間簡報」樣式；系統開啟減少透明度或減少動態效果時會自動關閉。</span></span>
           <label class="switch"><input type="checkbox" role="switch" aria-label="環境光" checked={stored.ambient} onChange={(e) => setSetting('ambient', (e.target as HTMLInputElement).checked)} /><span /></label>

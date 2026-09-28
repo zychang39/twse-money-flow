@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { gotoStock } from './helpers';
 
 // 第三輪修正（docs/design/ROUND3.md）：M1 新版本提示、M2 法人買賣超報表、M3 大戶／散戶門檻、M4 多空對照、M5 參考連結。
 
@@ -38,7 +39,7 @@ const noHScroll = async (page: import('@playwright/test').Page) => {
 };
 
 test('M2：個股頁有入口；報表一次列出四個法人的區間合計，Tab 切換走勢圖與逐日明細', async ({ page }) => {
-  await page.goto('#/stock/2330');
+  await gotoStock(page, '#/stock/2330');
   await page.getByRole('link', { name: /法人買賣超報表/ }).click();
   await expect(page).toHaveURL(/#\/stock\/2330\/institutional$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^外資近\s60\s日(買超|賣超|買賣超持平)/);
@@ -70,9 +71,8 @@ for (const width of [375, 393]) {
     await page.setViewportSize({ width, height: 852 });
     await page.goto('#/stock/2330/institutional');
     await expect(page.locator('.ir-table')).toBeVisible();
-    for (const tab of ['外資', '投信', '自營商', '三大法人', '八大行庫']) {
+    for (const tab of ['外資', '投信', '自營商', '三大法人']) {
       await page.getByRole('group', { name: '法人' }).getByRole('button', { name: tab }).click();
-      if (tab === '八大行庫') { await noHScroll(page); continue; }
       for (const m of ['1 個月', '3 個月']) {
         await page.getByRole('group', { name: '期間' }).getByRole('button', { name: m }).click();
         await expect(page.locator('.ir-wrap')).toHaveAttribute('data-fits', /all|compact/);
@@ -82,15 +82,12 @@ for (const width of [375, 393]) {
   });
 }
 
-test('M2：八大行庫標示資料源待處理，列出預計欄位與可自行查詢的地方', async ({ page }) => {
+test('v3：八大行庫分頁已移除，分段控制只有外資、投信、自營商、三大法人', async ({ page }) => {
   await page.goto('#/stock/2330/institutional');
-  await page.getByRole('group', { name: '法人' }).getByRole('button', { name: '八大行庫' }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('八大行庫：資料源待處理');
-  await expect(page.getByText(/需要輸入驗證碼/).first()).toBeVisible();
-  for (const col of ['買賣超', '庫存', '持股比率']) await expect(page.getByRole('columnheader', { name: col })).toBeVisible();
-  await expect(page.getByRole('link', { name: /證交所・買賣日報表查詢系統/ })).toHaveAttribute('href', 'https://bsr.twse.com.tw/bshtm/');
-  await expect(page.getByRole('link', { name: /HiStock/ })).toHaveAttribute('target', '_blank');
-  await expect(page.getByRole('link', { name: /HiStock/ })).toContainText('第三方網站');
+  await expect(page.getByRole('group', { name: '法人' }).getByRole('button').first()).toBeVisible();
+  const names = await page.getByRole('group', { name: '法人' }).getByRole('button').allTextContents();
+  expect(names).toEqual(['外資', '投信', '自營商', '三大法人']);
+  await expect(page.getByText(/八大行庫/)).toHaveCount(0);
 });
 
 test('M2：點一列打開當天完整籌碼（含四個法人的買張、賣張）；⋯ 複製四個法人的 CSV；圖可用方向鍵逐日查看', async ({ page, context }) => {
@@ -114,52 +111,35 @@ test('M2：點一列打開當天完整籌碼（含四個法人的買張、賣張
   await expect(page.locator('.sc-tip')).toHaveCount(0);
 });
 
-// ---------------------------------------------------------------- M3 大戶與散戶持股
-test('M3：個股頁有入口；門檻可用常用組合或滑桿（鍵盤）調整，重新開啟後仍記得', async ({ page }) => {
-  await page.goto('#/stock/2330');
-  await page.getByRole('link', { name: /大戶與散戶持股/ }).click();
+// ---------------------------------------------------------------- M3 籌碼結構（v3：全站統一分級，移除可調門檻）
+test('M3（v3）：個股頁有「15 級完整分布」入口；分級定義固定並顯示在畫面上；沒有可調門檻', async ({ page }) => {
+  await gotoStock(page, '#/stock/2330');
+  await page.getByRole('link', { name: /15 級完整分布/ }).click();
   await expect(page).toHaveURL(/#\/stock\/2330\/holders$/);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^大戶持股\s[\d.]+%/);
-  const groups = page.locator('.hd-groups');
-  await expect(groups).toContainText('10 張以下');
-  await expect(groups).toContainText('超過 400 張');
-  // 常用組合：千張大戶
-  await page.getByRole('group', { name: '常用門檻' }).getByRole('button', { name: '千張大戶' }).click();
-  await expect(groups).toContainText('超過 1000 張');
-  await expect(page.locator('.sc-title', { hasText: '大戶（超過 1000 張）持股比例（%）' })).toHaveCount(1);
-  // 滑桿（鍵盤）：大戶門檻往左一格＝800 張；散戶門檻往右一格＝15 張
-  const big = page.getByRole('slider', { name: '大戶門檻' });
-  await big.focus();
-  await page.keyboard.press('ArrowLeft');
-  await expect(big).toHaveAttribute('aria-valuetext', '大戶：超過 800 張');
-  const small = page.getByRole('slider', { name: '散戶門檻' });
-  await small.focus();
-  await page.keyboard.press('ArrowRight');
-  await expect(small).toHaveAttribute('aria-valuetext', '散戶：15 張以下');
-  await expect(page.getByTestId('hd-sentence')).toContainText('超過 800 張');
-  await expect(page.getByTestId('hd-sentence')).not.toHaveText(/買進|賣出|建議/);
-  // 兩個門檻不會交叉：散戶門檻一路往右，最多停在大戶門檻的前一格
-  for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowRight');
-  await expect(small).toHaveAttribute('aria-valuetext', '散戶：600 張以下');
-  // 記住設定
-  await page.reload();
-  await expect(page.getByRole('slider', { name: '大戶門檻' })).toHaveAttribute('aria-valuetext', '大戶：超過 800 張');
-  await expect(page.getByRole('slider', { name: '散戶門檻' })).toHaveAttribute('aria-valuetext', '散戶：600 張以下');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^千張大戶本週/);
+  await expect(page.getByTestId('hd-definition')).toHaveText('分級：散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 ≥ 400 張（含千張大戶）｜千張大戶 ≥ 1,000 張。');
+  await expect(page.getByRole('slider')).toHaveCount(0);
+  await expect(page.getByText(/超過 100 張/)).toHaveCount(0);
+  await expect(page.locator('.sc-title', { hasText: '千張大戶（≥ 1,000 張）持股比例（%）' })).toHaveCount(1);
+  await expect(page.locator('.sc-title', { hasText: '大戶（≥ 400 張，含千張）持股比例（%）' })).toHaveCount(1);
+  await expect(page.locator('.sc-title', { hasText: '散戶（≤ 5 張）持股比例（%）' })).toHaveCount(1);
 });
 
-test('M3：指標與期間切換走勢圖；分級分布依門檻分成散戶／中實戶／大戶', async ({ page }) => {
+test('M3（v3）：指標與期間切換走勢圖；15 級分布分成四段', async ({ page }) => {
   await page.goto('#/stock/2330/holders');
-  await page.getByRole('group', { name: '常用門檻' }).getByRole('button', { name: '400 張大戶' }).click();
   await page.getByRole('group', { name: '指標' }).getByRole('button', { name: '人數' }).click();
-  await expect(page.locator('.sc-title', { hasText: '大戶（超過 400 張）人數（人）' })).toHaveCount(1);
+  await expect(page.locator('.sc-title', { hasText: '千張大戶（≥ 1,000 張）人數（人）' })).toHaveCount(1);
   await page.getByRole('group', { name: '指標' }).getByRole('button', { name: '人均張數' }).click();
-  await expect(page.locator('.sc-title', { hasText: '散戶（10 張以下）人均張數（張）' })).toHaveCount(1);
+  await expect(page.locator('.sc-title', { hasText: '散戶（≤ 5 張）人均張數（張）' })).toHaveCount(1);
   await page.getByRole('group', { name: '期間' }).getByRole('button', { name: '3 個月' }).click();
-  await expect(page.getByRole('heading', { name: /^走勢・\d+ 週$/ })).toHaveText(/走勢・(1[0-3]) 週/);
+  await expect(page.getByRole('heading', { name: '走勢・3 個月' })).toBeVisible();
   const sections = page.locator('.hd-table tbody');
-  await expect(sections).toHaveCount(3);
-  await expect(sections.nth(0).getByRole('row')).toHaveCount(1 + 3); // 散戶：不到 1、1–5、5–10 張
-  await expect(sections.nth(2).getByRole('row')).toHaveCount(1 + 4); // 大戶：400–600、600–800、800–1000、超過 1000
+  await expect(sections).toHaveCount(4);
+  await expect(sections.nth(0).getByRole('row')).toHaveCount(1 + 2); // 散戶：不到 1、1–5 張
+  await expect(sections.nth(1).getByRole('row')).toHaveCount(1 + 9); // 中實戶：分級 3–11
+  await expect(sections.nth(2).getByRole('row')).toHaveCount(1 + 3); // 大戶段：400–600、600–800、800–1000
+  await expect(sections.nth(3).getByRole('row')).toHaveCount(1 + 1); // 千張大戶：超過 1000
+  await expect(page.getByTestId('hd-basis')).toContainText(/與\s1[23]\s週前（\d{2}\/\d{2}）相比/);
 });
 
 for (const width of [375, 393]) {
@@ -180,9 +160,10 @@ for (const width of [375, 393]) {
 
 // ---------------------------------------------------------------- M4 多空對照
 test('M4：個股頁的多空區塊有比例條與入口；多空對照並排列出四個面向的多方與空方', async ({ page }) => {
-  await page.goto('#/stock/2330');
-  const block = page.getByRole('region', { name: '多空' });
-  await expect(block.getByRole('heading', { level: 2 })).toHaveText(/^多方 \d+ 項、空方 \d+ 項$/);
+  await gotoStock(page, '#/stock/2330');
+  // v3：多空比例條併入「整體狀態如何？」區塊
+  const block = page.getByRole('region', { name: /^整體狀態如何？/ });
+  await expect(block.getByRole('region', { name: '多空' })).toContainText(/多空條件：多方 \d+ 項、空方 \d+ 項/);
   await expect(block.getByRole('img', { name: /^多方 \d+ 項、中性 \d+ 項、空方 \d+ 項$/ })).toBeVisible();
   await block.getByRole('link', { name: /多空對照/ }).click();
   await expect(page).toHaveURL(/#\/stock\/2330\/bullbear$/);
@@ -218,9 +199,10 @@ for (const width of [375, 393]) {
 
 // ---------------------------------------------------------------- M5 研究參考
 test('M5：個股頁列出近一年法說會（含主辦／邀請券商）與研究參考連結；第三方連結清楚標示', async ({ page }) => {
-  await page.goto('#/stock/2330');
-  const block = page.getByRole('region', { name: '研究參考' });
-  await expect(block.getByRole('heading', { level: 2 })).toHaveText(/^近一年 \d+ 場法說會$/);
+  await gotoStock(page, '#/stock/2330');
+  // v3：研究參考併入「最近有什麼事件？」區塊
+  const block = page.getByRole('region', { name: '最近有什麼事件？' });
+  await expect(block.getByRole('heading', { level: 2 })).toHaveText(/^近一年 \d+ 筆事件、\d+ 場法說會$/);
   await expect(block).toContainText('主辦／邀請券商：BofA、元大證券');
   await expect(block.locator('.rs-item')).toHaveCount(4);
   const official = block.getByRole('link', { name: /公開資訊觀測站・法人說明會一覽表/ });

@@ -1,10 +1,13 @@
 /** 期間選擇器（1D～ALL）：依日期切出區間。基準點＝區間開始前最後一個交易日的收盤，與漲跌計算一致。 */
 
-export type Period = '1D' | '1W' | '1M' | '3M' | 'YTD' | '1Y' | 'ALL';
-export const PERIODS: Period[] = ['1D', '1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
+export type Period = '1D' | '1W' | '1M' | '3M' | 'YTD' | '1Y' | '5Y' | '10Y' | 'ALL';
+export const PERIODS: Period[] = ['1D', '1W', '1M', '3M', 'YTD', '1Y', '5Y', '10Y', 'ALL'];
 /** 今晚頁：只有盤後日資料，1D 只是兩點直線，期間選擇器從 1W 開始；預設 3M。 */
 export const TONIGHT_PERIODS: Period[] = ['1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
 export const TONIGHT_DEFAULT_PERIOD: Period = '3M';
+/** 個股頁：同樣只有日資料，移除 1D；預設 1Y（v3）。 */
+export const STOCK_PERIODS: Period[] = ['1W', '1M', '3M', 'YTD', '1Y', '5Y', '10Y', 'ALL'];
+export const STOCK_DEFAULT_PERIOD: Period = '1Y';
 export const PERIOD_LABEL: Record<Period, string> = {
   '1D': '今日',
   '1W': '近 1 週',
@@ -12,9 +15,11 @@ export const PERIOD_LABEL: Record<Period, string> = {
   '3M': '近 3 個月',
   YTD: '今年以來',
   '1Y': '近 1 年',
+  '5Y': '近 5 年',
+  '10Y': '近 10 年',
   ALL: '全部期間',
 };
-export const PERIOD_NAME: Record<Period, string> = { '1D': '1 日', '1W': '1 週', '1M': '1 個月', '3M': '3 個月', YTD: '今年以來', '1Y': '1 年', ALL: '全部' };
+export const PERIOD_NAME: Record<Period, string> = { '1D': '1 日', '1W': '1 週', '1M': '1 個月', '3M': '3 個月', YTD: '今年以來', '1Y': '1 年', '5Y': '5 年', '10Y': '10 年', ALL: '全部' };
 
 function shiftDate(iso: string, months: number, days = 0): string {
   const d = new Date(`${iso}T12:00:00Z`);
@@ -45,6 +50,8 @@ export function periodStart(dates: string[], p: Period): { start: number; trunca
     case '1M': target = shiftDate(last, 1); break;
     case '3M': target = shiftDate(last, 3); break;
     case '1Y': target = shiftDate(last, 12); break;
+    case '5Y': target = shiftDate(last, 60); break;
+    case '10Y': target = shiftDate(last, 120); break;
     case 'YTD': target = `${Number(last.slice(0, 4)) - 1}-12-31`; break;
     case 'ALL': return { start: 0, truncated: false };
   }
@@ -65,7 +72,7 @@ export function fillForward(values: (number | null | undefined)[]): number[] | n
 
 export function sliceWindow(dates: string[], values: (number | null)[], p: Period): Window | null {
   const filled = fillForward(values);
-  if (!filled || dates.length < 2) return null;
+  if (!filled || !dates.length) return null;
   const { start, truncated } = periodStart(dates, p);
   return { dates: dates.slice(start), values: filled.slice(start), truncated };
 }
@@ -78,4 +85,34 @@ export function change(values: number[], at = values.length - 1): { abs: number;
   const pct = base ? (abs / base) * 100 : null;
   const dir: Dir = Math.abs(abs) < 1e-9 ? 'flat' : abs > 0 ? 'up' : 'down';
   return { abs, pct, dir };
+}
+
+/** 超過個股檔（約 4.5 年）的期間：需要長歷史股價檔。 */
+export const LONG_PERIODS: Period[] = ['5Y', '10Y', 'ALL'];
+/** 週線取樣的期間（v3 M5：10Y、ALL 點數太多，改為每週最後一個交易日）。 */
+export const WEEKLY_PERIODS: Period[] = ['10Y', 'ALL'];
+
+/** ISO 週的鍵（該週星期一的日期）。 */
+export function weekKey(iso: string): string {
+  const d = new Date(`${iso}T12:00:00Z`);
+  const dow = (d.getUTCDay() + 6) % 7; // 星期一＝0
+  d.setUTCDate(d.getUTCDate() - dow);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * 週線取樣：保留第一點（區間基準）與每週最後一個交易日（最後一週即最新一天），漲跌計算不受影響。
+ * 回傳保留的索引，讓還原價與原始價用同一組點。
+ */
+export function weeklyIndices(dates: string[]): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < dates.length; i++) {
+    const last = i === dates.length - 1 || weekKey(dates[i + 1]) !== weekKey(dates[i]);
+    if (i === 0 || last) out.push(i);
+  }
+  return out;
+}
+
+export function pick<T>(a: T[], idx: number[]): T[] {
+  return idx.map((i) => a[i]);
 }

@@ -107,3 +107,30 @@ def test_stock_file_conferences(tmp_path):
     conf = stock["conferences"]
     assert [c["date"] for c in conf] == sorted((c["date"] for c in conf), reverse=True)
     assert {c["host"] for c in conf} >= {"BofA", "元大證券", None}
+
+
+def test_derive_window_and_long_history(tmp_path, monkeypatch):
+    """v3 M5：衍生計算只取最近 N 個交易日；更早的收盤另存 stocks/{code}.hist.json（日期、收盤、還原因子）。"""
+    from pipeline.derive import history
+
+    monkeypatch.setattr(history, "window_days", lambda: 50)
+    store_dir = tmp_path / "data"
+    out = tmp_path / "out"
+    build_store(store_dir, days=80)
+    report = build_web(store_dir, out, demo=True)
+    stock = json.loads((out / "stocks" / "1101.json").read_text())
+    assert len(stock["d"]) == 50
+    hist = json.loads((out / "stocks" / "1101.hist.json").read_text())
+    assert len(hist["d"]) == 80 and len(hist["c"]) == 80 and len(hist["af"]) == 80
+    assert hist["d"][-50:] == stock["d"] and hist["c"][-50:] == stock["c"]
+    # 除息日（倒數第 60 日）在視窗之外：長歷史的還原因子仍然正確（之前 32/33、之後 1）
+    ex_idx = 80 - 60
+    assert abs(hist["af"][ex_idx - 1] - 32 / 33) < 1e-6 and hist["af"][ex_idx] == 1
+    assert report["long_history"]["files"] == 12 and report["long_history"]["first_date"] == hist["d"][0]
+    meta = json.loads((out / "meta.json").read_text())
+    assert meta["long_history"]["files"] == 12
+    # 視窗足夠時不輸出長歷史檔
+    out2 = tmp_path / "out2"
+    monkeypatch.setattr(history, "window_days", lambda: 1100)
+    build_web(store_dir, out2, demo=True)
+    assert not list((out2 / "stocks").glob("*.hist.json"))

@@ -6,7 +6,8 @@ import {
   IconBack, IconDiscipline, IconDoc, IconExplore, IconExport, IconMine, IconPerson, IconPulse, IconSearch, IconSliders, IconTonight,
 } from './Icons';
 import { TAB_DEFS, tabIndexOf } from '../lib/tabs';
-import { navigate } from '../router';
+import { goBack, navigate } from '../router';
+import { THEME_OPTIONS, type ThemePref, getThemePref, setThemePref } from '../lib/theme';
 
 const TAB_ICONS = [IconTonight, IconMine, IconExplore, IconSearch, IconDiscipline];
 const SEARCH_TAB = 3;
@@ -178,7 +179,7 @@ export function primeKeyboard(): void {
 }
 
 const MENU = [
-  { path: '/me/settings', label: '設定', desc: '環境光、遊戲化、分數權重、交易成本、外觀、提醒匯出', icon: IconSliders },
+  { path: '/me/settings', label: '設定', desc: '投資風格、環境光、遊戲化、分數權重、交易成本、外觀、提醒匯出', icon: IconSliders },
   { path: '/me/backup', label: '備份', desc: '匯出／匯入所有本機資料（單一 JSON）', icon: IconExport },
   { path: '/me/health', label: '資料健康', desc: '各資料源狀態、推估事件與最近執行紀錄', icon: IconPulse },
   { path: '/me/methodology', label: '方法說明', desc: '所有指標與分數的計算方式', icon: IconDoc },
@@ -200,15 +201,33 @@ export function MenuList({ onPick }: { onPick?: () => void }) {
   );
 }
 
-/** 右上角頭像：設定、備份、資料健康、方法說明。 */
+/** 深淺色三段式（頭像選單第一列、設定頁共用）。 */
+export function ThemeSwitch() {
+  const [pref, setPref] = useState<ThemePref>(getThemePref);
+  useEffect(() => {
+    const on = () => setPref(getThemePref());
+    window.addEventListener('theme-change', on);
+    return () => window.removeEventListener('theme-change', on);
+  }, []);
+  return (
+    <div class="segmented theme-switch" role="group" aria-label="深淺色">
+      {THEME_OPTIONS.map(([v, l]) => (
+        <button key={v} aria-pressed={pref === v} onClick={() => { setThemePref(v); setPref(v); }}>{l}</button>
+      ))}
+    </div>
+  );
+}
+
+/** 右上角頭像：第一列深淺色，其下為設定、備份、資料健康、方法說明。 */
 export function AvatarButton() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button class="avatar-btn" aria-label="帳戶選單：設定、備份、資料健康、方法說明" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+      <button class="avatar-btn" aria-label="帳戶選單：深淺色、設定、備份、資料健康、方法說明" aria-haspopup="dialog" onClick={() => setOpen(true)}>
         <span><IconPerson /></span>
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title="我的">
+        <ThemeSwitch />
         <MenuList onPick={() => setOpen(false)} />
         <p class="caption muted" style={{ marginTop: 'var(--s-6)' }}>所有使用者資料只存在這台裝置，不會上傳。</p>
       </Sheet>
@@ -224,7 +243,8 @@ export function TopBar({ back, caption, actions, avatar = true }: { back?: strin
   return (
     <div class="topbar">
       {back ? (
-        <a class="icon-btn" href={`#${back}`} aria-label="返回">
+        <a class="icon-btn" href={`#${back}`} aria-label="返回"
+          onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); goBack(back); }}>
           <IconBack />
         </a>
       ) : <span style={{ width: 'var(--s-3)' }} />}

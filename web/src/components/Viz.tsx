@@ -10,7 +10,9 @@ import { IconCheck } from './Icons';
  */
 export function Sparkline({ values, dir, w = 64, h = 32 }: { values: (number | null)[] | null | undefined; dir: 'up' | 'down' | 'flat'; w?: number; h?: number }) {
   const v = values ? fillForward(values) : null;
-  if (!v || v.length < 2) return <svg width={w} height={h} aria-hidden="true" />;
+  if (!v || !v.length) return <svg width={w} height={h} aria-hidden="true" />;
+  // 只有 1 點：畫單點標記（右端），不畫線
+  if (v.length === 1) return <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true"><circle cx={w - 3} cy={h / 2} r={2.5} fill="var(--text-2)" /></svg>;
   const base = v[v.length - 2];
   const f = { w, h, padX: 2, padY: 3 };
   const range = extent(v, base);
@@ -72,7 +74,7 @@ export function Rings3({ progress, complete, animate }: { progress: number[]; co
 
 /** 法人淨買賣超柱狀圖：淨買超紅、淨賣超綠（台股慣例）；最近 5 日不透明，其餘略淡。
  * 座標軸與數值標籤都帶單位（預設張，1 萬張以上縮寫為萬張）；手指拖曳、滑鼠移動或方向鍵可逐日查看日期與數值。 */
-export function NetBars({ values, dates, label, height = 120, unit = '張', format = fmtLotsUnit, caption }: {
+export function NetBars({ values, dates, label, height = 120, unit = '張', format = fmtLotsUnit, caption, words = ['淨買超', '淨賣超'], emphasizeRecent = true }: {
   values: (number | null)[];
   dates?: string[];
   label: string;
@@ -82,18 +84,25 @@ export function NetBars({ values, dates, label, height = 120, unit = '張', form
   /** 數值＋單位的格式（例：fmtLotsUnit → −4.0 萬張） */
   format?: (v: number | null | undefined, sign?: boolean) => string;
   caption?: string;
+  /** 正、負的說法（提示框與圖例）；預設「淨買超／淨賣超」，營收年增率等用「成長／衰退」 */
+  words?: [string, string];
+  /** 最近 5 根不透明、其餘略淡（逐日資料用；營收、EPS 關閉） */
+  emphasizeRecent?: boolean;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const n = values.length;
   if (!n) return null;
-  const max = Math.max(1, ...values.map((v) => Math.abs(v ?? 0)));
-  const W = n * 6;
+  const max = Math.max(1e-9, ...values.map((v) => Math.abs(v ?? 0)));
+  // 資料很少時（例：6 季 EPS）不把柱子拉到很寬：至少 16 格，柱子置中
+  const slots = Math.max(n, 16);
+  const off = (slots - n) / 2;
+  const W = slots * 6;
   const mid = height / 2;
   const idxAt = (x: number) => {
     const r = ref.current?.getBoundingClientRect();
     if (!r || !r.width) return null;
-    return Math.min(n - 1, Math.max(0, Math.floor(((x - r.left) / r.width) * n)));
+    return Math.min(n - 1, Math.max(0, Math.floor(((x - r.left) / r.width) * slots - off)));
   };
   const onPointer = (e: PointerEvent) => {
     if (e.pointerType === 'mouse' || e.buttons || e.type === 'pointerdown') setHover(idxAt(e.clientX));
@@ -117,18 +126,18 @@ export function NetBars({ values, dates, label, height = 120, unit = '張', form
         onKeyDown={onKey} onBlur={() => setHover(null)}>
         <svg viewBox={`0 0 ${W} ${height}`} width="100%" height={height} preserveAspectRatio="none" aria-hidden="true" style={{ display: 'block' }}>
           <line x1={0} x2={W} y1={mid} y2={mid} stroke="var(--line)" stroke-width={1} vector-effect="non-scaling-stroke" />
-          {hover !== null ? <rect x={hover * 6} y={0} width={6} height={height} fill="var(--surface-2)" /> : null}
+          {hover !== null ? <rect x={(hover + off) * 6} y={0} width={6} height={height} fill="var(--surface-2)" /> : null}
           {values.map((v, i) => {
             if (v === null || v === undefined) return null;
             const bh = Math.max(1.5, (Math.abs(v) / max) * (mid - 4));
-            return <rect key={i} x={i * 6 + 1} y={v >= 0 ? mid - bh : mid} width={4} height={bh} rx={1.5} fill={v >= 0 ? 'var(--up)' : 'var(--down)'} opacity={hover === null ? (i >= n - 5 ? 1 : 0.7) : i === hover ? 1 : 0.45} />;
+            return <rect key={i} x={(i + off) * 6 + 1} y={v >= 0 ? mid - bh : mid} width={4} height={bh} rx={1.5} fill={v >= 0 ? 'var(--up)' : 'var(--down)'} opacity={hover === null ? (!emphasizeRecent || i >= n - 5 ? 1 : 0.7) : i === hover ? 1 : 0.45} />;
           })}
         </svg>
         {hover !== null ? (
-          <div class={`nb-tip ${hover > n / 2 ? 'left' : ''}`} style={{ left: `${((hover + 0.5) / n) * 100}%` }} role="status">
+          <div class={`nb-tip ${hover > n / 2 ? 'left' : ''}`} style={{ left: `${((hover + off + 0.5) / slots) * 100}%` }} role="status">
             <span class="caption muted">{dates?.[hover] ?? `第 ${hover + 1} 日`}</span>
             <span class={`num ${hv === null || hv === undefined || hv === 0 ? '' : hv > 0 ? 'up' : 'down'}`}>
-              {hv === null || hv === undefined ? '無資料' : `${hv > 0 ? '▲ 淨買超 ' : hv < 0 ? '▼ 淨賣超 ' : ''}${format(hv, false)}`}
+              {hv === null || hv === undefined ? '無資料' : `${hv > 0 ? `▲ ${words[0]} ` : hv < 0 ? `▼ ${words[1]} ` : ''}${format(hv, false)}`}
             </span>
           </div>
         ) : null}
@@ -136,7 +145,7 @@ export function NetBars({ values, dates, label, height = 120, unit = '張', form
       </div>
       <figcaption class="row between wrap caption muted" style={{ marginTop: 'var(--s-1)', gap: '0 var(--s-3)' }}>
         <span>{caption ?? `${n} 個交易日`}</span>
-        <span style={{ whiteSpace: 'nowrap' }}><span class="up" aria-hidden="true">■</span> 紅色＝淨買超{' '}<span class="down" aria-hidden="true">■</span> 綠色＝淨賣超</span>
+        <span style={{ whiteSpace: 'nowrap' }}><span class="up" aria-hidden="true">■</span> 紅色＝{words[0]}{' '}<span class="down" aria-hidden="true">■</span> 綠色＝{words[1]}</span>
       </figcaption>
     </figure>
   );

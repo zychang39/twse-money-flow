@@ -14,6 +14,16 @@ crawl:
   user_agent: "twse-money-flow/1.0 (+https://github.com/zychang39/twse-money-flow)"
   timezone: Asia/Taipei
 
+# 歷史長度（v3 M5）：收盤行情回補 10 年（或各來源實測可取得的最早日期），籌碼類維持 3 年
+history:
+  price_sources: [twse_quotes, tpex_quotes]
+  price_years: 10             # backfill 只指定收盤行情且未給起日時，預設回補 10 年
+  default_years: 3            # 其他來源（籌碼、信用、估值…）未給起日時回補 3 年
+  derive_window_days: 1100    # 衍生計算（指標、分數、選股、回測、個股檔）只取最近 N 個交易日（約 4.5 年）；更早的股價另存長歷史檔
+  earliest:                   # 各來源可取得的最早日期（依實測 2026-09-28；早於此日不發請求）
+    twse_quotes: "2004-02-11"   # MI_INDEX 2004-02-11 有 696 筆；證交所網站此報表自 2004-02-11 起
+    tpex_quotes: "2010-01-04"   # 2010-01-04 有 538 筆；2007-01-02（交易日）回傳空表，2007–2009 未逐日實測
+
 sources:
   # ---------- 核心：上市 ----------
   twse_quotes:

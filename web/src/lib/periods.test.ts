@@ -46,3 +46,23 @@ describe('走勢圖幾何', () => {
     expect(hi).toBeGreaterThan(lo);
   });
 });
+
+import { LONG_PERIODS, WEEKLY_PERIODS, weekKey, weeklyIndices } from './periods';
+describe('v3 M5：10Y 與週線取樣', () => {
+  it('10Y 以 120 個月前最後一個交易日為基準', () => {
+    // 手算：目標日 2016-09-24（週六）→ 最後一個 ≤ 目標的交易日是 2016-09-23
+    const ds = ['2016-09-22', '2016-09-23', '2016-09-26', '2026-09-24'];
+    expect(ds[periodStart(ds, '10Y').start]).toBe('2016-09-23');
+    expect(periodStart(ds.slice(2), '10Y')).toEqual({ start: 0, truncated: true }); // 不滿 10 年
+  });
+  it('週鍵為該週星期一；週線取樣保留第一點與每週最後一個交易日（含最新一天）', () => {
+    expect(weekKey('2026-09-24')).toBe('2026-09-21'); // 週四 → 週一
+    expect(weekKey('2026-09-21')).toBe('2026-09-21');
+    expect(weekKey('2026-09-27')).toBe('2026-09-21'); // 週日屬於同一週
+    const ds = ['2026-09-14', '2026-09-15', '2026-09-18', '2026-09-21', '2026-09-22', '2026-09-24'];
+    expect(weeklyIndices(ds)).toEqual([0, 2, 5]);
+    expect(weeklyIndices(['2026-09-24'])).toEqual([0]);
+    expect(LONG_PERIODS).toEqual(['5Y', '10Y', 'ALL']);
+    expect(WEEKLY_PERIODS).toEqual(['10Y', 'ALL']);
+  });
+});
