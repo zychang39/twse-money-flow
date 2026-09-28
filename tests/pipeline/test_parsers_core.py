@@ -63,7 +63,16 @@ def test_twse_insti():
 def test_twse_insti_2024():
     res = twse.parse_insti(sample("twse_rwd_T86_hist.json"))
     assert res.response_date == date(2024, 1, 2)
-    assert row(res.df, "2618")["foreign_net"] == 128977962
+    r = row(res.df, "2618")
+    assert r["foreign_net"] == 128977962
+    # 自營商（自行買賣／避險）與外資自營商的買進、賣出股數；買進 − 賣出 = 買賣超
+    assert r["dealer_self_buy"] == 5167498 and r["dealer_self_sell"] == 2180000
+    assert r["dealer_hedge_buy"] == 8267110 and r["dealer_hedge_sell"] == 1140000
+    assert r["foreign_dealer_buy"] == 0 and r["foreign_dealer_sell"] == 0
+    df = res.df
+    for who in ("dealer_self", "dealer_hedge", "foreign_dealer", "foreign", "trust"):
+        diff = (df[f"{who}_buy"] - df[f"{who}_sell"] - df[f"{who}_net"]).abs()
+        assert (diff < 1).all(), who
 
 
 def test_twse_margin():
@@ -182,7 +191,13 @@ def test_tpex_insti():
     assert r["foreign_net"] == 1169000 and r["foreign_dealer_net"] == 0 and r["trust_net"] == 0
     assert r["dealer_hedge_net"] == 1441820 and r["dealer_net"] == 1441820 and r["total_net"] == 2610820
     hist = tpex.parse_insti(sample("tpex_insti_hist.json"))
-    assert row(hist.df, "00679B")["dealer_net"] == -10191887
+    h = row(hist.df, "00679B")
+    assert h["dealer_net"] == -10191887
+    assert h["dealer_self_buy"] == 636000 and h["dealer_self_sell"] == 1409000
+    assert h["dealer_hedge_buy"] == 6864000 and h["dealer_hedge_sell"] == 16282887
+    for who in ("dealer_self", "dealer_hedge", "foreign_dealer", "foreign", "trust"):
+        diff = (hist.df[f"{who}_buy"] - hist.df[f"{who}_sell"] - hist.df[f"{who}_net"]).abs()
+        assert (diff < 1).all(), who
 
 
 def test_tpex_margin():

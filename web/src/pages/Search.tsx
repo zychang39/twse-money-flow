@@ -1,6 +1,6 @@
 /**
- * 搜尋（#/search）：輸入框固定在底部、鍵盤出現時貼在鍵盤正上方；結果清單在它上方由下往上排列，
- * 最相關的結果最靠近拇指。沒有輸入時顯示：最近搜尋（最靠近拇指）、自選股、熱門動能前 5 名。
+ * 搜尋（#/search，底部導覽的第 4 格）：輸入框在底部導覽正上方、鍵盤出現時貼在鍵盤正上方（導覽列淡出）；
+ * 結果清單在它上方由下往上排列，最相關的結果最靠近拇指。沒有輸入時顯示：最近搜尋（最靠近拇指）、自選股、熱門動能前 5 名。
  *
  * 工程重點：
  * - 以 visualViewport 追蹤可見區域（鍵盤高度＝innerHeight − vv.height − vv.offsetTop），整個搜尋畫面
@@ -39,6 +39,8 @@ export function useVisualViewport(ref: { current: HTMLElement | null }): void {
       el.style.setProperty('--vv-top', `${Math.round(top)}px`);
       el.style.setProperty('--kb', `${Math.round(kb)}px`);
       el.dataset.kb = kb > KB_OPEN_PX ? 'open' : 'closed';
+      // 底部導覽在鍵盤開啟時淡出（global.css :root[data-kb='open'] .dock）
+      document.documentElement.dataset.kb = el.dataset.kb;
     };
     const schedule = () => { if (!raf) raf = requestAnimationFrame(apply); };
     apply();
@@ -50,6 +52,7 @@ export function useVisualViewport(ref: { current: HTMLElement | null }): void {
       vv?.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
       cancelAnimationFrame(raf);
+      delete document.documentElement.dataset.kb;
     };
   }, []);
 }
@@ -146,13 +149,16 @@ export default function Search() {
   const inputRef = useRef<HTMLInputElement>(null);
   useVisualViewport(screenRef);
 
-  // 搜尋期間鎖住頁面捲動；聚焦真正的搜尋框（鍵盤已由 Dock 的 primeKeyboard 預熱）
+  // 搜尋期間鎖住頁面捲動；聚焦真正的搜尋框（鍵盤已由底部導覽的 primeKeyboard 預熱）。
+  // 在搜尋頁再點一次底部的搜尋分頁：回到搜尋框（search-refocus）。
   useEffect(() => {
     const root = document.documentElement;
     const prev = root.style.overflow;
     root.style.overflow = 'hidden';
-    inputRef.current?.focus({ preventScroll: true });
-    return () => { root.style.overflow = prev; };
+    const focus = () => inputRef.current?.focus({ preventScroll: true });
+    focus();
+    window.addEventListener('search-refocus', focus);
+    return () => { root.style.overflow = prev; window.removeEventListener('search-refocus', focus); };
   }, []);
 
   const rows = summary.data?.rows ?? [];

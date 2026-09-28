@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import csv
 import io
+import re
+from datetime import date
 from typing import Any
 
 import pandas as pd
@@ -314,6 +316,57 @@ def parse_tdcc(payload: bytes | str) -> ParseResult:
         return ParseResult(df, no_data=True)
     d = parse_date(df["date"].iloc[0])
     df["date"] = d.isoformat() if d else None
+    return ParseResult(df, response_date=d)
+
+
+# ------------------------------------------------------------------ 集保個股歷史（qryStock，近一年逐週）
+TDCC_TOTAL_LEVEL = 17  # 與開放資料一致：1–15 持股分級、16 差異數調整、17 合計
+
+
+def parse_tdcc_form(html: bytes | str) -> tuple[str, list[str]]:
+    """集保「股權分散表查詢」頁：回傳表單的 SYNCHRONIZER_TOKEN 與可查詢的週別（YYYYMMDD，新到舊）。"""
+    text = html.decode("utf-8", errors="replace") if isinstance(html, bytes) else html
+    token = re.search(r'name="SYNCHRONIZER_TOKEN"\s+value="([^"]+)"', text)
+    select = re.search(r'<select[^>]*name="scaDate"[^>]*>(.*?)</select>', text, re.S)
+    if not token or not select:
+        raise ParseError("集保查詢頁格式不符：找不到 SYNCHRONIZER_TOKEN 或週別選單")
+    weeks = re.findall(r'<option value="(\d{8})"', select.group(1))
+    if not weeks:
+        raise ParseError("集保查詢頁格式不符：週別選單沒有選項")
+    return token.group(1), weeks
+
+
+def parse_tdcc_stock(html: bytes | str, code: str) -> ParseResult:
+    """集保個股查詢結果（HTML 表格：序、持股分級、人數、股數、占集保庫存數比例）→ TDCC_COLS。
+
+    分級 1–15 與開放資料相同；「合計」列存成分級 17（開放資料的 16 為差異數調整，這裡沒有）。
+    查無資料（例：代號不存在、該週未掛牌）回傳 no_data。
+    """
+    text = html.decode("utf-8", errors="replace") if isinstance(html, bytes) else html
+    m = re.search(r"資料日期：\s*(\d{2,3})年(\d{1,2})月(\d{1,2})日", text)
+    i = text.find("持股/單位數分級")
+    if not m or i < 0:
+        if "查無此資料" in text or "查無資料" in text:
+            return ParseResult(pd.DataFrame(columns=TDCC_COLS), no_data=True, message="查無資料")
+        raise ParseError("集保個股查詢結果格式不符：找不到資料日期或分級表")
+    d = date(int(m.group(1)) + 1911, int(m.group(2)), int(m.group(3)))
+    shown = re.search(r"證券代號：\s*([0-9A-Z]+)", text)
+    if shown and shown.group(1) != code:
+        raise ParseError(f"集保查詢結果的代號 {shown.group(1)} 與要求的 {code} 不符")
+    rows = []
+    table = text[i : text.find("</table>", i)]
+    for tr in re.findall(r"<tr>(.*?)</tr>", table, re.S):
+        cells = [strip_tags(c).strip() for c in re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)]
+        if len(cells) < 5:
+            continue
+        label = cells[1].replace(" ", "")
+        level = TDCC_TOTAL_LEVEL if label == "合計" else int(cells[0]) if cells[0].isdigit() else None
+        if level is None or not (1 <= level <= 15 or level == TDCC_TOTAL_LEVEL):
+            continue
+        rows.append((d.isoformat(), code, level, to_num(cells[2]), to_num(cells[3]), to_num(cells[4])))
+    df = pd.DataFrame(rows, columns=TDCC_COLS)
+    if len(df) != 16 or TDCC_TOTAL_LEVEL not in set(df["level"]):
+        raise ParseError(f"集保個股查詢結果應有 15 個分級＋合計，實際 {len(df)} 列")
     return ParseResult(df, response_date=d)
 
 

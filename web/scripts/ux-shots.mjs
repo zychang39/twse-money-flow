@@ -3,6 +3,7 @@
 // 瀏覽器模式：Safari 網址列在頁面視窗之外，safe-area 為 0。
 // 用法：node scripts/ux-shots.mjs --base http://localhost:4302/twse-money-flow/ --out ../docs/design/ux-fixes/after --seed ../docs/design/screens/seed.json --variant after
 import { chromium } from '@playwright/test';
+import { useCjkFont } from './cjk-font.mjs';
 import { mkdirSync, readFileSync } from 'node:fs';
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) => (a.startsWith('--') ? [...acc, [a.slice(2), all[i + 1]]] : acc), []));
@@ -47,6 +48,7 @@ const browser = await chromium.launch(process.env.PW_CHROMIUM_PATH ? { executabl
 for (const mode of MODES) {
   for (const scheme of SCHEMES) {
     const ctx = await browser.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 2, colorScheme: scheme, isMobile: true, hasTouch: true });
+    await useCjkFont(ctx);
     await ctx.addInitScript((standalone) => {
       if (!standalone) return;
       const apply = () => {
@@ -94,6 +96,7 @@ if (after) {
   mkdirSync(`${args.out}/new-user`, { recursive: true });
   for (const scheme of SCHEMES) {
     const ctx = await browser.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 2, colorScheme: scheme, isMobile: true, hasTouch: true });
+    await useCjkFont(ctx);
     const page = await ctx.newPage();
     const shot = (name) => page.screenshot({ path: `${args.out}/new-user/${scheme}-${name}.jpg`, type: 'jpeg', quality: 80 });
     await page.goto(`${args.base}#/mine`);

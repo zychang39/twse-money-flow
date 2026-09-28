@@ -1,8 +1,19 @@
 /** 數字與漲跌格式化。漲跌同時以 ▲▼ 表示（不只靠顏色）。 */
 
+const NF = new Map<number, Intl.NumberFormat>();
+/** 同一種小數位數共用一個 Intl.NumberFormat（toLocaleString 每次都會建立新的格式器，清單與表格很耗時）。 */
+export function numberFormat(digits: number): Intl.NumberFormat {
+  let f = NF.get(digits);
+  if (!f) {
+    f = new Intl.NumberFormat('zh-TW', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    NF.set(digits, f);
+  }
+  return f;
+}
+
 export function fmtNum(v: number | null | undefined, digits = 2): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return '—';
-  return v.toLocaleString('zh-TW', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return numberFormat(digits).format(v);
 }
 
 export function fmtInt(v: number | null | undefined): string {
@@ -87,4 +98,12 @@ export function fmtMoney(v: number | null | undefined): string {
 
 export function daysBetween(a: string, b: string): number {
   return Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+}
+
+/**
+ * 中文句子裡的數字黏住後面的單位：「12 個月」「2.52 個百分點」的空白換成不換行空白。
+ * 搭配 word-break: keep-all，只會在標點或數字前的空白換行，數字與單位不會被拆到兩行。
+ */
+export function glueNumbers(s: string): string {
+  return s.replace(/(\d[\d,.]*%?) (?=\S)/g, '$1\u00a0');
 }

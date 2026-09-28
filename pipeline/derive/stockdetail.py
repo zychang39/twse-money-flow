@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import numpy as np
@@ -88,6 +89,16 @@ CHIP_INSTI = [
     "dealer_self_net",
     "dealer_hedge_net",
     "total_net",
+    "foreign_buy",
+    "foreign_sell",
+    "foreign_dealer_buy",
+    "foreign_dealer_sell",
+    "trust_buy",
+    "trust_sell",
+    "dealer_self_buy",
+    "dealer_self_sell",
+    "dealer_hedge_buy",
+    "dealer_hedge_sell",
 ]
 CHIP_KEYS = {
     "foreign_net": "fn",
@@ -113,15 +124,24 @@ def _by_code(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame | None:
 
 
 def chip_sources(ds: Any) -> dict[str, pd.DataFrame]:
-    """三大法人（含外資自營商、自營商自行買賣／避險、官方合計）與借券賣出，依代號索引，供逐檔取用。"""
+    """三大法人（含外資自營商、自營商自行買賣／避險、官方合計）、借券賣出與借券餘額、當沖量，依代號索引，供逐檔取用。"""
     out: dict[str, pd.DataFrame] = {}
     ins = _by_code(ds.insti, CHIP_INSTI)
     if ins is not None:
         out["insti"] = ins
-    sbl = _by_code(ds.table("sbl"), ["sbl_sell"])
+    sbl = _by_code(ds.table("sbl"), ["sbl_sell", "sbl_balance"])
     if sbl is not None:
         out["sbl"] = sbl
+    dt = _by_code(ds.table("daytrade"), ["dt_volume"])
+    if dt is not None:
+        out["daytrade"] = dt
     return out
+
+
+def _col(frame: pd.DataFrame | None, col: str, sel: list[str]) -> pd.Series:
+    if frame is not None and col in frame.columns:
+        return frame[col].reindex(sel)
+    return pd.Series(np.nan, index=sel)
 
 
 def _sub(src: dict[str, pd.DataFrame], name: str, code: str) -> pd.DataFrame | None:
@@ -137,7 +157,8 @@ def _sub(src: dict[str, pd.DataFrame], name: str, code: str) -> pd.DataFrame | N
 def chip_block(p: Any, mp: Any, src: dict[str, pd.DataFrame], code: str, idx: list[str]) -> dict[str, Any] | None:
     """近 chip.days 個交易日＋前一日（算增減與漲跌用）的每日籌碼。
 
-    法人、借券賣出以「股」為單位（精確值，前端再換算張、金額、佔成交量）；融資融券餘額為「張」。
+    法人、借券賣出、借券餘額（sblb）、當沖量（dtv）以「股」為單位（精確值，前端再換算張、金額、佔成交量）；
+    融資融券餘額為「張」。
     avg＝當日成交金額 ÷ 成交股數（均價）；af＝還原因子（估計成本用還原後均價）；chg＝還原收盤的日漲跌 %。
     """
     days = int(config.ui().get("chip", {}).get("days", 60))
@@ -163,10 +184,133 @@ def chip_block(p: Any, mp: Any, src: dict[str, pd.DataFrame], code: str, idx: li
         vals = ins[col].reindex(sel) if ins is not None and col in ins.columns else pd.Series(np.nan, index=sel)
         out[key] = arr(vals.to_numpy(), 0)
     sbl = _sub(src, "sbl", code)
-    out["sbls"] = arr((sbl["sbl_sell"].reindex(sel) if sbl is not None else pd.Series(np.nan, index=sel)).to_numpy(), 0)
+    out["sbls"] = arr(_col(sbl, "sbl_sell", sel).to_numpy(), 0)
+    out["sblb"] = arr(_col(sbl, "sbl_balance", sel).to_numpy(), 0)
+    out["dtv"] = arr(_col(_sub(src, "daytrade", code), "dt_volume", sel).to_numpy(), 0)
     dt = mp.get("daytrade_pct")[code].reindex(sel) if "daytrade_pct" in mp.panels else pd.Series(np.nan, index=sel)
     out["dt"] = arr(dt.to_numpy(), 2)
+    out.update(chip_buy_sell(ins, sel))
     return out
+
+
+def chip_buy_sell(ins: pd.DataFrame | None, sel: list[str]) -> dict[str, list[Any]]:
+    """各法人的買進／賣出股數（法人買賣超報表用）。
+
+    fb／fs：外資＝外陸資（不含外資自營商）＋外資自營商；外資自營商買賣股數缺漏（舊檔只存買賣超）時，
+    若其買賣超為 0 視為沒有交易，否則為空值（避免買進 − 賣出 ≠ 買賣超）。
+    tb／ts：投信。dsb／dss：自營商自行買賣；dhb／dhs：自營商避險（舊檔為空值，可用 backfill --refresh 重抓）。
+    """
+
+    def c(col: str) -> pd.Series:
+        return _col(ins, col, sel).astype(float)
+
+    ffd = c("foreign_dealer_net")
+    no_trade = pd.Series(np.where(ffd == 0, 0.0, np.nan), index=ffd.index)
+    out: dict[str, list[Any]] = {}
+    for side, key in (("buy", "fb"), ("sell", "fs")):
+        dealer = c(f"foreign_dealer_{side}").fillna(no_trade)
+        out[key] = arr((c(f"foreign_{side}") + dealer).to_numpy(), 0)
+    for col, key in (
+        ("trust_buy", "tb"),
+        ("trust_sell", "ts"),
+        ("dealer_self_buy", "dsb"),
+        ("dealer_self_sell", "dss"),
+        ("dealer_hedge_buy", "dhb"),
+        ("dealer_hedge_sell", "dhs"),
+    ):
+        out[key] = arr(c(col).to_numpy(), 0)
+    return out
+
+
+# ------------------------------------------------------------------ 法說會（研究參考）
+_HOST_PATTERNS = [
+    re.compile(r"受邀參加(.{2,40}?)(?:所?舉辦|主辦|之)"),
+    re.compile(r"受(.{2,30}?)(?:之)?邀(?:請)?"),
+    re.compile(r"應(.{2,30}?)(?:之)?邀(?:請)?"),
+    re.compile(r"參加(.{2,40}?)(?:所?舉辦|主辦)"),
+]
+
+
+def conference_host(text: str) -> str | None:
+    """由法說會說明文字擷取主辦或邀請單位（例：「受BofA邀請參加投資人會議」→ BofA）；擷取不到回傳 None。"""
+    for pat in _HOST_PATTERNS:
+        m = pat.search(str(text or ""))
+        if not m:
+            continue
+        h = m.group(1).strip(" 「」()（）")
+        h = re.sub(r"^由", "", h)
+        h = re.sub(r"(辦理|合辦|共同|聯合|於.*)$", "", h).strip()
+        if len(h) >= 2 and "本公司" not in h:
+            return h
+    return None
+
+
+def conference_sources(ds: Any) -> dict[str, pd.DataFrame]:
+    conf = ds.table("conference")
+    if conf.empty or "code" not in conf.columns:
+        return {}
+    return {str(code): part for code, part in conf.groupby("code")}
+
+
+def conferences_for(src: dict[str, pd.DataFrame], code: str, since: str, limit: int = 8) -> list[dict[str, Any]]:
+    """近一年的法說會（新到舊，最多 limit 筆）：日期、時間、地點、說明，以及由說明擷取的主辦／邀請單位。"""
+    part = src.get(code)
+    if part is None or part.empty:
+        return []
+    part = part[part["date"].astype(str) >= since].sort_values("date", ascending=False).head(limit)
+    out = []
+    for _, r in part.iterrows():
+        text = str(r.get("text") or "")
+        out.append(
+            {
+                "date": str(r["date"]),
+                "time": str(r.get("time") or "") or None,
+                "place": str(r.get("place") or "") or None,
+                "text": text[:200],
+                "host": conference_host(text),
+            }
+        )
+    return out
+
+
+# ------------------------------------------------------------------ 集保持股分級（大戶／散戶持股工具）
+TDCC_LEVELS = list(range(1, 16))
+TDCC_TOTAL = 17
+
+
+def holder_sources(ds: Any) -> dict[str, pd.DataFrame]:
+    """集保股權分散表（開放資料＋個股歷史查詢），依代號分組。"""
+    t = ds.table("tdcc")
+    if t.empty or not {"date", "code", "level"} <= set(t.columns):
+        return {}
+    t = t[t["level"].isin([*TDCC_LEVELS, TDCC_TOTAL])]
+    return {str(code): part for code, part in t.groupby("code")}
+
+
+def holders_block(src: dict[str, pd.DataFrame], code: str) -> dict[str, Any] | None:
+    """最近 holders.weeks 週的 15 個持股分級（分級為主的陣列，方便前端依門檻加總）。
+
+    n[i]／p[i]：分級 i+1 各週的人數與占集保庫存比例（%）；ts／th：各週集保總股數與總人數（分級 17 合計）。
+    分級邊界（張）：1、5、10、15、20、30、40、50、100、200、400、600、800、1000（見 config/ui.yml holders.breakpoints）。
+    """
+    part = src.get(code)
+    if part is None or part.empty:
+        return None
+    weeks = int(config.ui().get("holders", {}).get("weeks", 52))
+    dates = sorted(part["date"].astype(str).unique())[-weeks:]
+
+    def grid(col: str) -> pd.DataFrame:
+        g = part.pivot_table(index="date", columns="level", values=col, aggfunc="last")
+        return g.reindex(index=dates, columns=[*TDCC_LEVELS, TDCC_TOTAL])
+
+    holders, pct, shares = grid("holders"), grid("pct"), grid("shares")
+    return {
+        "d": dates,
+        "n": [arr(holders[lv].to_numpy(), 0) for lv in TDCC_LEVELS],
+        "p": [arr(pct[lv].to_numpy(), 2) for lv in TDCC_LEVELS],
+        "ts": arr(shares[TDCC_TOTAL].to_numpy(), 0),
+        "th": arr(holders[TDCC_TOTAL].to_numpy(), 0),
+    }
 
 
 def cost_lines(p: Any, code: str, idx: list[str]) -> dict[str, list[Any]]:

@@ -34,7 +34,7 @@ class FakeClient:
                 return payload
         return NO_DATA
 
-    def post_bytes(self, url: str, data: dict[str, str]) -> bytes:
+    def post_bytes(self, url: str, data: dict[str, str], headers: dict[str, str] | None = None) -> bytes:
         return self.get_bytes(url + "?" + "&".join(f"{k}={v}" for k, v in data.items()))
 
 
@@ -147,6 +147,22 @@ def test_backfill_newest_first_and_skips_existing(tmp_path):
     assert "date=20260923" in urls[0] and "date=20260922" in urls[1]
 
 
+def test_backfill_refresh_refetches_existing(tmp_path):
+    """--refresh：已存在的檔案也重抓（補齊解析器新增的欄位）；未指定來源時拒絕，避免整批重抓。"""
+    ctx = make_ctx(tmp_path, {"T86": sample("twse_rwd_T86.json")})
+    old = pd.DataFrame({"date": ["2026-09-24"], "code": ["2330"], "foreign_net": [1.0]})
+    ctx.store.write("twse_insti", date(2026, 9, 24), old)
+    tasks.task_backfill(ctx, ["twse_insti"], date(2026, 9, 24), date(2026, 9, 24))
+    assert not ctx.client.urls  # type: ignore[attr-defined]
+    tasks.task_backfill(ctx, ["twse_insti"], date(2026, 9, 24), date(2026, 9, 24), refresh=True)
+    assert any("T86" in u and "date=20260924" in u for u in ctx.client.urls)  # type: ignore[attr-defined]
+    # 樣本已裁切（筆數少於下限）→ 驗證失敗，保留原檔不覆蓋
+    got = ctx.store.read("twse_insti", date(2026, 9, 24))
+    assert got is not None and got["foreign_net"].tolist() == [1.0]
+    with pytest.raises(ValueError):
+        tasks.task_backfill(ctx, None, date(2026, 9, 24), date(2026, 9, 24), refresh=True)
+
+
 def test_full_backfill_limits_advanced_days(tmp_path, monkeypatch):
     monkeypatch.setattr(tasks, "BACKFILL_FULL", ["twse_quotes", "twse_sbl"])
     monkeypatch.setattr(tasks, "ADVANCED_BACKFILL_DAYS", 1)
@@ -193,3 +209,72 @@ def test_old_format_parses_and_records_format_warning(tmp_path):
     assert df is not None and len(df) == 31
     assert tasks.run_daily_source(ctx, spec, date(2026, 9, 24)) == "ok"
     assert "format_warnings" not in entry
+
+
+# ---------------------------------------------------------------- 集保個股歷史（qryStock）
+class TdccClient(FakeClient):
+    """回放集保查詢頁：表單有 3 個週別；查詢結果依 scaDate 換成對應日期，2330 以外查無資料。"""
+
+    def __init__(self) -> None:
+        super().__init__({})
+        self.html = sample("tdcc_qryStock_3406.html").decode("utf-8")
+        self.form = self.html.replace('<option value="20260918" >', '<option value="20260917" >')
+        self.posts: list[dict[str, str]] = []
+
+    def get_bytes(self, url: str) -> bytes:
+        self.request_count += 1
+        self.urls.append(url)
+        return self.form.encode()
+
+    def post_bytes(self, url: str, data: dict[str, str], headers: dict[str, str] | None = None) -> bytes:
+        self.request_count += 1
+        self.posts.append(data)
+        if data["stockNo"] != "3406":
+            return "<p>查無此資料</p>".encode()
+        w = data["scaDate"]
+        roc = f"{int(w[:4]) - 1911}年{w[4:6]}月{w[6:]}日"
+        return self.html.replace("114年09月26日", roc).encode()
+
+
+def test_tdcc_history_fills_missing_weeks_and_resumes(tmp_path, monkeypatch):
+    ctx = make_ctx(tmp_path, {})
+    client = TdccClient()
+    ctx.client = client  # type: ignore[assignment]
+    from pipeline import tasks_advanced
+
+    weeks = [w for w in ("20260924", "20260917", "20260911")]
+    monkeypatch.setattr(tasks_advanced.advanced, "parse_tdcc_form", lambda html: ("tok", weeks))
+    # 開放資料已有 9/24 這週（全部股票）→ 不必再查
+    ctx.store.write(
+        "tdcc_holders",
+        date(2026, 9, 24),
+        pd.DataFrame(
+            {"date": ["2026-09-24"], "code": ["2330"], "level": [15], "holders": [1], "shares": [1], "pct": [1.0]}
+        ),
+    )
+    tasks_advanced.run_tdcc_history(ctx, ["3406", "9999"])
+    asked = [(p["stockNo"], p["scaDate"]) for p in client.posts]
+    # 3406 查兩週；9999 查無資料 → 第一次就停止，不再查其他週
+    assert asked == [("3406", "20260917"), ("3406", "20260911"), ("9999", "20260917")]
+    got = ctx.store.read("tdcc_history", date(2026, 9, 17))
+    assert got is not None and set(got["code"]) == {"3406"} and len(got) == 16
+    assert ctx.manifest["sources"]["tdcc_history"]["last_status"] == "ok"
+    # 續跑：已有的週別與股票略過
+    client.posts.clear()
+    tasks_advanced.run_tdcc_history(ctx, ["3406"])
+    assert client.posts == []
+
+
+def test_tdcc_history_respects_budget(tmp_path, monkeypatch):
+    ctx = make_ctx(tmp_path, {})
+    client = TdccClient()
+    ctx.client = client  # type: ignore[assignment]
+    from pipeline import tasks_advanced
+
+    monkeypatch.setattr(
+        tasks_advanced.advanced, "parse_tdcc_form", lambda html: ("tok", ["20260924", "20260917", "20260911"])
+    )
+    monkeypatch.setattr(tasks_advanced.config, "ui", lambda: {"holders": {"history": {"max_requests": 2}}})
+    tasks_advanced.run_tdcc_history(ctx, ["3406"])
+    assert len(client.posts) == 2
+    assert "剩餘 1 次" in ctx.manifest["sources"]["tdcc_history"]["last_message"]

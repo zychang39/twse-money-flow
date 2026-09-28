@@ -46,6 +46,10 @@ def _date(value: str | None) -> date | None:
     return parse_date(value) if value else None
 
 
+def _truthy(value: str | bool | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes"}
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     from pipeline import tasks
 
@@ -70,9 +74,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         elif task == "backfill":
             end = _date(args.end) or now_tpe().date()
             start = _date(args.start) or date(end.year - 3, end.month, 1)
-            extra = tasks.task_backfill(ctx, sources, start, end)
+            refresh = _truthy(args.refresh)
+            extra = tasks.task_backfill(ctx, sources, start, end, refresh=refresh)
             deploy = "true" if not extra.get("remaining") else "false"
-            if extra.get("remaining") and extra.get("progressed") and args.chain:
+            # 重抓（refresh）不自動接續：下一輪會從最近的日期重抓起，無法前進；剩餘量請縮小區間後再執行
+            if extra.get("remaining") and extra.get("progressed") and args.chain and not refresh:
                 from pipeline.notify.github import dispatch_workflow
 
                 ok = dispatch_workflow(
@@ -80,7 +86,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                     {
                         "task": "backfill",
                         "source": args.source or "",
-                        "start": str(extra["next_start"]),
+                        "start": str(extra.get("next_start") or start.isoformat()),
                         "end": end.isoformat(),
                     },
                     ref=os.environ.get("GITHUB_REF_NAME", "main"),
@@ -219,6 +225,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--data-dir", default="data")
     run.add_argument("--max-minutes", type=float, default=0, help="時間預算（回補用）")
     run.add_argument("--chain", action="store_true", help="回補未完成時自動觸發下一輪")
+    run.add_argument("--refresh", default="", help="回補時重抓已存在的每日型檔案（true／false；需指定 --source）")
     run.set_defaults(func=cmd_run)
 
     for name in ("daily", "periodic", "backfill"):
@@ -229,6 +236,7 @@ def build_parser() -> argparse.ArgumentParser:
         alias.add_argument("--data-dir", default="data")
         alias.add_argument("--max-minutes", type=float, default=0)
         alias.add_argument("--chain", action="store_true")
+        alias.add_argument("--refresh", default="", help="true 時重抓已存在的每日型檔案（需指定 --source）")
         alias.set_defaults(func=cmd_run, task=name, schedule="")
 
     al = sub.add_parser("alerts", help="盤中到價提醒（config/alerts.yml → Telegram）")

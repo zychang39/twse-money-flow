@@ -1,36 +1,40 @@
 /**
  * 個股頁：預設只顯示主角數字、走勢、一句話健檢、四環分數；往下捲才展開法人、籌碼、營收、估值等區塊。
- * 左右滑動切換同一清單的上一檔／下一檔；「進階」切換成 lightweight-charts 完整 K 線；細節用底部面板。
+ * 左右滑動主角區（名稱、股價、走勢圖）切換同一清單的上一檔／下一檔（Apple 股市式，頂列與下方內容不動）；
+ * 「進階」切換成 lightweight-charts 完整 K 線；細節用底部面板。
  * 環境光與走勢線同一個期間、同一個顏色。
  */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Ambient, Block, TopBar } from '../components/Chrome';
 import { Accumulating, DataStatus, ErrorState, Loading } from '../components/DataStatus';
 import { HeroChart, usePeriod } from '../components/HeroChart';
+import { type PagerApi, StockPager } from '../components/StockPager';
 import { ScoreRings, compositeCompleteness, categoryName, scoreText } from '../components/Scores';
 import { ScoreDetailView } from '../components/ScoreDetail';
 import { StockExtras, FairRange } from '../components/StockExtras';
-import { ChipStats, ChipTable } from '../components/Chips';
+import { ChipDaily, ChipStats } from '../components/Chips';
 import { Sheet } from '../components/Sheet';
 import { NetBars } from '../components/Viz';
 import { Signed } from '../components/Change';
 import { healthLine } from '../components/QuickPreview';
 import { IconChevron, IconStar, IconStarFill } from '../components/Icons';
 import { lazy } from '../lazy';
-import { useAsync, useDb } from '../hooks';
-import { loadStock } from '../data/api';
+import { useDb, useStockData } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { addWatch, isWatched, removeWatch } from '../db/db';
 import type { CategoryId } from '../lib/config';
 import type { ChipBlock } from '../lib/chips';
 import { adjClose } from '../lib/history';
-import { change, sliceWindow } from '../lib/periods';
+import { change, sliceWindow, type Period } from '../lib/periods';
 import { instInsight, type Who } from '../lib/insights';
 import { getListContext } from '../lib/listContext';
 import { commitHero, heroSeen } from '../lib/seen';
 import { fmtInt, fmtLots, fmtNum, fmtPct, fmtPrice } from '../lib/format';
 import { navigate } from '../router';
 import { PAGE_SOURCES } from '../lib/health';
+import { evaluate, tally, title as bbTitle } from '../lib/bullbear';
+import { BullBearBar } from '../components/BullBearBar';
+import { type Conference, Research } from '../components/Research';
 
 const AdvancedChart = lazy(() => import('../components/AdvancedChart'));
 
@@ -46,8 +50,40 @@ function agoOf(a: unknown, n: number): number | null {
   return (a[a.length - 1 - n] as number | null) ?? null;
 }
 
+/** 主角區（名稱、股價、走勢圖）：個股頁左右換股時，前一檔／目前／後一檔各一份。 */
+function StockHero({ code, fallbackName, fallbackIndustry, period, onPeriod, seen, advanced = false, holdToScrub = false }: {
+  code: string;
+  fallbackName?: string | null;
+  fallbackIndustry?: string | null;
+  period: Period;
+  onPeriod: (p: Period) => void;
+  seen: number | null;
+  advanced?: boolean;
+  holdToScrub?: boolean;
+}) {
+  const { data: h, error } = useStockData(code);
+  const adj = useMemo(() => (h ? adjClose(h) : []), [h]);
+  const win = h ? sliceWindow(h.d, adj, period) : null;
+  return (
+    <>
+      <header class="page-head">
+        <div class="eyebrow">{code}・{h?.market === 'tpex' ? '上櫃' : '上市'}・{h?.industry ?? fallbackIndustry ?? '—'}</div>
+        <h1 class="title">{h?.name ?? fallbackName ?? code}</h1>
+      </header>
+      {h ? (
+        <div style={{ marginTop: 'var(--s-2)' }}>
+          {advanced ? <AdvancedChart h={h} /> : (
+            <HeroChart label="收盤價（還原）" win={win} period={period} onPeriod={onPeriod} seen={seen}
+              format={(v) => fmtPrice(v)} formatDelta={(v) => fmtNum(v, v >= 100 ? 1 : 2)} area height={200} periodsLabel="股價走勢期間" holdToScrub={holdToScrub} />
+          )}
+        </div>
+      ) : error ? null : <Loading hero />}
+    </>
+  );
+}
+
 export default function Stock({ code }: { code: string }) {
-  const hist = useAsync(() => loadStock(code), [code]);
+  const hist = useStockData(code);
   const summary = useScoredSummary();
   const watched = useDb(() => isWatched(code), [code]);
   const [period, setPeriod] = usePeriod('stock');
@@ -55,8 +91,9 @@ export default function Stock({ code }: { code: string }) {
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [who, setWho] = useState<Who>('foreign');
   const [seen, setSeen] = useState<number | null | undefined>(undefined);
-  const [drag, setDrag] = useState(0);
-  const g = useRef<{ x: number; y: number; lock: 'h' | 'v' | null } | null>(null);
+  const pagerRef = useRef<PagerApi>(null);
+  // 下方內容只在「換股之後」淡入；第一次開啟直接顯示（淡入會延後最大內容繪製 LCP）
+  const firstCode = useRef(code);
   const row = summary.data?.byCode.get(code);
   const h = hist.data;
   const ctx = getListContext(code);
@@ -69,31 +106,15 @@ export default function Stock({ code }: { code: string }) {
   useEffect(() => { if (seen !== undefined) commitHero(`stock:${code}`, latest); }, [seen, latest, code]);
   const inst = h ? instInsight(h, who) : null;
 
-  // 左右滑動切換同一清單的上一檔／下一檔（圖表區與橫向捲動區除外）
+  // 同一清單的上一檔／下一檔：左右滑動主角區（StockPager）或點頂列的 ‹ ›，兩者走同一個動畫
   function go(step: 1 | -1) {
     if (!ctx) return;
+    if (pagerRef.current) { pagerRef.current.go(step); return; }
     const next = ctx.codes[ctx.index + step];
     if (next) navigate(`/stock/${next}`, true, step > 0 ? 'push' : 'pop');
   }
-  const onDown = (e: PointerEvent) => {
-    if (!ctx || (e.target as HTMLElement).closest('.chart-wrap, .chips, .periods, .sheet, button, a, input, .chart-box, .scroll-x, .chip-scroll, .nb-bars')) return;
-    g.current = { x: e.clientX, y: e.clientY, lock: null };
-  };
-  const onMove = (e: PointerEvent) => {
-    const s = g.current;
-    if (!s) return;
-    const dx = e.clientX - s.x, dy = e.clientY - s.y;
-    if (!s.lock) s.lock = Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5 ? 'h' : Math.abs(dy) > 12 ? 'v' : null;
-    if (s.lock === 'h') setDrag(dx);
-  };
-  const onUp = () => {
-    const s = g.current;
-    g.current = null;
-    if (!s || s.lock !== 'h') { setDrag(0); return; }
-    if (drag < -80 && ctx && ctx.index < ctx.codes.length - 1) go(1);
-    else if (drag > 80 && ctx && ctx.index > 0) go(-1);
-    setDrag(0);
-  };
+  const nameOf = (c: string) => (summary.data?.byCode.get(c)?.name as string | undefined) ?? null;
+  const industryOf = (c: string) => (summary.data?.byCode.get(c)?.industry as string | undefined) ?? null;
 
   const comp = (row?.composite as number | null | undefined) ?? h?.scores?.composite ?? null;
   const cc = compositeCompleteness(h?.scores);
@@ -103,10 +124,10 @@ export default function Stock({ code }: { code: string }) {
   const rev = revenue[revenue.length - 1];
   const pePct = h ? lastOf((h.series as Record<string, unknown> | undefined)?.pe_percentile) : null;
   const chip = (h?.chip as ChipBlock | null | undefined) ?? null;
+  const bb = useMemo(() => (h ? tally(evaluate(h)) : null), [h]);
 
   return (
-    <div class="page swipe-page" style={{ transform: drag ? `translateX(${drag * 0.4}px)` : undefined, opacity: drag ? 1 - Math.min(0.4, Math.abs(drag) / 600) : undefined }}
-      onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+    <div class="page stock-page">
       <Ambient mood={win ? dir : 'neutral'} />
       <TopBar back="/mine" avatar={false}
         caption={ctx ? (
@@ -124,21 +145,22 @@ export default function Stock({ code }: { code: string }) {
             <button class="text-btn" aria-pressed={advanced} onClick={() => setAdvanced(!advanced)}>{advanced ? '簡潔' : '進階'}</button>
           </>
         } />
-      <header class="page-head">
-        <div class="eyebrow">{code}・{h?.market === 'tpex' ? '上櫃' : '上市'}・{h?.industry ?? row?.industry ?? '—'}</div>
-        <h1 class="title">{h?.name ?? row?.name ?? code}</h1>
-      </header>
+      {ctx && !advanced ? (
+        <StockPager apiRef={pagerRef} codes={ctx.codes} index={ctx.index}
+          onCommit={(step) => navigate(`/stock/${ctx.codes[ctx.index + step]}`, true, 'none')}
+          renderPane={(c, current) => (
+            <StockHero code={c} fallbackName={nameOf(c)} fallbackIndustry={industryOf(c)} period={period} onPeriod={setPeriod}
+              seen={current ? seen ?? null : null} holdToScrub />
+          )} />
+      ) : (
+        <StockHero code={code} fallbackName={row?.name as string | undefined} fallbackIndustry={row?.industry as string | undefined}
+          period={period} onPeriod={setPeriod} seen={seen ?? null} advanced={advanced} />
+      )}
       {hist.error ? <ErrorState error={hist.error} title="找不到這檔股票的資料" /> : null}
-      {hist.loading && !h ? <Loading hero /> : null}
 
       {h ? (
-        <>
-          <div style={{ marginTop: 'var(--s-2)' }}>
-            {advanced ? <AdvancedChart h={h} /> : (
-              <HeroChart label="收盤價（還原）" win={win} period={period} onPeriod={setPeriod} seen={seen ?? null}
-                format={(v) => fmtPrice(v)} formatDelta={(v) => fmtNum(v, v >= 100 ? 1 : 2)} area height={200} periodsLabel="股價走勢期間" />
-            )}
-          </div>
+        /* 換股後下方內容整段換成新的一檔（淡入）；頂列與主角區不重新載入 */
+        <div key={code} class={`stock-lower ${code !== firstCode.current ? 'fade-in' : ''}`}>
           <DataStatus date={h.d[h.d.length - 1]} uses={PAGE_SOURCES.stock} />
 
           <p class="body" style={{ marginTop: 'var(--s-6)' }}>{healthLine(h.summary_text) ?? '健檢摘要資料不足。'}</p>
@@ -175,6 +197,12 @@ export default function Stock({ code }: { code: string }) {
                 </div>
               </>
             ) : null}
+            <div class="list">
+              <a class="list-item brand" href={`#/stock/${code}/institutional`}>
+                <span class="grow">法人買賣超報表<span class="caption muted tool-sub">近 3 個月逐日買張、賣張・外資／投信／自營商／三大法人／八大行庫</span></span>
+                <span class="chev"><IconChevron /></span>
+              </a>
+            </div>
           </Block>
 
           <Block question="籌碼" answer={mb !== null && mb5 ? `融資 5 日${mb >= mb5 ? '增加' : '減少'} ${fmtPct(((mb - mb5) / mb5) * 100, 1, false).replace('-', '')}` : '融資融券'}>
@@ -185,12 +213,28 @@ export default function Stock({ code }: { code: string }) {
               {row?.foreign_hold_pct !== null && row?.foreign_hold_pct !== undefined ? <div class="list-item"><span class="grow">外資持股比</span><span class="body">{fmtNum(row.foreign_hold_pct as number, 1)}%</span></div> : null}
             </div>
             {row && (row.whale_pct === null || row.whale_pct === undefined) ? <Accumulating what="集保大戶持股" detail="集保股權分散表官方只提供最新一週，每週六起逐週累積。" /> : null}
+            <div class="list">
+              <a class="list-item brand" href={`#/stock/${code}/holders`}>
+                <span class="grow">大戶與散戶持股<span class="caption muted tool-sub">門檻可調・持股比例、人數、人均張數的逐週走勢</span></span>
+                <span class="chev"><IconChevron /></span>
+              </a>
+            </div>
             {chip ? (
               <>
                 <ChipStats block={chip} sharesOut={h.shares} />
-                <ChipTable block={chip} code={code} name={h.name} market={h.market} />
+                <ChipDaily block={chip} code={code} name={h.name} market={h.market} />
               </>
             ) : <Accumulating what="每日籌碼明細" detail="需要至少兩個交易日的法人與融資融券資料。" />}
+          </Block>
+
+          <Block question="多空" answer={bb ? bbTitle(bb) : undefined}>
+            {bb ? <BullBearBar t={bb} /> : null}
+            <div class="list">
+              <a class="list-item brand" href={`#/stock/${code}/bullbear`}>
+                <span class="grow">多空對照<span class="caption muted tool-sub">基本面、籌碼面、量價面、技術面的多方與空方並排比較</span></span>
+                <span class="chev"><IconChevron /></span>
+              </a>
+            </div>
           </Block>
 
           <Block question="營收" answer={rev ? `${rev.ym.slice(0, 4)} 年 ${Number(rev.ym.slice(5, 7))} 月營收年增 ${rev.yoy === null ? '—' : `${rev.yoy.toFixed(1)}%`}` : '沒有月營收資料（ETF 或資料累積中）'}>
@@ -203,6 +247,10 @@ export default function Stock({ code }: { code: string }) {
               ) : null}
               <button class="list-item brand" onClick={() => setSheet({ kind: 'more' })}>基本數據、月營收、季財報與事件<span class="chev"><IconChevron /></span></button>
             </div>
+          </Block>
+
+          <Block question="研究參考" answer={(() => { const n = ((h.conferences as Conference[] | undefined) ?? []).length; return n ? `近一年 ${n} 場法說會` : '法說會與研究報告'; })()}>
+            <Research code={code} name={h.name} market={h.market} conferences={(h.conferences as Conference[] | undefined) ?? []} />
           </Block>
 
           <Block question="估值" answer={h.fair ? '合理價區間' : `本益比 ${fmtNum(lastOf(h.pe))}`}>
@@ -221,7 +269,7 @@ export default function Stock({ code }: { code: string }) {
             {sheet?.kind === 'score' && h.scores ? <ScoreDetailView detail={h.scores} only={sheet.id} /> : null}
             {sheet?.kind === 'more' ? <StockExtras h={h} /> : null}
           </Sheet>
-        </>
+        </div>
       ) : null}
     </div>
   );

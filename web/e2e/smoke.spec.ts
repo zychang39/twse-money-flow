@@ -51,7 +51,7 @@ for (const p of PAGES) {
     await expect(page.getByText('僅供研究參考，非投資建議')).toBeVisible();
     const nav = page.getByRole('navigation', { name: '主要分頁' });
     await expect(nav).toBeVisible();
-    await expect(nav.getByRole('link')).toHaveCount(4);
+    await expect(nav.getByRole('link')).toHaveCount(5); // 今晚、我的股票、探索、搜尋、紀律
     expect(errors).toEqual([]);
   });
 }
@@ -59,7 +59,7 @@ for (const p of PAGES) {
 test('Tab 只有圖示、以 aria-label 提供名稱', async ({ page }) => {
   await page.goto('#/');
   const nav = page.getByRole('navigation', { name: '主要分頁' });
-  for (const name of ['今晚', '我的股票', '探索', '紀律']) await expect(nav.getByRole('link', { name })).toBeVisible();
+  for (const name of ['今晚', '我的股票', '探索', '搜尋代號或名稱', '紀律']) await expect(nav.getByRole('link', { name })).toBeVisible();
   await expect(nav).toHaveText('');
 });
 
@@ -178,9 +178,12 @@ test('今晚：加入自選後出現在「自選股的新變化」區塊', async
   await page.goto('#/');
   const section = page.getByRole('region', { name: '自選股出現了什麼新變化？' });
   await expect(section).toBeVisible();
+  // 等區塊內容畫好：台泥這一列直接出現，或收在「低於門檻」底下（切換分頁不再等整頁轉場，內容可能晚一點才到）
+  const row = section.getByRole('button', { name: /台泥 1101/ });
   const expand = section.getByRole('button', { name: /低於門檻/ });
-  if (await expand.count()) await expand.click();
-  await expect(section.getByRole('button', { name: /台泥 1101/ })).toBeVisible();
+  await expect(row.or(expand).first()).toBeVisible();
+  if (await expand.isVisible() && (await expand.getAttribute('aria-expanded')) !== 'true') await expand.click();
+  await expect(row).toBeVisible();
 });
 
 test('處置預警、行事曆、週報顯示資料', async ({ page }) => {

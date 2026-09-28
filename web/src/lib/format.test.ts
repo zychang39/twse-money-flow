@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fmtLotsUnit, fmtYiUnit } from './format';
+import { fmtLotsUnit, fmtYiUnit, glueNumbers } from './format';
 import { formatUnit } from '../components/KChart';
 
 describe('圖表單位格式', () => {
@@ -16,5 +16,13 @@ describe('圖表單位格式', () => {
     expect(formatUnit(-40123, '張', true)).toBe('−4.0 萬張');
     expect(formatUnit(12.34, '%')).toBe('12.3%');
     expect(formatUnit(15.26, '倍')).toBe('15.3 倍');
+  });
+});
+
+describe('glueNumbers', () => {
+  it('數字與後面的單位之間改為不換行空白，數字前的空白保留', () => {
+    expect(glueNumbers('最新月營收創 12 個月新高')).toBe('最新月營收創 12\u00a0個月新高');
+    expect(glueNumbers('近 26 週增加 2.52 個百分點')).toBe('近 26\u00a0週增加 2.52\u00a0個百分點');
+    expect(glueNumbers('佔成交量 4.9%）')).toBe('佔成交量 4.9%）');
   });
 });

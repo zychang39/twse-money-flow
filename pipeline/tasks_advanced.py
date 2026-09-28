@@ -87,6 +87,126 @@ def run_tdcc(ctx: RunContext) -> None:
     ctx.note("tdcc_holders", "ok", data_date=res.response_date, rows=len(res.df))
 
 
+# ------------------------------------------------------------------ 集保個股歷史（大戶／散戶持股的過去一年）
+def tdcc_focus_codes(ctx: RunContext) -> list[str]:
+    """要補集保歷史的股票：config/ui.yml holders.history 的 codes ＋ 範例自選 ＋ 最近交易日成交值前 N 名（不含 ETF）。"""
+    ui = config.ui()
+    cfg = ui.get("holders", {}).get("history", {})
+    codes = [str(c) for c in cfg.get("codes", [])] + [str(c) for c in ui.get("sample_watchlist", {}).get("codes", [])]
+    top = int(cfg.get("top_value", 0))
+    if top:
+        frames = []
+        for sid in ("twse_quotes", "tpex_quotes"):
+            ds = ctx.store.dates(sid)
+            df = ctx.store.read(sid, ds[-1]) if ds else None
+            if df is not None and {"code", "value"} <= set(df.columns):
+                frames.append(df[["code", "value"]])
+        if frames:
+            q = pd.concat(frames)
+            q = q[~q["code"].astype(str).str.startswith("00")]
+            q["value"] = pd.to_numeric(q["value"], errors="coerce")
+            codes += q.sort_values("value", ascending=False)["code"].astype(str).head(top).tolist()
+    seen: dict[str, None] = {}
+    for c in codes:
+        seen.setdefault(c, None)
+    return list(seen)[: int(cfg.get("max_codes", 60))]
+
+
+def _tdcc_have(ctx: RunContext) -> tuple[set[str], set[tuple[str, str]]]:
+    """已有的資料：開放資料的週別（整週全部股票）與歷史查詢已補的（週別, 代號）。"""
+    weeks = {d.strftime("%Y%m%d") for d in ctx.store.dates("tdcc_holders")}
+    pairs: set[tuple[str, str]] = set()
+    for d in ctx.store.dates("tdcc_history"):
+        df = ctx.store.read("tdcc_history", d)
+        if df is not None and "code" in df.columns:
+            pairs.update((d.strftime("%Y%m%d"), str(c)) for c in df["code"].unique())
+    return weeks, pairs
+
+
+def _tdcc_upsert(ctx: RunContext, frames: list[pd.DataFrame]) -> None:
+    """依週別寫入 tdcc_history（同一週、同一檔以新資料取代）。"""
+    if not frames:
+        return
+    new = pd.concat(frames, ignore_index=True)
+    for iso, part in new.groupby("date"):
+        d = date.fromisoformat(str(iso))
+        old = ctx.store.read("tdcc_history", d)
+        if old is not None and not old.empty:
+            old = old[~old["code"].astype(str).isin(set(part["code"].astype(str)))]
+            part = pd.concat([old, part], ignore_index=True)
+        ctx.store.write("tdcc_history", d, part.sort_values(["code", "level"]).reset_index(drop=True))
+
+
+def run_tdcc_history(ctx: RunContext, codes: list[str] | None = None) -> None:
+    """集保「股權分散表查詢」逐檔逐週補過去一年（官方只保存一年；開放資料只有最新一週）。
+
+    禮貌爬取：沿用 PoliteClient 的間隔與退避；每次執行有請求上限（holders.history.max_requests）；
+    可中斷續跑（已有的週別與股票略過）。只在回補時手動執行，不排入每週排程——每週的新資料由開放資料取得。
+    """
+    cfg = config.ui().get("holders", {}).get("history", {})
+    budget = int(cfg.get("max_requests", 1500))
+    url = str(config.source("tdcc_history")["url"])
+    headers = {"Referer": url, "Origin": "https://www.tdcc.com.tw"}
+    codes = codes or tdcc_focus_codes(ctx)
+    try:
+        token, weeks = advanced.parse_tdcc_form(ctx.client.get_bytes(url))
+    except (FetchError, ParseError) as exc:
+        ctx.note("tdcc_history", "failed", message=str(exc)[:300])
+        return
+    have_weeks, have_pairs = _tdcc_have(ctx)
+    todo = [(c, w) for c in codes for w in weeks if w not in have_weeks and (w, c) not in have_pairs]
+    done = 0
+    rows = 0
+    failed: list[str] = []
+    for code in codes:
+        frames: list[pd.DataFrame] = []
+        for c, week in todo:
+            if c != code:
+                continue
+            if done >= budget or ctx.out_of_time():
+                break
+            body = {
+                "SYNCHRONIZER_TOKEN": token,
+                "SYNCHRONIZER_URI": "/portal/zh/smWeb/qryStock",
+                "method": "submit",
+                "firDate": weeks[0],
+                "scaDate": week,
+                "sqlMethod": "StockNo",
+                "stockNo": code,
+                "stockName": "",
+            }
+            done += 1
+            try:
+                payload = ctx.client.post_bytes(url, body, headers=headers)
+                res = advanced.parse_tdcc_stock(payload, code)
+                token = advanced.parse_tdcc_form(payload)[0]
+            except CircuitOpenError as exc:
+                failed.append(f"{code} {week}：{exc}")
+                _tdcc_upsert(ctx, frames)
+                ctx.note("tdcc_history", "failed", rows=rows, message="；".join(failed)[:300])
+                return
+            except (FetchError, ParseError) as exc:
+                failed.append(f"{code} {week}：{exc}"[:120])
+                try:  # 重新取得表單（token 可能已失效）
+                    token = advanced.parse_tdcc_form(ctx.client.get_bytes(url))[0]
+                except (FetchError, ParseError):
+                    break
+                continue
+            if res.no_data:
+                break  # 這檔查無資料（例：未掛牌、代號不存在），不再查其他週
+            frames.append(res.df)
+            rows += len(res.df)
+        _tdcc_upsert(ctx, frames)
+        if done >= budget or ctx.out_of_time():
+            break
+    remaining = len(todo) - done
+    status = "ok" if not failed or rows else "failed"
+    message = f"{len(codes)} 檔、{done} 次查詢；剩餘 {max(0, remaining)} 次" + (
+        f"；失敗：{'；'.join(failed[:3])}" if failed else ""
+    )
+    ctx.note("tdcc_history", status, rows=rows, message=message[:300])
+
+
 # ------------------------------------------------------------------ 選配：央行貨幣總計數、法說會
 def run_cbc_money(ctx: RunContext) -> None:
     """央行 M1B／M2（日平均，月資料）：整份 CSV 以最新月份存成一份快照。"""

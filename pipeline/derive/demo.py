@@ -30,6 +30,61 @@ DEMO_STOCKS = [
 ]
 
 
+def _gross(volume: int, net: int, share: float) -> tuple[int, int]:
+    """示範用買進、賣出股數：以成交量的固定比例為雙邊基本量，再加上買賣超（不額外抽亂數，其他示範數值不變）。"""
+    base = int(volume * share)
+    return base + max(net, 0), base + max(-net, 0)
+
+
+# 示範用集保分級：分級 1–14 的相對比例與人數（分級 15 為千張大戶，比例由 whale 決定）
+_TDCC_SHAPE = [1.5, 12, 5, 2.5, 2, 2, 1.8, 1.5, 4.5, 4.5, 5.5, 4, 3, 2.5]
+_TDCC_HOLDERS = [20000, 12000, 900, 250, 130, 90, 60, 40, 70, 40, 25, 12, 6, 3]
+
+
+def _tdcc_rows(iso: str, code: str, whale: float) -> list[dict[str, object]]:
+    """一週的 15 個分級＋差異數調整＋合計（總股數 10 億股）；大戶比例下降時散戶人數增加（不額外抽亂數）。"""
+    total = 1_000_000_000
+    rest = 100 - whale
+    scale = rest / sum(_TDCC_SHAPE)
+    retail = 1 + (50 - whale) / 100
+    rows: list[dict[str, object]] = []
+    pcts = [p * scale for p in _TDCC_SHAPE] + [whale]
+    holders = [int(h * (retail if i < 3 else 1)) for i, h in enumerate(_TDCC_HOLDERS)] + [max(3, int(whale / 4))]
+    for level, (pct, n) in enumerate(zip(pcts, holders, strict=True), start=1):
+        rows.append(
+            {
+                "date": iso,
+                "code": code,
+                "level": level,
+                "holders": n,
+                "shares": round(total * pct / 100),
+                "pct": round(pct, 2),
+            }
+        )
+    rows.append({"date": iso, "code": code, "level": 16, "holders": 0, "shares": 0, "pct": 0.0})
+    rows.append({"date": iso, "code": code, "level": 17, "holders": sum(holders), "shares": total, "pct": 100.0})
+    return rows
+
+
+def _demo_conferences(store: DataStore, end: date) -> None:
+    """示範用法說會（依月份存檔，與 conference 來源相同）：自辦、受券商邀請各幾場。"""
+    items = [
+        (end - timedelta(days=200), "2330", "受邀參加元大證券舉辦之法人說明會，說明本公司營運概況。"),
+        (end - timedelta(days=120), "2330", "本公司召開 2026 年第一季法人說明會。"),
+        (end - timedelta(days=60), "2330", "受BofA邀請參加投資人會議，說明本公司營運概況。"),
+        (end - timedelta(days=20), "2330", "本公司召開 2026 年第二季法人說明會。"),
+        (end - timedelta(days=40), "2317", "應凱基證券之邀參加法人說明會。"),
+    ]
+    by_month: dict[date, list[dict[str, object]]] = {}
+    for d, code, text in items:
+        name = next(n for c, n, *_ in DEMO_STOCKS if c == code)
+        by_month.setdefault(d.replace(day=1), []).append(
+            {"date": d.isoformat(), "code": code, "name": name, "time": "14:00", "place": "台北", "text": text}
+        )
+    for m, rows in by_month.items():
+        store.write("conference", m, pd.DataFrame(rows))
+
+
 def _trading_days(end: date, n: int) -> list[date]:
     out: list[date] = []
     d = end
@@ -83,16 +138,32 @@ def build_store(root: Path, *, days: int = 320, end: date | None = None, seed: i
             fnet = int(rng.normal(0, 2e6))
             tnet = int(rng.normal(3e5, 5e5))
             dnet = int(rng.normal(0, 3e5))
+            dself = int(dnet * 0.6)
+
+            fb, fs = _gross(vol, fnet, 0.08)
+            tb, ts = _gross(vol, tnet, 0.01)
+            sb_, ss_ = _gross(vol, dself, 0.02)
+            hb, hs = _gross(vol, dnet - dself, 0.015)
             rows.setdefault(f"{market}_insti", {}).setdefault(iso, []).append(
                 {
                     "date": iso,
                     "code": code,
                     "name": name,
+                    "foreign_buy": fb,
+                    "foreign_sell": fs,
                     "foreign_net": fnet,
+                    "trust_buy": tb,
+                    "trust_sell": ts,
                     "trust_net": tnet,
                     "dealer_net": dnet,
-                    "dealer_self_net": int(dnet * 0.6),
-                    "dealer_hedge_net": dnet - int(dnet * 0.6),
+                    "dealer_self_buy": sb_,
+                    "dealer_self_sell": ss_,
+                    "dealer_self_net": dself,
+                    "dealer_hedge_buy": hb,
+                    "dealer_hedge_sell": hs,
+                    "dealer_hedge_net": dnet - dself,
+                    "foreign_dealer_buy": 0,
+                    "foreign_dealer_sell": 0,
                     "foreign_dealer_net": 0,
                     "total_net": fnet + tnet + dnet,
                 }
@@ -199,6 +270,7 @@ def build_store(root: Path, *, days: int = 320, end: date | None = None, seed: i
     )
     store.write("twse_company", end, comp[comp["market"] == "twse"])
     store.write("tpex_company", end, comp[comp["market"] == "tpex"])
+    _demo_conferences(store, end)
     store.save_manifest(
         {
             "version": 1,
@@ -267,11 +339,7 @@ def _advanced(store: DataStore, dates: list[date], rng: np.random.Generator, pat
             rows = []
             for c, *_ in DEMO_STOCKS:
                 whale[c] += rng.normal(0, 0.4)
-                for level in range(1, 18):
-                    pct = whale[c] if level == 15 else (100 if level == 17 else (100 - whale[c]) / 14)
-                    rows.append(
-                        {"date": iso, "code": c, "level": level, "holders": 1000, "shares": 1e6, "pct": round(pct, 2)}
-                    )
+                rows.extend(_tdcc_rows(iso, c, whale[c]))
             store.write("tdcc_holders", d, pd.DataFrame(rows))
         for contract, scale in (("TXF", 1), ("MXF", 4), ("TMF", 20)):
             for party in ("自營商", "投信", "外資及陸資"):

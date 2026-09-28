@@ -10,11 +10,13 @@
 | [ux-fixes/after/](ux-fixes/after/) | 改版後：同上，另有 `03b-search-empty`（沒有輸入時）與 `new-user/`（歡迎卡 → 範例自選 → 熱門動能 → 挑選） |
 | [ux-fixes/compare/](ux-fixes/compare/) | 前後並排（每個模式 × 色彩 × 頁面一張） |
 
-standalone 以 `<html class="standalone">` 模擬，safe-area 設為 iPhone 實際值（上 47、下 34）並畫出 Home 指示條；瀏覽器模式的 safe-area 為 0（Safari 網址列在頁面視窗之外）。重新產生：`web/scripts/ux-shots.mjs`、`web/scripts/ux-compare.mjs`（用法見 README「開發」）。
+中文字型：雲端截圖環境原本只有「文泉驛正黑」，它的「佔」與「估」字形幾乎相同，會造成誤判（見第 7 項）；所有截圖改以 Noto Sans TC 產生（`web/scripts/cjk-font.mjs`，只影響截圖）。改版前的截圖使用 main（`745d177`）與當時的資料；改版後使用本分支與重跑回補後的資料。standalone 以 `<html class="standalone">` 模擬，safe-area 設為 iPhone 實際值（上 47、下 34）並畫出 Home 指示條；瀏覽器模式的 safe-area 為 0（Safari 網址列在頁面視窗之外）。重新產生：`web/scripts/ux-shots.mjs`、`web/scripts/ux-compare.mjs`（用法見 README「開發」）。
 
 ---
 
 ## 1. 底部導覽列太高（Safari 瀏覽器模式）
+
+> 第四輪已把搜尋併入分頁列第 4 格、改為 Instagram 式玻璃膠囊（見 [ROUND4.md](ROUND4.md)）；以下 safe-area 與高度的處理仍適用。
 
 | | |
 |---|---|
@@ -140,7 +142,7 @@ standalone 以 `<html class="standalone">` 模擬，safe-area 設為 iPhone 實�
 - pytest：兩種格式都能解析（舊格式 `fin_period` 為空並有 1 則警告；新格式沒有警告）、刪掉必要欄位「股價淨值比」會失敗、欄名改成別名（「證券代號」「殖利率（％）」）仍可解析並警告；`test_format_tolerance.py`（別名、選用、預設必要欄位、位置表格、警告去重、manifest 保留／清除、冒煙測試的必要欄位檢查）；`test_tasks.py` 以回放樣本跑 `run_daily_source`：舊格式寫入成功、manifest 記錄警告、執行摘要列出來源，之後新格式成功時清除。
 - 本機以真實端點執行 `python -m pipeline smoke --date 2024-01-02 --source tpex_valuation,…`：`tpex_valuation` 為「⚠️ 相容模式」812 筆。
 - Playwright「4. 資料源異常」：攔截 `meta.json` 讓集保異常 → 今晚頁（沒用到集保）不顯示提示、個股頁顯示「1 個資料源異常」且顏色＝`--risk`、不是 `--brand`；攔截 `health.json` 加上格式警告 → 顯示「櫃買中心調整了資料格式，已改用相容模式」，技術訊息在展開「詳細資訊」後才出現。
-- Actions：合併前在本分支以 Data workflow（task=backfill、source=tpex_valuation）重跑回補，結果見 PR 說明。
+- **Actions 重跑**（2026-09-27，[Data #2](https://github.com/zychang39/twse-money-flow/actions/runs/36323702270)，本分支、task=backfill、source=tpex_valuation、2024-04-01～2024-12-31）：186 次請求全部成功、0 筆失敗，data 分支 `raw/tpex_valuation/2024/` 補齊 186 個交易日；manifest 中 `tpex_valuation` 由「連續失敗 180 次」變為 `last_status: ok`、`consecutive_failures: 0`，並記錄格式變動警告（舊格式缺少「財報年/季」）。以更新後的 data 分支執行 `build-web`：`meta.sources_failed`、`sources_affected` 皆為空，資料健康頁顯示「櫃買中心調整了資料格式，已改用相容模式」，頁首不再出現異常提示（`after/*/05-health.jpg`）。下一次每日任務以新格式成功解析後，相容模式的標示會自動清除。
 
 ---
 
@@ -179,14 +181,57 @@ standalone 以 `<html class="standalone">` 模擬，safe-area 設為 iPhone 實�
 
 ---
 
-## 7. 驗收與交付
+## 7. 個股頁「每日籌碼」（依 Apple HIG 重新設計）
+
+| 375pt | 393pt |
+|---|---|
+| ![](ux-fixes/compare/chips-375-light.jpg) | ![](ux-fixes/compare/chips-393-dark.jpg) |
+
+| 法人 | 信用 | 借券當沖 | 放大字級（卡片） | 點一列（底部面板） |
+|---|---|---|---|---|
+| ![](ux-fixes/chips/after/393-dark-1-insti.jpg) | ![](ux-fixes/chips/after/393-dark-2-credit.jpg) | ![](ux-fixes/chips/after/393-dark-3-sbl.jpg) | ![](ux-fixes/chips/after/375-light-4-large-text-cards.jpg) | ![](ux-fixes/chips/after/393-light-5-day-sheet.jpg) |
+
+橫向（852pt，同時顯示全部欄位）：![](ux-fixes/chips/after/852-landscape-light-all.jpg)
+
+截圖在 [ux-fixes/chips/](ux-fixes/chips/)：`before/`（375／393 × 深淺色）、`after/`（375／393 × 深淺色 × 法人、信用、借券當沖、放大字級卡片；393 的底部面板；852 橫向全部欄位），對照在 `compare/chips-*.jpg`。重新產生：`web/scripts/chip-shots.mjs`。
+
+**問題**：明細預設收合，標題是操作說明「查看明細／收合明細（每日籌碼）」；展開後是 12 欄的寬表格，iPhone 上必須左右滑動才看得到投信、自營商與合計；兩排分段控制（期間、單位）；每欄標題都重複單位；日期是藍色底線連結；「目前連續」在表格最底部；複製 CSV 是表格下方的文字按鈕。
+
+**根本原因**：把桌機的「一張表看完全部欄位」直接搬到手機，只靠橫向捲動與固定日期欄解決寬度；沒有資訊分層（所有欄位同一層級），也沒有依字級或寬度調整版面。
+
+**設計決策**（HIG：清楚的資訊層級、逐層揭露、分段控制、44pt 點擊區域、Dynamic Type）
+- **標題**「每日籌碼」＋右側收合箭頭（disclosure），**預設展開**；使用者收合後記住（IndexedDB 設定 `chipDailyOpen`）。右上角「⋯」選單放「複製為 CSV」（不常用的動作收進選單）。
+- **一排控制列**：左邊期間分段控制（5／10／20／60 日），右邊「單位」下拉按鈕（張／金額（億元，估）／佔成交量 %；原生 select 疊在按鈕上，iOS 會跳出系統選單）。
+- 表格上方的**檢視分段控制**：法人｜信用｜借券當沖（預設法人），每種檢視固定 4 個資料欄＋日期欄，**不需要左右滑動**。收盤與漲跌 % 以小字放在日期下方（「9/24」下一行「2,475 ▼1.00%」）。
+- **單位只在表格右上角標示一次**（「單位：張」，切換時跟著變），欄位標題只寫名稱；比率欄的值帶 %；餘額欄在「佔成交量 %」時仍以張顯示，標題下方註明「張」（餘額佔當日成交量沒有意義）。
+- 數字 ≥ 10,000 縮寫為「1.2 萬」；正負同時用紅綠與 ▲▼（買超為紅）；每格底部一條很淡的比例條，從中線向右（買超）或向左（賣超）延伸，不讀數字也看得出強弱。比例條放在數字下方而不是整格底色，避免與數字重疊、影響對比。
+- **區間合計**是表格第一列；連買／連賣天數寫在法人欄標題正下方（「外資」下一行「連賣 2 日」），移除底部的「目前連續」列。日期是一般文字，不是藍色底線連結；**整列可點**，從底部拉出當天完整資料（含自營商避險、收盤、漲跌、成交量、融資融券餘額、券資比、借券餘額、當沖量與比率、官方資料來源連結，以及「複製這天資料」）。
+- **Dynamic Type**：表格字級乘上系統字級比例（iOS 以 `-apple-system-body` 換算），並依實際量到的文字寬度決定版面：放得下 → 4 欄表格；字級放大（約大 2 級以上）而寬度不夠 → 每天一張卡片、4 個欄位排成 2×2；**橫向或平板**寬度放得下 12 欄 → 同時顯示全部欄位（以「法人／信用／借券當沖」分組標題），不需要切換檢視。
+- 每列至少 44pt；VoiceOver 每列唸完整句子：「9 月 24 日，外資賣超 4,668 張，投信賣超 1,288 張，自營商（自行買賣）買超 176 張，三大法人合計賣超 5,713 張；收盤 2,475 元，下跌 1.00%」。
+- 字級：數字維持 13pt（caption）；日期下方的收盤／漲跌與標題下方的連買天數使用 11pt（HIG caption2，新增 token `--fs-micro`，只用在密集表格的次要小字）——13pt 時「2,475 ▼1.00%」需要 92px，日期欄會變成約 100pt；改用 11pt 後日期欄約 89pt，4 個資料欄在 375 寬仍各有約 61pt。
+
+**實作**
+- pipeline：個股檔的 `chip` 區塊新增 `sblb`（借券餘額，股）與 `dtv`（當沖量，股）。
+- `web/src/lib/chips.ts`：`VIEW_COLS`（三種檢視的欄位定義：flow／level／ratio、有無正負）、`colValue`／`colUnit`／`colTotal`（區間合計：數量加總、餘額為區間增減、比率為區間平均）、`compactNum`（萬縮寫與小數位數）、`cellText`、`cellPhrase`／`rowSentence`（VoiceOver 句子）、`dayText`（複製這天資料）、`DAY_FIELDS`（底部面板）。
+- `web/src/components/Chips.tsx` 的 `ChipDaily`：`useChipLayout` 以 canvas `measureText`（字型取自與儲存格同 class 的隱藏元素，不觸發版面計算）量出每欄最長的文字，加上容器寬度（ResizeObserver）決定 table／cards／all；`useDynamicTypeScale` 設定 `--dt`；表格 `table-layout: fixed`，日期欄寬度＝max(72pt, 量到的寬度)，其餘 4 欄平分。明細在個股頁畫面之外，接近畫面或瀏覽器閒置時才渲染（先顯示骨架），數字格式改用共用的 `Intl.NumberFormat`，個股頁 Lighthouse 效能維持 ≥ 90。
+- 列的點擊：可見的日期與收盤為 aria-hidden 文字，透明按鈕蓋住日期格（名稱＝完整句子，避免可見文字與名稱不一致），整列也可以點；每日底部面板開啟時為全頁高度，最後的「複製這天資料」一定看得到。
+- 區間統計卡的列標題允許折行，375 寬也不再需要左右滑動。
+
+**「估成交量」錯字**：原始碼中的字一直是「佔」（U+4F54），全站（程式、設定、文件、pipeline）搜尋「估成交量」為 0 筆。看起來像「估」是因為小字級時「佔」與「估」只差右上角的一筆（卜／十）：雲端截圖環境唯一的中文字型「文泉驛正黑」兩者幾乎相同，13pt 的蘋方也不容易分辨。處理方式：選項改為「佔成交量 %」（加上 %、放在更寬的下拉選單中）；單元測試檢查字元是 U+4F54 且沒有「估成交量」、Playwright 檢查頁面沒有「估成交量」；截圖腳本改用 Noto Sans TC（`web/scripts/cjk-font.mjs`，只影響截圖、不打包進網站），本次所有截圖都已重新產生。若仍擔心混淆，可改用教育部標準字「占」（占比、占成交量），字形與「估」差異明顯。
+
+**驗收方式**
+- Playwright（`web/e2e/chips.spec.ts`）：375 與 393 寬度下，三種檢視 × 三種單位 × 期間切換，明細表容器、整頁與區間統計卡的 `scrollWidth ≤ clientWidth`；一排控制列（期間在左、單位在右、同一高度）；單位選項文字；法人 4 欄＋日期、區間合計在最上方、標題下方有連買天數、沒有「目前連續」列、日期沒有底線；信用／借券當沖的欄位；單位標示跟著變、餘額在佔量時註明張；≥ 10,000 縮寫、▲▼ 與紅綠一致、列高 ≥ 44pt、VoiceOver 句子；點列開啟底部面板（12 個欄位、官方連結、複製這天資料）；收合後重新整理仍收合且 IndexedDB 有記錄；放大字級（125%，約 Dynamic Type +2）改為卡片、2×2 且不需左右滑動；852 橫向顯示 13 欄（日期＋12）且不超出畫面；「⋯」選單複製 CSV；全站沒有「估成交量」。
+- 單元測試（`web/src/lib/chips.test.ts` 新增 8 項）：三種檢視欄位、單位名稱字元、縮寫、儲存格文字、單位換算、區間合計、連續天數、VoiceOver 句子、複製這天資料。pytest 檢查個股檔含 `sblb`、`dtv`。
+- 真機：README「手動驗收清單」第 6 項（Dynamic Type、VoiceOver、橫向）。
+
+## 8. 驗收與交付
 
 | 項目 | 目標 | 結果 |
 |---|---|---|
-| 既有測試 | 全部通過 | pytest 157 → 173；vitest 78 → 95；Playwright 50 → 68（新增 `ux-fixes.spec.ts` 18 項，其中第 1–3 項 14 項）；ruff、mypy、eslint、tsc 全過 |
+| 既有測試 | 全部通過 | pytest 157 → 173；vitest 78 → 103；Playwright 50 → 75（新增 `ux-fixes.spec.ts` 18 項，其中第 1–3 項 14 項；`chips.spec.ts` 改寫為每日籌碼新設計 13 項）；ruff、mypy、eslint、tsc 全過 |
 | 首次載入 JS（gzip） | < 250 KB | **42.6 KB**（index＋預載的共用 chunk；搜尋頁為獨立 lazy chunk） |
-| Lighthouse 行動版（真實資料、gzip，與 GitHub Pages 相同） | ≥ 90 | 今晚 93、我的股票 91、搜尋 93、個股 97、資料健康 99；無障礙／最佳做法／SEO 全部 100（搜尋頁修正前為無障礙 94、CLS 0.20） |
-| WCAG AA 對比 | ≥ 4.5:1 | 深色最低 4.93:1、淺色最低 5.03:1（`web/scripts/contrast.py`）；新增的琥珀小字、選取中的「系統」小標、搜尋框提示文字都使用既有通過檢查的顏色組合 |
+| Lighthouse 行動版（真實資料、gzip，與 GitHub Pages 相同） | ≥ 90 | 今晚 93、我的股票 99、搜尋 94、個股 90–95（多次量測；改版前 main 為 87）、資料健康 99；無障礙／最佳做法／SEO 全部 100，沒有任何未通過的二元稽核（搜尋頁修正前為無障礙 94、CLS 0.20；每日籌碼修正前有 label-content-name-mismatch） |
+| WCAG AA 對比 | ≥ 4.5:1 | 深色最低 4.93:1、淺色最低 5.03:1（`web/scripts/contrast.py`）；新增的琥珀小字、選取中的「系統」小標、搜尋框提示文字、每日籌碼的紅綠數字與小字都使用既有通過檢查的顏色組合（比例條畫在數字下方，不改變文字底色） |
 
 Lighthouse 備註：以不壓縮的靜態伺服器量測時，今晚頁改版前後都是 76（`summary.json` 未壓縮約 700 KB），瓶頸在資料量而不是這次的修改；GitHub Pages 會以 gzip 傳送（約 230 KB）。
 

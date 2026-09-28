@@ -75,5 +75,18 @@ export interface UiConfig {
   };
   hot_momentum: { label: string; exclude_etf: boolean; value_rank_top: number; min_rs_percentile: number; max_warn_flags: number; max_danger_flags: number; size: number };
   sample_watchlist: { group: string; codes: string[] };
+  holders: {
+    breakpoints: number[];
+    default_big: number;
+    default_small: number;
+    presets: { label: string; big: number; small: number }[];
+    weeks: number;
+  };
+  bull_bear: {
+    price_volume: { volume_ratio: number; near_high_pct: number; far_high_pct: number; rs_strong: number; rs_weak: number; daytrade_high: number };
+    technical: { rsi_period: number; rsi_hot: number; rsi_cold: number; macd: [number, number, number]; cross_days: number };
+    chip: { streak_days: number; insti_days: number; insti_pct: number; margin_pct: number; whale_pp: number };
+    fundamental: { revenue_yoy_good: number; revenue_yoy_bad: number; growth_months: number; roe_good: number; roe_bad: number; pe_low_pct: number; pe_high_pct: number; yield_good: number; gross_margin_pp: number };
+  };
 }
 export const uiConfig = uiYml as UiConfig;

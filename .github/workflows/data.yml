@@ -28,6 +28,11 @@ on:
         description: "迄日 YYYY-MM-DD（backfill）"
         required: false
         default: ""
+      refresh:
+        description: "backfill 時重抓已存在的每日檔案（需填來源；例：twse_insti,tpex_insti 補自營商買賣股數）"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -97,6 +102,7 @@ jobs:
           python -m pipeline run --data-dir data --chain --max-minutes 320
           --task "${{ inputs.task }}" --schedule "${{ github.event.schedule }}"
           --source "${{ inputs.source }}" --start "${{ inputs.start }}" --end "${{ inputs.end }}"
+          --refresh "${{ inputs.refresh }}"
       - if: always() && steps.prepare.outcome == 'success'
         run: python -m pipeline commit-data --data-dir data
       - if: always()

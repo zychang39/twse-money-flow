@@ -132,7 +132,30 @@ a.card, button.card { display: block; color: inherit; width: 100%; text-align: l
 .list-item + .list-item { box-shadow: inset 0 0.5px 0 var(--surface-row); }
 .list-item .chev { color: var(--text-3); margin-left: auto; display: inline-flex; }
 .list-item .chev svg { width: 1rem; height: 1rem; }
+/* 多空對照的項數比例條（個股頁與多空對照頁共用） */
+.bb-meter { margin-top: var(--s-4); }
+.bb-bar { display: flex; gap: 2px; height: 0.5rem; border-radius: var(--r-pill); overflow: hidden; background: var(--surface-2); }
+.bb-seg { flex-basis: 0; min-width: 0.25rem; }
+.bb-seg.bull { background: var(--up); }
+.bb-seg.bear { background: var(--down); }
+.bb-seg.neutral { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--text-3); }
+.bb-legend { display: flex; justify-content: space-between; margin-top: var(--s-1); font-size: var(--fs-caption); line-height: var(--lh-caption); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+/* 研究參考：法說會清單與外部連結 */
+.rs-card { margin-top: var(--s-4); }
+.rs-hosts { margin-top: var(--s-1); }
+.rs-list { list-style: none; margin: var(--s-2) 0 0; padding: 0; }
+.rs-item { display: flex; gap: var(--s-3); padding: var(--s-2) 0; box-shadow: inset 0 0.5px 0 var(--surface-row); }
+.rs-date { flex: none; width: 2.75rem; font-size: var(--fs-caption); line-height: var(--lh-caption); font-weight: var(--fw-medium); }
+.rs-body { display: flex; flex-direction: column; min-width: 0; }
+.rs-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rs-note { margin-top: var(--s-2); }
+.rs-links { padding: 0; }
+.rs-links li { list-style: none; }
+.rs-links li + li { box-shadow: inset 0 0.5px 0 var(--surface-row); }
+/* 個股頁的工具入口：標題（藍）＋ 一行說明（灰） */
+.list-item .tool-sub { display: block; color: var(--text-2); text-wrap: pretty; }
 button.list-item, a.list-item { cursor: pointer; }
+a.list-item { text-decoration: none; }
 .collapsed-row {
   display: flex; align-items: center; justify-content: space-between; width: 100%;
   min-height: var(--tap); padding: 0 var(--s-1); border: 0; background: none; color: var(--text-2); cursor: pointer;
@@ -326,49 +349,77 @@ label.field > span { display: block; font-size: var(--fs-caption); line-height: 
 }
 :root[data-ambient='on'] .card.soft-glass { background: color-mix(in srgb, var(--surface-1) 78%, transparent); box-shadow: inset 0 0.5px 0 var(--glass-hi); }
 
-/* ---------- 底部導覽：Tab 膠囊＋圓形搜尋按鈕（同一列，iOS 26 慣例） ----------
+/* ---------- 底部導覽：5 個分頁的玻璃膠囊（Instagram／iOS 26 樣式），搜尋在第 4 格 ----------
  * 固定元素一律 bottom: 0，以 safe-area 補齊，不額外疊加 margin：
  * - Safari 瀏覽器模式：網址列在頁面視窗之外（或由 Safari 提供 inset），env() 通常為 0 → 緊貼視窗底緣。
  * - 加入主畫面（standalone）：視窗延伸到螢幕底部，env() ＝ Home 指示條高度（約 34px）→ 導覽列浮在指示條上方。
+ * 整頁轉場（View Transitions）時導覽列有自己的 view-transition-name，不會跟著頁面滑動。
  */
 .dock {
   position: fixed; z-index: 30; left: 0; right: 0; bottom: 0;
-  display: flex; align-items: flex-end; justify-content: center; gap: var(--s-3);
+  display: flex; align-items: flex-end; justify-content: center;
   padding: 0 calc(var(--safe-right) + var(--gutter)) var(--dock-pad) calc(var(--safe-left) + var(--gutter));
   pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-out);
 }
 .dock > * { pointer-events: auto; }
 .tabbar {
-  flex: 1 1 auto; max-width: 20rem; height: var(--tabbar-h);
-  display: grid; grid-template-columns: repeat(4, 1fr); padding: 0 var(--s-1);
+  position: relative; flex: 1 1 auto; max-width: 26rem; height: var(--tabbar-h);
+  display: grid; grid-template-columns: repeat(5, 1fr); padding: 0 var(--tab-pad);
   border-radius: var(--r-pill);
+  background: var(--tab-bg);
+  -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
+  /* 細框＋上緣高光＋柔和陰影（玻璃的厚度感） */
+  box-shadow: inset 0 0 0 0.5px var(--tab-edge), inset 0 1px 0 var(--tab-hi), var(--tab-shadow);
+  touch-action: pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   transition: height var(--dur-base) var(--ease-spring), max-width var(--dur-base) var(--ease-spring);
+  /* 整頁轉場時自成一組、不跟著頁面滑動。名稱放在導覽列本身而不是外層 .dock：
+     有 view-transition-name 的元素會成為 backdrop root，放在外層會讓導覽列的模糊取不到背後的頁面 */
+  view-transition-name: dock;
 }
-.tabbar a { display: flex; align-items: center; justify-content: center; color: var(--text-2); border-radius: var(--r-pill); min-height: var(--tap); }
-.tabbar a[aria-current='page'] { color: var(--brand); }
+/* 選取膠囊：寬度＝一格，以 translateX(n × 100%) 放到第 n 格；切換時由 Chrome.tsx 以 Web Animations 滑過去 */
+.tab-indicator {
+  position: absolute; top: var(--tab-pad); bottom: var(--tab-pad); left: var(--tab-pad);
+  width: calc((100% - 2 * var(--tab-pad)) / 5); border-radius: var(--r-pill);
+  background: var(--tab-sel); box-shadow: inset 0 0.5px 0 var(--tab-sel-hi);
+  pointer-events: none; will-change: transform; transform-origin: 50% 50%;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.tab-indicator.hidden { opacity: 0; }
+.tabbar.lens .tab-indicator { background: var(--tab-sel-lens); box-shadow: inset 0 0.5px 0 var(--tab-sel-hi), 0 4px 14px rgba(0, 0, 0, 0.18); }
+.tabbar a {
+  position: relative; display: flex; align-items: center; justify-content: center; min-height: var(--tap);
+  color: var(--tab-icon); border-radius: var(--r-pill); -webkit-tap-highlight-color: transparent;
+}
+.tabbar a[aria-current='page'] { color: var(--tab-icon-on); }
+.tabbar svg { stroke-width: 1.8; }
+.tabbar a[aria-current='page'] svg { stroke-width: 2.2; }
+.tabbar a:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--brand); }
 .tabbar svg { width: 1.625rem; height: 1.625rem; transition: width var(--dur-base) var(--ease-spring), height var(--dur-base) var(--ease-spring); }
-.search-btn {
-  flex: none; width: var(--tabbar-h); height: var(--tabbar-h); border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center; color: var(--text-1);
-  transition: width var(--dur-base) var(--ease-spring), height var(--dur-base) var(--ease-spring);
-}
-.search-btn svg { width: 1.5rem; height: 1.5rem; }
-/* 精簡型態：往下捲動時縮小（高度 56 → 44、寬度收窄），往上捲或停止時恢復 */
-.dock.compact .tabbar { height: var(--tabbar-h-compact); max-width: 13.5rem; }
+/* 精簡型態：往下捲動時縮小（高度 58 → 46、寬度收窄），往上捲或停止時恢復 */
+.dock.compact .tabbar { height: var(--tabbar-h-compact); max-width: 18rem; }
 .dock.compact .tabbar svg { width: 1.375rem; height: 1.375rem; }
-.dock.compact .search-btn { width: var(--tabbar-h-compact); height: var(--tabbar-h-compact); }
-.dock.compact .search-btn svg { width: 1.25rem; height: 1.25rem; }
-:root[data-ambient='off'] .tabbar, :root[data-ambient='off'] .search-btn {
-  -webkit-backdrop-filter: none; backdrop-filter: none;
-  background: var(--glass-strong); box-shadow: var(--shadow-float);
-}
+/* 搜尋頁鍵盤開啟時：導覽列淡出（鍵盤收起後恢復） */
+:root[data-kb='open'] .dock { opacity: 0; transform: translateY(0.75rem); pointer-events: none; }
+:root[data-kb='open'] .dock > * { pointer-events: none; }
+:root[data-ambient='off'] .tabbar { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--tab-bg-solid); }
 @media (prefers-reduced-transparency: reduce) {
-  .glass, .tabbar, .search-btn { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--surface-2); }
+  .glass, .tabbar { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .glass { background: var(--surface-2); }
+  .tabbar { background: var(--tab-bg-solid); }
 }
 /* 加入主畫面：狀態列為 black-translucent，內容捲到狀態列底下時加一層漸層，避免與時間、電量重疊 */
 .status-scrim { display: none; position: fixed; z-index: 29; left: 0; right: 0; top: 0; height: var(--safe-top); background: linear-gradient(var(--bg) 60%, transparent); pointer-events: none; }
 @media (display-mode: standalone) { .status-scrim { display: block; } }
 :root.standalone .status-scrim { display: block; }
+/* 新版本已就緒：浮在底部導覽上方 */
+.update-toast {
+  position: fixed; z-index: 31; left: 50%; bottom: calc(var(--dock-h) + var(--s-3)); transform: translateX(-50%);
+  display: flex; align-items: center; gap: var(--s-2); padding: var(--s-1) var(--s-1) var(--s-1) var(--s-4);
+  border-radius: var(--r-pill); font-size: var(--fs-caption); white-space: nowrap; max-width: calc(100vw - 2 * var(--gutter));
+}
+.update-toast .icon-btn { color: var(--text-2); min-width: 2.25rem; }
+.update-toast .icon-btn svg { width: 1.125rem; height: 1.125rem; }
 /* iOS 鍵盤預熱用的隱形輸入框（見 Chrome.tsx primeKeyboard）；字級 16px 避免 iOS 聚焦時放大 */
 .kb-primer { position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; font-size: 16px; border: 0; padding: 0; pointer-events: none; }
 
@@ -377,7 +428,7 @@ label.field > span { display: block; font-size: var(--fs-caption); line-height: 
  * 鍵盤開啟時高度縮小、輸入框自然貼在鍵盤正上方；iOS 把版面往上推的位移由 --vv-top 抵銷。
  */
 .search-screen {
-  position: fixed; z-index: 35; left: 0; right: 0; top: var(--vv-top, 0px); height: var(--vv-h, 100dvh);
+  position: fixed; z-index: 29; /* 在底部導覽（30）之下：鍵盤收起時導覽列顯示在搜尋框下方 */ left: 0; right: 0; top: var(--vv-top, 0px); height: var(--vv-h, 100dvh);
   max-width: var(--content-max); margin: 0 auto;
   display: flex; flex-direction: column; background: var(--bg);
   padding: 0 var(--safe-right) 0 var(--safe-left);
@@ -418,9 +469,10 @@ label.field > span { display: block; font-size: var(--fs-caption); line-height: 
 .sresult-add.on { color: var(--text-2); cursor: default; }
 .search-bar {
   flex: none; display: flex; align-items: center; gap: var(--s-2);
-  padding: var(--s-2) calc(var(--gutter) - var(--s-2)) calc(var(--s-2) + var(--safe-bottom)) var(--gutter);
+  /* 鍵盤收起：搜尋框在底部導覽（含 safe-area）正上方 */
+  padding: var(--s-2) calc(var(--gutter) - var(--s-2)) calc(var(--dock-h) + var(--s-3)) var(--gutter);
 }
-/* 鍵盤開啟時 safe-area 被鍵盤蓋住，不需要再補 */
+/* 鍵盤開啟時導覽列淡出、safe-area 被鍵盤蓋住：搜尋框直接貼在鍵盤上方 */
 .search-screen[data-kb='open'] .search-bar { padding-bottom: var(--s-2); }
 .search-field {
   flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--s-2); height: 3rem; padding: 0 var(--s-2) 0 var(--s-4);
@@ -496,31 +548,110 @@ table.table tbody tr td:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0;
 .scroll-x { position: relative; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 /* ---------- 個股籌碼：區間統計與每日明細（第一欄固定，其餘橫向捲動；數字等寬） ---------- */
-.chip-stats, .chip-table { border-collapse: separate; border-spacing: 0; font-size: var(--fs-caption); line-height: var(--lh-caption); font-variant-numeric: tabular-nums; }
+.chip-stats { border-collapse: separate; border-spacing: 0; font-size: var(--fs-caption); line-height: var(--lh-caption); font-variant-numeric: tabular-nums; }
 .chip-stats { width: 100%; margin-top: var(--s-3); }
 .chip-stats th, .chip-stats td { padding: var(--s-2) var(--s-1); text-align: right; border-bottom: 1px solid var(--line); vertical-align: top; }
 .chip-stats thead th { color: var(--text-2); font-weight: var(--fw-medium); white-space: normal; }
-.chip-stats tbody th { text-align: left; color: var(--text-2); font-weight: var(--fw-regular); white-space: nowrap; }
+.chip-stats tbody th { text-align: left; color: var(--text-2); font-weight: var(--fw-regular); white-space: normal; min-width: 5.5rem; }
 .chip-stats td { white-space: nowrap; }
-.chip-controls { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: var(--s-3) 0; }
-.chip-controls .segmented { flex: 1 1 100%; }
+/* 區間統計的天數分段控制 */
 .segmented.chip-seg button { padding: 0 var(--s-1); white-space: nowrap; }
 .chip-stats thead th .sub { display: block; font-size: 0.6875rem; }
-.chip-scroll { position: relative; overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; background: var(--surface-1); border-radius: var(--r-card); margin: var(--s-2) 0; }
-.chip-scroll:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-.chip-table { min-width: 100%; }
-.chip-table th, .chip-table td { padding: var(--s-2) var(--s-3); text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
-.chip-table thead th { color: var(--text-2); font-weight: var(--fw-medium); white-space: normal; min-width: 4.75rem; vertical-align: bottom; }
-.chip-table th:first-child, .chip-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface-1); text-align: left; box-shadow: 1px 0 0 var(--line); min-width: 4.5rem; }
-.chip-table tbody th { font-weight: var(--fw-medium); }
-.chip-table tr.total > * { background: var(--surface-2); font-weight: var(--fw-semibold); }
-.chip-table tr.total > th:first-child { background: var(--surface-2); }
-.chip-table tr.day { cursor: pointer; }
-.chip-table tr.day.open > * { background: var(--surface-2); }
-.chip-table tr.streaks > * { color: var(--text-2); border-bottom: 0; }
-.chip-table tr.detail td { position: static; text-align: left; white-space: normal; box-shadow: none; background: var(--surface-2); }
-.chip-links { position: sticky; left: var(--s-3); display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-3); max-width: calc(100vw - 4rem); }
-.chip-date { border: 0; background: none; padding: 0; font: inherit; color: var(--brand); cursor: pointer; min-height: 1.75rem; text-decoration: underline; text-underline-offset: 2px; }
+
+/* ---------- 每日籌碼（HIG：一排控制列、分段控制切換檢視、固定寬度不需左右滑動、44pt 列高、Dynamic Type） ----------
+ * --dt：Dynamic Type 比例（iOS 以 -apple-system-body 換算；其他平台為 1，另隨瀏覽器預設字級的 rem 放大）。
+ */
+.chip-daily { --dt: 1; margin-top: var(--s-6); }
+.cd-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); }
+.cd-title { margin: 0; font: inherit; }
+.cd-toggle { display: inline-flex; align-items: center; gap: var(--s-2); min-height: var(--tap); padding: 0; border: 0; background: none; color: var(--text-1); cursor: pointer; }
+.cd-toggle svg { width: 1.25rem; height: 1.25rem; color: var(--brand); transition: transform var(--dur-base) var(--ease-spring); }
+.cd-toggle[aria-expanded='true'] svg { transform: rotate(180deg); }
+.cd-more { position: relative; }
+.cd-more .icon-btn svg { width: 1.375rem; height: 1.375rem; }
+.cd-menu { position: absolute; z-index: 20; right: 0; top: calc(100% + var(--s-1)); min-width: 12rem; padding: var(--s-1); border-radius: var(--r-md); background: var(--surface-3); box-shadow: var(--shadow-float); }
+.cd-menuitem { display: flex; align-items: center; width: 100%; min-height: var(--tap); padding: 0 var(--s-3); border: 0; border-radius: var(--r-sm); background: none; color: var(--text-1); font: inherit; text-align: left; cursor: pointer; }
+.cd-menuitem:hover, .cd-menuitem:focus-visible { background: var(--surface-row); outline: none; box-shadow: inset 0 0 0 2px var(--brand); }
+.cd-status { margin-top: var(--s-1); }
+.cd-placeholder { min-height: 36rem; margin-top: var(--s-3); }
+.chip-daily .segmented button { min-height: var(--tap); }
+.cd-controls { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-3); }
+.cd-periods { flex: 1 1 auto; min-width: 0; }
+.cd-unit { position: relative; flex: none; display: inline-flex; }
+.cd-unit-face { display: inline-flex; align-items: center; gap: var(--s-1); min-height: var(--tap); padding: 0 var(--s-2) 0 var(--s-3); border-radius: var(--r-sm); background: var(--surface-1); color: var(--brand); font-size: var(--fs-caption); font-weight: var(--fw-semibold); white-space: nowrap; }
+.cd-unit-face .muted { color: var(--text-2); font-weight: var(--fw-medium); }
+.cd-unit-face svg { width: 1rem; height: 1rem; }
+/* 原生 select 疊在按鈕上（iOS 會跳出系統選單）；字級 16px 避免 iOS 聚焦時放大 */
+.cd-unit select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; cursor: pointer; }
+.cd-unit:focus-within .cd-unit-face { box-shadow: inset 0 0 0 2px var(--brand); }
+.cd-views { margin-top: var(--s-2); }
+.cd-meta { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); margin: var(--s-3) 0 var(--s-1); color: var(--text-2); font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); }
+.cd-unit-label { flex: none; color: var(--text-1); font-weight: var(--fw-medium); }
+/* 量測用：與儲存格同字型；fixed 不影響版面與捲動範圍 */
+.chip-daily .cd-measure { position: fixed; left: 0; top: 0; visibility: hidden; white-space: nowrap; pointer-events: none; }
+.cd-wide-probe { position: fixed; left: 0; top: 0; height: 0; visibility: hidden; pointer-events: none; width: min(calc(100vw - 2 * (var(--gutter) + max(var(--safe-left), var(--safe-right)))), 64rem); }
+
+.cd-wrap { background: var(--surface-1); border-radius: var(--r-card); overflow: hidden; box-shadow: var(--shadow-card); }
+/* 橫向／平板：同時顯示全部欄位，寬度超出內容欄時置中延伸（仍在畫面內） */
+.cd-wrap.cd-wide { width: min(calc(100vw - 2 * (var(--gutter) + max(var(--safe-left), var(--safe-right)))), 64rem); max-width: none; position: relative; left: 50%; transform: translateX(-50%); }
+.cd-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.cd-table th, .cd-table td { padding: var(--s-1) 0.1875rem; text-align: right; vertical-align: middle; white-space: nowrap; overflow: hidden; }
+.cd-table th:first-child, .cd-table td:first-child { text-align: left; padding-left: var(--s-2); }
+.cd-table td:last-child, .cd-table thead th:last-child { padding-right: var(--s-2); }
+.cd-table thead th { color: var(--text-2); font-weight: var(--fw-medium); vertical-align: bottom; padding-top: var(--s-3); padding-bottom: var(--s-2); font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); }
+.cd-table thead .cd-groups th { text-align: center; color: var(--text-1); font-weight: var(--fw-semibold); padding-bottom: 0; }
+.cd-table thead .cd-groups th + th { box-shadow: inset 1px 0 0 var(--surface-row); }
+/* 欄位標題可折成兩行（例：融資／增減）；數字儲存格不折行 */
+.cd-h { display: block; white-space: normal; font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); color: var(--text-1); }
+.cd-sub { display: block; font-size: calc(var(--fs-micro) * var(--dt)); line-height: calc(var(--lh-micro) * var(--dt)); color: var(--text-2); font-weight: var(--fw-regular); margin-top: 0.125rem; }
+.cd-date { display: block; font-size: calc(var(--fs-body) * var(--dt)); line-height: calc(var(--lh-body) * var(--dt)); color: var(--text-1); font-weight: var(--fw-medium); }
+.cd-v { position: relative; font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+.cd-table tbody th, .cd-table tbody td { height: var(--tap); box-shadow: inset 0 -0.5px 0 var(--surface-row); }
+.cd-table tr.total > * { background: var(--surface-2); }
+.cd-table tr.total .cd-date { font-size: calc(var(--fs-caption) * var(--dt)); font-weight: var(--fw-semibold); }
+.cd-table tr.day { cursor: pointer; }
+.cd-table tr.day:hover > * { background: var(--surface-row); }
+.cd-rowhead { position: relative; }
+/* 透明按鈕蓋住整格／整張卡片：沒有可見文字（避免可見文字與無障礙名稱不一致），點擊區域 ≥ 44pt */
+.cd-rowbtn { position: absolute; inset: 0; width: 100%; min-height: var(--tap); padding: 0; border: 0; background: none; cursor: pointer; border-radius: var(--r-xs); }
+.cd-rowbtn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--brand); }
+/* 比例條：很淡的細條，貼在格子底部，從中線向右（買超／增加）或向左（賣超／減少）延伸；沒有正負的欄位從中線向右。
+ * 不用讀數字也能看出強弱；在文字下方、不與數字重疊，不影響文字對比。 */
+.cd-bar { position: absolute; bottom: 0.3125rem; height: 0.1875rem; left: 50%; border-radius: var(--r-pill); pointer-events: none; }
+.cd-bar.pos { background: color-mix(in srgb, var(--up) 45%, transparent); }
+.cd-bar.neg { left: auto; right: 50%; background: color-mix(in srgb, var(--down) 45%, transparent); }
+.cd-bar.neu { background: color-mix(in srgb, var(--text-2) 35%, transparent); }
+.cd-table tbody td.cd-v { background-image: linear-gradient(var(--surface-row), var(--surface-row)); background-size: 1px 0.1875rem; background-position: 50% calc(100% - 0.3125rem); background-repeat: no-repeat; }
+.cd-t { position: relative; }
+.cd-v.flat, .cd-v.none { color: var(--text-1); }
+
+/* 卡片版面：字級放大而寬度不夠時（每天一張，4 個欄位排成 2×2） */
+.cd-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.cd-card { position: relative; display: block; width: 100%; padding: var(--s-3) var(--s-4); border-radius: var(--r-md); background: var(--surface-1); }
+.cd-card.day { cursor: pointer; }
+.cd-card.total { background: var(--surface-2); }
+.cd-card .cd-rowbtn { border-radius: var(--r-md); }
+.cd-card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 var(--s-2); }
+.cd-card-head .cd-sub { display: inline; }
+.cd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2) var(--s-4); margin-top: var(--s-2); }
+.cd-cell { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 var(--s-2); min-height: var(--tap); align-content: center; }
+.cd-k { color: var(--text-2); font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); }
+.cd-k .cd-sub { display: inline; }
+.cd-cell .cd-v { font-size: calc(var(--fs-body) * var(--dt)); line-height: calc(var(--lh-body) * var(--dt)); }
+.cd-notes { margin-top: var(--s-2); }
+.cd-notes p { margin-top: var(--s-2); }
+.cd-foot { margin-top: var(--s-2); }
+
+/* 當天完整資料（底部面板） */
+.cd-dl { margin: 0; }
+.cd-dl > div { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); min-height: var(--tap); box-shadow: inset 0 -0.5px 0 var(--surface-row); }
+.cd-dl dt { color: var(--text-2); }
+.cd-dl dd { margin: 0; font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+.cd-dl dd.flat, .cd-dl dd.none { color: var(--text-1); }
+.cd-group { display: block; margin: var(--s-5) 0 var(--s-1); }
+.cd-day > .caption { margin-top: var(--s-3); }
+.cd-links { display: flex; flex-direction: column; gap: var(--s-1); }
+.cd-links a { min-height: var(--tap); display: inline-flex; align-items: center; }
 
 /* ---------- 狀態：提示、空狀態、骨架、錯誤 ---------- */
 .banner { display: flex; align-items: flex-start; gap: var(--s-3); border-radius: var(--r-md); padding: var(--s-3) var(--s-4); margin: var(--s-3) 0; font-size: var(--fs-caption); line-height: var(--lh-caption); background: var(--surface-1); color: var(--text-1); }
@@ -602,14 +733,19 @@ details.tech ul { margin: var(--s-1) 0 0; padding-left: var(--s-4); color: var(-
 .chart-box { width: 100%; height: 22rem; }
 
 /* ---------- 按壓回饋、轉場 ---------- */
-.press, .btn, .chip, .tile, .index-card, .menu-item, .list-item, .card[href], a.card, .srow, .env-pill, .ring-btn, .search-btn, .tabbar a {
+.press, .btn, .chip, .tile, .index-card, .menu-item, .list-item, .card[href], a.card, .srow, .env-pill, .ring-btn, .tabbar a {
   transition: transform var(--dur-press) var(--ease-out), background var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
 }
-.press:active, .btn:active, .chip:active, .tile:active, .index-card:active, .menu-item:active, a.list-item:active, button.list-item:active, a.card:active, .env-pill:active, .ring-btn:active, .tabbar a:active, .search-btn:active { transform: scale(0.97); }
+.press:active, .btn:active, .chip:active, .tile:active, .index-card:active, .menu-item:active, a.list-item:active, button.list-item:active, a.card:active, .env-pill:active, .ring-btn:active, .tabbar a:active { transform: scale(0.92); }
 .fade-in { animation: fade-in var(--dur-base) var(--ease-out) both; }
 @keyframes fade-in { from { opacity: 0; transform: translateY(0.375rem); } to { opacity: 1; transform: none; } }
-.swipe-page { transition: transform var(--dur-base) var(--ease-spring), opacity var(--dur-base) var(--ease-out); }
-.swipe-page.dragging { transition: none; }
+/* 個股頁左右換股（StockPager）：主角區是一條「前一檔｜目前｜後一檔」的軌道，滿版寬度（走勢圖仍延伸到螢幕邊緣） */
+.pager { margin: 0 calc(-1 * var(--gutter)); overflow: hidden; touch-action: pan-y; }
+@supports (overflow: clip) { .pager { overflow-x: clip; overflow-y: visible; } }
+.pager-track { display: flex; align-items: flex-start; will-change: transform; }
+.pager-pane { flex: 0 0 100%; min-width: 0; box-sizing: border-box; padding: 0 var(--gutter); }
+.pager.dragging { cursor: grabbing; -webkit-user-select: none; user-select: none; }
+.pager.dragging .chart-wrap { cursor: grabbing; }
 
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-base); animation-timing-function: var(--ease-out); }
 :root[data-nav='push']::view-transition-old(root) { animation-name: vt-out-left; }

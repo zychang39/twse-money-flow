@@ -7,6 +7,7 @@ from datetime import date
 import pytest
 
 from pipeline.sources import advanced as adv
+from pipeline.sources.base import ParseError
 from tests.pipeline.conftest import sample
 
 
@@ -89,3 +90,20 @@ def test_taifex():
 def test_treasury():
     t = adv.parse_treasury(sample("treasury_2026.csv")).df
     assert t.iloc[-1].to_dict() == {"date": "2026-09-25", "y10": 5.17}
+
+
+def test_tdcc_stock_history():
+    """集保個股查詢（HTML）：15 個分級＋合計（存成分級 17）；表單的 token 與可查詢週別。"""
+    html = sample("tdcc_qryStock_3406.html")
+    token, weeks = adv.parse_tdcc_form(html)
+    assert token and len(weeks) == 51 and weeks[0] == "20260924" and weeks[-1] == "20251003"
+    res = adv.parse_tdcc_stock(html, "3406")
+    assert res.response_date == date(2025, 9, 26)
+    df = res.df.set_index("level")
+    assert list(df.index) == [*range(1, 16), 17]
+    assert df.loc[1, "holders"] == 22361 and df.loc[2, "shares"] == 20631425 and df.loc[2, "pct"] == 18.29
+    assert df.loc[15, "pct"] == 34.46 and df.loc[17, "holders"] == 35936 and df.loc[17, "shares"] == 112743063
+    assert abs(df.loc[1:15, "shares"].sum() - df.loc[17, "shares"]) / df.loc[17, "shares"] < 0.01
+    with pytest.raises(ParseError):
+        adv.parse_tdcc_stock(html, "2330")  # 回應的代號與要求不符
+    assert adv.parse_tdcc_stock("<p>查無此資料</p>", "2330").no_data

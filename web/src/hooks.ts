@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { loadStock } from './data/api';
+import { loadStock, peekStock } from './data/api';
 import type { StockHistory } from './data/types';
 import { subscribe } from './db/db';
 
@@ -63,4 +63,22 @@ export function useHistories(codes: string[]): Map<string, StockHistory | null> 
 /** 系統「減少動態效果」設定。 */
 export function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+}
+
+/**
+ * 個股檔：已載入過的直接同步取用（換股時不會先變成載入中、畫面不閃）；沒有才發出請求。
+ * 回傳的 loading 只在「完全沒有這檔資料」時為 true。
+ */
+export function useStockData(code: string): { data: StockHistory | null; error: Error | null; loading: boolean } {
+  const [, bump] = useState(0);
+  const [err, setErr] = useState<{ code: string; error: Error } | null>(null);
+  const cached = peekStock(code) ?? null;
+  useEffect(() => {
+    if (peekStock(code)) return;
+    let alive = true;
+    loadStock(code).then(() => alive && bump((n) => n + 1), (error: Error) => alive && setErr({ code, error }));
+    return () => { alive = false; };
+  }, [code]);
+  const error = err && err.code === code ? err.error : null;
+  return { data: cached, error, loading: !cached && !error };
 }

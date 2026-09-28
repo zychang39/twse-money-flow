@@ -85,7 +85,7 @@ def load(store: DataStore) -> Dataset:
         "sbl": ["twse_sbl", "tpex_sbl"],
         "qfii": ["twse_qfii", "tpex_qfii"],
         "daytrade": ["twse_daytrade", "tpex_daytrade"],
-        "tdcc": ["tdcc_holders"],
+        "tdcc": ["tdcc_holders", "tdcc_history"],
         "taifex_insti": ["taifex_insti"],
         "taifex_oi": ["taifex_oi"],
         "fx": ["fx_usdtwd"],
@@ -98,6 +98,10 @@ def load(store: DataStore) -> Dataset:
     }.items():
         if sources:
             ds.tables[name] = _concat(store, sources)
+    tdcc = ds.tables.get("tdcc")
+    if tdcc is not None and not tdcc.empty:
+        # 開放資料（整週全部股票）優先；個股歷史查詢只補開放資料沒有的週別
+        ds.tables["tdcc"] = tdcc.drop_duplicates(["date", "code", "level"], keep="first").reset_index(drop=True)
     for name, sources in {
         "short_halt": ["twse_short_halt", "tpex_short_halt"],
         "insider": ["twse_insider", "tpex_insider"],

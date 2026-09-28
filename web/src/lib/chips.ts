@@ -4,6 +4,7 @@
  * 合計一律先以股數相加再換算，避免逐日四捨五入的誤差累積。
  */
 import { sourcesConfig, uiConfig } from './config';
+import { numberFormat } from './format';
 
 type N = number | null;
 
@@ -25,6 +26,19 @@ export interface ChipBlock {
   tot: N[];
   sbls: N[];
   dt: N[];
+  /** 借券餘額（股）；舊版部署沒有 */
+  sblb?: N[];
+  /** 當沖成交股數；舊版部署沒有 */
+  dtv?: N[];
+  /** 買進／賣出股數（法人買賣超報表）：外資（含外資自營商）、投信、自營商自行買賣、自營商避險；舊版部署沒有 */
+  fb?: N[];
+  fs?: N[];
+  tb?: N[];
+  ts?: N[];
+  dsb?: N[];
+  dss?: N[];
+  dhb?: N[];
+  dhs?: N[];
 }
 
 export interface ChipRow {
@@ -47,6 +61,14 @@ export interface ChipRow {
   /** 融資、融券餘額增減為「張」 */
   marginChg: N;
   shortChg: N;
+  /** 融資、融券餘額（張） */
+  marginBal: N;
+  shortBal: N;
+  /** 券資比 %＝融券餘額 ÷ 融資餘額 */
+  shortRatio: N;
+  /** 借券餘額、當沖量（股） */
+  sblBal: N;
+  dtVol: N;
   dtPct: N;
 }
 
@@ -54,7 +76,10 @@ export type Unit = 'lots' | 'amount' | 'pct';
 export type FlowKey = 'foreign' | 'trust' | 'dealerSelf' | 'dealerHedge' | 'total' | 'marginChg' | 'shortChg' | 'sblSell';
 export type PartyKey = 'foreign' | 'trust' | 'dealerSelf';
 
-export const UNIT_NAME: Record<Unit, string> = { lots: '張', amount: '金額', pct: '佔成交量' };
+/** 單位選單的選項名稱（「佔」＝占有，不是「估」） */
+export const UNIT_NAME: Record<Unit, string> = { lots: '張', amount: '金額（億元，估）', pct: '佔成交量 %' };
+/** 表格右上角「單位：…」 */
+export const UNIT_LABEL: Record<Unit, string> = { lots: '張', amount: '億元（估）', pct: '佔成交量 %' };
 /** 欄位標題上的單位字樣 */
 export const UNIT_SUFFIX: Record<Unit, string> = { lots: '張', amount: '億元・估', pct: '佔量 %' };
 
@@ -103,6 +128,11 @@ export function chipRows(b: ChipBlock): ChipRow[] {
       sblSell: at(b.sbls, i),
       marginChg: mb !== null && pmb !== null ? mb - pmb : null,
       shortChg: sb !== null && psb !== null ? sb - psb : null,
+      marginBal: mb,
+      shortBal: sb,
+      shortRatio: mb && sb !== null ? (sb / mb) * 100 : null,
+      sblBal: at(b.sblb ?? [], i),
+      dtVol: at(b.dtv ?? [], i),
       dtPct: at(b.dt, i),
     };
   });
@@ -388,4 +418,203 @@ export function officialLinks(market: string | null | undefined, date: string): 
     });
   }
   return out;
+}
+
+// ------------------------------------------------------------------ 每日籌碼：三種檢視（法人｜信用｜借券當沖）
+export type View = 'insti' | 'credit' | 'sbl';
+export type ColKey = 'foreign' | 'trust' | 'dealerSelf' | 'total' | 'marginChg' | 'shortChg' | 'marginBal' | 'shortRatio' | 'sblSell' | 'sblBal' | 'dtPct' | 'dtVol';
+/** flow＝當日數量（可換算單位，可加總）；level＝餘額（可換算張／金額；區間合計為增減）；ratio＝比率 %（不隨單位變動） */
+export type ColKind = 'flow' | 'level' | 'ratio';
+
+export interface ViewCol {
+  key: ColKey;
+  /** 欄位標題（短） */
+  label: string;
+  /** 完整名稱（螢幕閱讀器、底部面板） */
+  full: string;
+  kind: ColKind;
+  /** 有正負（買超／賣超、增加／減少） */
+  signed: boolean;
+  /** 原始值單位為張（融資融券）；其餘數量為股 */
+  lots?: boolean;
+  /** 法人：標題下方顯示連買／連賣天數 */
+  party?: boolean;
+  /** 正、負的說法（螢幕閱讀器） */
+  words?: [string, string];
+}
+
+export const VIEW_LABEL: Record<View, string> = { insti: '法人', credit: '信用', sbl: '借券當沖' };
+export const VIEWS: View[] = ['insti', 'credit', 'sbl'];
+
+export const VIEW_COLS: Record<View, ViewCol[]> = {
+  insti: [
+    { key: 'foreign', label: '外資', full: '外資', kind: 'flow', signed: true, party: true, words: ['買超', '賣超'] },
+    { key: 'trust', label: '投信', full: '投信', kind: 'flow', signed: true, party: true, words: ['買超', '賣超'] },
+    { key: 'dealerSelf', label: '自營商', full: '自營商（自行買賣）', kind: 'flow', signed: true, party: true, words: ['買超', '賣超'] },
+    { key: 'total', label: '合計', full: '三大法人合計', kind: 'flow', signed: true, party: true, words: ['買超', '賣超'] },
+  ],
+  credit: [
+    { key: 'marginChg', label: '融資增減', full: '融資增減', kind: 'flow', signed: true, lots: true, words: ['增加', '減少'] },
+    { key: 'shortChg', label: '融券增減', full: '融券增減', kind: 'flow', signed: true, lots: true, words: ['增加', '減少'] },
+    { key: 'marginBal', label: '融資餘額', full: '融資餘額', kind: 'level', signed: false, lots: true },
+    { key: 'shortRatio', label: '券資比', full: '券資比', kind: 'ratio', signed: false },
+  ],
+  sbl: [
+    { key: 'sblSell', label: '借券賣出', full: '借券賣出', kind: 'flow', signed: false },
+    { key: 'sblBal', label: '借券餘額', full: '借券餘額', kind: 'level', signed: false },
+    { key: 'dtPct', label: '當沖比率', full: '當沖比率', kind: 'ratio', signed: false },
+    { key: 'dtVol', label: '當沖量', full: '當沖量', kind: 'flow', signed: false },
+  ],
+};
+export const ALL_COLS: ViewCol[] = VIEWS.flatMap((v) => VIEW_COLS[v]);
+
+/** 某欄實際使用的單位：比率固定 %；餘額沒有「佔成交量」的意義，改以張顯示（標題下方註明）。 */
+export function colUnit(col: ViewCol, unit: Unit): Unit | 'ratio' {
+  if (col.kind === 'ratio') return 'ratio';
+  if (col.kind === 'level' && unit === 'pct') return 'lots';
+  return unit;
+}
+
+function colShares(row: ChipRow, col: ViewCol): N {
+  const v = row[col.key as keyof ChipRow] as N;
+  if (v === null || v === undefined) return null;
+  return col.lots ? v * 1000 : v;
+}
+
+/** 某列某欄在指定單位下的值。 */
+export function colValue(row: ChipRow, col: ViewCol, unit: Unit): N {
+  const u = colUnit(col, unit);
+  if (u === 'ratio') return (row[col.key as keyof ChipRow] as N) ?? null;
+  return convert(colShares(row, col), row, u);
+}
+
+/**
+ * 區間合計（表格第一列）：數量欄＝加總（先以股數相加再換算）；餘額欄＝區間增減（最新 − 區間前一日）；
+ * 比率欄＝區間平均（當沖比率以成交量加權、券資比＝Σ融券餘額 ÷ Σ融資餘額）。
+ * rows 為新到舊的顯示範圍；all 為全部列（舊到新，用來找區間前一日）。
+ */
+export function colTotal(rows: ChipRow[], all: ChipRow[], col: ViewCol, unit: Unit): N {
+  if (!rows.length) return null;
+  const u = colUnit(col, unit);
+  if (col.key === 'dtPct') return periodDaytrade(rows);
+  if (col.key === 'shortRatio') {
+    let s = 0, m = 0;
+    for (const r of rows) if (r.shortBal !== null && r.marginBal) { s += r.shortBal; m += r.marginBal; }
+    return m ? (s / m) * 100 : null;
+  }
+  if (col.kind === 'level') {
+    const oldest = rows[rows.length - 1];
+    const idx = all.findIndex((r) => r.date === oldest.date);
+    const before = idx > 0 ? all[idx - 1] : null;
+    const now = colShares(rows[0], col);
+    const then = before ? colShares(before, col) : null;
+    if (now === null || then === null || u === 'ratio') return null;
+    return convert(now - then, rows[0], u);
+  }
+  let shares = 0, amount = 0, vol = 0, any = false, amountOk = true;
+  for (const r of rows) {
+    const s = colShares(r, col);
+    if (s === null) continue;
+    any = true;
+    shares += s;
+    if (r.avg === null) amountOk = false;
+    else amount += s * r.avg;
+    if (r.volume) vol += r.volume;
+  }
+  if (!any) return null;
+  if (u === 'lots') return shares / 1000;
+  if (u === 'amount') return amountOk ? amount / 1e8 : null;
+  return vol ? (shares / vol) * 100 : null;
+}
+
+/** 連買（正）／連賣（負）天數（法人欄）。 */
+export function colStreak(all: ChipRow[], col: ViewCol): number {
+  return streak(all.slice(1).map((r) => r[col.key as keyof ChipRow] as N));
+}
+
+/** 精簡數字：≥ 10,000 縮寫為「1.2 萬」（≥ 100 萬取整數）；其餘依單位給小數位數。 */
+export function compactNum(abs: number, unit: Unit | 'ratio'): string {
+  if (abs >= 1e4) {
+    const w = abs / 1e4;
+    return `${w >= 100 ? numberFormat(0).format(Math.round(w)) : w.toFixed(1)}\u00a0萬`;
+  }
+  const digits = unit === 'lots' ? 0 : unit === 'ratio' ? 1 : abs >= 1000 ? 0 : abs >= 100 ? 1 : 2;
+  return numberFormat(digits).format(abs);
+}
+
+/** 儲存格文字：有正負的欄位加 ▲▼（區間合計列的餘額欄是增減，也有正負）；比率加 %。 */
+export function cellText(v: N, col: ViewCol, unit: Unit, signed = col.signed): { text: string; dir: 'up' | 'down' | 'flat' | 'none' } {
+  if (v === null || !Number.isFinite(v)) return { text: '—', dir: 'none' };
+  const u = colUnit(col, unit);
+  const body = compactNum(Math.abs(v), u);
+  const shownZero = Number(body.replace(/[^\d.]/g, '')) === 0;
+  if (!signed || shownZero) return { text: `${body}${u === 'ratio' ? '%' : ''}`, dir: signed ? 'flat' : 'none' };
+  return { text: `${v > 0 ? '▲' : '▼'}${body}${u === 'ratio' ? '%' : ''}`, dir: v > 0 ? 'up' : 'down' };
+}
+
+const UNIT_WORD: Record<Unit, string> = { lots: '張', amount: '億元', pct: '' };
+
+/** 螢幕閱讀器的片語：「外資賣超 485 張」「融資增加 1,200 張」「券資比 3.2%」「外資買超佔成交量 3.21%」。 */
+export function cellPhrase(v: N, col: ViewCol, unit: Unit, signed = col.signed): string {
+  if (v === null || !Number.isFinite(v)) return `${col.full}沒有資料`;
+  const u = colUnit(col, unit);
+  const n = compactNum(Math.abs(v), u).replace('\u00a0', ' ');
+  if (u === 'ratio') return `${col.full} ${n}%`;
+  const amt = u === 'pct' ? `佔成交量 ${n}%` : ` ${n} ${UNIT_WORD[u]}`;
+  // 區間合計列的餘額欄是增減
+  if (signed && !col.signed) return v === 0 ? `${col.full}持平` : `${col.full}${v > 0 ? '增加' : '減少'}${amt}`;
+  if (col.signed && col.words) {
+    const word = v > 0 ? col.words[0] : v < 0 ? col.words[1] : '持平';
+    const subject = col.key === 'marginChg' ? '融資' : col.key === 'shortChg' ? '融券' : col.full;
+    return v === 0 ? `${subject}持平` : `${subject}${word}${amt}`;
+  }
+  return `${col.full}${amt}`;
+}
+
+/** 「9 月 24 日」 */
+export function spokenDate(iso: string): string {
+  return `${Number(iso.slice(5, 7))} 月 ${Number(iso.slice(8, 10))} 日`;
+}
+
+const SPOKEN_PRICE = new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 2 });
+
+/** 一列的完整句子：「9 月 24 日，外資賣超 485 張，…；收盤 176 元，下跌 2.49%」。 */
+export function rowSentence(row: ChipRow, cols: ViewCol[], unit: Unit): string {
+  const parts = cols.map((c) => cellPhrase(colValue(row, c, unit), c, unit));
+  const chg = row.chgPct === null ? '' : row.chgPct > 0 ? `，上漲 ${row.chgPct.toFixed(2)}%` : row.chgPct < 0 ? `，下跌 ${Math.abs(row.chgPct).toFixed(2)}%` : '，平盤';
+  const close = row.close === null ? '' : `；收盤 ${SPOKEN_PRICE.format(row.close)} 元${chg}`;
+  return `${spokenDate(row.date)}，${parts.join('，')}${close}`;
+}
+
+/** 底部面板：當天完整資料的 12 個主要欄位＋信用與借券的餘額。 */
+export const DAY_FIELDS: { group: string; cols: ViewCol[] }[] = [
+  {
+    group: '三大法人',
+    cols: [
+      VIEW_COLS.insti[0],
+      VIEW_COLS.insti[1],
+      VIEW_COLS.insti[2],
+      { key: 'dealerHedge' as ColKey, label: '自營商避險', full: '自營商（避險）', kind: 'flow', signed: true, party: true, words: ['買超', '賣超'] },
+      VIEW_COLS.insti[3],
+    ],
+  },
+  { group: '信用交易', cols: [VIEW_COLS.credit[0], VIEW_COLS.credit[1], VIEW_COLS.credit[2], { key: 'shortBal' as ColKey, label: '融券餘額', full: '融券餘額', kind: 'level', signed: false, lots: true }, VIEW_COLS.credit[3]] },
+  { group: '借券與當沖', cols: VIEW_COLS.sbl },
+];
+
+/** 「複製這天資料」：欄位〈tab〉數值（含單位），第一行為代號與日期。 */
+export function dayText(row: ChipRow, unit: Unit, meta: { code: string; name: string }): string {
+  const lines = [`${meta.name} ${meta.code} ${row.date}`];
+  lines.push(`收盤\t${row.close ?? '—'}`);
+  lines.push(`漲跌(%)\t${row.chgPct === null ? '—' : row.chgPct.toFixed(2)}`);
+  lines.push(`成交量(張)\t${row.volume === null ? '—' : Math.round(row.volume / 1000)}`);
+  for (const g of DAY_FIELDS) {
+    for (const c of g.cols) {
+      const u = colUnit(c, unit);
+      const v = colValue(row, c, unit);
+      const suffix = u === 'ratio' || u === 'pct' ? '%' : u === 'amount' ? '億元' : '張';
+      lines.push(`${c.full}(${suffix})\t${v === null ? '—' : v.toFixed(u === 'lots' ? 0 : 2)}`);
+    }
+  }
+  return lines.join('\n') + '\n';
 }

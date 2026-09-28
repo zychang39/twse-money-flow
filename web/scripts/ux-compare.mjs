@@ -30,5 +30,22 @@ for (const combo of COMBOS) {
     process.stdout.write(`${combo}-${id} `);
   }
 }
+// 每日籌碼：改版前（橫向捲動表格）對照改版後（法人檢視），375／393 × 深淺色
+for (const w of [375, 393]) {
+  for (const scheme of ['dark', 'light']) {
+    const before = `${dir}/chips/before/${w}-${scheme}-table.jpg`;
+    const after = `${dir}/chips/after/${w}-${scheme}-1-insti.jpg`;
+    if (!existsSync(before) || !existsSync(after)) continue;
+    await page.setViewportSize({ width: 2 * w + 60, height: 900 });
+    await page.setContent(`<!doctype html><html><body style="margin:0;background:#2a2a2e;font:600 15px -apple-system,'PingFang TC','Noto Sans TC',sans-serif;color:#fff">
+      <div style="padding:10px 20px 0">每日籌碼・${w}pt・${SCHEME[scheme]}</div>
+      <div style="display:flex;gap:20px;padding:10px 20px 20px;align-items:flex-start">
+        <figure style="margin:0"><figcaption style="padding-bottom:6px;color:#bbb">改版前（需要左右滑動）</figcaption><img src="${b64(before)}" width="${w}"></figure>
+        <figure style="margin:0"><figcaption style="padding-bottom:6px;color:#bbb">改版後</figcaption><img src="${b64(after)}" width="${w}"></figure>
+      </div></body></html>`);
+    await page.screenshot({ path: `${dir}/compare/chips-${w}-${scheme}.jpg`, type: 'jpeg', quality: 78, fullPage: true });
+    process.stdout.write(`chips-${w}-${scheme} `);
+  }
+}
 await browser.close();
 process.stdout.write('\ndone\n');
