@@ -1,7 +1,10 @@
-# CI：PR 時跑 ruff、mypy、pytest、eslint、tsc、vitest、build、Playwright 冒煙測試。
+# CI：PR 與 push 到 main 時跑 ruff、mypy、pytest、eslint、tsc、vitest、衍生 JSON 嚴格解析、build、Playwright 冒煙測試。
+# Q-01：main 的部署（deploy.yml）以 workflow_run 等這個 workflow 在 main 上成功後才執行。
 name: CI
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:

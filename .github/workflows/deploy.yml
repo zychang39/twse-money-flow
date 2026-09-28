@@ -1,7 +1,10 @@
-# 部署：main 有 push 或被 data.yml 呼叫時，產生衍生資料、build、部署 GitHub Pages。
+# 部署：main 的 CI 通過後（Q-01：workflow_run，不再在 push 時直接部署）或被 data.yml 呼叫時，
+# 產生衍生資料、嚴格檢查全部 JSON（E-01）、build、部署 GitHub Pages。
 name: Deploy
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_call:
     inputs:
@@ -22,10 +25,15 @@ concurrency:
 
 jobs:
   build:
+    # CI 在 main 失敗（或被取消）時不部署；push 事件本身不再觸發部署
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          # workflow_run：部署 CI 實際測過的那個提交
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Checkout data branch
         uses: actions/checkout@v4
         continue-on-error: true

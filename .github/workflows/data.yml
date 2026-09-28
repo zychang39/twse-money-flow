@@ -9,6 +9,7 @@ on:
     - cron: "0 3 16 5,8,11 *"   # 季報法定期限後（5/15、8/14、11/14）
     - cron: "0 3 1 4 *"         # 年報法定期限後（3/31）
     - cron: "*/15 1-5 * * 1-5"  # 交易時段每 15 分鐘：盤中提醒
+    - cron: "40 14 * * 1-5"     # 22:40（台北）：接續在每日任務時段延後的回補分段（E-05）
   workflow_dispatch:
     inputs:
       task:
@@ -41,9 +42,12 @@ permissions:
   pages: write
   id-token: write
 
-# 會寫入 data 分支的任務共用 data-pipeline；盤中提醒只讀即時報價，另用 alerts 群組，避免被長時間回補卡住
+# 盤中提醒只讀即時報價，用 alerts 群組。
+# E-05：回補用獨立的 data-backfill 群組（每段最多 40 分鐘、交易日 16:30–22:30 不開始新的一段），
+# 不再和每日任務排同一個佇列（GitHub 同一群組只保留最新一個等待中的 run，長時間回補會把排程的每日任務擠掉）。
+# 兩者可能同時寫入 data 分支：commit-data 推送失敗時 rebase 到遠端最新並合併 manifest 後重試（pipeline/gitdata.py）。
 concurrency:
-  group: ${{ (github.event.schedule == '*/15 1-5 * * 1-5' || inputs.task == 'alerts') && 'alerts' || 'data-pipeline' }}
+  group: ${{ (github.event.schedule == '*/15 1-5 * * 1-5' || inputs.task == 'alerts') && 'alerts' || (inputs.task == 'backfill' && 'data-backfill' || 'data-pipeline') }}
   cancel-in-progress: false
 
 jobs:
@@ -99,13 +103,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
-          python -m pipeline run --data-dir data --chain --max-minutes 320
+          python -m pipeline run --data-dir data --chain --max-minutes ${{ inputs.task == 'backfill' && 40 || 320 }}
           --task "${{ inputs.task }}" --schedule "${{ github.event.schedule }}"
           --source "${{ inputs.source }}" --start "${{ inputs.start }}" --end "${{ inputs.end }}"
           --refresh "${{ inputs.refresh }}"
       - if: always() && steps.prepare.outcome == 'success'
         run: python -m pipeline commit-data --data-dir data
-      - if: always()
+      # resume（22:40）只觸發延後的回補，不抓資料、沒有執行摘要，不回報
+      - if: always() && github.event.schedule != '40 14 * * 1-5'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python -m pipeline report --data-dir data --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
