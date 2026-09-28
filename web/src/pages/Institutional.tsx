@@ -194,7 +194,7 @@ export default function Institutional({ code }: { code: string }) {
                 </table>
                 {PARTIES.some((p) => { const t = partyTotal(byParty![p], p); return t.buy === null || t.bsDays < t.days; }) ? (
                   <p class="caption muted ir-note">
-                    「—」或 *：買張與賣張{sinceAll ? `（三大法人合計）自 ${spokenDate(sinceAll)}起才完整` : '尚無完整資料'}（較早的資料只保存買賣超），合計只含有資料的日子；買賣超不受影響。
+                    「—」或 *：資料回補中。買張與賣張{sinceAll ? `（三大法人合計）目前自 ${spokenDate(sinceAll)}起才完整` : '尚無完整資料'}（較早的資料只保存買賣超，正在重抓近 3 個月），合計只含有資料的日子；買賣超計算不受影響。
                   </p>
                 ) : null}
               </section>
