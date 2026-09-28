@@ -105,7 +105,7 @@ export async function importAll(raw: unknown, mode: 'replace' | 'merge' = 'repla
   } catch (err) {
     try { tx.abort(); } catch { /* 交易已結束（已自動中止） */ }
     await tx.done.catch(() => undefined);
-    throw new Error(`匯入失敗，現有資料未變更：${(err as Error).message}`);
+    throw new Error(`匯入失敗，現有資料未變更：${(err as Error).message}`, { cause: err });
   }
   return counts;
 }
