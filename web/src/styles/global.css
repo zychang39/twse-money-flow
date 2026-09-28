@@ -250,9 +250,10 @@ label.field > span { display: block; font-size: var(--fs-caption); line-height: 
 .chip:disabled { color: var(--text-2); cursor: default; }
 
 /* ---------- 期間選擇器 ---------- */
-.periods { display: flex; justify-content: space-between; gap: var(--s-1); margin-top: var(--s-3); }
+.periods { display: flex; justify-content: space-between; gap: 0; margin-top: var(--s-3); }
+/* v3：個股頁有 8 個期間（1W～ALL）：平均分配整列寬度（375pt 每格約 43pt 寬、44pt 高），不會超出畫面 */
 .periods button {
-  position: relative; min-width: var(--tap); min-height: var(--tap); padding: 0 var(--s-2); border: 0; background: none; cursor: pointer;
+  position: relative; flex: 1 1 0; min-width: 0; min-height: var(--tap); padding: 0 2px; border: 0; background: none; cursor: pointer; white-space: nowrap;
   font-size: var(--fs-caption); font-weight: var(--fw-semibold); color: var(--brand); z-index: 0;
 }
 .periods button::before {

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { gotoStock } from './helpers';
 
 // 第三輪修正（docs/design/ROUND3.md）：M1 新版本提示、M2 法人買賣超報表、M3 大戶／散戶門檻、M4 多空對照、M5 參考連結。
 
@@ -38,7 +39,7 @@ const noHScroll = async (page: import('@playwright/test').Page) => {
 };
 
 test('M2：個股頁有入口；報表一次列出四個法人的區間合計，Tab 切換走勢圖與逐日明細', async ({ page }) => {
-  await page.goto('#/stock/2330');
+  await gotoStock(page, '#/stock/2330');
   await page.getByRole('link', { name: /法人買賣超報表/ }).click();
   await expect(page).toHaveURL(/#\/stock\/2330\/institutional$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^外資近\s60\s日(買超|賣超|買賣超持平)/);
@@ -112,7 +113,7 @@ test('M2：點一列打開當天完整籌碼（含四個法人的買張、賣張
 
 // ---------------------------------------------------------------- M3 籌碼結構（v3：全站統一分級，移除可調門檻）
 test('M3（v3）：個股頁有「15 級完整分布」入口；分級定義固定並顯示在畫面上；沒有可調門檻', async ({ page }) => {
-  await page.goto('#/stock/2330');
+  await gotoStock(page, '#/stock/2330');
   await page.getByRole('link', { name: /15 級完整分布/ }).click();
   await expect(page).toHaveURL(/#\/stock\/2330\/holders$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^千張大戶本週/);
@@ -159,7 +160,7 @@ for (const width of [375, 393]) {
 
 // ---------------------------------------------------------------- M4 多空對照
 test('M4：個股頁的多空區塊有比例條與入口；多空對照並排列出四個面向的多方與空方', async ({ page }) => {
-  await page.goto('#/stock/2330');
+  await gotoStock(page, '#/stock/2330');
   // v3：多空比例條併入「整體狀態如何？」區塊
   const block = page.getByRole('region', { name: /^整體狀態如何？/ });
   await expect(block.getByRole('region', { name: '多空' })).toContainText(/多空條件：多方 \d+ 項、空方 \d+ 項/);
@@ -198,7 +199,7 @@ for (const width of [375, 393]) {
 
 // ---------------------------------------------------------------- M5 研究參考
 test('M5：個股頁列出近一年法說會（含主辦／邀請券商）與研究參考連結；第三方連結清楚標示', async ({ page }) => {
-  await page.goto('#/stock/2330');
+  await gotoStock(page, '#/stock/2330');
   // v3：研究參考併入「最近有什麼事件？」區塊
   const block = page.getByRole('region', { name: '最近有什麼事件？' });
   await expect(block.getByRole('heading', { level: 2 })).toHaveText(/^近一年 \d+ 筆事件、\d+ 場法說會$/);

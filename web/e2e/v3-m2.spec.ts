@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { gotoStock } from './helpers';
 
 // v3 M2（docs/V3_NOTES.md）：每日籌碼表（Apple HIG）、信用與空方拆分、籌碼結構。
 
@@ -6,7 +7,7 @@ test.use({ viewport: { width: 393, height: 852 } });
 
 test.describe('M2-1 每日籌碼表', () => {
   test('沒有每格比例條，表格上方有法人買賣超柱狀圖；同一欄同一種格式；列高約 52pt；區間合計有底色', async ({ page }) => {
-    await page.goto('#/stock/2330');
+    await gotoStock(page, '#/stock/2330');
     const daily = page.locator('section.chip-daily');
     await daily.scrollIntoViewIfNeeded();
     const table = daily.locator('.cd-table');
@@ -51,7 +52,7 @@ test.describe('M2-1 每日籌碼表', () => {
 
 test.describe('M2-2 信用與空方', () => {
   test('散戶信用與空方分成兩張卡；每個數字標明比較基準；價量解讀四種之一或說明不套用', async ({ page }) => {
-    await page.goto('#/stock/2330');
+    await gotoStock(page, '#/stock/2330');
     const block = page.getByRole('region', { name: '融資與空方在做什麼？' });
     await block.scrollIntoViewIfNeeded();
     await expect(block.getByRole('heading', { name: '散戶信用（融資）' })).toBeVisible();
@@ -78,14 +79,14 @@ test.describe('M2-2 信用與空方', () => {
       j.sb[n - 1] = Math.round((j.mb[n - 1] ?? 1000) * 0.35);
       await route.fulfill({ response: res, json: j });
     });
-    await page.goto('#/stock/2330');
+    await gotoStock(page, '#/stock/2330');
     await expect(page.getByTestId('squeeze-note')).toContainText('軋空');
   });
 });
 
 test.describe('M2-3 籌碼結構', () => {
   test('一句話結論、四段堆疊比例條與週變化、分級定義；查看趨勢在底部面板（比例／人數／人均張數）', async ({ page }) => {
-    await page.goto('#/stock/2330');
+    await gotoStock(page, '#/stock/2330');
     const block = page.getByRole('region', { name: '大戶在增加還是減少？' });
     await block.scrollIntoViewIfNeeded();
     await expect(block.getByRole('heading', { level: 2 })).toHaveText(/^千張大戶本週 (\+|−)[\d.]+ 個百分點|^千張大戶本週持平/);

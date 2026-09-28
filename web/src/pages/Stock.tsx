@@ -12,41 +12,59 @@ import { HeroChart, usePeriod } from '../components/HeroChart';
 import { type PagerApi, StockPager } from '../components/StockPager';
 import { ScoreRings, compositeCompleteness, categoryName, scoreText } from '../components/Scores';
 import { ScoreDetailView } from '../components/ScoreDetail';
-import { StockExtras } from '../components/StockExtras';
-import { ChipDaily, ChipStats } from '../components/Chips';
-import { ForeignHolding, MarginCard, ShortCard } from '../components/Credit';
-import { StructureBlock } from '../components/Structure';
 import { creditAnswer, creditSummary } from '../lib/credit';
 import { type HolderBlock, structureSentence } from '../lib/holders';
 import { Sheet } from '../components/Sheet';
 import { NetBars } from '../components/Viz';
 import { IconChevron, IconStar, IconStarFill } from '../components/Icons';
-import { lazy } from '../lazy';
+import { lazy, lazyPick } from '../lazy';
+import type { EventRow } from '../components/StockSections';
+import type { Conference } from '../components/Research';
 import { useAsync, useDb, useStockData } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { addWatch, isWatched, removeWatch } from '../db/db';
 import type { CategoryId } from '../lib/config';
 import type { ChipBlock } from '../lib/chips';
 import { adjClose } from '../lib/history';
-import { LONG_PERIODS, STOCK_PERIODS, WEEKLY_PERIODS, change, periodStart, pick, sliceWindow, weeklyIndices, type Period, type Window } from '../lib/periods';
+import { LONG_PERIODS, STOCK_PERIODS, WEEKLY_PERIODS, change, periodStart, pick, sliceWindow, weeklyIndices, type Period, type Window as ChartWindow } from '../lib/periods';
 import { loadLongHistory } from '../data/api';
 import type { StockHistory } from '../data/types';
 import { SECTION_ORDER, STYLE_DESC, STYLE_NAME, STYLE_PERIOD, type SectionId } from '../lib/style';
 import { useInvestStyle } from '../hooks';
 import { type QuarterRow, type RevenueRow, momentumAnswer, momentumFacts, profitAnswer, profitFacts, revenueAnswer, revenueFacts } from '../lib/fundamentals';
 import { conclusionLine, valuationPhrase } from '../lib/verdict';
-import { EventsList, type EventRow, ForeignTrend, MomentumSection, ProfitSection, RevenueSection, ValuationSection } from '../components/StockSections';
 import { instInsight, type Who } from '../lib/insights';
 import { getListContext } from '../lib/listContext';
 import { commitHero, heroSeen } from '../lib/seen';
 import { fmtNum, fmtPrice } from '../lib/format';
 import { navigate } from '../router';
+import { restorePending } from '../lib/scrollRestore';
 import { PAGE_SOURCES } from '../lib/health';
 import { evaluate, tally, title as bbTitle } from '../lib/bullbear';
 import { BullBearBar } from '../components/BullBearBar';
-import { type Conference, Research } from '../components/Research';
+
+/** 第一次繪製時先畫的區塊數（主角區之下） */
+const FIRST_SECTIONS = 2;
 
 const AdvancedChart = lazy(() => import('../components/AdvancedChart'));
+// 下方區塊的細節元件延後載入：個股頁的 JS 先只包含主角區與區塊標題（一句話結論），縮短 LCP 與 TBT
+const chips = () => import('../components/Chips');
+const credit = () => import('../components/Credit');
+const sections = () => import('../components/StockSections');
+const ChipDaily = lazyPick(chips, 'ChipDaily');
+const ChipStats = lazyPick(chips, 'ChipStats');
+const ForeignHolding = lazyPick(credit, 'ForeignHolding');
+const MarginCard = lazyPick(credit, 'MarginCard');
+const ShortCard = lazyPick(credit, 'ShortCard');
+const StructureBlock = lazyPick(() => import('../components/Structure'), 'StructureBlock');
+const EventsList = lazyPick(sections, 'EventsList');
+const ForeignTrend = lazyPick(sections, 'ForeignTrend');
+const MomentumSection = lazyPick(sections, 'MomentumSection');
+const ProfitSection = lazyPick(sections, 'ProfitSection');
+const RevenueSection = lazyPick(sections, 'RevenueSection');
+const ValuationSection = lazyPick(sections, 'ValuationSection');
+const Research = lazyPick(() => import('../components/Research'), 'Research');
+const StockExtras = lazyPick(() => import('../components/StockExtras'), 'StockExtras');
 
 type SheetKind = { kind: 'score'; id?: CategoryId } | { kind: 'more' } | null;
 
@@ -60,7 +78,7 @@ function lastOf(a: unknown): number | null {
  * 主角走勢的視窗（v3 M5）：期間在個股檔範圍內（約 4.5 年）直接用；5Y／10Y／ALL 超過時載入長歷史股價檔
  * （收盤回補 10 年）；10Y、ALL 改為週線取樣。回傳還原價與原始價（區間報酬切換用，同一組點）。
  */
-function useHeroWindow(code: string, h: StockHistory | null, period: Period): { win: Window | null; raw: Window | null } {
+function useHeroWindow(code: string, h: StockHistory | null, period: Period): { win: ChartWindow | null; raw: ChartWindow | null } {
   const needLong = !!h && LONG_PERIODS.includes(period) && (period === 'ALL' || periodStart(h.d, period).truncated);
   const long = useAsync(() => (needLong ? loadLongHistory(code) : Promise.resolve(null)), [code, needLong]);
   return useMemo(() => {
@@ -125,6 +143,20 @@ export default function Stock({ code }: { code: string }) {
   const [who, setWho] = useState<Who>('foreign');
   const [seen, setSeen] = useState<number | null | undefined>(undefined);
   const pagerRef = useRef<PagerApi>(null);
+  // 首次繪製只畫前兩個區塊；其餘在捲動接近時（哨兵進入下一個畫面高度內）一次補一個，降低個股頁的主執行緒阻塞（TBT）。
+  // 返回時要還原捲動位置（restorePending）則直接畫出全部，頁面高度才夠。
+  const [shown, setShown] = useState(FIRST_SECTIONS);
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => { setShown(restorePending() ? SECTION_ORDER.swing.length : FIRST_SECTIONS); }, [code]);
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!hist.data || !el || shown >= SECTION_ORDER.swing.length) return;
+    if (restorePending()) { setShown(SECTION_ORDER.swing.length); return; }
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setShown((n) => n + 1); }, { rootMargin: '0px 0px 100% 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [code, !!hist.data, shown]);
+  const allSections = shown >= SECTION_ORDER.swing.length;
   // 下方內容只在「換股之後」淡入；第一次開啟直接顯示（淡入會延後最大內容繪製 LCP）
   const firstCode = useRef(code);
   const row = summary.data?.byCode.get(code);
@@ -314,7 +346,8 @@ export default function Stock({ code }: { code: string }) {
         /* 換股後下方內容整段換成新的一檔（淡入）；頂列與主角區不重新載入 */
         <div key={code} class={`stock-lower ${code !== firstCode.current ? 'fade-in' : ''}`} data-style={style}>
           <DataStatus date={h.d[h.d.length - 1]} uses={PAGE_SOURCES.stock} />
-          {SECTION_ORDER[style].map((id) => <Fragment key={id}>{sections[id]()}</Fragment>)}
+          {SECTION_ORDER[style].slice(0, shown).map((id) => <Fragment key={id}>{sections[id]()}</Fragment>)}
+          {!allSections ? <div ref={sentinel} class="skeleton sections-placeholder" aria-hidden="true" /> : null}
           <p class="caption muted style-note" data-testid="style-note">
             區塊順序依投資風格「{STYLE_NAME[style]}」排列（{STYLE_DESC[style]}），可在 <a href="#/me/settings">設定</a> 變更。
           </p>

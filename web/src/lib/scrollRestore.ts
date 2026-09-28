@@ -167,6 +167,11 @@ export function restoreScroll(y: number, timeout = RESTORE_TIMEOUT): () => void 
   return stop;
 }
 
+/** 是否正在等待還原捲動位置（頁面應盡快畫出全部內容，高度才夠） */
+export function restorePending(): boolean {
+  return cancelRestore !== null;
+}
+
 let installed = false;
 
 /** 安裝：手動還原＋捲動時記錄位置（節流到每個畫格一次）。 */

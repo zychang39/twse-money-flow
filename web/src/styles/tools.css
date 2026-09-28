@@ -155,3 +155,4 @@
 .sx-ev-date { flex: none; }
 .style-note { margin-top: var(--s-6); }
 .sx-bb { margin-top: var(--s-4); }
+.sections-placeholder { min-height: 60vh; margin-top: var(--s-6); border-radius: var(--r-card); }

@@ -1,9 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
+import { gotoStock } from './helpers';
 
 // 個股籌碼：區間統計卡、每日籌碼（預設展開、一排控制列、三種檢視、不需左右滑動、底部面板、收合偏好、卡片版面、⋯ 選單）、法人柱狀圖。
 
 test('區間統計：天數切換後結論與數字跟著變，且只用規則式的中性字眼', async ({ page }) => {
-  await page.goto('#/stock/2330');
+  await gotoStock(page, '#/stock/2330');
   const card = page.getByLabel('籌碼區間統計');
   await expect(card).toBeVisible({ timeout: 15_000 });
   const sentence = card.getByTestId('chip-sentence');
@@ -25,7 +26,7 @@ const table = (page: Page) => daily(page).locator('.cd-wrap, .cd-cards').first()
 for (const width of [375, 393]) {
   test(`每日籌碼：${width}pt 寬度預設展開、表格不需要左右滑動（三種檢視、三種單位、四種期間）`, async ({ page }) => {
     await page.setViewportSize({ width, height: 852 });
-    await page.goto('#/stock/2330');
+    await gotoStock(page, '#/stock/2330');
     const toggle = daily(page).getByRole('button', { name: '每日籌碼' });
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     await expect(table(page)).toHaveAttribute('data-mode', 'table');
@@ -54,7 +55,7 @@ for (const width of [375, 393]) {
 
 test('每日籌碼：一排控制列；法人檢視固定 4 欄＋日期，收盤與漲跌在日期下方；區間合計在最上方、連買天數在標題下方', async ({ page }) => {
   await page.setViewportSize({ width: 393, height: 852 });
-  await page.goto('#/stock/2330');
+  await gotoStock(page, '#/stock/2330');
   const periods = page.getByRole('group', { name: '明細期間' });
   const unit = page.getByRole('combobox', { name: '單位' });
   const pb = (await periods.boundingBox())!;
@@ -96,7 +97,7 @@ test('每日籌碼：一排控制列；法人檢視固定 4 欄＋日期，收�
 
 test('每日籌碼：數字 ≥ 10,000 縮寫為「萬」；正負同時用紅綠與 ▲▼；每列至少 44pt；VoiceOver 唸完整句子', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 852 });
-  await page.goto('#/stock/2330');
+  await gotoStock(page, '#/stock/2330');
   await page.getByRole('group', { name: '明細期間' }).getByRole('button', { name: '60 日' }).click();
   const region = page.getByRole('region', { name: /每日籌碼明細/ });
   const texts = await region.locator('tbody td .cd-t').allInnerTexts();
@@ -114,7 +115,7 @@ test('每日籌碼：數字 ≥ 10,000 縮寫為「萬」；正負同時用紅�
 test('每日籌碼：點一列從底部拉出當天完整資料（含自營商避險、成交量、官方來源、複製這天資料）', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.setViewportSize({ width: 393, height: 852 });
-  await page.goto('#/stock/2330');
+  await gotoStock(page, '#/stock/2330');
   await page.getByRole('region', { name: /每日籌碼明細/ }).locator('tbody tr.day').first().click();
   const sheet = page.getByRole('dialog', { name: /月 \d+ 日（.）籌碼/ });
   await expect(sheet).toBeVisible();
@@ -131,7 +132,7 @@ test('每日籌碼：點一列從底部拉出當天完整資料（含自營商�
 });
 
 test('每日籌碼：收合後記住偏好（IndexedDB）', async ({ page }) => {
-  await page.goto('#/stock/2330');
+  await gotoStock(page, '#/stock/2330');
   const toggle = daily(page).getByRole('button', { name: '每日籌碼' });
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await toggle.click();
@@ -152,7 +153,7 @@ test('每日籌碼：收合後記住偏好（IndexedDB）', async ({ page }) => 
 test('每日籌碼：放大字級（約 Dynamic Type +2）時寬度不夠自動改為卡片（2×2）', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 852 });
   await page.addInitScript(() => document.addEventListener('DOMContentLoaded', () => { document.documentElement.style.fontSize = '125%'; }));
-  await page.goto('#/stock/2330');
+  await gotoStock(page, '#/stock/2330');
   const cards = daily(page).locator('.cd-cards');
   await expect(cards).toHaveAttribute('data-mode', 'cards');
   const first = cards.locator('li.cd-card.day').first();
@@ -169,7 +170,7 @@ test('每日籌碼：放大字級（約 Dynamic Type +2）時寬度不夠自動�
 
 test('每日籌碼：橫向寬度同時顯示全部欄位，不需要切換檢視', async ({ page }) => {
   await page.setViewportSize({ width: 852, height: 393 });
-  await page.goto('#/stock/2330');
+  await gotoStock(page, '#/stock/2330');
   const region = page.getByRole('region', { name: '每日籌碼明細・全部欄位' });
   await expect(region).toHaveAttribute('data-mode', 'all');
   await expect(page.getByRole('group', { name: '檢視' })).toHaveCount(0);
@@ -182,7 +183,7 @@ test('每日籌碼：橫向寬度同時顯示全部欄位，不需要切換檢�
 
 test('每日籌碼：「⋯」選單的複製為 CSV（標題帶單位、含區間合計）', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  await page.goto('#/stock/2330');
+  await gotoStock(page, '#/stock/2330');
   await page.getByRole('group', { name: '明細期間' }).getByRole('button', { name: '5 日' }).click();
   await daily(page).getByRole('button', { name: '更多動作' }).click();
   await page.getByRole('menuitem', { name: '複製為 CSV' }).click();
@@ -203,7 +204,7 @@ test('單位名稱沒有「估成交量」錯字（全站）', async ({ page }) 
 });
 
 test('法人柱狀圖：座標軸帶單位（張），拖曳或 hover 時顯示日期、數值與單位；圖例說明紅綠', async ({ page }) => {
-  await page.goto('#/stock/2330');
+  await gotoStock(page, '#/stock/2330');
   const fig = page.locator('figure.netbars').first();
   await expect(fig).toBeVisible({ timeout: 15_000 });
   await expect(fig.locator('.nb-axes')).toContainText(/張/);
@@ -223,7 +224,7 @@ test('法人柱狀圖：座標軸帶單位（張），拖曳或 hover 時顯示�
 });
 
 test('明確不做的分點資料在明細下方說明原因', async ({ page }) => {
-  await page.goto('#/stock/2330');
+  await gotoStock(page, '#/stock/2330');
   await expect(page.getByText(/分點券商前 15 名、主力動向與籌碼集中度需要分點進出資料，官方查詢頁有驗證碼/)).toBeVisible();
   await expect(page.getByText(/八大行庫/)).toHaveCount(0);
 });
