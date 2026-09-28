@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { loadState, registerState } from './lib/scrollRestore';
 import { loadStock, peekStock } from './data/api';
 import type { StockHistory } from './data/types';
 import { subscribe } from './db/db';
@@ -81,4 +82,20 @@ export function useStockData(code: string): { data: StockHistory | null; error: 
   }, [code]);
   const error = err && err.code === code ? err.error : null;
   return { data: cached, error, loading: !cached && !error };
+}
+
+/**
+ * 與歷史紀錄綁定的元件狀態（分段控制、篩選、展開）：從個股頁返回清單時還原（見 lib/scrollRestore.ts）。
+ * name 在同一頁內需唯一；值需可 JSON 序列化。
+ */
+export function useRestoredState<T>(name: string, initial: T | (() => T)): [T, (v: T) => void] {
+  const [v, setV] = useState<T>(() => {
+    const saved = loadState<T>(name);
+    if (saved !== undefined) return saved;
+    return typeof initial === 'function' ? (initial as () => T)() : initial;
+  });
+  const ref = useRef(v);
+  ref.current = v;
+  useEffect(() => registerState(name, () => ref.current), [name]);
+  return [v, setV];
 }

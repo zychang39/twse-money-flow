@@ -5,6 +5,9 @@ export const PERIODS: Period[] = ['1D', '1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
 /** 今晚頁：只有盤後日資料，1D 只是兩點直線，期間選擇器從 1W 開始；預設 3M。 */
 export const TONIGHT_PERIODS: Period[] = ['1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
 export const TONIGHT_DEFAULT_PERIOD: Period = '3M';
+/** 個股頁：同樣只有日資料，移除 1D；預設 1Y（v3）。 */
+export const STOCK_PERIODS: Period[] = ['1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
+export const STOCK_DEFAULT_PERIOD: Period = '1Y';
 export const PERIOD_LABEL: Record<Period, string> = {
   '1D': '今日',
   '1W': '近 1 週',
@@ -65,7 +68,7 @@ export function fillForward(values: (number | null | undefined)[]): number[] | n
 
 export function sliceWindow(dates: string[], values: (number | null)[], p: Period): Window | null {
   const filled = fillForward(values);
-  if (!filled || dates.length < 2) return null;
+  if (!filled || !dates.length) return null;
   const { start, truncated } = periodStart(dates, p);
   return { dates: dates.slice(start), values: filled.slice(start), truncated };
 }

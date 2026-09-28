@@ -6,22 +6,25 @@
  * 線的顏色＝所選期間的漲跌（紅漲綠跌），與頁首環境光一致（由頁面以同一個 window 計算）。
  * heroChange='daily'（今晚頁）：主角數字下方固定顯示「今日」漲跌（拖曳時為該日漲跌），
  *   期間選擇器只改變走勢圖，區間漲跌標示在圖表上方（chart-range）。
+ * heroChange='both'（個股頁）：主角數字下方兩行：「今日漲跌」與「所選期間漲跌」（拖曳時為該日漲跌、期間起點到該日）。
+ * 只有 1 個資料點：畫單點標記，說明「資料累積中：目前只有 1 個交易日…」。
  */
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { PERIODS, PERIOD_LABEL, change, type Dir, type Period, type Window } from '../lib/periods';
 import { areaD, extent, lerpPts, nearestIndex, pathD, points, resample, springEase, yOf, type Frame } from '../lib/chartMath';
 import { arrow, fmtNum } from '../lib/format';
+import { coverage, coverageNote } from '../lib/series';
 
 const N = 160;
 const reduceMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-export function usePeriod(id: string, fallback: Period = '3M'): [Period, (p: Period) => void] {
+export function usePeriod(id: string, fallback: Period = '3M', allowed: Period[] = PERIODS): [Period, (p: Period) => void] {
   const key = `period:${id}`;
   const [p, setP] = useState<Period>(() => {
     try {
       const v = localStorage.getItem(key) as Period | null;
-      return v && PERIODS.includes(v) ? v : fallback;
+      return v && allowed.includes(v) ? v : fallback;
     } catch { return fallback; }
   });
   return [p, (v: Period) => { setP(v); try { localStorage.setItem(key, v); } catch { /* 無痕模式 */ } }];
@@ -96,7 +99,7 @@ export function HeroChart({
   /** 期間選擇器的選項（今晚頁從 1W 開始：只有盤後日資料，1D 沒有意義） */
   periods?: Period[];
   /** 主角數字下方顯示：period＝所選期間漲跌（預設）；daily＝今日（拖曳時為該日）漲跌 */
-  heroChange?: 'period' | 'daily';
+  heroChange?: 'period' | 'daily' | 'both';
   /**
    * 觸控時要先按住（約 0.2 秒）才開始查價：放在可左右滑動換股的區域時使用，
    * 讓快速的左右滑動交給換股、按住再拖曳才是查價（滑鼠不受影響）。
@@ -124,7 +127,7 @@ export function HeroChart({
 
   const frame: Frame = { w, h: height, padX: 12, padY: 14 };
   const geo = useMemo(() => {
-    if (!win || win.values.length < 2) return null;
+    if (!win || !win.values.length) return null;
     const range = extent(win.values, win.values[0]);
     const pts = points(win.values, frame, range);
     return { range, pts, baseY: yOf(win.values[0], frame, range) };
@@ -168,8 +171,11 @@ export function HeroChart({
   const at = scrub ?? last;
   const latest = win ? win.values[last] : null;
   const daily = heroChange === 'daily';
+  const both = heroChange === 'both';
   // daily：與前一個交易日比較（視窗第一點是區間基準，沒有前一日可比）
-  const chg = !win ? null : daily ? (at >= 1 ? change(win.values.slice(at - 1, at + 1)) : null) : change(win.values, at);
+  const dayChg = win && at >= 1 ? change(win.values.slice(at - 1, at + 1)) : null;
+  const chg = !win ? null : daily || both ? dayChg : change(win.values, at);
+  const periodChg = win && both && win.values.length >= 2 ? change(win.values, at) : null;
   const range = win ? change(win.values) : null;
   const dir: Dir = win ? change(win.values).dir : 'flat';
   const color = dirColor(dir);
@@ -265,13 +271,26 @@ export function HeroChart({
               <span aria-hidden="true">{arrow(chg.abs)} {fd(Math.abs(chg.abs))}（{chg.pct === null ? '—' : `${Math.abs(chg.pct).toFixed(2)}%`}）</span>
               <span class="sr-only">{chg.dir === 'up' ? '上漲' : chg.dir === 'down' ? '下跌' : '持平'} {fd(Math.abs(chg.abs))}</span>
             </span>
-            <span class="caption">{scrub !== null ? dateLabel(win.dates[scrub]) : daily ? '今日' : PERIOD_LABEL[period]}</span>
+            <span class="caption">{scrub !== null ? dateLabel(win.dates[scrub]) : daily || both ? '今日' : PERIOD_LABEL[period]}</span>
             {scrub === null && seenDelta !== null ? (
               <span class="delta-tag" aria-label={`較上次查看${seenDelta > 0 ? '增加' : '減少'} ${fd(Math.abs(seenDelta))}`}>較上次查看 {arrow(seenDelta)} {fd(Math.abs(seenDelta))}</span>
             ) : null}
           </>
-        ) : win && daily ? <span class="caption">{dateLabel(win.dates[at])}</span> : <span class="caption">{emptyText}</span>}
+        ) : win && (daily || both) ? <span class="caption">{dateLabel(win.dates[at])}</span> : <span class="caption">{emptyText}</span>}
       </div>
+      {both && win ? (
+        <div class="hero-change second" data-testid="hero-period-change">
+          {periodChg ? (
+            <>
+              <span class={periodChg.dir}>
+                <span aria-hidden="true">{arrow(periodChg.abs)} {fd(Math.abs(periodChg.abs))}（{periodChg.pct === null ? '—' : `${Math.abs(periodChg.pct).toFixed(2)}%`}）</span>
+                <span class="sr-only">{PERIOD_LABEL[period]}{periodChg.dir === 'up' ? '上漲' : periodChg.dir === 'down' ? '下跌' : '持平'} {fd(Math.abs(periodChg.abs))}</span>
+              </span>
+              <span class="caption">{PERIOD_LABEL[period]}{scrub !== null ? `至 ${Number(win.dates[scrub].slice(5, 7))}/${Number(win.dates[scrub].slice(8, 10))}` : ''}</span>
+            </>
+          ) : <span class="caption">{PERIOD_LABEL[period]}：資料不足</span>}
+        </div>
+      ) : null}
       {daily && range && win ? (
         <div class="chart-range">
           <span>{PERIOD_LABEL[period]}</span>
@@ -314,7 +333,7 @@ export function HeroChart({
         ) : <div class="chart-empty" style={{ height: '100%' }}>{emptyText}</div>}
       </div>
       {caption || win?.truncated ? (
-        <div class="chart-caption">{win?.truncated ? `資料自 ${win.dates[0]} 起，未滿所選期間。` : ''}{caption}</div>
+        <div class="chart-caption" data-testid="hero-coverage">{win?.truncated ? `${coverageNote({ ...coverage(win.dates, Infinity) }, '個交易日', false)}。` : ''}{caption}</div>
       ) : null}
       <PeriodSelector value={period} onChange={onPeriod} label={periodsLabel ?? '走勢期間'} periods={periods} />
     </div>

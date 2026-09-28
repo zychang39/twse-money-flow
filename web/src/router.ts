@@ -1,6 +1,7 @@
 /** 簡易 hash 路由（GitHub Pages 友善）：#/stock/2330?list=holdings。舊網址自動轉址到新資訊架構。 */
 import { useEffect, useState } from 'preact/hooks';
 import { isTabSwitch } from './lib/tabs';
+import { enterEntry, entryIndex, installScrollRestore, restoreScroll, snapshot } from './lib/scrollRestore';
 
 export interface Route {
   path: string;
@@ -50,9 +51,18 @@ let lastPath = typeof location === 'undefined' ? '/' : parseHash(location.hash).
 /** none：不做整頁轉場、也不捲回頂端（個股頁左右滑動換股時，主角區已經自己滑過去了） */
 type NavDir = 'push' | 'pop' | 'none';
 let pendingDir: NavDir | null = null;
+let pendingReplace = false;
+
+/** 目前這筆歷史紀錄的識別（路由＋查詢字串）；捲動位置與元件狀態以此加上 history key 儲存。 */
+const entryPath = () => location.hash.replace(/^#/, '') || '/';
 
 export function useRoute(): Route {
-  const [route, setRoute] = useState(() => parseHash(location.hash));
+  const [route, setRoute] = useState(() => {
+    installScrollRestore();
+    const saved = enterEntry(entryPath());
+    if (saved !== null) restoreScroll(saved); // 重新整理後還原
+    return parseHash(location.hash);
+  });
   useEffect(() => {
     const on = () => {
       const next = parseHash(location.hash);
@@ -63,12 +73,17 @@ export function useRoute(): Route {
       }
       const dir = pendingDir ?? (depth(next.path) > depth(lastPath) ? 'push' : depth(next.path) < depth(lastPath) ? 'pop' : 'swap');
       pendingDir = null;
+      // 離開前記下上一筆紀錄的捲動位置與元件狀態，再進入新的紀錄（返回時 saved 為當時的位置）
+      snapshot();
+      const saved = enterEntry(entryPath(), pendingReplace);
+      pendingReplace = false;
       // 切換分頁（例：今晚 → 搜尋）：內容直接替換，只有底部導覽的選取膠囊滑過去（Instagram 的做法）
       const tabSwitch = isTabSwitch(lastPath, next.path);
       lastPath = next.path;
       const apply = () => {
         setRoute(next);
-        if (dir !== 'none') window.scrollTo(0, 0);
+        if (saved !== null) restoreScroll(saved);
+        else if (dir !== 'none') window.scrollTo(0, 0);
       };
       const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
       const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -88,9 +103,20 @@ export function useRoute(): Route {
 
 export function navigate(path: string, replace = false, dir?: NavDir): void {
   const h = path.startsWith('#') ? path : `#${path}`;
+  if (location.hash === h) return; // 同一個網址不會觸發 hashchange
   pendingDir = dir ?? null;
+  pendingReplace = replace;
   if (replace) location.replace(h);
   else location.hash = h;
+}
+
+/**
+ * 左上角返回：App 內有上一筆紀錄時用 history.back()（與螢幕左緣右滑相同，會還原捲動位置與狀態）；
+ * 直接開啟的網址沒有上一筆，改為前往 fallback（取代目前紀錄）。
+ */
+export function goBack(fallback: string): void {
+  if (entryIndex() > 0) history.back();
+  else navigate(fallback, true, 'pop');
 }
 
 export const href = (path: string) => `#${path}`;

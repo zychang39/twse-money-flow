@@ -25,7 +25,7 @@ import { addWatch, isWatched, removeWatch } from '../db/db';
 import type { CategoryId } from '../lib/config';
 import type { ChipBlock } from '../lib/chips';
 import { adjClose } from '../lib/history';
-import { change, sliceWindow, type Period } from '../lib/periods';
+import { STOCK_DEFAULT_PERIOD, STOCK_PERIODS, change, sliceWindow, type Period } from '../lib/periods';
 import { instInsight, type Who } from '../lib/insights';
 import { getListContext } from '../lib/listContext';
 import { commitHero, heroSeen } from '../lib/seen';
@@ -74,7 +74,8 @@ function StockHero({ code, fallbackName, fallbackIndustry, period, onPeriod, see
         <div style={{ marginTop: 'var(--s-2)' }}>
           {advanced ? <AdvancedChart h={h} /> : (
             <HeroChart label="收盤價（還原）" win={win} period={period} onPeriod={onPeriod} seen={seen}
-              format={(v) => fmtPrice(v)} formatDelta={(v) => fmtNum(v, v >= 100 ? 1 : 2)} area height={200} periodsLabel="股價走勢期間" holdToScrub={holdToScrub} />
+              format={(v) => fmtPrice(v)} formatDelta={(v) => fmtNum(v, v >= 100 ? 1 : 2)} area height={200} periodsLabel="股價走勢期間" holdToScrub={holdToScrub}
+              periods={STOCK_PERIODS} heroChange="both" />
           )}
         </div>
       ) : error ? null : <Loading hero />}
@@ -86,7 +87,8 @@ export default function Stock({ code }: { code: string }) {
   const hist = useStockData(code);
   const summary = useScoredSummary();
   const watched = useDb(() => isWatched(code), [code]);
-  const [period, setPeriod] = usePeriod('stock');
+  // v3：鍵名改為 stock-v3，讓預設 1Y 對既有使用者也生效（舊鍵可能存 1D）
+  const [period, setPeriod] = usePeriod('stock-v3', STOCK_DEFAULT_PERIOD, STOCK_PERIODS);
   const [advanced, setAdvanced] = useState(false);
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [who, setWho] = useState<Who>('foreign');
@@ -199,7 +201,7 @@ export default function Stock({ code }: { code: string }) {
             ) : null}
             <div class="list">
               <a class="list-item brand" href={`#/stock/${code}/institutional`}>
-                <span class="grow">法人買賣超報表<span class="caption muted tool-sub">近 3 個月逐日買張、賣張・外資／投信／自營商／三大法人／八大行庫</span></span>
+                <span class="grow">法人買賣超報表<span class="caption muted tool-sub">近 3 個月逐日買張、賣張・外資／投信／自營商／三大法人</span></span>
                 <span class="chev"><IconChevron /></span>
               </a>
             </div>

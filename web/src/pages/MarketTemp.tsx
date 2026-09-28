@@ -1,11 +1,11 @@
 /** 市場溫度：資金環境 5 項指標、市場溫度（反向參考）、三大法人金額走勢、全市場法人買超。 */
-import { useMemo, useState } from 'preact/hooks';
+import { useMemo } from 'preact/hooks';
 import { PageHead, TopBar } from '../components/Chrome';
 import { DataStatus, ErrorState, Loading } from '../components/DataStatus';
 import { EnvDetail, FlowsRow } from '../components/Market';
 import { NetBars } from '../components/Viz';
 import { StockListRow } from '../components/StockRow';
-import { useAsync } from '../hooks';
+import { useAsync, useRestoredState } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { loadMarket } from '../data/api';
 import { envInfo } from '../lib/envState';
@@ -22,7 +22,7 @@ export default function MarketTemp() {
   const top = useMemo(() => (summary.data ? [...summary.data.rows].filter((r) => (r.value_million ?? 0) > 50)
     .sort((a, b) => ((b.foreign_net_lots ?? 0) + (b.trust_net_lots ?? 0)) * (b.close ?? 0) - ((a.foreign_net_lots ?? 0) + (a.trust_net_lots ?? 0)) * (a.close ?? 0)).slice(0, 10) : []), [summary.data]);
   const flows = m?.flows ?? [];
-  const [who, setWho] = useState<'all' | 'foreign' | 'trust' | 'dealer'>('all');
+  const [who, setWho] = useRestoredState<'all' | 'foreign' | 'trust' | 'dealer'>('market.who', 'all');
   const WHO: Record<typeof who, string> = { all: '三大法人合計', foreign: '外資', trust: '投信', dealer: '自營商' };
   const series = flows.slice(-60).map((f) => (who === 'all' ? (f.foreign ?? 0) + (f.trust ?? 0) + (f.dealer ?? 0) : f[who]));
   return (

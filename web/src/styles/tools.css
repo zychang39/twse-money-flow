@@ -20,6 +20,9 @@
 .sc-line.dashed { stroke: var(--text-2); stroke-dasharray: 5 4; }
 .sc-line.faint { stroke: var(--text-3); stroke-width: 1.5; }
 .sc-legend-text { fill: var(--text-2); font-size: var(--fs-micro); font-weight: var(--fw-medium); }
+.sc-point { stroke: none; }
+.sc-point.solid { fill: var(--text-1); }
+.sc-point.dashed, .sc-point.faint { fill: var(--text-2); }
 .sc-dot { fill: var(--surface-1); stroke: var(--text-1); stroke-width: 2; }
 .sc-cross { stroke: var(--text-2); stroke-width: 1; stroke-dasharray: 2 3; }
 .sc-tip {
@@ -59,7 +62,6 @@
 .ir-sum tbody tr.on .ir-rowbtn { font-weight: var(--fw-semibold); }
 .ir-note { margin-top: var(--s-2); text-wrap: pretty; }
 .ir-h2 { margin-top: var(--s-8); }
-.ir-h3 { margin-top: var(--s-6); display: block; }
 .ir-table-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); }
 .ir-wrap { margin-top: var(--s-2); }
 .ir-table .ir-col-date { width: 5rem; }
@@ -71,14 +73,6 @@
 .ir-day { margin-top: 0; }
 .ir-day tbody tr { cursor: default; }
 .ir-day th:first-child { padding-left: 0; }
-.ir-banks { margin-top: var(--s-4); }
-.ir-planned tbody th, .ir-planned tbody td { color: var(--text-2); }
-.ir-planned th:first-child { width: 4rem; }
-.ir-links { margin-top: var(--s-2); padding: 0; }
-.ir-links li { list-style: none; }
-.ir-links li + li { box-shadow: inset 0 0.5px 0 var(--surface-row); }
-.ir-links .list-item { color: var(--brand); }
-.ir-link-sub { display: block; color: var(--text-2); }
 
 /* ---------- 大戶與散戶持股 ---------- */
 .hd-card { padding-bottom: var(--s-3); }

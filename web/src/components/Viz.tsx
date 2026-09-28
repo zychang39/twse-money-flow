@@ -10,7 +10,9 @@ import { IconCheck } from './Icons';
  */
 export function Sparkline({ values, dir, w = 64, h = 32 }: { values: (number | null)[] | null | undefined; dir: 'up' | 'down' | 'flat'; w?: number; h?: number }) {
   const v = values ? fillForward(values) : null;
-  if (!v || v.length < 2) return <svg width={w} height={h} aria-hidden="true" />;
+  if (!v || !v.length) return <svg width={w} height={h} aria-hidden="true" />;
+  // 只有 1 點：畫單點標記（右端），不畫線
+  if (v.length === 1) return <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true"><circle cx={w - 3} cy={h / 2} r={2.5} fill="var(--text-2)" /></svg>;
   const base = v[v.length - 2];
   const f = { w, h, padX: 2, padY: 3 };
   const range = extent(v, base);

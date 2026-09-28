@@ -8,6 +8,7 @@ import Tonight from './pages/Tonight';
 import Placeholder from './pages/Placeholder';
 import { getSetting, subscribe } from './db/db';
 import { BackupReminder } from './components/BackupReminder';
+import { applyTheme } from './lib/theme';
 
 const Mine = lazy(() => import('./pages/Mine'));
 const Stock = lazy(() => import('./pages/Stock'));
@@ -102,19 +103,14 @@ function UpdateToast() {
   );
 }
 
-/** 外觀（淺／深／跟隨系統）與環境光開關：寫在 <html> 的 data-theme、data-ambient；狀態列顏色跟著背景。 */
+/**
+ * 外觀：深淺色存在 localStorage（lib/theme.ts，index.html 在第一次繪製前已套用）；
+ * 環境光開關存在 IndexedDB，寫在 <html> 的 data-ambient。
+ */
 export async function applyAppearance(): Promise<void> {
-  const theme = await getSetting<string>('theme', 'auto');
+  applyTheme();
   const ambient = await getSetting<boolean>('ambient', true);
-  const root = document.documentElement;
-  if (theme === 'auto') root.removeAttribute('data-theme');
-  else root.setAttribute('data-theme', theme);
-  root.dataset.ambient = ambient ? 'on' : 'off';
-  const bg = getComputedStyle(root).getPropertyValue('--status-bar').trim() || '#000000';
-  document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((m) => {
-    if (theme === 'auto') m.content = m.media.includes('dark') ? '#000000' : '#f4f4f6';
-    else m.content = bg;
-  });
+  document.documentElement.dataset.ambient = ambient ? 'on' : 'off';
 }
 
 export function App() {

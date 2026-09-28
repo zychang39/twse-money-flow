@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'preact/hooks';
+import { useMemo } from 'preact/hooks';
 import { PageHead, TopBar } from '../components/Chrome';
 import { DataStatus, ErrorState, Loading } from '../components/DataStatus';
-import { useAsync, useDb } from '../hooks';
+import { useAsync, useDb, useRestoredState } from '../hooks';
 import { loadJson } from '../data/api';
 import { listTrades, listWatch } from '../db/db';
 import { PAGE_SOURCES } from '../lib/health';
@@ -15,7 +15,7 @@ export function filterEvents(events: CalEvent[], mine: Set<string>, all: boolean
 export default function CalendarPage() {
   const cal = useAsync(() => loadJson<{ date: string; events: CalEvent[] }>('calendar.json'), []);
   const mine = useDb(async () => new Set([...(await listWatch()).map((w) => w.code), ...(await listTrades()).filter((t) => t.status === 'open').map((t) => t.code)]));
-  const [all, setAll] = useState(false);
+  const [all, setAll] = useRestoredState('calendar.all', false);
   const events = useMemo(() => (cal.data && mine ? filterEvents(cal.data.events, mine, all) : []), [cal.data, mine, all]);
   const byDate = new Map<string, CalEvent[]>();
   events.forEach((e) => byDate.set(e.date, [...(byDate.get(e.date) ?? []), e]));

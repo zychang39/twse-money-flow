@@ -467,7 +467,7 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
           </details>
         </div>
       ) : null}
-      <p class="caption muted cd-foot">八大行庫、分點券商前 15 名、主力動向與籌碼集中度需要分點進出資料，官方查詢頁有驗證碼，因此不提供。</p>
+      <p class="caption muted cd-foot">分點券商前 15 名、主力動向與籌碼集中度需要分點進出資料，官方查詢頁有驗證碼，因此不提供。</p>
 
       <DaySheet day={day} onClose={() => setDay(null)} unit={unit} market={market} onCopy={(r) => copy(dayText(r, unit, { code, name }), `已複製 ${spokenDate(r.date)}的資料`)} />
     </section>

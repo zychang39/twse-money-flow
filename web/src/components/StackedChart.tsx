@@ -5,9 +5,11 @@
  * - 座標軸刻度取整（1、2、2.5、5 × 10ⁿ）；柱狀圖上下對稱、以 0 為中線。
  * - 互動：手指拖曳、滑鼠移動或左右方向鍵移動十字線，上方提示框列出該日所有面板的數值；Esc／移開恢復。
  * - 無障礙：整張圖是一個可聚焦的 role=img，說明文字含期間與各面板名稱；逐日數值請看下方的表格。
+ * - 資料不足：前後都缺值的孤立點（含整張只有 1 點）畫成單點標記，只有 1 點時在下方標出日期；說明文字由頁面提供。
  */
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { niceScale } from '../lib/scale';
+import { segments } from '../lib/series';
 
 export interface ChartSeries {
   key: string;
@@ -91,7 +93,7 @@ export function StackedChart({ dates, panels, label }: { dates: string[]; panels
   return (
     <figure class="stacked">
       <div ref={wrapRef} class="stacked-plot" tabIndex={0} role="img"
-        aria-label={`${label}：${dates[0]} 到 ${dates[n - 1]}，共 ${n} 個交易日；面板：${panels.map((p) => p.title).join('、')}。可用左右方向鍵逐日查看，逐日數值見下方表格。`}
+        aria-label={`${label}：${dates[0]} 到 ${dates[n - 1]}，共 ${n} 個資料點；面板：${panels.map((p) => p.title).join('、')}。可用左右方向鍵逐日查看，逐日數值見下方表格。`}
         onPointerDown={onPointer} onPointerMove={onPointer} onPointerLeave={() => setHover(null)} onPointerCancel={() => setHover(null)}
         onKeyDown={onKey} onBlur={() => setHover(null)}>
         <svg width={w} height={totalH} viewBox={`0 0 ${w} ${totalH}`} aria-hidden="true">
@@ -131,14 +133,14 @@ export function StackedChart({ dates, panels, label }: { dates: string[]; panels
                   return <rect key={i} class={v > 0 ? 'sc-up' : 'sc-down'} x={xOf(i) - bw / 2} y={Math.min(y0, y1)} width={bw} height={Math.max(1, Math.abs(y1 - y0))} rx={Math.min(2, bw / 2)}
                     opacity={hover === null || hover === i ? 1 : 0.45} />;
                 }) : p.series.map((s) => {
-                  let d = '';
-                  let pen = false;
-                  s.values.forEach((v, i) => {
-                    if (v === null || !Number.isFinite(v)) { pen = false; return; }
-                    d += `${pen ? 'L' : 'M'}${xOf(i).toFixed(1)},${yOf(v).toFixed(1)}`;
-                    pen = true;
-                  });
-                  return <path key={s.key} class={`sc-line ${s.style ?? 'solid'}`} d={d} />;
+                  const seg = segments(s.values);
+                  const d = seg.runs.map((run) => run.map((i, k) => `${k ? 'L' : 'M'}${xOf(i).toFixed(1)},${yOf(s.values[i]!).toFixed(1)}`).join('')).join('');
+                  return (
+                    <g key={s.key}>
+                      {d ? <path class={`sc-line ${s.style ?? 'solid'}`} d={d} /> : null}
+                      {seg.singles.map((i) => <circle key={i} class={`sc-point ${s.style ?? 'solid'}`} cx={xOf(i)} cy={yOf(s.values[i]!)} r={3.5} data-testid="sc-point" />)}
+                    </g>
+                  );
                 })}
                 {hover !== null && p.kind === 'lines'
                   ? p.series.map((s) => s.values[hover]).filter((v): v is number => v !== null && Number.isFinite(v))
@@ -149,6 +151,7 @@ export function StackedChart({ dates, panels, label }: { dates: string[]; panels
           })}
           {hover !== null ? <line class="sc-cross" x1={xOf(hover)} x2={xOf(hover)} y1={tops[0] - 4} y2={y} /> : null}
           {months.map((t) => <text key={t.i} class="sc-tick" x={AXIS_W + step * t.i} y={y + 16} text-anchor="middle">{t.label}</text>)}
+          {n === 1 ? <text class="sc-tick" x={xOf(0)} y={y + 16} text-anchor="middle">{`${Number(dates[0].slice(5, 7))}/${Number(dates[0].slice(8, 10))}`}</text> : null}
         </svg>
         {hover !== null ? (
           <div class={`sc-tip ${xOf(hover) > w / 2 ? 'left' : ''}`} style={{ left: `${xOf(hover)}px` }}>

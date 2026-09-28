@@ -12,7 +12,7 @@ import { Sheet } from '../components/Sheet';
 import { ChangePill } from '../components/Change';
 import { StockMiniRow } from '../components/StockRow';
 import { IconChevron, IconChevronDown, IconClipboard, IconStar } from '../components/Icons';
-import { useAsync } from '../hooks';
+import { useAsync, useRestoredState } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { useUser } from '../data/useUser';
 import { loadAiSummary, loadIndex, loadMarket } from '../data/api';
@@ -46,7 +46,7 @@ export default function Tonight() {
   const [period, setPeriod] = useState<Period>(TONIGHT_DEFAULT_PERIOD);
   const [envOpen, setEnvOpen] = useState(false);
   const [showCalm, setShowCalm] = useState(false);
-  const [showQuiet, setShowQuiet] = useState(false);
+  const [showQuiet, setShowQuiet] = useRestoredState('tonight.showQuiet', false);
   const [snap, setSnap] = useState<Snapshot | null | undefined>(undefined);
   const [seen, setSeen] = useState<number | null | undefined>(undefined);
   const [animate, setAnimate] = useState(false);

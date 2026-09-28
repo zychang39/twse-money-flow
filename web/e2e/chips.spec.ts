@@ -224,5 +224,6 @@ test('法人柱狀圖：座標軸帶單位（張），拖曳或 hover 時顯示�
 
 test('明確不做的分點資料在明細下方說明原因', async ({ page }) => {
   await page.goto('#/stock/2330');
-  await expect(page.getByText(/八大行庫、分點券商前 15 名、主力動向與籌碼集中度需要分點進出資料，官方查詢頁有驗證碼/)).toBeVisible();
+  await expect(page.getByText(/分點券商前 15 名、主力動向與籌碼集中度需要分點進出資料，官方查詢頁有驗證碼/)).toBeVisible();
+  await expect(page.getByText(/八大行庫/)).toHaveCount(0);
 });

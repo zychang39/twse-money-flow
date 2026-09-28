@@ -70,9 +70,8 @@ for (const width of [375, 393]) {
     await page.setViewportSize({ width, height: 852 });
     await page.goto('#/stock/2330/institutional');
     await expect(page.locator('.ir-table')).toBeVisible();
-    for (const tab of ['外資', '投信', '自營商', '三大法人', '八大行庫']) {
+    for (const tab of ['外資', '投信', '自營商', '三大法人']) {
       await page.getByRole('group', { name: '法人' }).getByRole('button', { name: tab }).click();
-      if (tab === '八大行庫') { await noHScroll(page); continue; }
       for (const m of ['1 個月', '3 個月']) {
         await page.getByRole('group', { name: '期間' }).getByRole('button', { name: m }).click();
         await expect(page.locator('.ir-wrap')).toHaveAttribute('data-fits', /all|compact/);
@@ -82,15 +81,12 @@ for (const width of [375, 393]) {
   });
 }
 
-test('M2：八大行庫標示資料源待處理，列出預計欄位與可自行查詢的地方', async ({ page }) => {
+test('v3：八大行庫分頁已移除，分段控制只有外資、投信、自營商、三大法人', async ({ page }) => {
   await page.goto('#/stock/2330/institutional');
-  await page.getByRole('group', { name: '法人' }).getByRole('button', { name: '八大行庫' }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('八大行庫：資料源待處理');
-  await expect(page.getByText(/需要輸入驗證碼/).first()).toBeVisible();
-  for (const col of ['買賣超', '庫存', '持股比率']) await expect(page.getByRole('columnheader', { name: col })).toBeVisible();
-  await expect(page.getByRole('link', { name: /證交所・買賣日報表查詢系統/ })).toHaveAttribute('href', 'https://bsr.twse.com.tw/bshtm/');
-  await expect(page.getByRole('link', { name: /HiStock/ })).toHaveAttribute('target', '_blank');
-  await expect(page.getByRole('link', { name: /HiStock/ })).toContainText('第三方網站');
+  await expect(page.getByRole('group', { name: '法人' }).getByRole('button').first()).toBeVisible();
+  const names = await page.getByRole('group', { name: '法人' }).getByRole('button').allTextContents();
+  expect(names).toEqual(['外資', '投信', '自營商', '三大法人']);
+  await expect(page.getByText(/八大行庫/)).toHaveCount(0);
 });
 
 test('M2：點一列打開當天完整籌碼（含四個法人的買張、賣張）；⋯ 複製四個法人的 CSV；圖可用方向鍵逐日查看', async ({ page, context }) => {
@@ -155,7 +151,7 @@ test('M3：指標與期間切換走勢圖；分級分布依門檻分成散戶／
   await page.getByRole('group', { name: '指標' }).getByRole('button', { name: '人均張數' }).click();
   await expect(page.locator('.sc-title', { hasText: '散戶（10 張以下）人均張數（張）' })).toHaveCount(1);
   await page.getByRole('group', { name: '期間' }).getByRole('button', { name: '3 個月' }).click();
-  await expect(page.getByRole('heading', { name: /^走勢・\d+ 週$/ })).toHaveText(/走勢・(1[0-3]) 週/);
+  await expect(page.getByRole('heading', { name: '走勢・3 個月' })).toBeVisible(); // v3：標題寫所選期間（不是可用週數）
   const sections = page.locator('.hd-table tbody');
   await expect(sections).toHaveCount(3);
   await expect(sections.nth(0).getByRole('row')).toHaveCount(1 + 3); // 散戶：不到 1、1–5、5–10 張

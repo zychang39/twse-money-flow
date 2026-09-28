@@ -38,6 +38,7 @@ import {
   shortTitle,
   smallLabel,
 } from '../lib/holders';
+import { coverage, coverageNote } from '../lib/series';
 import '../styles/tools.css';
 
 const SETTING_KEY = 'holdersThreshold';
@@ -110,6 +111,9 @@ export default function Holders({ code }: { code: string }) {
   const latest = n - 1;
   const first = n - span;
 
+  // 標題寫「所選期間」，不是可用週數（舊版寫「走勢・1 週」會讓人以為選錯期間）；資料不足另外說明
+  const periodLabel = PERIODS.find((p) => p.weeks === weeks)!.label;
+  const note = block ? coverageNote(coverage(block.d.slice(-weeks), weeks), '週') : null;
   const title = !block ? '集保資料累積中' : shortTitle(block, weeks, th.small, th.big);
   const unit = METRIC_UNIT[metric];
   const panels: ChartPanel[] = series && series.dates.length ? [
@@ -128,11 +132,6 @@ export default function Holders({ code }: { code: string }) {
       ) : (
         <>
           <p class="body ir-sentence" data-testid="hd-sentence">{glueNumbers(headline(block, weeks, th.small, th.big))}。</p>
-          {n < 4 ? (
-            <Banner icon={<IconSeed />} title={`目前只有 ${n} 週資料`}>
-              集保開放資料每週只提供最新一週，趨勢需要逐週累積；過去一年可由「集保個股歷史」回補（關注清單內的股票）。
-            </Banner>
-          ) : null}
 
           {/* 門檻 */}
           <section class="ir-card hd-card" aria-labelledby="hd-th-title">
@@ -169,7 +168,8 @@ export default function Holders({ code }: { code: string }) {
             {PERIODS.map((p) => <button key={p.weeks} aria-pressed={p.weeks === weeks} onClick={() => setWeeks(p.weeks)}>{p.label}</button>)}
           </div>
 
-          <h2 class="section ir-h2">走勢・{series?.dates.length ?? 0} 週</h2>
+          <h2 class="section ir-h2">走勢・{periodLabel}</h2>
+          {note ? <p class="caption muted hd-note" data-testid="hd-coverage" role="note">{note}。集保開放資料每週只提供最新一週，過去一年由「集保個股歷史」回補（關注清單內的股票）。</p> : null}
           {panels.length ? <StackedChart dates={series!.dates} panels={panels} label={`${h?.name ?? code}大戶與散戶${METRIC_NAME[metric]}走勢`} /> : null}
 
           {/* 分級分布（最新一週），依門檻分三段 */}

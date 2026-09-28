@@ -1,9 +1,9 @@
 /** 產業資金輪動：熱力圖（紅＝法人淨買超／上漲、綠＝淨賣超／下跌，以濃淡表示強度），點選查看產業內個股。 */
-import { useMemo, useState } from 'preact/hooks';
+import { useMemo } from 'preact/hooks';
 import { PageHead, TopBar } from '../components/Chrome';
 import { DataStatus, ErrorState, Loading } from '../components/DataStatus';
 import { StockListRow } from '../components/StockRow';
-import { useAsync } from '../hooks';
+import { useAsync, useRestoredState } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { loadMarket } from '../data/api';
 import { setListContext } from '../lib/listContext';
@@ -41,8 +41,8 @@ function SectorStocks({ industry }: { industry: string }) {
 
 export default function Sectors({ industry }: { industry?: string }) {
   const market = useAsync(loadMarket, []);
-  const [period, setPeriod] = useState<1 | 5 | 20>(5);
-  const [metric, setMetric] = useState<'net' | 'ret'>('net');
+  const [period, setPeriod] = useRestoredState<1 | 5 | 20>('sectors.period', 5);
+  const [metric, setMetric] = useRestoredState<'net' | 'ret'>('sectors.metric', 'net');
   if (industry) return <SectorStocks industry={industry} />;
   const m = market.data;
   const values = m ? m.sectors.map((s) => (s[`${metric}_${period}`] as number | null) ?? 0) : [];
