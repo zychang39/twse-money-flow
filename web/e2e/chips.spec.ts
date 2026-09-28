@@ -83,9 +83,9 @@ test('每日籌碼：一排控制列；法人檢視固定 4 欄＋日期，收�
   expect(dateStyle).toBe('none');
 
   await page.getByRole('group', { name: '檢視' }).getByRole('button', { name: '信用' }).click();
-  await expect(page.getByRole('region', { name: '每日籌碼明細・信用' }).locator('thead th .cd-h')).toHaveText(['融資增減', '融券增減', '融資餘額', '券資比']);
+  await expect(page.getByRole('region', { name: '每日籌碼明細・信用' }).locator('thead th .cd-h')).toHaveText(['融資增減', '融券增減', /^融資餘額(萬張)?$/, '券資比']);
   await page.getByRole('group', { name: '檢視' }).getByRole('button', { name: '借券當沖' }).click();
-  await expect(page.getByRole('region', { name: '每日籌碼明細・借券當沖' }).locator('thead th .cd-h')).toHaveText(['借券賣出', '借券餘額', '當沖比率', '當沖量']);
+  await expect(page.getByRole('region', { name: '每日籌碼明細・借券當沖' }).locator('thead th .cd-h')).toHaveText([/^借券賣出(萬張)?$/, /^借券賣出餘額(萬張)?$/, '當沖比率', /^當沖量(萬張)?$/]);
 
   await unit.selectOption('amount');
   await expect(daily(page).locator('.cd-unit-label')).toHaveText('單位：億元（估）');

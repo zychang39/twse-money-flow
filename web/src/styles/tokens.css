@@ -25,6 +25,10 @@
   --fs-section: 1.25rem;  --lh-section: 1.75rem;  /* 20 / 28 區塊標題 */
   --fs-body: 1rem;        --lh-body: 1.5rem;      /* 16 / 24 內文 */
   --fs-caption: 0.8125rem; --lh-caption: 1.25rem; /* 13 / 20 輔助文字 */
+  /* 資料表（每日籌碼）：列高約 52pt，日期 15pt、日期下方收盤與漲跌 12pt（v3，依 Apple HIG 表格） */
+  --fs-table-date: 0.9375rem; --lh-table-date: 1.25rem;
+  --fs-table-sub: 0.75rem;    --lh-table-sub: 1rem;
+  --row-table: 3.25rem;
   /* 例外：11 / 14（HIG caption2）只用在密集表格的次要小字（例：每日籌碼日期下的收盤與漲跌、欄位標題下的連買天數），不當內文 */
   --fs-micro: 0.6875rem;  --lh-micro: 0.875rem;
   --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600;

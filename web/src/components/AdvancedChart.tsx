@@ -12,7 +12,7 @@ export const LOWER_PANELS: LowerDef[] = [
   { id: 'dealer', label: '自營商', key: 'dn', kind: 'histogram', signed: true, unit: '張' },
   { id: 'margin', label: '融資餘額', key: 'mb', kind: 'line', unit: '張' },
   { id: 'short', label: '融券餘額', key: 'sb', kind: 'line', unit: '張' },
-  { id: 'sbl', label: '借券餘額', key: 'sbl', kind: 'line', unit: '張' },
+  { id: 'sbl', label: '借券賣出餘額', key: 'sbl', kind: 'line', unit: '張' },
   { id: 'whale', label: '大戶持股比', key: 'whale', kind: 'line', unit: '%' },
   { id: 'qfii', label: '外資持股比', key: 'qfii', kind: 'line', unit: '%' },
   { id: 'daytrade', label: '當沖比率', key: 'dt', kind: 'histogram', unit: '%' },

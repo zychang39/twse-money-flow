@@ -590,6 +590,9 @@ table.table tbody tr td:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0;
 .cd-meta { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); margin: var(--s-3) 0 var(--s-1); color: var(--text-2); font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); }
 .cd-unit-label { flex: none; color: var(--text-1); font-weight: var(--fw-medium); }
 /* 量測用：與儲存格同字型；fixed 不影響版面與捲動範圍 */
+/* 量測元素要與表格內的日期（15pt）與日期下方小字（12pt）同字級，欄寬才不會把「▼1.34%」裁掉 */
+.chip-daily .cd-measure.cd-date { font-size: calc(var(--fs-table-date) * var(--dt)); }
+.chip-daily .cd-measure.cd-sub { font-size: calc(var(--fs-table-sub) * var(--dt)); }
 .chip-daily .cd-measure { position: fixed; left: 0; top: 0; visibility: hidden; white-space: nowrap; pointer-events: none; }
 .cd-wide-probe { position: fixed; left: 0; top: 0; height: 0; visibility: hidden; pointer-events: none; width: min(calc(100vw - 2 * (var(--gutter) + max(var(--safe-left), var(--safe-right)))), 64rem); }
 
@@ -608,7 +611,22 @@ table.table tbody tr td:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0;
 .cd-sub { display: block; font-size: calc(var(--fs-micro) * var(--dt)); line-height: calc(var(--lh-micro) * var(--dt)); color: var(--text-2); font-weight: var(--fw-regular); margin-top: 0.125rem; }
 .cd-date { display: block; font-size: calc(var(--fs-body) * var(--dt)); line-height: calc(var(--lh-body) * var(--dt)); color: var(--text-1); font-weight: var(--fw-medium); }
 .cd-v { position: relative; font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+/* v3：每日籌碼列高約 52pt；分隔線從文字起點開始（inset，第一格從左內距起算） */
 .cd-table tbody th, .cd-table tbody td { height: var(--tap); box-shadow: inset 0 -0.5px 0 var(--surface-row); }
+.chip-daily .cd-table tbody th, .chip-daily .cd-table tbody td { height: var(--row-table); box-shadow: inset 0 -0.5px 0 var(--surface-row); }
+.cd-table tbody tr > :first-child { box-shadow: none; background-image: linear-gradient(var(--surface-row), var(--surface-row)); background-repeat: no-repeat; background-size: calc(100% - var(--s-2)) 0.5px; background-position: right bottom; }
+.cd-table tbody tr:last-child > * { box-shadow: none; background-image: none; }
+.chip-daily .cd-table tbody tr.day .cd-date { font-size: calc(var(--fs-table-date) * var(--dt)); line-height: calc(var(--lh-table-date) * var(--dt)); }
+.chip-daily .cd-table tbody tr.day .cd-sub { font-size: calc(var(--fs-table-sub) * var(--dt)); line-height: calc(var(--lh-table-sub) * var(--dt)); color: var(--text-2); }
+.cd-arrow { font-size: 0.72em; margin-right: 0.0625rem; vertical-align: baseline; }
+.cd-wan { display: inline-block; margin-left: 0.125rem; font-size: calc(var(--fs-micro) * var(--dt)); color: var(--text-2); font-weight: var(--fw-regular); }
+.cd-mini { margin: var(--s-3) 0 0; }
+.cd-mini-bars { display: flex; align-items: stretch; gap: 2px; height: 3rem; padding: 0 var(--s-2); background: linear-gradient(var(--surface-row), var(--surface-row)) no-repeat center / 100% 1px; }
+.cd-mini-slot { position: relative; flex: 1 1 0; max-width: 1rem; margin: 0 auto; }
+.cd-mini-bar { position: absolute; left: 15%; right: 15%; border-radius: 2px; min-height: 1px; }
+.cd-mini-bar.up { bottom: 50%; background: var(--up); }
+.cd-mini-bar.down { top: 50%; background: var(--down); }
+.cd-mini-cap { display: flex; justify-content: space-between; margin-top: var(--s-1); color: var(--text-2); font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); }
 .cd-table tr.total > * { background: var(--surface-2); }
 .cd-table tr.total .cd-date { font-size: calc(var(--fs-caption) * var(--dt)); font-weight: var(--fw-semibold); }
 .cd-table tr.day { cursor: pointer; }
@@ -619,11 +637,6 @@ table.table tbody tr td:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0;
 .cd-rowbtn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--brand); }
 /* 比例條：很淡的細條，貼在格子底部，從中線向右（買超／增加）或向左（賣超／減少）延伸；沒有正負的欄位從中線向右。
  * 不用讀數字也能看出強弱；在文字下方、不與數字重疊，不影響文字對比。 */
-.cd-bar { position: absolute; bottom: 0.3125rem; height: 0.1875rem; left: 50%; border-radius: var(--r-pill); pointer-events: none; }
-.cd-bar.pos { background: color-mix(in srgb, var(--up) 45%, transparent); }
-.cd-bar.neg { left: auto; right: 50%; background: color-mix(in srgb, var(--down) 45%, transparent); }
-.cd-bar.neu { background: color-mix(in srgb, var(--text-2) 35%, transparent); }
-.cd-table tbody td.cd-v { background-image: linear-gradient(var(--surface-row), var(--surface-row)); background-size: 1px 0.1875rem; background-position: 50% calc(100% - 0.3125rem); background-repeat: no-repeat; }
 .cd-t { position: relative; }
 .cd-v.flat, .cd-v.none { color: var(--text-1); }
 

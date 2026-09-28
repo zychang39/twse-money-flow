@@ -73,13 +73,12 @@ export interface UiConfig {
     sentence_min_pct: number;
     streak_min: number;
   };
+  credit: { compare_days: number[]; pv_days: number; short_ratio_high: number; foreign_change_days: number };
   hot_momentum: { label: string; exclude_etf: boolean; value_rank_top: number; min_rs_percentile: number; max_warn_flags: number; max_danger_flags: number; size: number };
   sample_watchlist: { group: string; codes: string[] };
   holders: {
     breakpoints: number[];
-    default_big: number;
-    default_small: number;
-    presets: { label: string; big: number; small: number }[];
+    tiers: { retail_max: number; big_min: number; whale_min: number };
     weeks: number;
   };
   bull_bear: {

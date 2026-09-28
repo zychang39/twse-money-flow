@@ -110,52 +110,35 @@ test('M2：點一列打開當天完整籌碼（含四個法人的買張、賣張
   await expect(page.locator('.sc-tip')).toHaveCount(0);
 });
 
-// ---------------------------------------------------------------- M3 大戶與散戶持股
-test('M3：個股頁有入口；門檻可用常用組合或滑桿（鍵盤）調整，重新開啟後仍記得', async ({ page }) => {
+// ---------------------------------------------------------------- M3 籌碼結構（v3：全站統一分級，移除可調門檻）
+test('M3（v3）：個股頁有「15 級完整分布」入口；分級定義固定並顯示在畫面上；沒有可調門檻', async ({ page }) => {
   await page.goto('#/stock/2330');
-  await page.getByRole('link', { name: /大戶與散戶持股/ }).click();
+  await page.getByRole('link', { name: /15 級完整分布/ }).click();
   await expect(page).toHaveURL(/#\/stock\/2330\/holders$/);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^大戶持股\s[\d.]+%/);
-  const groups = page.locator('.hd-groups');
-  await expect(groups).toContainText('10 張以下');
-  await expect(groups).toContainText('超過 400 張');
-  // 常用組合：千張大戶
-  await page.getByRole('group', { name: '常用門檻' }).getByRole('button', { name: '千張大戶' }).click();
-  await expect(groups).toContainText('超過 1000 張');
-  await expect(page.locator('.sc-title', { hasText: '大戶（超過 1000 張）持股比例（%）' })).toHaveCount(1);
-  // 滑桿（鍵盤）：大戶門檻往左一格＝800 張；散戶門檻往右一格＝15 張
-  const big = page.getByRole('slider', { name: '大戶門檻' });
-  await big.focus();
-  await page.keyboard.press('ArrowLeft');
-  await expect(big).toHaveAttribute('aria-valuetext', '大戶：超過 800 張');
-  const small = page.getByRole('slider', { name: '散戶門檻' });
-  await small.focus();
-  await page.keyboard.press('ArrowRight');
-  await expect(small).toHaveAttribute('aria-valuetext', '散戶：15 張以下');
-  await expect(page.getByTestId('hd-sentence')).toContainText('超過 800 張');
-  await expect(page.getByTestId('hd-sentence')).not.toHaveText(/買進|賣出|建議/);
-  // 兩個門檻不會交叉：散戶門檻一路往右，最多停在大戶門檻的前一格
-  for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowRight');
-  await expect(small).toHaveAttribute('aria-valuetext', '散戶：600 張以下');
-  // 記住設定
-  await page.reload();
-  await expect(page.getByRole('slider', { name: '大戶門檻' })).toHaveAttribute('aria-valuetext', '大戶：超過 800 張');
-  await expect(page.getByRole('slider', { name: '散戶門檻' })).toHaveAttribute('aria-valuetext', '散戶：600 張以下');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^千張大戶本週/);
+  await expect(page.getByTestId('hd-definition')).toHaveText('分級：散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 ≥ 400 張（含千張大戶）｜千張大戶 ≥ 1,000 張。');
+  await expect(page.getByRole('slider')).toHaveCount(0);
+  await expect(page.getByText(/超過 100 張/)).toHaveCount(0);
+  await expect(page.locator('.sc-title', { hasText: '千張大戶（≥ 1,000 張）持股比例（%）' })).toHaveCount(1);
+  await expect(page.locator('.sc-title', { hasText: '大戶（≥ 400 張，含千張）持股比例（%）' })).toHaveCount(1);
+  await expect(page.locator('.sc-title', { hasText: '散戶（≤ 5 張）持股比例（%）' })).toHaveCount(1);
 });
 
-test('M3：指標與期間切換走勢圖；分級分布依門檻分成散戶／中實戶／大戶', async ({ page }) => {
+test('M3（v3）：指標與期間切換走勢圖；15 級分布分成四段', async ({ page }) => {
   await page.goto('#/stock/2330/holders');
-  await page.getByRole('group', { name: '常用門檻' }).getByRole('button', { name: '400 張大戶' }).click();
   await page.getByRole('group', { name: '指標' }).getByRole('button', { name: '人數' }).click();
-  await expect(page.locator('.sc-title', { hasText: '大戶（超過 400 張）人數（人）' })).toHaveCount(1);
+  await expect(page.locator('.sc-title', { hasText: '千張大戶（≥ 1,000 張）人數（人）' })).toHaveCount(1);
   await page.getByRole('group', { name: '指標' }).getByRole('button', { name: '人均張數' }).click();
-  await expect(page.locator('.sc-title', { hasText: '散戶（10 張以下）人均張數（張）' })).toHaveCount(1);
+  await expect(page.locator('.sc-title', { hasText: '散戶（≤ 5 張）人均張數（張）' })).toHaveCount(1);
   await page.getByRole('group', { name: '期間' }).getByRole('button', { name: '3 個月' }).click();
-  await expect(page.getByRole('heading', { name: '走勢・3 個月' })).toBeVisible(); // v3：標題寫所選期間（不是可用週數）
+  await expect(page.getByRole('heading', { name: '走勢・3 個月' })).toBeVisible();
   const sections = page.locator('.hd-table tbody');
-  await expect(sections).toHaveCount(3);
-  await expect(sections.nth(0).getByRole('row')).toHaveCount(1 + 3); // 散戶：不到 1、1–5、5–10 張
-  await expect(sections.nth(2).getByRole('row')).toHaveCount(1 + 4); // 大戶：400–600、600–800、800–1000、超過 1000
+  await expect(sections).toHaveCount(4);
+  await expect(sections.nth(0).getByRole('row')).toHaveCount(1 + 2); // 散戶：不到 1、1–5 張
+  await expect(sections.nth(1).getByRole('row')).toHaveCount(1 + 9); // 中實戶：分級 3–11
+  await expect(sections.nth(2).getByRole('row')).toHaveCount(1 + 3); // 大戶段：400–600、600–800、800–1000
+  await expect(sections.nth(3).getByRole('row')).toHaveCount(1 + 1); // 千張大戶：超過 1000
+  await expect(page.getByTestId('hd-basis')).toContainText(/與\s1[23]\s週前（\d{2}\/\d{2}）相比/);
 });
 
 for (const width of [375, 393]) {

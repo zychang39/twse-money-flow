@@ -68,6 +68,6 @@ describe('大戶與散戶：只有 1 週資料', () => {
     expect(s.dates).toEqual(['2026-09-18']);
     expect(s.bigChange).toEqual([null]);
     expect(shortTitle(one, 26, 5, 1000)).toBe('大戶持股 60.0%');
-    expect(headline(one, 26, 5, 1000)).toBe('大戶（超過 1000 張）持股 60.00%');
+    expect(headline(one, 26, 5, 1000)).toBe('大戶（≥ 1,000 張）持股 60.00%');
   });
 });

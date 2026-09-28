@@ -26,7 +26,7 @@ export interface ChipBlock {
   tot: N[];
   sbls: N[];
   dt: N[];
-  /** 借券餘額（股）；舊版部署沒有 */
+  /** 借券賣出餘額（股；TWT93U「借券賣出當日餘額」）；舊版部署沒有 */
   sblb?: N[];
   /** 當沖成交股數；舊版部署沒有 */
   dtv?: N[];
@@ -66,7 +66,7 @@ export interface ChipRow {
   shortBal: N;
   /** 券資比 %＝融券餘額 ÷ 融資餘額 */
   shortRatio: N;
-  /** 借券餘額、當沖量（股） */
+  /** 借券賣出餘額、當沖量（股） */
   sblBal: N;
   dtVol: N;
   dtPct: N;
@@ -461,7 +461,7 @@ export const VIEW_COLS: Record<View, ViewCol[]> = {
   ],
   sbl: [
     { key: 'sblSell', label: '借券賣出', full: '借券賣出', kind: 'flow', signed: false },
-    { key: 'sblBal', label: '借券餘額', full: '借券餘額', kind: 'level', signed: false },
+    { key: 'sblBal', label: '借券賣出餘額', full: '借券賣出餘額', kind: 'level', signed: false },
     { key: 'dtPct', label: '當沖比率', full: '當沖比率', kind: 'ratio', signed: false },
     { key: 'dtVol', label: '當沖量', full: '當沖量', kind: 'flow', signed: false },
   ],
@@ -542,14 +542,48 @@ export function compactNum(abs: number, unit: Unit | 'ratio'): string {
   return numberFormat(digits).format(abs);
 }
 
-/** 儲存格文字：有正負的欄位加 ▲▼（區間合計列的餘額欄是增減，也有正負）；比率加 %。 */
-export function cellText(v: N, col: ViewCol, unit: Unit, signed = col.signed): { text: string; dir: 'up' | 'down' | 'flat' | 'none' } {
-  if (v === null || !Number.isFinite(v)) return { text: '—', dir: 'none' };
+/**
+ * 每日籌碼表的「整欄」數字格式（v3，依 Apple HIG：同一欄同一種格式，小數點才對得齊）：
+ * - 張：該欄（含區間合計列）最大絕對值 ≥ 10,000 → 整欄「萬張」、1 位小數；否則整欄千分位整數。
+ * - 億元、佔量 %：整欄 2 位小數（該欄最大值 ≥ 100 → 1 位、≥ 1,000 → 整數）；比率 %：整欄 1 位小數。
+ */
+export interface ColFormat {
+  /** 整欄以「萬」為單位（標題註明「萬張」） */
+  wan: boolean;
+  digits: number;
+}
+
+export const WAN_THRESHOLD = 1e4;
+
+export function colFormat(values: N[], col: ViewCol, unit: Unit): ColFormat {
   const u = colUnit(col, unit);
-  const body = compactNum(Math.abs(v), u);
-  const shownZero = Number(body.replace(/[^\d.]/g, '')) === 0;
-  if (!signed || shownZero) return { text: `${body}${u === 'ratio' ? '%' : ''}`, dir: signed ? 'flat' : 'none' };
-  return { text: `${v > 0 ? '▲' : '▼'}${body}${u === 'ratio' ? '%' : ''}`, dir: v > 0 ? 'up' : 'down' };
+  if (u === 'ratio') return { wan: false, digits: 1 };
+  const max = values.reduce<number>((m, v) => (v !== null && Number.isFinite(v) ? Math.max(m, Math.abs(v)) : m), 0);
+  // 億元、佔量 %：整欄 2 位小數；該欄最大值 ≥ 100 時整欄 1 位、≥ 1,000 時整欄整數（窄欄放得下，仍然整欄一致）
+  if (u !== 'lots') return { wan: false, digits: max >= 1000 ? 0 : max >= 100 ? 1 : 2 };
+  return max >= WAN_THRESHOLD ? { wan: true, digits: 1 } : { wan: false, digits: 0 };
+}
+
+/** 依整欄格式寫出絕對值（不含正負號與單位）。 */
+export function formatAbs(abs: number, f: ColFormat): string {
+  return numberFormat(f.digits).format(f.wan ? abs / 1e4 : abs);
+}
+
+/**
+ * 儲存格文字：有正負的欄位加 ▲▼（區間合計列的餘額欄是增減，也有正負）；比率加 %。
+ * 傳入 fmt（整欄格式）時依整欄格式、萬不寫在儲存格（寫在欄位標題）；否則各自精簡（卡片、底部面板）。
+ * 0 顯示「0」（整欄整數時四捨五入為 0 也是「0」）、沒有資料顯示「—」。
+ */
+export function cellText(v: N, col: ViewCol, unit: Unit, signed = col.signed, fmt?: ColFormat): { text: string; arrow: '' | '▲' | '▼'; body: string; dir: 'up' | 'down' | 'flat' | 'none' } {
+  if (v === null || !Number.isFinite(v)) return { text: '—', arrow: '', body: '—', dir: 'none' };
+  const u = colUnit(col, unit);
+  const raw = fmt ? formatAbs(Math.abs(v), fmt) : compactNum(Math.abs(v), u);
+  // 0 顯示「0」；整欄有小數時，非 0 但四捨五入為 0（例：萬張欄的 −485 張）保留「▼0.0」，不丟掉方向
+  const shownZero = Number(raw.replace(/[^\d.]/g, '')) === 0 && (v === 0 || !fmt || fmt.digits === 0);
+  const body = `${shownZero ? '0' : raw}${u === 'ratio' ? '%' : ''}`;
+  if (!signed || shownZero) return { text: body, arrow: '', body, dir: signed ? 'flat' : 'none' };
+  const arrow = v > 0 ? '▲' : '▼';
+  return { text: `${arrow}${body}`, arrow, body, dir: v > 0 ? 'up' : 'down' };
 }
 
 const UNIT_WORD: Record<Unit, string> = { lots: '張', amount: '億元', pct: '' };

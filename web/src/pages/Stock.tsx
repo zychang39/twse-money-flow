@@ -13,6 +13,10 @@ import { ScoreRings, compositeCompleteness, categoryName, scoreText } from '../c
 import { ScoreDetailView } from '../components/ScoreDetail';
 import { StockExtras, FairRange } from '../components/StockExtras';
 import { ChipDaily, ChipStats } from '../components/Chips';
+import { ForeignHolding, MarginCard, ShortCard } from '../components/Credit';
+import { StructureBlock } from '../components/Structure';
+import { creditAnswer, creditSummary } from '../lib/credit';
+import { type HolderBlock, structureSentence } from '../lib/holders';
 import { Sheet } from '../components/Sheet';
 import { NetBars } from '../components/Viz';
 import { Signed } from '../components/Change';
@@ -29,7 +33,7 @@ import { STOCK_DEFAULT_PERIOD, STOCK_PERIODS, change, sliceWindow, type Period }
 import { instInsight, type Who } from '../lib/insights';
 import { getListContext } from '../lib/listContext';
 import { commitHero, heroSeen } from '../lib/seen';
-import { fmtInt, fmtLots, fmtNum, fmtPct, fmtPrice } from '../lib/format';
+import { fmtNum, fmtPct, fmtPrice } from '../lib/format';
 import { navigate } from '../router';
 import { PAGE_SOURCES } from '../lib/health';
 import { evaluate, tally, title as bbTitle } from '../lib/bullbear';
@@ -44,10 +48,6 @@ function lastOf(a: unknown): number | null {
   if (!Array.isArray(a)) return null;
   for (let i = a.length - 1; i >= 0; i--) if (a[i] !== null && a[i] !== undefined) return a[i] as number;
   return null;
-}
-function agoOf(a: unknown, n: number): number | null {
-  if (!Array.isArray(a) || a.length <= n) return null;
-  return (a[a.length - 1 - n] as number | null) ?? null;
 }
 
 /** 主角區（名稱、股價、走勢圖）：個股頁左右換股時，前一檔／目前／後一檔各一份。 */
@@ -120,8 +120,12 @@ export default function Stock({ code }: { code: string }) {
 
   const comp = (row?.composite as number | null | undefined) ?? h?.scores?.composite ?? null;
   const cc = compositeCompleteness(h?.scores);
-  const mb = h ? lastOf(h.mb) : null, mb5 = h ? agoOf(h.mb, 5) : null;
-  const sb = h ? lastOf(h.sb) : null, sb5 = h ? agoOf(h.sb, 5) : null;
+  const credit = useMemo(() => creditSummary({
+    d: h?.d ?? [], adj, mb: h?.mb ?? [], sb: h?.sb ?? [], sbl: h?.sbl as (number | null)[] | undefined, qfii: h?.qfii as (number | null)[] | undefined,
+    marginUsage: (row?.margin_usage as number | null | undefined) ?? null,
+    lastCover: ((h?.short_halt as { last_cover_date?: string | null } | null | undefined)?.last_cover_date) ?? null,
+  }), [h, adj, row]);
+  const holders = (h?.holders as HolderBlock | null | undefined) ?? null;
   const revenue = (h?.revenue as { ym: string; revenue: number; yoy: number | null; mom: number | null }[] | undefined) ?? [];
   const rev = revenue[revenue.length - 1];
   const pePct = h ? lastOf((h.series as Record<string, unknown> | undefined)?.pe_percentile) : null;
@@ -179,7 +183,7 @@ export default function Stock({ code }: { code: string }) {
             <IconChevron />
           </button>
 
-          <Block question="法人" answer={inst?.title}>
+          <Block question="法人在買還是賣？" answer={inst?.title}>
             <div class="segmented" role="group" aria-label="法人" style={{ marginTop: 'var(--s-4)' }}>
               {(['foreign', 'trust', 'dealer'] as const).map((w) => (
                 <button key={w} aria-pressed={who === w} onClick={() => setWho(w)}>{{ foreign: '外資', trust: '投信', dealer: '自營商' }[w]}</button>
@@ -199,6 +203,13 @@ export default function Stock({ code }: { code: string }) {
                 </div>
               </>
             ) : null}
+            <ForeignHolding s={credit} />
+            {chip ? (
+              <>
+                <ChipStats block={chip} sharesOut={h.shares} />
+                <ChipDaily block={chip} code={code} name={h.name} market={h.market} />
+              </>
+            ) : <Accumulating what="每日籌碼明細" detail="需要至少兩個交易日的法人與融資融券資料。" />}
             <div class="list">
               <a class="list-item brand" href={`#/stock/${code}/institutional`}>
                 <span class="grow">法人買賣超報表<span class="caption muted tool-sub">近 3 個月逐日買張、賣張・外資／投信／自營商／三大法人</span></span>
@@ -207,26 +218,13 @@ export default function Stock({ code }: { code: string }) {
             </div>
           </Block>
 
-          <Block question="籌碼" answer={mb !== null && mb5 ? `融資 5 日${mb >= mb5 ? '增加' : '減少'} ${fmtPct(((mb - mb5) / mb5) * 100, 1, false).replace('-', '')}` : '融資融券'}>
-            <div class="list" style={{ marginTop: 'var(--s-4)' }}>
-              <div class="list-item"><span class="grow">融資餘額</span><span class="body">{fmtInt(mb)} 張</span><span class="caption" style={{ minWidth: '4.5rem', textAlign: 'right' }}><Signed value={mb !== null && mb5 !== null ? mb - mb5 : null} format={fmtLots} label="5 日" /></span></div>
-              <div class="list-item"><span class="grow">融券餘額</span><span class="body">{fmtInt(sb)} 張</span><span class="caption" style={{ minWidth: '4.5rem', textAlign: 'right' }}><Signed value={sb !== null && sb5 !== null ? sb - sb5 : null} format={fmtLots} label="5 日" /></span></div>
-              {row?.whale_pct !== null && row?.whale_pct !== undefined ? <div class="list-item"><span class="grow">千張大戶持股比</span><span class="body">{fmtNum(row.whale_pct as number, 1)}%</span></div> : null}
-              {row?.foreign_hold_pct !== null && row?.foreign_hold_pct !== undefined ? <div class="list-item"><span class="grow">外資持股比</span><span class="body">{fmtNum(row.foreign_hold_pct as number, 1)}%</span></div> : null}
-            </div>
-            {row && (row.whale_pct === null || row.whale_pct === undefined) ? <Accumulating what="集保大戶持股" detail="集保股權分散表官方只提供最新一週，每週六起逐週累積。" /> : null}
-            <div class="list">
-              <a class="list-item brand" href={`#/stock/${code}/holders`}>
-                <span class="grow">大戶與散戶持股<span class="caption muted tool-sub">門檻可調・持股比例、人數、人均張數的逐週走勢</span></span>
-                <span class="chev"><IconChevron /></span>
-              </a>
-            </div>
-            {chip ? (
-              <>
-                <ChipStats block={chip} sharesOut={h.shares} />
-                <ChipDaily block={chip} code={code} name={h.name} market={h.market} />
-              </>
-            ) : <Accumulating what="每日籌碼明細" detail="需要至少兩個交易日的法人與融資融券資料。" />}
+          <Block question="信用與空方：散戶與空方在做什麼？" answer={`${creditAnswer(credit)}`}>
+            <MarginCard s={credit} />
+            <ShortCard s={credit} />
+          </Block>
+
+          <Block question="籌碼結構：大戶在增加還是減少？" answer={holders && holders.d.length ? structureSentence(holders) : '集保資料累積中'}>
+            <StructureBlock block={holders} d={h.d} c={h.c} name={h.name} code={code} />
           </Block>
 
           <Block question="多空" answer={bb ? bbTitle(bb) : undefined}>
