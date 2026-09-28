@@ -94,3 +94,22 @@
   - 長歷史檔：收盤行情比視窗長時，另存 `stocks/{code}.hist.json`（日期、收盤、以完整歷史計算的還原因子），前端只在選 5Y／10Y／ALL 且個股檔不夠長時才載入；10Y、ALL 改為週線取樣（每週最後一個交易日＋區間基準點）。
   - Data workflow：只有 main 部署 GitHub Pages，在開發分支執行的回補只寫入 data 分支（取代已移除的 dev-pipeline）。
 - 驗收：`test_tasks.py`（收盤行情預設 10 年、其他 3 年；早於最早日期不請求）；`test_export.py`（視窗 50 日時個股檔 50 筆、長歷史 80 筆且除息的還原因子在視窗外仍正確；視窗足夠時不輸出長歷史）；`periods.test.ts`（10Y 基準日、週鍵、週線取樣）；Playwright `v3-m5.spec.ts`（合成 10 年以上的長歷史：1Y 以內不載入、5Y 日線 > 1,100 點、10Y 週線 450–600 點、只載入一次；沒有長歷史檔時 5Y 說明資料累積中）。
+- 回補觸發：2026-09-28 以 workflow_dispatch 在 `claude/v3-investor-ux` 執行 Data workflow（`task=backfill, source=twse_quotes,tpex_quotes`，起日留白＝10 年），[run #6](https://github.com/zychang39/twse-money-flow/actions/runs/36428099609)；時間預算用完會以同一分支自動接續，只寫入 data 分支、不部署（DECISIONS #101）。未等待完成。
+
+## 收尾
+
+### 效能
+- 問題：個股頁區塊變多（8 個區塊、信用、籌碼結構、本益比河流），Lighthouse 行動版個股頁一度 80–89（同一環境的 main 為 87）。
+- 根本原因：個股頁的 JS 包含所有區塊元件；第一次繪製就畫出全部區塊（Chips、Structure 的計算與版面量測集中在同一個長任務）；LCP 元素（「整體狀態」的一句話結論）要等整個 Stock chunk 下載、解析。
+- 決策（工程師）：區塊標題（問題＋一句結論）留在個股頁 chunk，細節元件（Chips、Credit、Structure、StockSections、Research、StockExtras）改為 `lazyPick` 延後載入；只先畫前兩個區塊，其餘在哨兵接近畫面時一次補一個（IntersectionObserver，返回還原捲動位置時直接全部畫出）；8 個期間按鈕平均分配整列寬度。
+- 驗收（本環境，示範資料，Lighthouse 12 行動版模擬節流；本環境比 REVIEW.md 當時慢，main 同環境為今晚 93、個股 87）：今晚 98、我的股票 98、個股 91–93（中位數 92，最差一次 84，雜訊大）；無障礙 100、最佳做法 100。首次載入 JS（index＋預載 chunk）約 51 KB gzip，進入個股頁再加約 25 KB（< 250 KB）。WCAG AA 對比：`scripts/contrast.py` 深淺色全部 ≥ 4.5:1。
+
+### 測試
+- pytest 全部通過（新增：回補預設 10 年／3 年、最早日期、舊格式樣本、衍生視窗與長歷史、單季 EPS 與 ROE）；vitest 168 項；Playwright 122 項（`v3-m1`～`v3-m5` 共 25 項新測試；既有測試依新設計更新：八大行庫、集保門檻、區塊名稱、下方區塊延後渲染用 `e2e/helpers.ts` 的 `gotoStock`）。
+
+### 截圖（`docs/design/v3/`，iPhone 393×852，深色／淺色，示範資料）
+- `stock-swing-*.png`、`stock-long-*.png`：個股頁兩種投資風格（整頁）
+- `chips-daily-*.png`：每日籌碼；`credit-*.png`：信用與空方
+- `structure-*.png`、`structure-trend-sheet-*.png`：籌碼結構與「查看趨勢」底部面板
+- `range-return-*.png`：兩指區間報酬
+- 重新產生：`npm run build && npx vite preview --port 4173 &`，`node scripts/v3-shots.mjs`
