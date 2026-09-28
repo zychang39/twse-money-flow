@@ -10,7 +10,10 @@
  * 只有 1 個資料點：畫單點標記，說明「資料累積中：目前只有 1 個交易日…」。
  * 兩指區間報酬（range，仿 Apple 股市）：兩指同時按在圖上 → 兩條垂直標線、上方顯示兩個日期、漲跌金額、報酬率與相隔交易日數，
  *   手指移動時即時更新；放開後保留 2 秒再淡出。單指仍是查單點。桌機：按住拖曳選出區間。
- *   報酬率預設用還原價（win.values），rangeAlt（原始價，與 win 同一組日期）存在時可切換。
+ *   觸控另可「按住約 0.45 秒不動、再拖曳」選出區間（單指）。
+ * 價格基準（M5）：由頁面決定 win 是還原價或原始價，主角數字、走勢線、今日／期間漲跌、區間報酬全部用同一組數字；
+ *   onBasis 存在時顯示「還原價／原始價」切換，主角數字旁標示目前的基準（basis）。
+ * 手勢歸屬（M5）：圖表區域的觸控全部交給圖表（touch-action: pan-y＋pointer capture），外層換股只在頁首區域觸發。
  */
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -18,7 +21,7 @@ import { PERIODS, PERIOD_LABEL, change, type Dir, type Period, type Window } fro
 import { areaD, extent, lerpPts, nearestIndex, pathD, points, resample, springEase, yOf, type Frame } from '../lib/chartMath';
 import { arrow, fmtNum } from '../lib/format';
 import { coverage, coverageNote } from '../lib/series';
-import { RANGE_BASIS_NAME, RANGE_HOLD_MS, type RangeBasis, getRangeBasis, rangeReturn, setRangeBasis, shortDate } from '../lib/rangeReturn';
+import { RANGE_BASIS_NAME, RANGE_HOLD_MS, type RangeBasis, rangeReturn, shortDate } from '../lib/rangeReturn';
 
 const N = 160;
 const reduceMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -86,10 +89,11 @@ function useRoll(to: number | null, from: number | null | undefined, format: (v:
 
 const HOLD_MS = 200; // 按住多久開始查價（holdToScrub）
 const HOLD_SLOP = 8; // 這段時間內移動超過幾 px 就視為滑動
+const PRESS_RANGE_MS = 450; // 觸控：按住不動這麼久之後拖曳＝選區間（單指）
 
 export function HeroChart({
   label, win, period, onPeriod, format, formatDelta, seen, height = 176, area = false, caption, emptyText = '資料累積中', periodsLabel,
-  periods = PERIODS, heroChange = 'period', holdToScrub = false, range: rangeOn = true, rangeAlt = null,
+  periods = PERIODS, heroChange = 'period', holdToScrub = false, range: rangeOn = true, basis, onBasis,
 }: {
   label: ComponentChildren;
   win: Window | null;
@@ -115,8 +119,10 @@ export function HeroChart({
   holdToScrub?: boolean;
   /** 兩指區間報酬（預設開啟） */
   range?: boolean;
-  /** 原始價（與 win 同一組日期）：提供時可切換區間報酬的計算基準 */
-  rangeAlt?: number[] | null;
+  /** 目前的價格基準（win 是還原價或原始價）；提供時主角數字旁顯示「還原／原始」 */
+  basis?: RangeBasis;
+  /** 提供時顯示「還原價／原始價」切換（整張圖、主角數字、區間報酬一起切換） */
+  onBasis?: (b: RangeBasis) => void;
 }) {
   const fd = formatDelta ?? format;
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -134,7 +140,9 @@ export function HeroChart({
   const touches = useRef(new Map<number, number>());
   const mouseSel = useRef<{ a: number; moved: boolean } | null>(null);
   const fadeTimers = useRef<number[]>([]);
-  const [basis, setBasisState] = useState<RangeBasis>(getRangeBasis);
+  // 單指按住不動 PRESS_RANGE_MS 後拖曳＝選區間；anchor＝按下位置的索引
+  const press = useRef<{ id: number; x: number; y: number; timer: number; anchor: number | null; ranging: boolean } | null>(null);
+  const clearPress = () => { if (press.current) clearTimeout(press.current.timer); press.current = null; };
 
   useLayoutEffect(() => {
     const el = wrapRef.current;
@@ -219,8 +227,8 @@ export function HeroChart({
   useEffect(() => {
     // 查價或兩指選區間時阻止頁面上下捲動（touch-action: pan-y 允許捲動，需要在 touchmove 取消）
     const el = wrapRef.current;
-    if (!el || (!holdToScrub && !rangeOn)) return;
-    const block = (e: TouchEvent) => { if ((hold.current?.active || e.touches.length >= 2 || selRef.current?.live) && e.cancelable) e.preventDefault(); };
+    if (!el) return;
+    const block = (e: TouchEvent) => { if ((hold.current?.active || press.current?.ranging || e.touches.length >= 2 || selRef.current?.live) && e.cancelable) e.preventDefault(); };
     el.addEventListener('touchmove', block, { passive: false });
     return () => { el.removeEventListener('touchmove', block); clearHold(); };
   }, [holdToScrub, rangeOn]);
@@ -292,6 +300,12 @@ export function HeroChart({
       return false;
     }
     const had = touches.current.delete(e.pointerId);
+    if (press.current?.id === e.pointerId && press.current.ranging) {
+      clearPress();
+      e.stopPropagation();
+      releaseRange();
+      return true;
+    }
     if (had && selRef.current?.live) {
       e.stopPropagation();
       if (touches.current.size < 2) releaseRange();
@@ -300,6 +314,15 @@ export function HeroChart({
     return false;
   };
   const onMove = (e: PointerEvent) => {
+    const pr = press.current;
+    if (pr && pr.id === e.pointerId && e.pointerType !== 'mouse') {
+      if (pr.ranging) {
+        e.stopPropagation();
+        liveRange(pr.anchor, idxFromEvent(e));
+        return;
+      }
+      if (Math.hypot(e.clientX - pr.x, e.clientY - pr.y) > HOLD_SLOP) clearPress();
+    }
     if (rangeMove(e)) return;
     if (holdToScrub && e.pointerType !== 'mouse') {
       const h = hold.current;
@@ -317,7 +340,21 @@ export function HeroChart({
     if (e.pointerType === 'mouse' || e.buttons || (e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) setScrub(idxFromEvent(e));
   };
   const onDown = (e: PointerEvent) => {
-    if (rangeDown(e)) return;
+    if (rangeDown(e)) { clearPress(); return; }
+    if (rangeOn && e.pointerType !== 'mouse' && touches.current.size === 1) {
+      clearPress();
+      const id = e.pointerId;
+      const anchor = idxFromEvent(e);
+      press.current = {
+        id, x: e.clientX, y: e.clientY, anchor, ranging: false,
+        timer: window.setTimeout(() => {
+          if (!press.current || press.current.id !== id) return;
+          press.current.ranging = true;
+          if (navigator.vibrate) navigator.vibrate(8);
+          liveRange(anchor, anchor);
+        }, PRESS_RANGE_MS),
+      };
+    }
     if (holdToScrub && e.pointerType !== 'mouse') {
       clearHold();
       const target = e.currentTarget as HTMLElement;
@@ -347,6 +384,7 @@ export function HeroChart({
     if (e.pointerType !== 'mouse') end(e);
   };
   const onCancelPointer = (e: PointerEvent) => {
+    if (press.current?.id === e.pointerId) clearPress();
     if (touches.current.delete(e.pointerId) && selRef.current?.live && touches.current.size < 2) releaseRange();
     end();
   };
@@ -359,10 +397,9 @@ export function HeroChart({
     } else if (e.key === 'Escape' || e.key === 'Enter') setScrub(null);
   };
 
-  const rangeValues = basis === 'raw' && rangeAlt && win && rangeAlt.length === win.values.length ? rangeAlt : win?.values ?? [];
-  const rr = sel && win ? rangeReturn(win.dates, rangeValues, sel.a, sel.b) : null;
+  // 區間報酬與主角數字、走勢線用同一組數字（win 由頁面依價格基準提供）
+  const rr = sel && win ? rangeReturn(win.dates, win.values, sel.a, sel.b) : null;
   const rangePts = rr && geo ? [geo.pts[rr.from], geo.pts[rr.to]] : null;
-  const pickBasis = (b: RangeBasis) => { setBasisState(b); setRangeBasis(b); };
   const scrubPt = geo && scrub !== null ? geo.pts[scrub] : null;
   const endPt = geo ? geo.pts[geo.pts.length - 1] : null;
   const summary = win && latest !== null && chg
@@ -372,7 +409,10 @@ export function HeroChart({
   return (
     <div class="hero-block">
       <div class="hero-label">{label}</div>
-      <div class="hero" aria-live="off">{heroText}</div>
+      <div class="hero-row">
+        <div class="hero" aria-live="off">{heroText}</div>
+        {basis ? <span class="basis-tag" data-testid="basis-tag" title={RANGE_BASIS_NAME[basis]}>{basis === 'adj' ? '還原' : '原始'}</span> : null}
+      </div>
       <div class="hero-change">
         {chg && win ? (
           <>
@@ -457,7 +497,7 @@ export function HeroChart({
             <span class={`range-chg ${rr.dir}`}>
               {arrow(rr.abs)} {fd(Math.abs(rr.abs))}（{rr.pct === null ? '—' : `${rr.pct > 0 ? '+' : rr.pct < 0 ? '−' : ''}${Math.abs(rr.pct).toFixed(2)}%`}）
             </span>
-            <span class="range-basis-label">{rangeAlt ? RANGE_BASIS_NAME[basis] : ''}</span>
+            <span class="range-basis-label">{basis ? RANGE_BASIS_NAME[basis] : ''}</span>
           </div>
         ) : null}
       </div>
@@ -465,11 +505,11 @@ export function HeroChart({
         <div class="chart-caption" data-testid="hero-coverage">{win?.truncated ? `${coverageNote({ ...coverage(win.dates, Infinity) }, '個交易日', false)}。` : ''}{caption}</div>
       ) : null}
       <PeriodSelector value={period} onChange={onPeriod} label={periodsLabel ?? '走勢期間'} periods={periods} />
-      {rangeOn && rangeAlt ? (
+      {onBasis && basis ? (
         <div class="range-basis" data-testid="range-basis">
-          <span class="caption muted">兩指按住看區間報酬（桌機：按住拖曳）</span>
-          <div class="segmented range-seg" role="group" aria-label="區間報酬的計算基準">
-            {(['adj', 'raw'] as const).map((b) => <button key={b} aria-pressed={basis === b} onClick={() => pickBasis(b)}>{b === 'adj' ? '還原價' : '原始價'}</button>)}
+          <span class="caption muted">{rangeOn ? '兩指或按住拖曳看區間報酬（桌機：按住拖曳）' : ''}</span>
+          <div class="segmented range-seg" role="group" aria-label="價格基準（主角數字、走勢、區間報酬一起切換）">
+            {(['adj', 'raw'] as const).map((b) => <button key={b} aria-pressed={basis === b} onClick={() => onBasis(b)}>{b === 'adj' ? '還原價' : '原始價'}</button>)}
           </div>
         </div>
       ) : null}

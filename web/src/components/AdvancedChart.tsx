@@ -4,6 +4,7 @@ import { KChart, type LowerPanel, type Overlay } from './KChart';
 import type { StockHistory } from '../data/types';
 import { series, toOhlc, volumeSeries, type PriceMode } from '../lib/history';
 import { fmtPrice } from '../lib/format';
+import { costLineFor } from '../lib/heroSeries';
 
 export interface LowerDef { id: string; label: string; key: keyof StockHistory; kind: 'histogram' | 'line'; signed?: boolean; unit: string }
 export const LOWER_PANELS: LowerDef[] = [
@@ -25,8 +26,11 @@ function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-export default function AdvancedChart({ h }: { h: StockHistory }) {
-  const [mode, setMode] = useState<PriceMode>('adj');
+/** mode／onMode：M5 起由個股頁統一管理價格基準（與主角走勢同步）；沒有提供時自行管理。 */
+export default function AdvancedChart({ h, mode: ctlMode, onMode }: { h: StockHistory; mode?: PriceMode; onMode?: (m: PriceMode) => void }) {
+  const [ownMode, setOwnMode] = useState<PriceMode>('adj');
+  const mode = ctlMode ?? ownMode;
+  const setMode = (m: PriceMode) => (onMode ? onMode(m) : setOwnMode(m));
   const [lower, setLower] = useState('foreign');
   const [costLines, setCostLines] = useState(true);
   const chart = useMemo(() => {
@@ -36,12 +40,14 @@ export default function AdvancedChart({ h }: { h: StockHistory }) {
     const lowerPanel: LowerPanel = { label: def.label, kind: def.kind, signed: def.signed, unit: def.unit, data: series(h, def.key) };
     const overlays: Overlay[] = [];
     const cl = h.cost as Record<string, (number | null)[]> | undefined;
-    if (costLines && cl && mode === 'raw') {
+    if (costLines && cl) {
       // 成本線屬於估算值；以灰階與虛實區分，不另外使用其他顏色
       const style: Record<string, string> = { foreign20: cssVar('--text-1'), trust20: cssVar('--text-2'), foreign60: cssVar('--text-2'), trust60: cssVar('--text-3') };
       const labels: Record<string, string> = { foreign20: '外資20日成本（估）', trust20: '投信20日成本（估）', foreign60: '外資60日成本（估）', trust60: '投信60日成本（估）' };
       for (const [k, arr] of Object.entries(cl)) {
-        const data = arr.map((v, i) => (v === null ? null : { time: h.d[i], value: v })).filter((x): x is { time: string; value: number } => x !== null);
+        // M5：成本線以原始價計算；還原模式時每一天乘上當天的還原因子，與 K 線同一個價格基準
+        const conv = costLineFor(arr, h.af, mode);
+        const data = conv.map((v, i) => (v === null ? null : { time: h.d[i], value: v })).filter((x): x is { time: string; value: number } => x !== null);
         if (data.length) overlays.push({ label: labels[k] ?? k, color: style[k] ?? cssVar('--text-2'), data });
       }
     }
@@ -57,7 +63,7 @@ export default function AdvancedChart({ h }: { h: StockHistory }) {
           <button aria-pressed={mode === 'raw'} onClick={() => setMode('raw')}>原始</button>
         </div>
         {h.cost ? (
-          <label class="check caption"><input type="checkbox" checked={costLines} onChange={(e) => setCostLines((e.target as HTMLInputElement).checked)} /> 法人成本線<span class="est">估</span>（原始價）</label>
+          <label class="check caption"><input type="checkbox" checked={costLines} onChange={(e) => setCostLines((e.target as HTMLInputElement).checked)} /> 法人成本線<span class="est">估</span>（{mode === 'adj' ? '還原價' : '原始價'}）</label>
         ) : null}
       </div>
       <KChart ohlc={chart.ohlc} volume={chart.volume} overlays={chart.overlays} lower={chart.lowerPanel}
@@ -70,7 +76,7 @@ export default function AdvancedChart({ h }: { h: StockHistory }) {
       <div class="chips" role="group" aria-label="下方指標" style={{ marginTop: 'var(--s-2)' }}>
         {available.map((p) => <button key={p.id} class="chip" aria-pressed={lower === p.id} onClick={() => setLower(p.id)}>{p.label}</button>)}
       </div>
-      {mode === 'raw' && h.cost ? <p class="caption muted">法人成本線為估算值：以淨買超日股數 × 當日均價加權（見方法說明）。</p> : null}
+      {h.cost ? <p class="caption muted">法人成本線為估算值：以淨買超日股數 × 當日均價加權（見方法說明）{mode === 'adj' ? '；還原模式已乘上還原因子，與 K 線同一基準' : ''}。</p> : null}
     </div>
   );
 }

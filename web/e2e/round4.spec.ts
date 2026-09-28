@@ -96,6 +96,12 @@ test.describe('1. 底部導覽', () => {
 });
 
 // ---------------------------------------------------------------- 2. 個股頁左右換股
+/** M5：換股手勢只從頁首區域（股票名稱）開始 → 拖曳的 y 取名稱列 */
+const headY = async (page: Page) => {
+  const b = (await page.locator('.pager-pane:not([inert]) .page-head').boundingBox())!;
+  return b.y + b.height / 2;
+};
+
 async function openInList(page: Page, code: string, codes = ['2330', '2317', '2454']) {
   await page.goto('#/mine');
   await page.evaluate((c) => sessionStorage.setItem('twse:list-context', JSON.stringify({ name: '自選', codes: c })), codes);
@@ -120,7 +126,8 @@ test.describe('2. 個股頁左右換股', () => {
     const top0 = (await page.locator('.topbar').boundingBox())!;
     const low0 = (await page.locator('.stock-lower').boundingBox())!;
     let busy = false;
-    await touchDrag(page, { x: 320, y: 190 }, { x: 140, y: 192 }, {
+    const y = await headY(page);
+    await touchDrag(page, { x: 320, y }, { x: 140, y: y + 2 }, {
       beforeEnd: async () => {
         const next = (await page.locator('.pager-pane[data-code="2454"]').boundingBox())!;
         expect(next.x).toBeLessThan(393); // 後一檔已經進入畫面
@@ -146,10 +153,11 @@ test.describe('2. 個股頁左右換股', () => {
 
   test('第一檔往右拖：橡皮筋回彈，不換股；拖曳距離不夠也彈回', async ({ page }) => {
     await openInList(page, '2330');
-    await touchDrag(page, { x: 100, y: 190 }, { x: 330, y: 190 });
+    const y = await headY(page);
+    await touchDrag(page, { x: 100, y }, { x: 330, y });
     await page.waitForTimeout(600);
     await expect(page).toHaveURL(/#\/stock\/2330$/);
-    await touchDrag(page, { x: 300, y: 190 }, { x: 260, y: 190 }, { steps: 20 });
+    await touchDrag(page, { x: 300, y }, { x: 260, y }, { steps: 20 });
     await page.waitForTimeout(600);
     await expect(page).toHaveURL(/#\/stock\/2330$/);
     const x = await page.locator('.pager-pane:not([inert])').evaluate((el) => el.getBoundingClientRect().x);
@@ -165,14 +173,13 @@ test.describe('2. 個股頁左右換股', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('台積電');
   });
 
-  test('走勢圖按住約 0.2 秒再拖曳是查價，不會換股', async ({ page }) => {
+  test('走勢圖上左右拖曳是查價（M5：不必先按住），不會換股', async ({ page }) => {
     await openInList(page, '2317');
     const chart = (await page.locator('.pager-pane:not([inert]) .chart-wrap').boundingBox())!;
     const hero = page.locator('.pager-pane:not([inert]) .hero');
     const before = await hero.textContent();
     let during = before;
     await touchDrag(page, { x: chart.x + chart.width * 0.85, y: chart.y + 80 }, { x: chart.x + chart.width * 0.3, y: chart.y + 82 }, {
-      holdMs: 320,
       beforeEnd: async () => { during = await hero.textContent(); },
     });
     expect(during).not.toBe(before);
