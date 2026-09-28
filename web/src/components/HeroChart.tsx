@@ -8,6 +8,9 @@
  *   期間選擇器只改變走勢圖，區間漲跌標示在圖表上方（chart-range）。
  * heroChange='both'（個股頁）：主角數字下方兩行：「今日漲跌」與「所選期間漲跌」（拖曳時為該日漲跌、期間起點到該日）。
  * 只有 1 個資料點：畫單點標記，說明「資料累積中：目前只有 1 個交易日…」。
+ * 兩指區間報酬（range，仿 Apple 股市）：兩指同時按在圖上 → 兩條垂直標線、上方顯示兩個日期、漲跌金額、報酬率與相隔交易日數，
+ *   手指移動時即時更新；放開後保留 2 秒再淡出。單指仍是查單點。桌機：按住拖曳選出區間。
+ *   報酬率預設用還原價（win.values），rangeAlt（原始價，與 win 同一組日期）存在時可切換。
  */
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -15,6 +18,7 @@ import { PERIODS, PERIOD_LABEL, change, type Dir, type Period, type Window } fro
 import { areaD, extent, lerpPts, nearestIndex, pathD, points, resample, springEase, yOf, type Frame } from '../lib/chartMath';
 import { arrow, fmtNum } from '../lib/format';
 import { coverage, coverageNote } from '../lib/series';
+import { RANGE_BASIS_NAME, RANGE_HOLD_MS, type RangeBasis, getRangeBasis, rangeReturn, setRangeBasis, shortDate } from '../lib/rangeReturn';
 
 const N = 160;
 const reduceMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -85,7 +89,7 @@ const HOLD_SLOP = 8; // 這段時間內移動超過幾 px 就視為滑動
 
 export function HeroChart({
   label, win, period, onPeriod, format, formatDelta, seen, height = 176, area = false, caption, emptyText = '資料累積中', periodsLabel,
-  periods = PERIODS, heroChange = 'period', holdToScrub = false,
+  periods = PERIODS, heroChange = 'period', holdToScrub = false, range: rangeOn = true, rangeAlt = null,
 }: {
   label: ComponentChildren;
   win: Window | null;
@@ -109,6 +113,10 @@ export function HeroChart({
    * 讓快速的左右滑動交給換股、按住再拖曳才是查價（滑鼠不受影響）。
    */
   holdToScrub?: boolean;
+  /** 兩指區間報酬（預設開啟） */
+  range?: boolean;
+  /** 原始價（與 win 同一組日期）：提供時可切換區間報酬的計算基準 */
+  rangeAlt?: number[] | null;
 }) {
   const fd = formatDelta ?? format;
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -119,6 +127,14 @@ export function HeroChart({
   const [w, setW] = useState(360);
   const [scrub, setScrub] = useState<number | null>(null);
   const [drawn, setDrawn] = useState(false);
+  // 區間報酬：a／b 為兩端的索引；live＝手指（或滑鼠）還按著；fading＝放開 2 秒後淡出中
+  const [sel, setSel] = useState<{ a: number; b: number; live: boolean; fading: boolean } | null>(null);
+  const selRef = useRef(sel);
+  selRef.current = sel;
+  const touches = useRef(new Map<number, number>());
+  const mouseSel = useRef<{ a: number; moved: boolean } | null>(null);
+  const fadeTimers = useRef<number[]>([]);
+  const [basis, setBasisState] = useState<RangeBasis>(getRangeBasis);
 
   useLayoutEffect(() => {
     const el = wrapRef.current;
@@ -201,14 +217,90 @@ export function HeroChart({
     hold.current = null;
   };
   useEffect(() => {
-    // 查價中阻止頁面上下捲動（touch-action: pan-y 允許捲動，需要在 touchmove 取消）
+    // 查價或兩指選區間時阻止頁面上下捲動（touch-action: pan-y 允許捲動，需要在 touchmove 取消）
     const el = wrapRef.current;
-    if (!el || !holdToScrub) return;
-    const block = (e: TouchEvent) => { if (hold.current?.active && e.cancelable) e.preventDefault(); };
+    if (!el || (!holdToScrub && !rangeOn)) return;
+    const block = (e: TouchEvent) => { if ((hold.current?.active || e.touches.length >= 2 || selRef.current?.live) && e.cancelable) e.preventDefault(); };
     el.addEventListener('touchmove', block, { passive: false });
     return () => { el.removeEventListener('touchmove', block); clearHold(); };
-  }, [holdToScrub]);
+  }, [holdToScrub, rangeOn]);
+  useEffect(() => () => fadeTimers.current.forEach(clearTimeout), []);
+  // 期間或資料改變時清掉區間（win 物件每次渲染都會重建，只看起訖與長度）
+  useEffect(() => { setSel(null); }, [win?.dates[0], win?.dates[win.dates.length - 1], win?.values.length]);
+
+  const clearFade = () => { fadeTimers.current.forEach(clearTimeout); fadeTimers.current = []; };
+  const liveRange = (a: number | null, b: number | null) => {
+    if (a === null || b === null) return;
+    clearFade();
+    setScrub(null);
+    setSel({ a, b, live: true, fading: false });
+  };
+  /** 放開：保留結果 2 秒再淡出（減少動態效果時直接消失） */
+  const releaseRange = () => {
+    if (!selRef.current) return;
+    setSel((r) => (r ? { ...r, live: false } : r));
+    clearFade();
+    fadeTimers.current.push(window.setTimeout(() => {
+      if (reduceMotion()) { setSel(null); return; }
+      setSel((r) => (r && !r.live ? { ...r, fading: true } : r));
+      fadeTimers.current.push(window.setTimeout(() => setSel((r) => (r && !r.live ? null : r)), 320));
+    }, RANGE_HOLD_MS));
+  };
+  const touchRange = () => {
+    const xs = [...touches.current.values()];
+    if (xs.length >= 2) liveRange(idxFromX(xs[0]), idxFromX(xs[1]));
+  };
+  /** 觸控：記錄每一指的位置；第二指落下即進入區間模式（取消按住查價，不讓外層換股接手）。回傳是否已處理。 */
+  const rangeDown = (e: PointerEvent): boolean => {
+    if (!rangeOn || !win) return false;
+    if (e.pointerType === 'mouse') {
+      if (e.button === 0) mouseSel.current = { a: idxFromX(e.clientX) ?? 0, moved: false };
+      return false;
+    }
+    touches.current.set(e.pointerId, e.clientX);
+    if (touches.current.size < 2) return false;
+    clearHold();
+    const target = e.currentTarget as HTMLElement;
+    for (const id of touches.current.keys()) { try { target.setPointerCapture(id); } catch { /* 手指已離開 */ } }
+    e.stopPropagation();
+    touchRange();
+    return true;
+  };
+  const rangeMove = (e: PointerEvent): boolean => {
+    if (!rangeOn) return false;
+    if (e.pointerType === 'mouse') {
+      const m = mouseSel.current;
+      if (!m || !(e.buttons & 1)) return false;
+      const b = idxFromX(e.clientX);
+      if (b === null) return true;
+      if (!m.moved && b === m.a) return false;
+      m.moved = true;
+      liveRange(m.a, b);
+      return true;
+    }
+    if (!touches.current.has(e.pointerId)) return false;
+    touches.current.set(e.pointerId, e.clientX);
+    if (touches.current.size >= 2) { e.stopPropagation(); touchRange(); return true; }
+    return !!selRef.current?.live;
+  };
+  const rangeUp = (e: PointerEvent): boolean => {
+    if (!rangeOn) return false;
+    if (e.pointerType === 'mouse') {
+      const m = mouseSel.current;
+      mouseSel.current = null;
+      if (m?.moved) { releaseRange(); return true; }
+      return false;
+    }
+    const had = touches.current.delete(e.pointerId);
+    if (had && selRef.current?.live) {
+      e.stopPropagation();
+      if (touches.current.size < 2) releaseRange();
+      return true;
+    }
+    return false;
+  };
   const onMove = (e: PointerEvent) => {
+    if (rangeMove(e)) return;
     if (holdToScrub && e.pointerType !== 'mouse') {
       const h = hold.current;
       if (!h || h.id !== e.pointerId) return;
@@ -225,6 +317,7 @@ export function HeroChart({
     if (e.pointerType === 'mouse' || e.buttons || (e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) setScrub(idxFromEvent(e));
   };
   const onDown = (e: PointerEvent) => {
+    if (rangeDown(e)) return;
     if (holdToScrub && e.pointerType !== 'mouse') {
       clearHold();
       const target = e.currentTarget as HTMLElement;
@@ -249,6 +342,14 @@ export function HeroChart({
     clearHold();
     setScrub(null);
   };
+  const onUp = (e: PointerEvent) => {
+    if (rangeUp(e)) { clearHold(); return; }
+    if (e.pointerType !== 'mouse') end(e);
+  };
+  const onCancelPointer = (e: PointerEvent) => {
+    if (touches.current.delete(e.pointerId) && selRef.current?.live && touches.current.size < 2) releaseRange();
+    end();
+  };
   const onKey = (e: KeyboardEvent) => {
     if (!win) return;
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -258,6 +359,10 @@ export function HeroChart({
     } else if (e.key === 'Escape' || e.key === 'Enter') setScrub(null);
   };
 
+  const rangeValues = basis === 'raw' && rangeAlt && win && rangeAlt.length === win.values.length ? rangeAlt : win?.values ?? [];
+  const rr = sel && win ? rangeReturn(win.dates, rangeValues, sel.a, sel.b) : null;
+  const rangePts = rr && geo ? [geo.pts[rr.from], geo.pts[rr.to]] : null;
+  const pickBasis = (b: RangeBasis) => { setBasisState(b); setRangeBasis(b); };
   const scrubPt = geo && scrub !== null ? geo.pts[scrub] : null;
   const endPt = geo ? geo.pts[geo.pts.length - 1] : null;
   const summary = win && latest !== null && chg
@@ -306,8 +411,8 @@ export function HeroChart({
       ) : null}
       <div ref={wrapRef} class="chart-wrap bleed" style={{ height: `${height / 16}rem` }}
         tabIndex={win ? 0 : -1} role="img" aria-label={`${summary}。可用左右鍵查看每日數值。`}
-        onPointerMove={onMove} onPointerDown={onDown} onPointerUp={(e) => e.pointerType !== 'mouse' && end(e)} onPointerCancel={() => end()}
-        onPointerLeave={(e) => (e.pointerType === 'mouse' ? end() : undefined)}
+        onPointerMove={onMove} onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={onCancelPointer}
+        onPointerLeave={(e) => { if (e.pointerType !== 'mouse') return; if (mouseSel.current?.moved) { mouseSel.current = null; releaseRange(); } end(); }}
         onKeyDown={onKey} onBlur={() => end()}>
         {geo ? (
           <svg class={`chart ${drawn ? '' : 'draw'}`} viewBox={`0 0 ${w} ${height}`} height={height} preserveAspectRatio="none" aria-hidden="true" style={{ ['--len' as string]: 1 }}>
@@ -322,12 +427,23 @@ export function HeroChart({
             {area ? <path ref={areaRef} class="chart-area" fill="url(#hero-area)" /> : null}
             <path ref={glowRef} class="chart-glow" stroke={color} filter="url(#hero-glow)" pathLength={1} />
             <path ref={lineRef} class="chart-line" stroke={color} pathLength={1} />
-            {scrubPt ? (
+            {rangePts && rr ? (
+              <g class={`range-marks ${sel?.fading ? 'fading' : ''}`} data-testid="range-marks">
+                <rect class="range-band" x={rangePts[0][0]} y={0} width={Math.max(0, rangePts[1][0] - rangePts[0][0])} height={height} />
+                {rangePts.map((p, k) => (
+                  <g key={k}>
+                    <line class="chart-scrub range-line" x1={p[0]} x2={p[0]} y1={0} y2={height} />
+                    <circle cx={p[0]} cy={p[1]} r={5} fill={dirColor(rr.dir)} stroke="var(--bg)" stroke-width={2} />
+                  </g>
+                ))}
+              </g>
+            ) : null}
+            {scrubPt && !rr ? (
               <>
                 <line class="chart-scrub" x1={scrubPt[0]} x2={scrubPt[0]} y1={0} y2={height} />
                 <circle cx={scrubPt[0]} cy={scrubPt[1]} r={5} fill={color} stroke="var(--bg)" stroke-width={2} />
               </>
-            ) : endPt ? (
+            ) : endPt && !rr ? (
               <>
                 <circle class="dot-halo" cx={endPt[0]} cy={endPt[1]} r={9} fill={color} />
                 <circle cx={endPt[0]} cy={endPt[1]} r={3.5} fill={color} />
@@ -335,11 +451,28 @@ export function HeroChart({
             ) : null}
           </svg>
         ) : <div class="chart-empty" style={{ height: '100%' }}>{emptyText}</div>}
+        {rr ? (
+          <div class={`range-tip ${sel?.fading ? 'fading' : ''}`} data-testid="range-tip" role="status">
+            <span class="range-dates">{shortDate(rr.fromDate)} – {shortDate(rr.toDate)}<span class="range-days">・{rr.days} 個交易日</span></span>
+            <span class={`range-chg ${rr.dir}`}>
+              {arrow(rr.abs)} {fd(Math.abs(rr.abs))}（{rr.pct === null ? '—' : `${rr.pct > 0 ? '+' : rr.pct < 0 ? '−' : ''}${Math.abs(rr.pct).toFixed(2)}%`}）
+            </span>
+            <span class="range-basis-label">{rangeAlt ? RANGE_BASIS_NAME[basis] : ''}</span>
+          </div>
+        ) : null}
       </div>
       {caption || win?.truncated ? (
         <div class="chart-caption" data-testid="hero-coverage">{win?.truncated ? `${coverageNote({ ...coverage(win.dates, Infinity) }, '個交易日', false)}。` : ''}{caption}</div>
       ) : null}
       <PeriodSelector value={period} onChange={onPeriod} label={periodsLabel ?? '走勢期間'} periods={periods} />
+      {rangeOn && rangeAlt ? (
+        <div class="range-basis" data-testid="range-basis">
+          <span class="caption muted">兩指按住看區間報酬（桌機：按住拖曳）</span>
+          <div class="segmented range-seg" role="group" aria-label="區間報酬的計算基準">
+            {(['adj', 'raw'] as const).map((b) => <button key={b} aria-pressed={basis === b} onClick={() => pickBasis(b)}>{b === 'adj' ? '還原價' : '原始價'}</button>)}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

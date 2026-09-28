@@ -68,6 +68,8 @@ function StockHero({ code, fallbackName, fallbackIndustry, period, onPeriod, see
   const { data: h, error } = useStockData(code);
   const adj = useMemo(() => (h ? adjClose(h) : []), [h]);
   const win = h ? sliceWindow(h.d, adj, period) : null;
+  // 區間報酬可切換成原始價：與還原價同一組日期（sliceWindow 依日期切，兩者長度相同）
+  const raw = h ? sliceWindow(h.d, h.c, period) : null;
   return (
     <>
       <header class="page-head">
@@ -79,7 +81,7 @@ function StockHero({ code, fallbackName, fallbackIndustry, period, onPeriod, see
           {advanced ? <AdvancedChart h={h} /> : (
             <HeroChart label="收盤價（還原）" win={win} period={period} onPeriod={onPeriod} seen={seen}
               format={(v) => fmtPrice(v)} formatDelta={(v) => fmtNum(v, v >= 100 ? 1 : 2)} area height={200} periodsLabel="股價走勢期間" holdToScrub={holdToScrub}
-              periods={STOCK_PERIODS} heroChange="both" />
+              periods={STOCK_PERIODS} heroChange="both" rangeAlt={raw && win && raw.values.length === win.values.length ? raw.values : null} />
           )}
         </div>
       ) : error ? null : <Loading hero />}

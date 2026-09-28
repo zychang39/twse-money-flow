@@ -789,3 +789,18 @@ details.tech ul { margin: var(--s-1) 0 0; padding-left: var(--s-4); color: var(-
 }
 /* 文字段落中的連結不只靠顏色辨識 */
 p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
+
+/* 兩指區間報酬（v3 M4） */
+.range-band { fill: var(--text-1); opacity: 0.06; }
+.range-marks { transition: opacity var(--dur-slow) var(--ease-out, ease-out); }
+.range-marks.fading, .range-tip.fading { opacity: 0; }
+.range-tip { position: absolute; left: 50%; top: calc(-1 * var(--s-2)); transform: translate(-50%, -100%); z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 0.125rem; min-width: 12rem; padding: var(--s-2) var(--s-3); border-radius: var(--r-md); background: var(--surface-3); box-shadow: var(--shadow-float); pointer-events: none; transition: opacity 0.3s ease-out; font-variant-numeric: tabular-nums; }
+.range-dates { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-1); white-space: nowrap; }
+.range-days { color: var(--text-2); }
+.range-chg { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); white-space: nowrap; }
+.range-chg.flat { color: var(--text-1); }
+.range-basis-label { font-size: var(--fs-micro); line-height: var(--lh-micro); color: var(--text-2); }
+.range-basis { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-1) var(--s-2); margin-top: var(--s-2); }
+.range-seg { flex: none; }
+.range-seg button { min-height: 2rem; padding: 0 var(--s-3); font-size: var(--fs-caption); }
+@media (prefers-reduced-motion: reduce) { .range-tip, .range-marks { transition: none; } }
