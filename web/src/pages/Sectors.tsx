@@ -7,14 +7,14 @@ import { useAsync, useRestoredState } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { loadMarket } from '../data/api';
 import { setListContext } from '../lib/listContext';
-import { fmtLots, fmtNum, fmtPct } from '../lib/format';
+import { dirColor, fmtLots, fmtNum, fmtPct } from '../lib/format';
 import { navigate } from '../router';
 
 function heat(v: number | null, scale: number): string {
   if (v === null || v === undefined) return 'var(--surface-1)';
   const x = Math.max(-1, Math.min(1, v / scale));
   const pct = Math.round(18 + 52 * Math.abs(x));
-  return `color-mix(in srgb, ${x >= 0 ? 'var(--up)' : 'var(--down)'} ${pct}%, var(--surface-1))`;
+  return `color-mix(in srgb, ${dirColor(x)} ${pct}%, var(--surface-1))`;
 }
 
 function SectorStocks({ industry }: { industry: string }) {

@@ -4,7 +4,7 @@
  */
 import { type CreditSummary, basisText, lotsDelta, marginUsageText, ppDelta } from '../lib/credit';
 import { uiConfig } from '../lib/config';
-import { numberFormat } from '../lib/format';
+import { dirClass, numberFormat } from '../lib/format';
 
 const INT = numberFormat(0);
 const F1 = numberFormat(1);
@@ -20,7 +20,7 @@ function Row({ k, v, sub, testid }: { k: string; v: string; sub?: string; testid
 }
 
 function dirOf(v: number | null): string {
-  return v === null || v === 0 ? '' : v > 0 ? 'up' : 'down';
+  return dirClass(v);
 }
 
 export function MarginCard({ s }: { s: CreditSummary }) {

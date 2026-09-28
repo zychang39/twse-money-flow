@@ -16,7 +16,9 @@ export function Change({ change, pct, showPrice }: { change: number | null | und
 }
 
 /** 漲跌膠囊（清單列右側）：▲▼＋百分比，底色為淡紅／淡綠。 */
-export function ChangePill({ change, pct }: { change: number | null | undefined; pct: number | null | undefined }) {
+export function ChangePill({ change, pct, status }: { change: number | null | undefined; pct: number | null | undefined; status?: string | null }) {
+  // U-02：今日無成交／停牌時不顯示舊的漲跌，改成中性文字
+  if (status) return <span class="pill flat">{status}</span>;
   const d = direction(change ?? pct);
   return (
     <span class={`pill ${d}`}>

@@ -6,12 +6,19 @@ const cache = new Map<string, Promise<unknown>>();
 /** 已經載入完成的資料（同步讀取用：個股頁左右滑動時，前後一檔已預先載入，換股不必等待、不出現載入畫面） */
 const resolved = new Map<string, unknown>();
 
-export class DataError extends Error {}
+export class DataError extends Error {
+  constructor(message: string, readonly status?: number) { super(message); }
+}
+
+/** 檔案不存在（HTTP 404）：個股檔只輸出近 20 個交易日有成交的證券 */
+export const isNotFound = (e: unknown): boolean => e instanceof DataError && e.status === 404;
 
 async function getJson<T>(path: string): Promise<T> {
   if (!cache.has(path)) {
     const p = fetch(BASE + path).then(async (res) => {
-      if (!res.ok) throw new DataError(`${path}：HTTP ${res.status}`);
+      if (!res.ok) throw new DataError(res.status === 404 ? '找不到資料檔' : `資料暫時無法取得（HTTP ${res.status}）`, res.status);
+      // 開發伺服器與部分快取對不存在的檔案回傳 index.html（200）：視同不存在
+      if ((res.headers.get('content-type') ?? '').includes('text/html')) throw new DataError('找不到資料檔', 404);
       return res.json();
     });
     p.then((v) => resolved.set(path, v), () => cache.delete(path));
@@ -56,4 +63,9 @@ export const loadJson = <T>(path: string) => getJson<T>(path);
 export const loadMarket = () => getJson<import('./types').MarketData>('market.json');
 /** 系統清單（熱門動能）；舊版部署沒有這個檔案時回傳 null，不影響其他畫面。 */
 export const loadLists = () => getJson<import('./types').Lists>('lists.json').catch(() => null);
+/** U-01：近 20 個交易日沒有成交、沒有個股檔的證券（下市、長期停牌）；舊版部署沒有這個檔案時為空。 */
+export const loadInactive = () =>
+  getJson<import('./types').InactiveList>('inactive.json')
+    .then((x) => new Map(x.rows.map((r) => [r.code, r])))
+    .catch(() => new Map<string, import('./types').InactiveRow>());
 export const loadIndex = () => getJson<import('./types').IndexData>('index.json');

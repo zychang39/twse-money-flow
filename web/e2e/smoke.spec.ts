@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 // 冒煙測試：逐一載入每個頁面（新資訊架構），確認沒有 JS 錯誤、有頁面標題、頁尾免責聲明與 4 個圖示 Tab。
 const PAGES: { hash: string; title?: RegExp }[] = [
-  { hash: '#/', title: /今晚|大盤/ },
+  { hash: '#/', title: /今晚|資金/ }, // 資料載入前是「今晚的盤後簡報」，載入後是結論句（後半句一定是資金環境）
   { hash: '#/mine' },
   { hash: '#/mine?seg=watch' },
   { hash: '#/stock/2330', title: /台積電/ },

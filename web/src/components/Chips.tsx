@@ -39,7 +39,7 @@ import {
 } from '../lib/chips';
 import { uiConfig } from '../lib/config';
 import { getSetting, setSetting } from '../db/db';
-import { arrow, direction, fmtNum, fmtPrice } from '../lib/format';
+import { arrow, dirClass, direction, fmtNum, fmtPrice } from '../lib/format';
 import { IconChevronDown, IconMore } from './Icons';
 import { Sheet } from './Sheet';
 
@@ -276,7 +276,7 @@ export function MiniNetBars({ rows }: { rows: ChipRow[] }) {
       <div class="cd-mini-bars" aria-hidden="true">
         {vals.map((v, i) => (
           <span key={i} class="cd-mini-slot">
-            {v ? <span class={`cd-mini-bar ${v > 0 ? 'up' : 'down'}`} style={{ height: `${(Math.abs(v) / max) * 50}%` }} /> : null}
+            {v ? <span class={`cd-mini-bar ${dirClass(v)}`} style={{ height: `${(Math.abs(v) / max) * 50}%` }} /> : null}
           </span>
         ))}
       </div>

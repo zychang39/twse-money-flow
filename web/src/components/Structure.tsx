@@ -9,7 +9,7 @@ import type { ComponentChildren } from 'preact';
 import { type ChartPanel, StackedChart } from './StackedChart';
 import { Sheet } from './Sheet';
 import { IconChevron } from './Icons';
-import { fmtPrice, numberFormat } from '../lib/format';
+import { dirClass, fmtPrice, numberFormat } from '../lib/format';
 import {
   METRICS,
   METRIC_NAME,
@@ -57,7 +57,7 @@ export function StructureBar({ block }: { block: HolderBlock }) {
       <dl class="st-legend">
         {st.map((s) => {
           const d = s.change;
-          const dir = d === null || Math.abs(d) < 0.005 ? 'flat' : d > 0 ? 'up' : 'down';
+          const dir = dirClass(d, 0.005);
           return (
             <div key={s.tier} class={`st-item ${s.tier}`}>
               <dt><span class="st-swatch" aria-hidden="true" />{TIER_NAME[s.tier]}<span class="st-range">{tierRange(s.tier)}</span></dt>

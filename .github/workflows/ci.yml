@@ -45,6 +45,9 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
         working-directory: web
+      - name: 衍生資料可嚴格解析（E-01）
+        run: npm run check-json -- public/data
+        working-directory: web
       - run: npm run lint
         working-directory: web
       - run: npm run typecheck

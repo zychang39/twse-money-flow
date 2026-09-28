@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from typing import Any
 
 import pandas as pd
 
@@ -44,6 +45,18 @@ class TradingCalendar:
         for s in extra_closed:
             cal.closed.add(date.fromisoformat(s))
         return cal
+
+    @classmethod
+    def from_store(cls, store: Any, manifest: dict[str, Any] | None = None) -> TradingCalendar:
+        """由 data 分支已存的休市日曆（raw/twse_holidays/{年}）與 manifest 的臨時休市日（closed_days）建立。"""
+        frames = [store.read("twse_holidays", d) for d in store.dates("twse_holidays")]
+        manifest = manifest if manifest is not None else store.load_manifest()
+        return cls.from_frames([f for f in frames if f is not None], manifest.get("closed_days", []))
+
+    def to_json(self) -> dict[str, Any]:
+        """前端共用的交易日曆（meta.json 的 calendar）：規則與 is_trading_day 相同——
+        週一至週五且不在 closed 中即為交易日。web/src/lib/tradingCalendar.ts 依同一份資料判斷，不另外實作假日表。"""
+        return {"closed": sorted(d.isoformat() for d in self.closed), "years": sorted(self.known_years)}
 
     def is_trading_day(self, d: date) -> bool:
         return d.weekday() < 5 and d not in self.closed

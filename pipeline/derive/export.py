@@ -53,11 +53,66 @@ def arr(values: Any, digits: int = 4) -> list[Any]:
     return [clean(v, digits) for v in values]
 
 
+def text(value: Any, default: str = "") -> str:
+    """文字欄位：None／NaN／空白／字面上的 "nan" → default（避免畫面出現「nan」，見 U-07）。"""
+    if value is None:
+        return default
+    if isinstance(value, float | np.floating) and not math.isfinite(float(value)):
+        return default
+    if value is pd.NaT or (not isinstance(value, str | list | dict | tuple) and pd.isna(value)):
+        return default
+    s = str(value).strip()
+    return default if s == "" or s.lower() in ("nan", "none", "nat", "<na>") else s
+
+
+def text_or_none(value: Any) -> str | None:
+    return text(value) or None
+
+
+def num_text(value: Any, default: str = "—") -> str:
+    """數字轉文字（事件說明用）：NaN → default；整數值不帶 .0。"""
+    if value is None or isinstance(value, str):
+        return text(value, default)
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return default
+    return f"{v:g}" if math.isfinite(v) else default
+
+
+def sanitize(obj: Any) -> Any:
+    """遞迴清理輸出物件：NaN／inf／NaT → None、numpy 型別 → Python 型別（不改變精度）。
+
+    E-01：個股檔的 dict 欄位（例：short_halt.reason）可能含 NaN，json.dumps 會寫成字面上的 NaN，
+    瀏覽器的 JSON.parse 無法解析。write_json 一律先經過這裡，並以 allow_nan=False 在 build 時就失敗。
+    """
+    if obj is None or isinstance(obj, bool | str | int):
+        return obj
+    if isinstance(obj, dict):
+        return {str(k): sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list | tuple):
+        return [sanitize(v) for v in obj]
+    if isinstance(obj, float | np.floating):
+        v = float(obj)
+        return v if math.isfinite(v) else None
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+    if isinstance(obj, np.ndarray):
+        return [sanitize(v) for v in obj.tolist()]
+    if obj is pd.NaT or obj is pd.NA:
+        return None
+    if isinstance(obj, pd.Timestamp):
+        return obj.date().isoformat() if obj == obj.normalize() else obj.isoformat()
+    return obj
+
+
 def write_json(path: Path, obj: Any) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
-    text = json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
-    path.write_text(text, encoding="utf-8")
-    return len(gzip.compress(text.encode("utf-8")))
+    payload = json.dumps(sanitize(obj), ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    path.write_text(payload, encoding="utf-8")
+    return len(gzip.compress(payload.encode("utf-8")))
 
 
 # ------------------------------------------------------------------ 健康頁
@@ -123,10 +178,14 @@ def build_web(data_dir: Path, out: Path, *, demo: bool = False) -> dict[str, Any
     generated = datetime.now(TPE).isoformat(timespec="seconds")
     health = build_health(ds, market_date)
     write_json(out / "health.json", health)
+    from pipeline.core.calendar import TradingCalendar
+
     meta: dict[str, Any] = {
         "generated_at": generated,
         "market_date": market_date,
         "demo": demo,
+        # E-02：前端與 pipeline 共用同一份交易日曆（證交所休市日曆＋臨時休市日）
+        "calendar": TradingCalendar.from_store(store, ds.manifest).to_json(),
         "status": "ok" if market_date else "no_data",
         "sources_failed": [s["id"] for s in health["sources"] if s["last_status"] == "failed"],
         # 影響最新資料的異常來源（頁首「N 個資料源異常」只依這份清單與該頁用到的來源判斷）
@@ -164,4 +223,15 @@ def is_listed_security(code: str) -> bool:
     return is_common_stock(code) or is_etf(code) or (len(code) == 5 and code[:4].isdigit())
 
 
-__all__ = ["arr", "build_web", "clean", "is_listed_security", "pd", "write_json"]
+__all__ = [
+    "arr",
+    "build_web",
+    "clean",
+    "is_listed_security",
+    "num_text",
+    "pd",
+    "sanitize",
+    "text",
+    "text_or_none",
+    "write_json",
+]

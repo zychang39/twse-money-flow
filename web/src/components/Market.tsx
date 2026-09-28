@@ -2,7 +2,7 @@
 import { useState } from 'preact/hooks';
 import type { AiSummary, MarketData, MarketLight } from '../data/types';
 import { LIGHT_LABEL, envInfo } from '../lib/envState';
-import { arrow, fmtNum } from '../lib/format';
+import { arrow, dirClass, fmtNum } from '../lib/format';
 import { IconChevronDown } from './Icons';
 
 export function LightsList({ lights }: { lights: MarketLight[] }) {
@@ -48,7 +48,7 @@ export function FlowsRow({ flow }: { flow: MarketData['flows'][number] | undefin
   return (
     <div class="grid three" style={{ marginTop: 'var(--s-5)' }} role="group" aria-label={`三大法人買賣超（${flow.date}）`}>
       {items.map(([k, v]) => {
-        const d = v === null ? 'flat' : v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
+        const d = dirClass(v);
         return (
           <div key={k}>
             <div class="caption muted">{k}</div>

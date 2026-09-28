@@ -12,7 +12,7 @@ import { loadIndex, loadJson, loadMarket } from '../data/api';
 import { TAIEX, TAIEX_TR, TPEX } from '../data/types';
 import { envInfo } from '../lib/envState';
 import { screenerConfig } from '../lib/config';
-import { arrow, fmtNum } from '../lib/format';
+import { arrow, dirClass, fmtNum } from '../lib/format';
 import { PAGE_SOURCES } from '../lib/health';
 
 function IndexCard({ name, values }: { name: string; values: (number | null)[] | undefined }) {
@@ -21,7 +21,7 @@ function IndexCard({ name, values }: { name: string; values: (number | null)[] |
   const prev = v[v.length - 2] ?? null;
   const chg = last !== null && prev !== null ? last - prev : null;
   const pct = chg !== null && prev ? (chg / prev) * 100 : null;
-  const d = chg === null || chg === 0 ? 'flat' : chg > 0 ? 'up' : 'down';
+  const d = dirClass(chg);
   return (
     <a class="index-card" href="#/explore/market">
       <div class="caption muted">{name}</div>

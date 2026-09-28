@@ -2,7 +2,7 @@
  * 成交量與下方指標的座標軸、數值標籤都帶單位（張數不顯示小數，1 萬張以上縮寫為萬張）；
  * 手指拖曳或滑鼠移動時，圖上方的讀數顯示該日日期、價格、成交量與下方指標（含單位）。 */
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { fmtLotsUnit, fmtPrice } from '../lib/format';
+import { dirClass, fmtLotsUnit, fmtPrice } from '../lib/format';
 import {
   CandlestickSeries,
   ColorType,
@@ -99,7 +99,7 @@ export function KChart({ ohlc, volume, overlays = [], lower, height = 380, ariaL
           priceLineVisible: false, lastValueVisible: false,
           priceFormat: { type: 'custom', minMove: lower.unit === '張' ? 1 : 0.01, formatter: (v: number) => formatUnit(v, lower.unit, lower.signed) },
         }, 2);
-        s.setData(lower.data.map((p) => ({ time: p.time as Time, value: p.value, color: p.color ?? (lower.signed ? (p.value >= 0 ? up : down) : cssVar('--text-2', '#888')) })));
+        s.setData(lower.data.map((p) => ({ time: p.time as Time, value: p.value, color: p.color ?? (lower.signed ? (p.value > 0 ? up : p.value < 0 ? down : cssVar('--text-2', '#888')) : cssVar('--text-2', '#888')) })));
       } else {
         const s = chart.addSeries(LineSeries, {
           priceLineVisible: false, lastValueVisible: false, color: cssVar('--text-2', '#888'), lineWidth: 2,
@@ -138,7 +138,7 @@ export function KChart({ ohlc, volume, overlays = [], lower, height = 380, ariaL
             {readout.ohlc ? <span>開 {fmtPrice(readout.ohlc.open)}・高 {fmtPrice(readout.ohlc.high)}・低 {fmtPrice(readout.ohlc.low)}・收 {fmtPrice(readout.ohlc.close)}</span> : null}
             <span>量 {readout.volume === null ? '—' : fmtLotsUnit(readout.volume, false)}</span>
             {lower ? (
-              <span class={lower.signed && readout.lower ? (readout.lower > 0 ? 'up' : 'down') : ''}>
+              <span class={lower.signed ? dirClass(readout.lower) : ''}>
                 {lower.label} {readout.lower === null ? '—' : lower.signed && readout.lower
                   ? `${readout.lower > 0 ? '▲ 淨買超 ' : '▼ 淨賣超 '}${formatUnit(Math.abs(readout.lower), lower.unit)}`
                   : formatUnit(readout.lower, lower.unit)}

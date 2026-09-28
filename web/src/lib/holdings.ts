@@ -12,6 +12,11 @@ export function holdingAlerts(open: Trade[], byCode: Map<string, StockRow>, th =
     const r = byCode.get(t.code);
     const items: { label: string; detail: string }[] = [];
     let score = 0;
+    if (!r) {
+      // U-01：下市或長期停牌的持股不能無聲消失
+      items.push({ label: '無最新行情', detail: '近 20 個交易日沒有成交資料，可能已下市或長期停牌；請自行確認這筆持倉。' });
+      score += 80;
+    }
     const px = r?.close ?? null;
     if (px !== null && px <= t.stop) {
       items.push({ label: `觸及停損 ${fmtPrice(t.stop)}`, detail: `收盤 ${fmtPrice(px)}，低於你設定的停損價 ${fmtPrice(t.stop - px)} 元。` });

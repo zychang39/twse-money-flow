@@ -10,6 +10,7 @@
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { niceScale } from '../lib/scale';
 import { segments } from '../lib/series';
+import { dirClass } from '../lib/format';
 
 export interface ChartSeries {
   key: string;
@@ -162,7 +163,7 @@ export function StackedChart({ dates, panels, label }: { dates: string[]; panels
               return (
                 <span key={`${p.id}-${s.key}`} class="sc-tip-row">
                   <span class="muted">{s.label}</span>
-                  <span class={`num ${p.kind === 'bars' && v ? (v > 0 ? 'up' : 'down') : ''}`}>{v === null || !Number.isFinite(v) ? '—' : f(v)}</span>
+                  <span class={`num ${p.kind === 'bars' ? dirClass(v) : ''}`}>{v === null || !Number.isFinite(v) ? '—' : f(v)}</span>
                 </span>
               );
             }))}

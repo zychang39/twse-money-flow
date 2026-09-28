@@ -7,7 +7,7 @@
 import { Fragment, type ComponentChildren } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Ambient, Block, TopBar } from '../components/Chrome';
-import { Accumulating, DataStatus, ErrorState, Loading } from '../components/DataStatus';
+import { Accumulating, Banner, DataStatus, ErrorState, Loading } from '../components/DataStatus';
 import { HeroChart, usePeriod } from '../components/HeroChart';
 import { type PagerApi, StockPager } from '../components/StockPager';
 import { ScoreRings, compositeCompleteness, categoryName, scoreText } from '../components/Scores';
@@ -16,7 +16,7 @@ import { creditAnswer, creditSummary } from '../lib/credit';
 import { type HolderBlock, structureSentence } from '../lib/holders';
 import { Sheet } from '../components/Sheet';
 import { NetBars } from '../components/Viz';
-import { IconChevron, IconStar, IconStarFill } from '../components/Icons';
+import { IconChevron, IconCloudOff, IconStar, IconStarFill } from '../components/Icons';
 import { lazy, lazyPick } from '../lazy';
 import type { EventRow } from '../components/StockSections';
 import type { Conference } from '../components/Research';
@@ -27,7 +27,8 @@ import type { CategoryId } from '../lib/config';
 import type { ChipBlock } from '../lib/chips';
 import { adjClose } from '../lib/history';
 import { LONG_PERIODS, STOCK_PERIODS, WEEKLY_PERIODS, change, periodStart, pick, sliceWindow, weeklyIndices, type Period, type Window as ChartWindow } from '../lib/periods';
-import { loadLongHistory } from '../data/api';
+import { isNotFound, loadInactive, loadLongHistory } from '../data/api';
+import { inactiveText, tradeStatusNote } from '../lib/tradeStatus';
 import type { StockHistory } from '../data/types';
 import { SECTION_ORDER, STYLE_DESC, STYLE_NAME, STYLE_PERIOD, type SectionId } from '../lib/style';
 import { useInvestStyle } from '../hooks';
@@ -100,10 +101,12 @@ function useHeroWindow(code: string, h: StockHistory | null, period: Period): { 
 }
 
 /** 主角區（名稱、股價、走勢圖）：個股頁左右換股時，前一檔／目前／後一檔各一份。 */
-function StockHero({ code, fallbackName, fallbackIndustry, period, onPeriod, seen, advanced = false, holdToScrub = false }: {
+function StockHero({ code, fallbackName, fallbackIndustry, status, period, onPeriod, seen, advanced = false, holdToScrub = false }: {
   code: string;
   fallbackName?: string | null;
   fallbackIndustry?: string | null;
+  /** U-02：今日無成交／停牌中（中性文字，不是資料問題） */
+  status?: string | null;
   period: Period;
   onPeriod: (p: Period) => void;
   seen: number | null;
@@ -112,11 +115,14 @@ function StockHero({ code, fallbackName, fallbackIndustry, period, onPeriod, see
 }) {
   const { data: h, error } = useStockData(code);
   const { win, raw } = useHeroWindow(code, h, period);
+  const inactive = useAsync(() => (error && isNotFound(error) ? loadInactive().then((m) => m.get(code) ?? null) : Promise.resolve(null)), [code, !!error]);
+  const market = h?.market ?? inactive.data?.market;
   return (
     <>
       <header class="page-head">
-        <div class="eyebrow">{code}・{h?.market === 'tpex' ? '上櫃' : '上市'}・{h?.industry ?? fallbackIndustry ?? '—'}</div>
-        <h1 class="title">{h?.name ?? fallbackName ?? code}</h1>
+        <div class="eyebrow">{code}{market ? `・${market === 'tpex' ? '上櫃' : '上市'}` : ''}{h || fallbackIndustry ? `・${h?.industry ?? fallbackIndustry ?? '—'}` : ''}</div>
+        <h1 class="title">{h?.name ?? fallbackName ?? inactive.data?.name ?? code}</h1>
+        {h && status ? <p class="caption muted trade-note" data-testid="trade-note">{status}</p> : null}
       </header>
       {h ? (
         <div style={{ marginTop: 'var(--s-2)' }}>
@@ -128,6 +134,19 @@ function StockHero({ code, fallbackName, fallbackIndustry, period, onPeriod, see
         </div>
       ) : error ? null : <Loading hero />}
     </>
+  );
+}
+
+/** U-01：沒有個股檔（下市、長期停牌或代號錯誤）時的友善說明，不露出 HTTP 404。 */
+function NotFound({ code }: { code: string }) {
+  const info = useAsync(loadInactive, []);
+  if (!info.data) return null;
+  const r = info.data.get(code);
+  return (
+    <Banner icon={<IconCloudOff />} title={r ? `${r.name}（${code}）目前沒有行情` : `找不到代號 ${code}`}
+      action={<a class="btn small" href="#/search">搜尋其他股票</a>}>
+      {inactiveText(r)}。
+    </Banner>
   );
 }
 
@@ -179,6 +198,7 @@ export default function Stock({ code }: { code: string }) {
     if (next) navigate(`/stock/${next}`, true, step > 0 ? 'push' : 'pop');
   }
   const nameOf = (c: string) => (summary.data?.byCode.get(c)?.name as string | undefined) ?? null;
+  const statusOf = (c: string) => tradeStatusNote(summary.data?.byCode.get(c));
   const industryOf = (c: string) => (summary.data?.byCode.get(c)?.industry as string | undefined) ?? null;
 
   const comp = (row?.composite as number | null | undefined) ?? h?.scores?.composite ?? null;
@@ -333,19 +353,20 @@ export default function Stock({ code }: { code: string }) {
         <StockPager apiRef={pagerRef} codes={ctx.codes} index={ctx.index}
           onCommit={(step) => navigate(`/stock/${ctx.codes[ctx.index + step]}`, true, 'none')}
           renderPane={(c, current) => (
-            <StockHero code={c} fallbackName={nameOf(c)} fallbackIndustry={industryOf(c)} period={period} onPeriod={setPeriod}
+            <StockHero code={c} fallbackName={nameOf(c)} fallbackIndustry={industryOf(c)} status={statusOf(c)} period={period} onPeriod={setPeriod}
               seen={current ? seen ?? null : null} holdToScrub />
           )} />
       ) : (
         <StockHero code={code} fallbackName={row?.name as string | undefined} fallbackIndustry={row?.industry as string | undefined}
-          period={period} onPeriod={setPeriod} seen={seen ?? null} advanced={advanced} />
+          status={tradeStatusNote(row, h?.d[h.d.length - 1])} period={period} onPeriod={setPeriod} seen={seen ?? null} advanced={advanced} />
       )}
-      {hist.error ? <ErrorState error={hist.error} title="找不到這檔股票的資料" /> : null}
+      {hist.error ? (isNotFound(hist.error) ? <NotFound code={code} /> : <ErrorState error={hist.error} title="這檔股票的資料暫時無法取得" />) : null}
 
       {h ? (
         /* 換股後下方內容整段換成新的一檔（淡入）；頂列與主角區不重新載入 */
         <div key={code} class={`stock-lower ${code !== firstCode.current ? 'fade-in' : ''}`} data-style={style}>
-          <DataStatus date={h.d[h.d.length - 1]} uses={PAGE_SOURCES.stock} />
+          {/* U-02：資料狀態看市場最新交易日；這一檔無成交／停牌另在主角數字旁說明，不當成資料問題 */}
+          <DataStatus uses={PAGE_SOURCES.stock} />
           {SECTION_ORDER[style].slice(0, shown).map((id) => <Fragment key={id}>{sections[id]()}</Fragment>)}
           {!allSections ? <div ref={sentinel} class="skeleton sections-placeholder" aria-hidden="true" /> : null}
           <p class="caption muted style-note" data-testid="style-note">

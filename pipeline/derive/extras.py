@@ -13,7 +13,7 @@ import pandas as pd
 from pipeline.core import config
 from pipeline.core.normalize import is_common_stock, is_etf
 from pipeline.derive import backtest as bt
-from pipeline.derive.export import clean, write_json
+from pipeline.derive.export import clean, text, write_json
 
 log = logging.getLogger(__name__)
 
@@ -463,15 +463,16 @@ def calendar_file(ds: Any, p: Any, out: Path) -> int:
         add(
             r["date"],
             "除權息",
-            f"除{r.get('kind', '')}" + (f"，現金股利 {cash:g} 元" if cash == cash and cash else ""),
+            f"除{text(r.get('kind'), '權息')}" + (f"，現金股利 {cash:g} 元" if cash == cash and cash else ""),
             r["code"],
         )
     sh = ds.table("short_halt")
     for _, r in sh.iterrows() if not sh.empty else []:
+        reason = text(r.get("reason"))
         add(
             r.get("last_cover_date"),
             "融券回補",
-            f"融券最後回補日（停券至 {r.get('end')}，{r.get('reason') or ''}）",
+            f"融券最後回補日（停券至 {text(r.get('end'), '—')}{'，' + reason if reason else ''}）",
             r["code"],
         )
     for _, r in ds.disposition.dropna(subset=["start"]).iterrows() if not ds.disposition.empty else []:
@@ -479,8 +480,8 @@ def calendar_file(ds: Any, p: Any, out: Path) -> int:
         add(r.get("end"), "處置", "處置最後一日", r["code"])
     conf = ds.table("conference")
     for _, r in conf.iterrows() if not conf.empty else []:
-        when = str(r.get("time") or "").strip()
-        add(r["date"], "法說會", f"{when + ' ' if when else ''}{str(r.get('text') or '')[:80]}", r["code"])
+        when = text(r.get("time"))
+        add(r["date"], "法說會", f"{when + ' ' if when else ''}{text(r.get('text'))[:80]}", r["code"])
     d = last.replace(day=1)
     for _ in range(4):
         add(d.replace(day=10).isoformat(), "月營收", "上月營收公布期限（各公司陸續公布）")

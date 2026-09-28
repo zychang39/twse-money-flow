@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 
 from pipeline.core import config
+from pipeline.derive.export import text
 from pipeline.derive.metrics import MetricPanels
 
 
@@ -63,7 +64,7 @@ def build_flags(ds: Any, p: Any, mp: MetricPanels, at: int = -1) -> dict[str, li
     # 注意股（當日）
     if not ds.attention.empty:
         for _, r in ds.attention[ds.attention["date"] == last].iterrows():
-            add(r["code"], "attention", "warn", str(r.get("reason", ""))[:160])
+            add(r["code"], "attention", "warn", text(r.get("reason"), "注意股票")[:160])
     # 處置股（處置期間內）
     for _, r in disposition_active(ds.disposition, last).iterrows():
         interval = r.get("interval_minutes")

@@ -22,6 +22,15 @@ describe('IndexedDB 與備份', () => {
     expect(await getSetting('theme', 'auto')).toBe('dark');
   });
 
+  it('代號一律轉成大寫（E-08）', async () => {
+    await addWatch('00980a');
+    await addWatch('00980A'); // 同一檔，不重複
+    await addWatchMany([' 2330 ', '00631l'], 'ETF');
+    expect((await listWatch()).map((w) => w.code)).toEqual(['00980A', '2330', '00631L']);
+    await saveTrade({ id: 'x', code: '00631l', name: 'x', status: 'open', openedAt: '2026-09-01', entry: 1, shares: 1, stop: 0.5, target: 2, reasonType: '', checklist: { market: '', trend: '', revenue: '', valuation: '', reason: '' } });
+    expect((await listTrades())[0].code).toBe('00631L');
+  });
+
   it('匯出 → 清空 → 匯入往返', async () => {
     await addWatch('2317');
     await saveTrade({ id: 't1', code: '2317', name: '鴻海', status: 'open', openedAt: '2026-09-01', entry: 200, shares: 1000, stop: 190, target: 230, reasonType: '籌碼', checklist: { market: '偏多', trend: '年線上', revenue: '成長', valuation: '合理', reason: '投信連買' } });

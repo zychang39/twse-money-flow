@@ -3,6 +3,7 @@
  * - 結構有版本號（DB_VERSION）；升級時依序執行 MIGRATIONS。
  * - 匯出為單一 JSON（含 schemaVersion）；匯入舊版本時先套用資料層遷移（EXPORT_MIGRATIONS）。
  */
+import { normCode } from '../lib/code';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
 
 export const DB_NAME = 'twse-money-flow';
@@ -139,7 +140,8 @@ export async function listWatch(): Promise<WatchItem[]> {
   return items.sort((a, b) => a.order - b.order);
 }
 
-export async function addWatch(code: string, group = '預設', origin: WatchOrigin = 'user'): Promise<boolean> {
+export async function addWatch(rawCode: string, group = '預設', origin: WatchOrigin = 'user'): Promise<boolean> {
+  const code = normCode(rawCode);
   const db = await getDb();
   if (await db.get('watchlist', code)) return false;
   const count = await db.count('watchlist');
@@ -155,7 +157,7 @@ export async function addWatchMany(codes: string[], group: string, origin: Watch
   let order = await tx.store.count();
   let added = 0;
   const now = new Date().toISOString();
-  for (const code of codes) {
+  for (const code of [...new Set(codes.map(normCode))]) {
     if (await tx.store.get(code)) continue;
     await tx.store.put({ code, group, addedAt: now, order: order++, origin });
     added++;
@@ -177,7 +179,7 @@ export async function clearSampleWatch(): Promise<number> {
 }
 
 export async function removeWatch(code: string): Promise<void> {
-  await (await getDb()).delete('watchlist', code);
+  await (await getDb()).delete('watchlist', normCode(code));
   notify();
 }
 
@@ -187,7 +189,7 @@ export async function updateWatch(item: WatchItem): Promise<void> {
 }
 
 export async function isWatched(code: string): Promise<boolean> {
-  return !!(await (await getDb()).get('watchlist', code));
+  return !!(await (await getDb()).get('watchlist', normCode(code)));
 }
 
 // ------------------------------------------------------------------ 設定
@@ -233,7 +235,7 @@ export async function listTrades(): Promise<Trade[]> {
   return all.sort((a, b) => b.openedAt.localeCompare(a.openedAt));
 }
 export async function saveTrade(t: Trade): Promise<void> {
-  await (await getDb()).put('trades', t);
+  await (await getDb()).put('trades', { ...t, code: normCode(t.code) });
   notify();
 }
 export async function deleteTrade(id: string): Promise<void> {

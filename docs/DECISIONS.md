@@ -116,3 +116,11 @@
 100. **10Y、ALL 週線取樣**：每週最後一個交易日＋區間基準點（約 520 點），走勢形狀與漲跌不變，繪圖與拖曳查價的點數維持在日線 2 年的量級。5Y 仍用日線（約 1,200 點）。
 101. **開發分支的 Data workflow 不部署**：`data.yml` 的 deploy job 加上 `github.ref_name == 'main'`；取代已移除的 dev-pipeline（DECISIONS #16），可以在合併前以開發分支的程式回補資料，只寫入 data 分支、不發布開發中的前端。
 
+
+## 2026-09-28 第 1 輪健檢修正（docs/BACKLOG.md）
+102. **E-01 輸出一律嚴格 JSON**：`write_json` 先遞迴 `sanitize()`（NaN／inf／NaT → null、numpy → Python，不改精度，所以不用 `clean()` 的四捨五入），並以 `allow_nan=False` 在 build 時就失敗。文字欄位改用 `text()`／`num_text()`（NaN、字面 "nan" → 預設文字）。CI 與部署前以 node 的 `JSON.parse`（`web/scripts/check-json.mjs`，與瀏覽器同一個解析器）掃描全部衍生 JSON，任何一檔失敗就不部署。
+103. **E-02 共用交易日曆**：交易日規則只寫在 `pipeline/core/calendar.py`；`build-web` 把同一份日曆（證交所休市日曆＋manifest 臨時休市日）輸出到 `meta.json` 的 `calendar`，前端 `lib/tradingCalendar.ts` 只讀資料、套同一條規則（週一至週五且不在 closed）。`tests/fixtures/golden/calendar_2026.json` 由 pipeline 產生，pytest 與 vitest 都比對它，兩邊不一致就失敗。示範資料也依 2026 官方日曆排交易日。「過期」門檻維持原本的「落後超過 2 個交易日」，只是從工作日改成交易日。
+104. **U-02 今日無成交／停牌**：summary 新增 `last_trade_date`、`trade_status`（`no_trade`＝行情表有這檔但無成交；`halted`＝行情表沒有這檔）；兩者的 `change`／`change_pct` 一律為 null，UI 顯示中性色「今日無成交／停牌中・最後成交 M/D」。個股頁的資料狀態列改看市場最新交易日，不再用這一檔的最後成交日（停牌不是資料問題）。
+105. **U-01 沒有個股檔的證券**：另輸出 `inactive.json`（名稱、市場、最後交易日、是否仍在上市櫃公司清單），不為它們產生完整個股檔（避免增加部署量與分數計算）。持股與自選都列出缺資料卡（持股卡提供平倉），持股警示多一項「無最新行情」。開發伺服器對不存在的檔案回傳 index.html，前端把 `text/html` 回應視同 404。
+106. **E-08 代號大寫**：`lib/code.ts normCode`；路由由 `legacyRedirect` 改寫成大寫網址，頁面元件也一律收到大寫代號；自選、持倉寫入時轉大寫。
+107. **U-09 dirClass**：`format.ts` 的 `dirClass(v, eps)`／`dirColor(v)`，0 與空值一律中性色；原本各處的 `>= 0`、`> 0 ? 'up' : 'down'` 改用它（涉及顯示顏色的地方）。

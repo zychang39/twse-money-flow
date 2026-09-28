@@ -18,7 +18,7 @@ import { StockSearch } from '../components/StockSearch';
 import { ChecklistSheet, CloseSheet } from '../components/Trades';
 import { IconChevron, IconChevronDown, IconClipboard, IconPlus } from '../components/Icons';
 import { useAsync, useDb, useHistories, useRestoredState } from '../hooks';
-import { loadLists } from '../data/api';
+import { loadInactive, loadLists } from '../data/api';
 import { useScoredSummary } from '../data/useSummary';
 import { useUser } from '../data/useUser';
 import { addWatch, addWatchMany, clearSampleWatch, getSetting, removeWatch, updateWatch, type Trade, type WatchItem } from '../db/db';
@@ -32,6 +32,7 @@ import { uiConfig } from '../lib/config';
 import { PAGE_SOURCES } from '../lib/health';
 import { diffAll, makeSnapshot, sinceLabel, type Snapshot } from '../lib/changes';
 import { holdingAlerts } from '../lib/holdings';
+import { inactiveText } from '../lib/tradeStatus';
 import { parseImport } from '../lib/importer';
 import { baseline, commit, commitHero, heroSeen } from '../lib/seen';
 import { setListContext } from '../lib/listContext';
@@ -250,7 +251,9 @@ export default function Mine() {
   // 依變化排序時，沒有顯著變化的收合；改用其他排序時全部列出
   const main = sort === 'change' ? ordered.filter((c) => c.significant || risky.has(c.code)) : sortedAll;
   const quiet = sort === 'change' ? ordered.filter((c) => !c.significant && !risky.has(c.code)) : [];
-  const missing = seg === 'watch' ? watchShown.filter((w) => !byCode?.get(w.code)).map((w) => w.code) : [];
+  // U-01：沒有最新資料的股票（下市、長期停牌、代號錯誤）在自選與持股分段都要列出，不能無聲消失
+  const missing = !byCode ? [] : seg === 'watch' ? watchShown.filter((w) => !byCode.get(w.code)).map((w) => w.code) : holdCodes.filter((c) => !byCode.get(c));
+  const inactive = useAsync(loadInactive, []);
 
   useEffect(() => {
     if (!summary.data || !user || snap === undefined) return;
@@ -400,9 +403,20 @@ export default function Mine() {
             )) : null}
           </>
         ) : null}
-        {missing.map((code) => (
-          <div key={code} class="card row between"><span class="body">{code}</span><span class="caption muted">無資料（可能已下市或代號錯誤）</span><button class="btn small danger" onClick={() => removeWatch(code)}>移除</button></div>
-        ))}
+        {missing.map((code) => {
+          const info = inactive.data?.get(code);
+          const t = seg === 'hold' ? open.find((x) => x.code === code) : undefined;
+          return (
+            <div key={code} class="card row between missing-card" data-testid="missing-card">
+              <span class="grow" style={{ minWidth: 0 }}>
+                <span class="body" style={{ display: 'block' }}>{info?.name ?? t?.name ?? code} <span class="caption muted">{code}</span></span>
+                <span class="caption muted">{inactiveText(info)}{t ? `・持有 ${fmtInt(open.filter((x) => x.code === code).reduce((n, x) => n + x.shares, 0))} 股` : ''}</span>
+              </span>
+              {t ? <button class="btn small" onClick={() => setClosing(t)}>平倉</button>
+                : <button class="btn small danger" onClick={() => removeWatch(code)}>移除</button>}
+            </div>
+          );
+        })}
       </div>
 
       {seg === 'watch' && group === '全部' && watch.length && hotItems.length ? (
