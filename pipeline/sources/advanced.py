@@ -15,11 +15,17 @@ from pipeline.core.normalize import is_security_code, strip_tags, to_num
 from pipeline.sources.base import (
     ParseError,
     ParseResult,
+    cell,
+    col,
     expect_fields,
     finalize,
     frame_from_fields,
+    frame_from_records,
     is_no_data,
+    last_position,
     load_json,
+    opt,
+    resolve_fields,
 )
 from pipeline.sources.tpex import _empty, _first_table, _obj_date, _tpex_no_data
 
@@ -244,47 +250,69 @@ def parse_twse_short_halt(payload: bytes | str | dict[str, Any]) -> ParseResult:
 
 
 def parse_tpex_short_halt(payload: bytes | str | list[dict[str, Any]]) -> ParseResult:
-    rows = load_json(payload)
-    df = pd.DataFrame(
-        [
-            {
-                "code": r.get("SecuritiesCompanyCode"),
-                "name": r.get("CompanyName"),
-                "last_cover_date": r.get("ShortSaleSuspensionStartDate"),
-                "end": r.get("ShortSaleSuspensionEndDate"),
-                "reason": r.get("Reason"),
-            }
-            for r in rows
-        ],
-        columns=HALT_COLS,
+    df = frame_from_records(
+        load_json(payload),
+        {
+            "code": "SecuritiesCompanyCode",
+            "name": opt("CompanyName"),
+            "last_cover_date": col("ShortSaleSuspensionStartDate"),
+            "end": opt("ShortSaleSuspensionEndDate"),
+            "reason": opt("Reason"),
+        },
+        source="上櫃停券預告",
     )
-    return ParseResult(finalize(df, dates=["last_cover_date", "end"]).reset_index(drop=True))
+    return ParseResult(finalize(df, dates=["last_cover_date", "end"])[HALT_COLS].reset_index(drop=True))
 
 
 # ------------------------------------------------------------------ 內部人持股轉讓事前申報
 INSIDER_COLS = ["report_date", "code", "name", "holder_type", "holder", "method", "shares", "start", "end"]
 
 
+# 上市（t187ap12_L）用中文欄名、上櫃（t187ap12_O）部分欄位用英文；依是否有 SecuritiesCompanyCode 判斷版本，
+# 避免把正常的另一版欄名當成「改名」而發出格式變動警告。
+_INSIDER_COMMON: dict[str, Any] = {
+    "holder": col("姓名"),
+    "method": opt("預定轉讓方式及股數-轉讓方式"),
+    "shares": opt("預定轉讓方式及股數-轉讓股數"),
+    "period": col("有效轉讓期間"),
+}
+_INSIDER_TWSE: dict[str, Any] = {
+    "report_date": opt("出表日期"),
+    "code": "公司代號",
+    "name": opt("公司名稱"),
+    "holder_type": opt("申報人身分", "申請人身分"),
+    **_INSIDER_COMMON,
+}
+_INSIDER_TPEX: dict[str, Any] = {
+    "report_date": opt("Date"),
+    "code": "SecuritiesCompanyCode",
+    "name": opt("CompanyName"),
+    "holder_type": opt("申請人身分", "申報人身分"),
+    **_INSIDER_COMMON,
+}
+
+
 def parse_insider(payload: bytes | str | list[dict[str, Any]]) -> ParseResult:
     rows = load_json(payload)
+    tpex = isinstance(rows, list) and any(isinstance(r, dict) and "SecuritiesCompanyCode" in r for r in rows)
+    raw = frame_from_records(rows, _INSIDER_TPEX if tpex else _INSIDER_TWSE, source="內部人持股轉讓", infer_types=False)
     out = []
-    for r in rows:
-        code = r.get("公司代號") or r.get("SecuritiesCompanyCode")
+    for r in raw.to_dict("records"):
+        code = r["code"]
         if not code:
             continue
-        period = str(r.get("有效轉讓期間", ""))
-        a, _, b = period.partition("~")
+        a, _, b = str(r["period"] or "").partition("~")
         sa, sb = parse_date(a), parse_date(b)
-        rd = parse_date(r.get("出表日期") or r.get("Date"))
+        rd = parse_date(r["report_date"])
         out.append(
             {
                 "report_date": rd.isoformat() if rd else None,
                 "code": code,
-                "name": r.get("公司名稱") or r.get("CompanyName"),
-                "holder_type": r.get("申報人身分") or r.get("申請人身分"),
-                "holder": r.get("姓名"),
-                "method": strip_tags(r.get("預定轉讓方式及股數-轉讓方式", "")),
-                "shares": r.get("預定轉讓方式及股數-轉讓股數"),
+                "name": r["name"],
+                "holder_type": r["holder_type"],
+                "holder": r["holder"],
+                "method": strip_tags(r["method"]),
+                "shares": r["shares"],
                 "start": sa.isoformat() if sa else None,
                 "end": sb.isoformat() if sb else None,
             }
@@ -295,22 +323,45 @@ def parse_insider(payload: bytes | str | list[dict[str, Any]]) -> ParseResult:
 
 # ------------------------------------------------------------------ 集保股權分散表
 TDCC_COLS = ["date", "code", "level", "holders", "shares", "pct"]
+# 大戶比例（whale）只用到 pct；人數、股數缺少時以空值處理
+_TDCC_MAP: dict[str, Any] = {
+    "date": col("資料日期"),
+    "code": "證券代號",
+    "level": col("持股分級"),
+    "holders": opt("人數"),
+    "shares": opt("股數"),
+    "pct": col("占集保庫存數比例%"),
+}
 
 
 def parse_tdcc(payload: bytes | str) -> ParseResult:
     text = payload.decode("utf-8-sig", errors="replace") if isinstance(payload, bytes) else payload
     reader = csv.reader(io.StringIO(text))
     header = next(reader, [])
-    if not header or "持股分級" not in "".join(header):
-        raise ParseError(f"集保 CSV 欄位不符：{header}")
+    if not header:
+        raise ParseError("集保 CSV 是空的")
+    pos = resolve_fields(header, _TDCC_MAP, source="集保股權分散表")
+    width = last_position(pos)
     rows = []
     for r in reader:
-        if len(r) < 6:
+        if len(r) <= width:
             continue
-        code = r[1].strip()
+        code = str(cell(r, pos["code"])).strip()
         if not is_security_code(code):
             continue
-        rows.append((r[0].strip(), code, int(r[2]), to_num(r[3]), to_num(r[4]), to_num(r[5])))
+        level = str(cell(r, pos["level"])).strip()
+        if not level.isdigit():
+            raise ParseError(f"集保 CSV 持股分級不是整數：{level!r}（{code}）")
+        rows.append(
+            (
+                str(cell(r, pos["date"])).strip(),
+                code,
+                int(level),
+                to_num(cell(r, pos["holders"])),
+                to_num(cell(r, pos["shares"])),
+                to_num(cell(r, pos["pct"])),
+            )
+        )
     df = pd.DataFrame(rows, columns=TDCC_COLS)
     if df.empty:
         return ParseResult(df, no_data=True)
@@ -336,6 +387,15 @@ def parse_tdcc_form(html: bytes | str) -> tuple[str, list[str]]:
     return token.group(1), weeks
 
 
+_TDCC_STOCK_MAP: dict[str, Any] = {
+    "seq": col("序"),
+    "label": col("持股/單位數分級"),
+    "holders": opt("人數"),
+    "shares": opt("股數/單位數"),
+    "pct": col("占集保庫存數比例(%)"),
+}
+
+
 def parse_tdcc_stock(html: bytes | str, code: str) -> ParseResult:
     """集保個股查詢結果（HTML 表格：序、持股分級、人數、股數、占集保庫存數比例）→ TDCC_COLS。
 
@@ -353,17 +413,30 @@ def parse_tdcc_stock(html: bytes | str, code: str) -> ParseResult:
     shown = re.search(r"證券代號：\s*([0-9A-Z]+)", text)
     if shown and shown.group(1) != code:
         raise ParseError(f"集保查詢結果的代號 {shown.group(1)} 與要求的 {code} 不符")
+    start = text.rfind("<table", 0, i)
+    table = text[start if start >= 0 else i : text.find("</table>", i)]
+    header = [strip_tags(c).strip() for c in re.findall(r"<th[^>]*>(.*?)</th>", table, re.S)]
+    pos = resolve_fields(header, _TDCC_STOCK_MAP, source="集保個股查詢")
+    width = last_position(pos)
     rows = []
-    table = text[i : text.find("</table>", i)]
     for tr in re.findall(r"<tr>(.*?)</tr>", table, re.S):
         cells = [strip_tags(c).strip() for c in re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)]
-        if len(cells) < 5:
+        if len(cells) <= width:
             continue
-        label = cells[1].replace(" ", "")
-        level = TDCC_TOTAL_LEVEL if label == "合計" else int(cells[0]) if cells[0].isdigit() else None
+        seq, label = str(cell(cells, pos["seq"])), str(cell(cells, pos["label"])).replace(" ", "")
+        level = TDCC_TOTAL_LEVEL if label == "合計" else int(seq) if seq.isdigit() else None
         if level is None or not (1 <= level <= 15 or level == TDCC_TOTAL_LEVEL):
             continue
-        rows.append((d.isoformat(), code, level, to_num(cells[2]), to_num(cells[3]), to_num(cells[4])))
+        rows.append(
+            (
+                d.isoformat(),
+                code,
+                level,
+                to_num(cell(cells, pos["holders"])),
+                to_num(cell(cells, pos["shares"])),
+                to_num(cell(cells, pos["pct"])),
+            )
+        )
     df = pd.DataFrame(rows, columns=TDCC_COLS)
     if len(df) != 16 or TDCC_TOTAL_LEVEL not in set(df["level"]):
         raise ParseError(f"集保個股查詢結果應有 15 個分級＋合計，實際 {len(df)} 列")
@@ -394,87 +467,122 @@ def _big5_csv(payload: bytes | str) -> list[list[str]]:
     return [r for r in csv.reader(io.StringIO(text)) if r]
 
 
+# 外資期貨淨部位用 net_oi、散戶多空比用 long_oi／short_oi；交易口數與契約金額為選用
+_FUT_INSTI_MAP: dict[str, Any] = {
+    "date": col("日期"),
+    "contract": col("商品名稱"),
+    "party": col("身份別"),
+    "long_vol": opt("多方交易口數"),
+    "short_vol": opt("空方交易口數"),
+    "long_oi": col("多方未平倉口數"),
+    "short_oi": col("空方未平倉口數"),
+    "net_oi": col("多空未平倉口數淨額"),
+    "long_oi_value": opt("多方未平倉契約金額(千元)"),
+    "short_oi_value": opt("空方未平倉契約金額(千元)"),
+    "net_oi_value": opt("多空未平倉契約金額淨額(千元)"),
+}
+_FUT_INSTI_NUM = [k for k in FUT_INSTI_COLS if k not in ("date", "contract", "party")]
+
+
 def parse_taifex_insti(payload: bytes | str) -> ParseResult:
+    """表頭欄位缺少 → ParseError；表頭正確但沒有資料列 → no_data。"""
     rows = _big5_csv(payload)
-    if not rows or "身份別" not in rows[0]:
-        return ParseResult(pd.DataFrame(columns=FUT_INSTI_COLS), no_data=True)
+    if not rows:
+        return ParseResult(pd.DataFrame(columns=FUT_INSTI_COLS), no_data=True, message="期交所回傳空白 CSV")
     h = rows[0]
-    idx = {name: h.index(name) for name in h}
+    pos = resolve_fields(h, _FUT_INSTI_MAP, source="期交所三大法人期貨")
     out = []
     for r in rows[1:]:
         if len(r) < len(h):
             continue
-        d = parse_date(r[idx["日期"]])
+        d = parse_date(cell(r, pos["date"]))
+        name = str(cell(r, pos["contract"])).strip()
         out.append(
             {
                 "date": d.isoformat() if d else None,
-                "contract": CONTRACT_IDS.get(r[idx["商品名稱"]].strip(), r[idx["商品名稱"]].strip()),
-                "party": r[idx["身份別"]].strip(),
-                "long_vol": to_num(r[idx["多方交易口數"]]),
-                "short_vol": to_num(r[idx["空方交易口數"]]),
-                "long_oi": to_num(r[idx["多方未平倉口數"]]),
-                "short_oi": to_num(r[idx["空方未平倉口數"]]),
-                "net_oi": to_num(r[idx["多空未平倉口數淨額"]]),
-                "long_oi_value": to_num(r[idx["多方未平倉契約金額(千元)"]]),
-                "short_oi_value": to_num(r[idx["空方未平倉契約金額(千元)"]]),
-                "net_oi_value": to_num(r[idx["多空未平倉契約金額淨額(千元)"]]),
+                "contract": CONTRACT_IDS.get(name, name),
+                "party": str(cell(r, pos["party"])).strip(),
+                **{k: to_num(cell(r, pos[k])) for k in _FUT_INSTI_NUM},
             }
         )
+    if not out:
+        return ParseResult(pd.DataFrame(columns=FUT_INSTI_COLS), no_data=True, message="查無資料")
     return ParseResult(pd.DataFrame(out, columns=FUT_INSTI_COLS))
 
 
 FUT_OI_COLS = ["date", "contract", "total_oi", "volume", "settle"]
+_FUT_OI_MAP: dict[str, Any] = {
+    "date": col("交易日期"),
+    "contract": col("契約"),
+    "month": col("到期月份(週別)"),
+    "oi": col("未沖銷契約數"),
+    "session": col("交易時段"),
+    "volume": opt("成交量"),
+    "settle": opt("結算價"),
+}
 
 
 def parse_taifex_oi(payload: bytes | str) -> ParseResult:
     """全市場未平倉：同一契約所有到期月份「一般」時段未沖銷契約數加總。"""
     rows = _big5_csv(payload)
-    if not rows or "未沖銷契約數" not in rows[0]:
-        return ParseResult(pd.DataFrame(columns=FUT_OI_COLS), no_data=True)
-    h = rows[0]
-    i_date, i_c, i_month = h.index("交易日期"), h.index("契約"), h.index("到期月份(週別)")
-    i_oi, i_sess, i_vol = h.index("未沖銷契約數"), h.index("交易時段"), h.index("成交量")
-    i_settle = h.index("結算價")
+    if not rows:
+        return ParseResult(pd.DataFrame(columns=FUT_OI_COLS), no_data=True, message="期交所回傳空白 CSV")
+    pos = resolve_fields(rows[0], _FUT_OI_MAP, source="期交所期貨行情")
+    i_date, i_c, i_month, i_oi, i_sess = (pos[k] for k in ("date", "contract", "month", "oi", "session"))
+    i_vol, i_settle = pos["volume"], pos["settle"]
+    width = last_position({k: pos[k] for k in ("date", "contract", "month", "oi", "session")})
     agg: dict[tuple[str, str], dict[str, float]] = {}
     for r in rows[1:]:
-        if len(r) <= i_sess or r[i_sess].strip() != "一般" or "/" in r[i_month]:
+        if len(r) <= width or str(cell(r, i_sess)).strip() != "一般" or "/" in str(cell(r, i_month)):
             continue  # 跳過盤後時段與價差組合
-        d = parse_date(r[i_date])
+        d = parse_date(cell(r, i_date))
         if not d:
             continue
-        key = (d.isoformat(), r[i_c].strip())
-        a = agg.setdefault(key, {"total_oi": 0.0, "volume": 0.0, "settle": float("nan")})
-        a["total_oi"] += to_num(r[i_oi]) or 0
-        a["volume"] += to_num(r[i_vol]) or 0
-        if a["settle"] != a["settle"] and to_num(r[i_settle]):
-            a["settle"] = float(to_num(r[i_settle]) or 0)  # 最近月結算價（列表依到期月排序）
+        key = (d.isoformat(), str(cell(r, i_c)).strip())
+        a = agg.setdefault(
+            key, {"total_oi": 0.0, "volume": 0.0 if i_vol is not None else float("nan"), "settle": float("nan")}
+        )
+        a["total_oi"] += to_num(cell(r, i_oi)) or 0
+        if i_vol is not None:
+            a["volume"] += to_num(cell(r, i_vol)) or 0
+        settle = to_num(cell(r, i_settle))
+        if a["settle"] != a["settle"] and settle:
+            a["settle"] = float(settle)  # 最近月結算價（列表依到期月排序）
     out = [{"date": d, "contract": c, **v} for (d, c), v in sorted(agg.items())]
+    if not out:
+        return ParseResult(pd.DataFrame(columns=FUT_OI_COLS), no_data=True, message="查無資料")
     return ParseResult(pd.DataFrame(out, columns=FUT_OI_COLS))
 
 
 def parse_fx(payload: bytes | str) -> ParseResult:
     rows = _big5_csv(payload)
-    if not rows or "日期" not in rows[0][0]:
-        return ParseResult(pd.DataFrame(columns=["date", "usd_twd"]), no_data=True)
+    if not rows:
+        return ParseResult(pd.DataFrame(columns=["date", "usd_twd"]), no_data=True, message="期交所回傳空白 CSV")
     h = rows[0]
-    i = next(k for k, name in enumerate(h) if "美元" in name and "新台幣" in name)
+    # 美元欄名為「美元∕新台幣」（斜線字元不固定）：以同時包含「美元」「新台幣」比對，找不到時用標準名稱讓 resolve_fields 報錯
+    usd = next((name for name in h if "美元" in name and "新台幣" in name), "美元/新台幣")
+    pos = resolve_fields(h, {"date": col("日期"), "usd_twd": col(usd)}, source="期交所匯率")
+    i_d, i = pos["date"], pos["usd_twd"]
     out = []
     for r in rows[1:]:
-        d = parse_date(r[0])
-        if d and len(r) > i:
+        d = parse_date(cell(r, i_d))
+        if d and i is not None and len(r) > i:
             out.append({"date": d.isoformat(), "usd_twd": to_num(r[i])})
+    if not out:
+        return ParseResult(pd.DataFrame(columns=["date", "usd_twd"]), no_data=True, message="查無資料")
     return ParseResult(pd.DataFrame(out, columns=["date", "usd_twd"]))
 
 
 def parse_treasury(payload: bytes | str) -> ParseResult:
     text = payload.decode("utf-8-sig", errors="replace") if isinstance(payload, bytes) else payload
     rows = [r for r in csv.reader(io.StringIO(text)) if r]
-    if not rows or "10 Yr" not in rows[0]:
-        raise ParseError("美國財政部 CSV 缺少 10 Yr 欄位")
-    i = rows[0].index("10 Yr")
+    if not rows:
+        raise ParseError("美國財政部 CSV 是空的")
+    pos = resolve_fields(rows[0], {"date": col("Date"), "y10": col("10 Yr")}, source="美國財政部殖利率")
+    i_d, i = pos["date"], pos["y10"]
     out = []
     for r in rows[1:]:
-        d = parse_date(r[0])
-        if d and len(r) > i:
+        d = parse_date(cell(r, i_d))
+        if d and i is not None and len(r) > i:
             out.append({"date": d.isoformat(), "y10": to_num(r[i])})
     return ParseResult(pd.DataFrame(out, columns=["date", "y10"]).sort_values("date").reset_index(drop=True))

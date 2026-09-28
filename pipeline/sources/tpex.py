@@ -13,9 +13,11 @@ from pipeline.core.normalize import is_security_code, strip_tags, to_num
 from pipeline.sources.base import (
     ParseError,
     ParseResult,
+    col,
     expect_fields,
     finalize,
     frame_from_fields,
+    frame_from_records,
     load_json,
     match_interval_minutes,
     opt,
@@ -25,7 +27,6 @@ from pipeline.sources.twse import (
     ACCUM_COLS,
     ATTENTION_COLS,
     CAPRED_COLS,
-    COMPANY_COLS,
     DISPOSITION_COLS,
     EXRIGHT_COLS,
     INSTI_COLS,
@@ -35,6 +36,8 @@ from pipeline.sources.twse import (
     SPLIT_COLS,
     VALUATION_COLS,
     VALUATION_REQUIRED,
+    columns_frame,
+    company_frame,
 )
 
 
@@ -282,25 +285,24 @@ def parse_exright(payload: bytes | str | dict[str, Any]) -> ParseResult:
 
 
 def parse_exright_notice(payload: bytes | str | list[dict[str, Any]]) -> ParseResult:
-    rows = load_json(payload)
-    if not isinstance(rows, list):
-        raise ParseError("tpex_exright_prepost 應為 list")
-    df = pd.DataFrame(
-        [
-            {
-                "date": r.get("ExRrightsExDividendDate"),
-                "code": r.get("SecuritiesCompanyCode"),
-                "name": r.get("CompanyName"),
-                "kind": str(r.get("ExRrightsExDividend", "")).replace("除", ""),
-                "stock_ratio": r.get("StockDividendRatio"),
-                "cash_capital_ratio": r.get("SubscriptionRatioToNewSharesIssued"),
-                "subscription_price": r.get("SubscriptionPricePerShare"),
-                "cash_dividend": r.get("CashDividend"),
-            }
-            for r in rows
-        ],
-        columns=NOTICE_COLS,
+    raw = frame_from_records(
+        load_json(payload),
+        {
+            "date": col("ExRrightsExDividendDate"),
+            "code": "SecuritiesCompanyCode",
+            "name": opt("CompanyName"),
+            "kind": opt("ExRrightsExDividend"),
+            "stock_ratio": opt("StockDividendRatio"),
+            "cash_capital_ratio": opt("SubscriptionRatioToNewSharesIssued"),
+            "subscription_price": opt("SubscriptionPricePerShare"),
+            "cash_dividend": opt("CashDividend"),
+        },
+        source="tpex_exright_prepost",
+        infer_types=False,
     )
+    cols = {c: raw[c].tolist() for c in NOTICE_COLS}
+    cols["kind"] = [str("" if v is None else v).replace("除", "") for v in cols["kind"]]
+    df = columns_frame(cols, NOTICE_COLS)
     df = finalize(
         df, numeric=["stock_ratio", "cash_capital_ratio", "subscription_price", "cash_dividend"], dates=["date"]
     )
@@ -416,45 +418,41 @@ def parse_index(payload: bytes | str | dict[str, Any]) -> ParseResult:
 
 
 def parse_reward_index(payload: bytes | str | list[dict[str, Any]]) -> ParseResult:
-    """OpenAPI tpex_reward_index：當月櫃買指數與櫃買報酬指數。"""
-    rows = load_json(payload)
+    """OpenAPI tpex_reward_index：當月櫃買指數與櫃買報酬指數（兩者皆為必要欄位）。"""
+    raw = frame_from_records(
+        load_json(payload),
+        {"date": col("Date"), "price": col("TPExIndex"), "total_return": col("TPExTotalReturnIndex")},
+        source="tpex_reward_index",
+        infer_types=False,
+    )
     out = []
-    for r in rows:
-        d = parse_date(r.get("Date"))
+    for r in raw.to_dict("records"):
+        d = parse_date(r["date"])
         if not d:
             continue
-        out.append({"date": d.isoformat(), "name": "櫃買指數", "kind": "price", "close": to_num(r.get("TPExIndex"))})
+        out.append({"date": d.isoformat(), "name": "櫃買指數", "kind": "price", "close": to_num(r["price"])})
         out.append(
-            {
-                "date": d.isoformat(),
-                "name": "櫃買報酬指數",
-                "kind": "return",
-                "close": to_num(r.get("TPExTotalReturnIndex")),
-            }
+            {"date": d.isoformat(), "name": "櫃買報酬指數", "kind": "return", "close": to_num(r["total_return"])}
         )
     return ParseResult(pd.DataFrame(out, columns=["date", "name", "kind", "close"]))
 
 
 # ---------------------------------------------------------------- 上櫃公司基本資料
 def parse_company(payload: bytes | str | list[dict[str, Any]]) -> ParseResult:
-    rows = load_json(payload)
-    if not isinstance(rows, list):
-        raise ParseError("mopsfin_t187ap03_O 應為 list")
-    df = pd.DataFrame(
-        [
-            {
-                "code": r.get("SecuritiesCompanyCode"),
-                "name": r.get("CompanyAbbreviation"),
-                "market": "tpex",
-                "industry_code": str(r.get("SecuritiesIndustryCode", "")).strip(),
-                "capital": r.get("Paidin.Capital.NTDollars"),
-                "shares": r.get("IssueShares"),
-                "listing_date": r.get("DateOfListing"),
-            }
-            for r in rows
-        ],
-        columns=COMPANY_COLS,
+    raw = frame_from_records(
+        load_json(payload),
+        {
+            "code": "SecuritiesCompanyCode",
+            "name": opt("CompanyAbbreviation"),
+            "industry_code": col("SecuritiesIndustryCode"),
+            "capital": opt("Paidin.Capital.NTDollars"),
+            "shares": opt("IssueShares"),
+            "listing_date": opt("DateOfListing"),
+        },
+        source="mopsfin_t187ap03_O",
+        infer_types=False,
     )
+    df = company_frame(raw, "tpex")
     df = finalize(df, numeric=["capital", "shares"], dates=["listing_date"])
     return ParseResult(df.reset_index(drop=True))
 
