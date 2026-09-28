@@ -106,6 +106,19 @@
 - 決策（工程師）：區塊標題（問題＋一句結論）留在個股頁 chunk，細節元件（Chips、Credit、Structure、StockSections、Research、StockExtras）改為 `lazyPick` 延後載入；只先畫前兩個區塊，其餘在哨兵接近畫面時一次補一個（IntersectionObserver，返回還原捲動位置時直接全部畫出）；8 個期間按鈕平均分配整列寬度。
 - 驗收（本環境，示範資料，Lighthouse 12 行動版模擬節流；本環境比 REVIEW.md 當時慢，main 同環境為今晚 93、個股 87）：今晚 98、我的股票 98、個股 91–93（中位數 92，最差一次 84，雜訊大）；無障礙 100、最佳做法 100。首次載入 JS（index＋預載 chunk）約 51 KB gzip，進入個股頁再加約 25 KB（< 250 KB）。WCAG AA 對比：`scripts/contrast.py` 深淺色全部 ≥ 4.5:1。
 
+#### 正式資料的 Lighthouse（2026-09-28，第 1 輪健檢收尾；BACKLOG P-02）
+- 條件：Lighthouse 12.8.2 行動版預設（模擬節流：Moto G Power、4× CPU、慢速 4G），每頁 3 次取中位數。
+- 資料：data 分支 `9bdca66`（2026-09-28 13:05Z，600 個交易日、2,367 個個股檔）以本輪程式執行 `build-web`，放在正式 build 後以 gzip 提供（與 GitHub Pages 相同）。summary.json 246 KB（gzip）；首次載入 JS 53 KB（gzip）。
+- 我的股票以新使用者（沒有自選）量測。
+
+| 頁面 | 分數（3 次） | 中位數 | LCP | TBT | CLS | FCP |
+|---|---|---|---|---|---|---|
+| 今晚 `#/` | 87、87、96 | **87** | 3.38 s | 203 ms | 0.017 | 1.75 s |
+| 我的股票 `#/mine` | 89、98、98 | **98** | 2.21 s | 0 ms | 0.002 | 1.73 s |
+| 個股頁 `#/stock/2330` | 86、92、96 | **92** | 2.26 s | 174 ms | 0 | 1.74 s |
+
+- 今晚頁的 LCP 超過 2.5 秒：要等 summary.json（246 KB）與 market.json 才畫出結論句；第 2 輪 P-01（拆成精簡索引）處理。3 次之間差異大（87–96），主要來自模擬網路下 summary.json 的下載時間。
+
 ### 測試
 - pytest 全部通過（新增：回補預設 10 年／3 年、最早日期、舊格式樣本、衍生視窗與長歷史、單季 EPS 與 ROE）；vitest 168 項；Playwright 122 項（`v3-m1`～`v3-m5` 共 25 項新測試；既有測試依新設計更新：八大行庫、集保門檻、區塊名稱、下方區塊延後渲染用 `e2e/helpers.ts` 的 `gotoStock`）。
 
