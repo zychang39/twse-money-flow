@@ -5,7 +5,7 @@
 import type { ComponentChildren } from 'preact';
 import { useAsync } from '../hooks';
 import { loadMeta } from '../data/api';
-import { businessDaysSince, todayTpe } from '../lib/dates';
+import { dataPhase, makeCalendar } from '../lib/tradingCalendar';
 import { affectedFor } from '../lib/health';
 import { IconClock, IconCloudOff, IconMoonRest, IconRisk, IconSeed } from './Icons';
 
@@ -14,20 +14,7 @@ function md(iso: string): string {
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}（${'日一二三四五六'[d.getUTCDay()]}）`;
 }
 
-export type DataPhase = 'fresh' | 'holiday' | 'pending' | 'stale';
-
-/** 依資料日期與現在時間判斷：今日資料、休市、尚未更新、過期。 */
-export function dataPhase(date: string, now = new Date()): { phase: DataPhase; lag: number } {
-  const today = todayTpe(now);
-  if (date >= today) return { phase: 'fresh', lag: 0 };
-  const lag = businessDaysSince(date, now);
-  const tpe = new Date(now.getTime() + 8 * 3600 * 1000);
-  const dow = tpe.getUTCDay();
-  if (lag > 2) return { phase: 'stale', lag };
-  if (dow === 0 || dow === 6) return { phase: 'holiday', lag };
-  if (lag <= 1 && tpe.getUTCHours() < 18) return { phase: 'pending', lag };
-  return { phase: lag === 0 ? 'holiday' : 'pending', lag };
-}
+export type { DataPhase } from '../lib/tradingCalendar';
 
 /**
  * 頁首下方的一行資料說明：資料日期、更新時間；休市／過期／異常時以平靜的提示呈現。
@@ -42,7 +29,7 @@ export function DataStatus({ date, extra, uses }: { date?: string | null; extra?
   if (!d) return <Banner kind="risk" icon={<IconCloudOff />} title="資料源待處理">尚未取得任何交易日資料。</Banner>;
   const gen = meta.data.generated_at ? new Date(meta.data.generated_at) : null;
   const genText = gen ? new Date(gen.getTime() + 8 * 3600 * 1000).toISOString().slice(11, 16) : null;
-  const { phase, lag } = dataPhase(d);
+  const { phase, lag } = dataPhase(d, makeCalendar(meta.data.calendar));
   const failed = affectedFor(uses, meta.data.sources_affected ?? meta.data.sources_failed).length;
   return (
     <>
@@ -53,7 +40,7 @@ export function DataStatus({ date, extra, uses }: { date?: string | null; extra?
         資料至 {md(d)} 收盤{genText ? `・${genText} 更新` : ''}{extra ? <>・{extra}</> : null}
         {failed ? <>・<a class="meta-alert" href="#/me/health">{failed} 個資料源異常</a></> : null}
       </p>
-      {phase === 'stale' ? <Banner kind="risk" icon={<IconRisk />} title="資料可能過期">最新資料停在 {md(d)}，落後 {lag} 個工作日。可到「資料健康」查看原因。</Banner> : null}
+      {phase === 'stale' ? <Banner kind="risk" icon={<IconRisk />} title="資料可能過期">最新資料停在 {md(d)}，落後 {lag} 個交易日。可到「資料健康」查看原因。</Banner> : null}
     </>
   );
 }

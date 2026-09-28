@@ -90,7 +90,7 @@ test('在可換股的清單中，兩指左右移動不會換股', async ({ page 
   await cdp.detach();
 });
 
-test('桌機：按住拖曳選出區間；報酬率預設還原價，可切換原始價（記住）', async ({ page }) => {
+test('桌機：按住拖曳選出區間；報酬率預設還原價，可切換原始價（記住；M5 起整張圖一起切換）', async ({ page }) => {
   await page.goto('#/stock/2330');
   const b = await chartBox(page);
   const y = b.y + b.height / 2;

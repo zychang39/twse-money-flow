@@ -13,7 +13,7 @@ import pandas as pd
 from pipeline.core import config
 from pipeline.core.normalize import is_common_stock, is_etf
 from pipeline.derive import backtest as bt
-from pipeline.derive.export import clean, write_json
+from pipeline.derive.export import clean, text, write_json
 
 log = logging.getLogger(__name__)
 
@@ -199,12 +199,12 @@ def sector_rotation(p: Any) -> list[dict[str, Any]]:
         for k in (1, 5, 20):
             if len(p.dates) <= k:
                 continue
-            amt = amount[codes].iloc[-k:].sum().sum()
+            amt = amount[codes].iloc[-k:].sum(min_count=1).sum(min_count=1)
             ret = (adj[codes].iloc[-1] / adj[codes].iloc[-1 - k] - 1).dropna()
             row[f"net_{k}"] = clean(amt / 1e8, 2)
             row[f"ret_{k}"] = clean(float(ret.median()) * 100 if len(ret) else None, 2)
-        f1 = (p.foreign_net[codes].iloc[-1] * p.close[codes].iloc[-1]).sum()
-        t1 = (p.trust_net[codes].iloc[-1] * p.close[codes].iloc[-1]).sum()
+        f1 = (p.foreign_net[codes].iloc[-1] * p.close[codes].iloc[-1]).sum(min_count=1)
+        t1 = (p.trust_net[codes].iloc[-1] * p.close[codes].iloc[-1]).sum(min_count=1)
         row["foreign_1"] = clean(f1 / 1e8, 2)
         row["trust_1"] = clean(t1 / 1e8, 2)
         chg = (adj[codes].iloc[-1] / adj[codes].iloc[-2] - 1) if len(p.dates) >= 2 else pd.Series(dtype=float)
@@ -410,6 +410,11 @@ def active_etf_section(ds: Any, p: Any) -> dict[str, Any]:
     return {"active_etfs": etfs, "etf_ranking": ranking}
 
 
+def _yi(v: Any) -> float | None:
+    """元 → 億元；NaN（全部缺值）→ None。"""
+    return clean(float(v) / 1e8, 2) if v == v and v is not None else None
+
+
 def market_file(ds: Any, p: Any, mp: Any, out: Path) -> dict[str, Any]:
     taiex = index_series(ds, TAIEX, p.dates)
     k = min(len(p.dates), 60)
@@ -420,12 +425,14 @@ def market_file(ds: Any, p: Any, mp: Any, out: Path) -> dict[str, Any]:
         flows.append(
             {
                 "date": d,
-                "foreign": clean(float((p.foreign_net.iloc[i] * close).sum()) / 1e8, 2),
-                "trust": clean(float((p.trust_net.iloc[i] * close).sum()) / 1e8, 2),
-                "dealer": clean(float((p.dealer_net.iloc[i] * close).sum()) / 1e8, 2),
+                # D-08：法人資料整天缺漏時輸出 None（畫面顯示「—」），不是 0 億
+                "foreign": _yi((p.foreign_net.iloc[i] * close).sum(min_count=1)),
+                "trust": _yi((p.trust_net.iloc[i] * close).sum(min_count=1)),
+                "dealer": _yi((p.dealer_net.iloc[i] * close).sum(min_count=1)),
             }
         )
-    chg = p.close.iloc[-1] - p.close.iloc[-2] if len(p.dates) >= 2 else pd.Series(dtype=float)
+    # D-09：漲跌家數用官方漲跌（相對參考價，除權息日不會被算成下跌），與產業輪動的還原價一致
+    chg = p.change.iloc[-1] if len(p.dates) >= 1 else pd.Series(dtype=float)
     data: dict[str, Any] = {
         "date": p.dates[-1],
         "taiex": {
@@ -463,15 +470,16 @@ def calendar_file(ds: Any, p: Any, out: Path) -> int:
         add(
             r["date"],
             "除權息",
-            f"除{r.get('kind', '')}" + (f"，現金股利 {cash:g} 元" if cash == cash and cash else ""),
+            f"除{text(r.get('kind'), '權息')}" + (f"，現金股利 {cash:g} 元" if cash == cash and cash else ""),
             r["code"],
         )
     sh = ds.table("short_halt")
     for _, r in sh.iterrows() if not sh.empty else []:
+        reason = text(r.get("reason"))
         add(
             r.get("last_cover_date"),
             "融券回補",
-            f"融券最後回補日（停券至 {r.get('end')}，{r.get('reason') or ''}）",
+            f"融券最後回補日（停券至 {text(r.get('end'), '—')}{'，' + reason if reason else ''}）",
             r["code"],
         )
     for _, r in ds.disposition.dropna(subset=["start"]).iterrows() if not ds.disposition.empty else []:
@@ -479,8 +487,8 @@ def calendar_file(ds: Any, p: Any, out: Path) -> int:
         add(r.get("end"), "處置", "處置最後一日", r["code"])
     conf = ds.table("conference")
     for _, r in conf.iterrows() if not conf.empty else []:
-        when = str(r.get("time") or "").strip()
-        add(r["date"], "法說會", f"{when + ' ' if when else ''}{str(r.get('text') or '')[:80]}", r["code"])
+        when = text(r.get("time"))
+        add(r["date"], "法說會", f"{when + ' ' if when else ''}{text(r.get('text'))[:80]}", r["code"])
     d = last.replace(day=1)
     for _ in range(4):
         add(d.replace(day=10).isoformat(), "月營收", "上月營收公布期限（各公司陸續公布）")

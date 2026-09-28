@@ -183,3 +183,40 @@ def test_gitdata_commit_and_monthly_squash(tmp_path, monkeypatch):
     data2 = work / "data2"
     assert gitdata.prepare(data2) == "checked-out"
     assert (data2 / "raw" / "x.csv").read_text() == "1"
+
+
+class RedirectedResponse(FakeResponse):
+    def __init__(self, status: int, content: bytes, url: str, history_status: int):
+        super().__init__(status, content)
+        self.url = url
+        self.history = [FakeResponse(history_status)]
+
+
+def test_http_waf_307_is_block_not_format_change():
+    """E-09：證交所 WAF 以 307 轉到錯誤頁 → BlockedError（訊息含「阻擋」）、較長退避、計入斷路器；不交給解析器誤判成格式變動。"""
+    from pipeline.core.http import BLOCK_BACKOFF, BlockedError
+
+    sleeps: list[float] = []
+    waf = RedirectedResponse(200, b"<html>error page</html>", "https://www.twse.com.tw/zh/page/error.html", 307)
+    ok = FakeResponse(200, b'{"stat":"OK"}')
+    session = FakeSession([waf, ok])
+    client = PoliteClient(delay=(0, 0), max_retries=4, sleep=sleeps.append, session=session)  # type: ignore[arg-type]
+    assert client.get_bytes("https://www.twse.com.tw/rwd/zh/fund/T86?date=20260923") == b'{"stat":"OK"}'
+    assert sleeps == [BLOCK_BACKOFF]  # 一次長退避，不是 2、4、8 秒的密集重試
+
+    blocked = FakeResponse(
+        200, b"<html><body>" + b" " * 1000 + b"FOR SECURITY REASONS</body></html>"
+    )  # 標記在 600 bytes 之後
+    session2 = FakeSession([blocked] * 10)
+    c2 = PoliteClient(delay=(0, 0), max_retries=4, breaker_threshold=3, sleep=lambda s: None, session=session2)  # type: ignore[arg-type]
+    with pytest.raises(BlockedError, match="阻擋"):
+        c2.get_bytes("https://www.twse.com.tw/a")
+    assert session2.calls == 2  # 最多再試一次
+    with pytest.raises(BlockedError):
+        c2.get_bytes("https://www.twse.com.tw/b")
+    with pytest.raises(CircuitOpenError):
+        c2.get_bytes("https://www.twse.com.tw/c")
+    # 正常的 307（同一路徑，例如加上查詢參數）不算阻擋
+    same = RedirectedResponse(200, b"{}", "https://example.com/a?x=1", 307)
+    c3 = PoliteClient(delay=(0, 0), sleep=lambda s: None, session=FakeSession([same]))  # type: ignore[arg-type]
+    assert c3.get_bytes("https://example.com/a") == b"{}"

@@ -23,10 +23,12 @@ export function expectancy(winRate: number, avgWin: number, avgLoss: number): nu
   return winRate * avgWin - (1 - winRate) * avgLoss;
 }
 
-export function rMultiple(t: Pick<Trade, 'entry' | 'stop' | 'exit'>): number | null {
-  const risk = t.entry - t.stop;
+/** R 倍數。平倉價是平倉當時的價格基準；進場價與停損依 adjFactor（D-01：期間的分割、除權息）換算後再比較。 */
+export function rMultiple(t: Pick<Trade, 'entry' | 'stop' | 'exit' | 'adjFactor'>): number | null {
+  const f = t.adjFactor ?? 1;
+  const risk = (t.entry - t.stop) * f;
   if (!(risk > 0) || t.exit === undefined) return null;
-  return (t.exit - t.entry) / risk;
+  return (t.exit - t.entry * f) / risk;
 }
 
 export interface ClosedStats {
@@ -41,9 +43,11 @@ export interface ClosedStats {
   totalPnl: number;
 }
 
-export function tradePnl(t: Trade, sell = t.exit): number {
+/** 已實現損益：(平倉價 − 進場價 × F) × 股數 ÷ F − 費用；F＝adjFactor（沒有公司行動＝1，公式退化為原本的價差 × 股數）。 */
+export function tradePnl(t: Pick<Trade, 'entry' | 'shares' | 'fees' | 'exit' | 'adjFactor'>, sell = t.exit): number {
   if (sell === undefined) return 0;
-  return (sell - t.entry) * t.shares - (t.fees ?? 0);
+  const f = t.adjFactor ?? 1;
+  return (sell - t.entry * f) * (t.shares / f) - (t.fees ?? 0);
 }
 
 export function closedStats(trades: Trade[]): ClosedStats {

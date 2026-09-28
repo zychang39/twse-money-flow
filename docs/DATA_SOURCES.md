@@ -20,7 +20,7 @@
 | fred.stlouisfed.org | ❌ HTTP/2 stream error | ❌ 連線失敗（000） → **不加入 FRED** |
 
 驗證狀態說明：✅ 已用真實樣本撰寫 parser 並測試；⚠️ 未以真實樣本驗證；⛔ 資料源待處理。
-樣本位置：`tests/fixtures/raw/`（Actions 抓取，交易日 2026-09-24）、`tests/fixtures/local/`（本環境抓取並裁切）。
+樣本位置：`tests/fixtures/raw/`（Actions 抓取，交易日 2026-09-24）、`tests/fixtures/samples/`（裁切後的代表性樣本，測試使用）。
 
 ## 已知限制（實測確認）
 - 證交所 OpenAPI 只提供最新一日，`date` 參數無效。
@@ -52,8 +52,8 @@
 | twse_revenue | 上市月營收（最新） | `openapi.twse.com.tw/v1/opendata/t187ap05_L` | 每月 10 日前陸續 | ✅ |
 | twse_company | 上市基本資料（產業、股本） | `openapi.twse.com.tw/v1/opendata/t187ap03_L` | 每日 | ✅ |
 | twse_holidays | 休市日曆 | `…/rwd/zh/holidaySchedule/holidaySchedule?date=YYYY0101&response=json` | 年度 | ✅ |
-| twse_return_index | 加權報酬指數（月） | `…/rwd/zh/TAIEX/MFI94U?date=…&response=json` | 每日 | ✅ |
-| twse_market_volume | 大盤成交資訊（月） | `…/rwd/zh/afterTrading/FMTQIK?date=…&response=json` | 每日 | ✅ |
+| twse_return_index | 加權報酬指數（月） | `…/rwd/zh/TAIEX/MFI94U?date=…&response=json` | 每日 | ⚠️ 端點實測可用但未實作（報酬指數改由 MI_INDEX 取得，程式沒有使用這個來源） |
+| twse_market_volume | 大盤成交資訊（月） | `…/rwd/zh/afterTrading/FMTQIK?date=…&response=json` | 每日 | ⚠️ 端點實測可用但未實作（程式沒有使用這個來源） |
 | tpex_quotes | 上櫃收盤行情 | `www.tpex.org.tw/www/zh-tw/afterTrading/dailyQuotes?date=YYYY/MM/DD&id=&response=json` | 約 14:30 | ✅ |
 | tpex_index | 櫃買指數（月） | `…/indexInfo/inx?date=YYYY/MM/DD&response=json` | 每日 | ✅ |
 | tpex_insti | 上櫃三大法人 | `…/insti/dailyTrade?type=Daily&sect=EW&date=…&id=&response=json` | 約 15:00–16:30 | ✅ |

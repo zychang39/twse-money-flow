@@ -156,6 +156,10 @@ def record(
     """
     entry = manifest.setdefault("sources", {}).setdefault(source, {})
     now = datetime.now(TPE).isoformat(timespec="seconds")
+    # Q-08：回補由新到舊，舊日期的格式警告（例：2024 年以前本來就沒有的欄位）不代表現在的格式有變 → 不記
+    prev_success = entry.get("last_success")
+    if format_warnings and data_date is not None and prev_success and data_date.isoformat() < prev_success:
+        format_warnings = None
     if format_warnings:
         entry["format_warnings"] = sorted(set(format_warnings))
         entry["format_warning_at"] = now

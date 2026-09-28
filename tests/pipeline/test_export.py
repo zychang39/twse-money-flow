@@ -134,3 +134,186 @@ def test_derive_window_and_long_history(tmp_path, monkeypatch):
     monkeypatch.setattr(history, "window_days", lambda: 1100)
     build_web(store_dir, out2, demo=True)
     assert not list((out2 / "stocks").glob("*.hist.json"))
+
+
+def _strict_loads(text: str):
+    """瀏覽器的 JSON.parse 不接受 NaN／Infinity；Python 預設接受，所以這裡明確拒絕（E-01）。"""
+
+    def reject(const: str):
+        raise ValueError(f"非法 JSON 常數 {const}")
+
+    return json.loads(text, parse_constant=reject)
+
+
+def test_write_json_rejects_nan_and_sanitizes_nested(tmp_path):
+    import math
+
+    import numpy as np
+    import pandas as pd
+    import pytest
+
+    from pipeline.derive.export import write_json
+
+    obj = {
+        "short_halt": {"reason": float("nan"), "end": np.float64("nan"), "n": np.int64(3)},
+        "list": [1.5, math.inf, pd.NaT, np.bool_(True)],
+    }
+    path = tmp_path / "x.json"
+    write_json(path, obj)
+    data = _strict_loads(path.read_text())
+    assert data == {"short_halt": {"reason": None, "end": None, "n": 3}, "list": [1.5, None, None, True]}
+    # 精度不因清理而改變
+    write_json(path, {"af": 0.123456789})
+    assert _strict_loads(path.read_text())["af"] == 0.123456789
+    # 萬一清理不到（自訂物件），allow_nan=False 仍讓 build 失敗而不是寫出壞檔
+    import json as _json
+
+    with pytest.raises(ValueError):
+        _json.dumps(float("nan"), allow_nan=False)
+
+
+def test_text_helpers_hide_nan():
+    import numpy as np
+
+    from pipeline.derive.export import num_text, text, text_or_none
+
+    assert text(float("nan")) == "" and text(np.nan, "—") == "—" and text("nan") == "" and text(None, "x") == "x"
+    assert text(" 分割 ") == "分割" and text_or_none("") is None and text_or_none(float("nan")) is None
+    assert num_text(12.0) == "12" and num_text(float("nan")) == "—" and num_text(None) == "—"
+
+
+def test_build_web_all_json_strict_with_blank_text_fields(tmp_path):
+    """E-01／U-07：停券原因、分割類型等文字欄位空白時，所有輸出檔仍是嚴格合法 JSON，且畫面文字不含「nan」。"""
+    import pandas as pd
+
+    from pipeline.core.store import DataStore
+
+    store_dir = tmp_path / "data"
+    out = tmp_path / "out"
+    build_store(store_dir, days=80)
+    store = DataStore(store_dir)
+    # 真實資料 raw/tpex_short_halt/2026/20260924.csv.gz：上櫃債券 ETF 的 reason 欄全部空白
+    store.write(
+        "tpex_short_halt",
+        __import__("datetime").date(2026, 9, 24),
+        pd.DataFrame(
+            [{"date": "2026-09-24", "code": "1101", "last_cover_date": "2026-09-22", "end": "", "reason": ""}]
+        ),
+    )
+    build_web(store_dir, out, demo=True)
+    files = list(out.rglob("*.json"))
+    assert files
+    for f in files:
+        text = f.read_text()
+        _strict_loads(text)
+        assert '"nan"' not in text.lower() and "nan，" not in text and "除nan" not in text
+    stock = _strict_loads((out / "stocks" / "1101.json").read_text())
+    assert stock["short_halt"] == {"last_cover_date": "2026-09-22", "end": None, "reason": None}
+
+
+def test_events_blank_kind_shows_default_not_nan():
+    """U-07：00631L 2026-03-31 分割事件的 kind 空白 → 類型顯示「分割」而不是「nan」；法說會時間、地點空白 → None。"""
+    from types import SimpleNamespace
+
+    import pandas as pd
+
+    from pipeline.derive import stockdetail
+
+    empty = pd.DataFrame()
+    split = pd.DataFrame([{"date": "2026-03-31", "code": "00631L", "kind": float("nan"), "ref_price": 20.5}])
+    ds = SimpleNamespace(
+        exright=empty,
+        exright_notice=empty,
+        capreduce=empty,
+        attention=empty,
+        disposition=empty,
+        extra={"splits": [split]},
+    )
+    ev = stockdetail.events_for(ds, "00631L", "2026-01-01")
+    assert ev == [{"date": "2026-03-31", "type": "分割", "text": "恢復買賣參考價 20.5"}]
+    conf = pd.DataFrame(
+        [{"date": "2026-09-01", "code": "2330", "time": float("nan"), "place": float("nan"), "text": float("nan")}]
+    )
+    out = stockdetail.conferences_for({"2330": conf}, "2330", "2026-01-01")
+    assert out[0]["time"] is None and out[0]["place"] is None and out[0]["text"] == ""
+
+
+def test_no_trade_halted_and_inactive(tmp_path):
+    """U-02：最新交易日無成交／停牌時不把舊漲跌當成今日；U-01：長期無成交的證券輸出到 inactive.json。"""
+    from datetime import date
+
+    from pipeline.core.store import DataStore
+
+    store_dir = tmp_path / "data"
+    out = tmp_path / "out"
+    build_store(store_dir, days=80)
+    store = DataStore(store_dir)
+    days = store.dates("tpex_quotes")
+    last = days[-1]
+    q = store.read("tpex_quotes", last)
+    # 5347：今天有列、沒有成交（收盤空白、量 0）；3105：今天整列不見（暫停交易）
+    q.loc[q["code"] == "5347", ["open", "high", "low", "close", "change"]] = float("nan")
+    q.loc[q["code"] == "5347", ["volume", "value", "trades"]] = 0
+    q = q[q["code"] != "3105"]
+    store.write("tpex_quotes", last, q)
+    # 6182：最近 25 個交易日都沒有出現在行情中（下市或長期停牌）
+    for d in days[-25:]:
+        df = store.read("tpex_quotes", d)
+        store.write("tpex_quotes", d, df[df["code"] != "6182"])
+    build_web(store_dir, out, demo=True)
+    summary = _strict_loads((out / "summary.json").read_text())
+    cols = summary["columns"]
+    rows = {r[0]: dict(zip(cols, r, strict=True)) for r in summary["rows"]}
+    prev = days[-2].isoformat()
+    assert rows["5347"]["trade_status"] == "no_trade" and rows["5347"]["last_trade_date"] == prev
+    assert rows["5347"]["change_pct"] is None and rows["5347"]["change"] is None
+    assert rows["3105"]["trade_status"] == "halted" and rows["3105"]["change_pct"] is None
+    assert rows["2330"]["trade_status"] is None and rows["2330"]["last_trade_date"] is None
+    assert rows["2330"]["change_pct"] is not None
+    assert "6182" not in rows and not (out / "stocks" / "6182.json").exists()
+    inactive = _strict_loads((out / "inactive.json").read_text())
+    hit = [r for r in inactive["rows"] if r["code"] == "6182"]
+    assert hit and hit[0]["name"] == "合晶" and hit[0]["last_trade_date"] == days[-26].isoformat()
+    assert isinstance(date.fromisoformat(inactive["date"]), date)
+
+
+def test_adjust_events_exported_with_kind(tmp_path):
+    """D-01：0050 分割（真實事件 2025-06-18 因子 0.25；這裡放在示範資料範圍內）→ 個股檔 adj_events 與 summary adj_ev 標示 split。"""
+    import pandas as pd
+
+    from pipeline.core.store import DataStore
+
+    store_dir = tmp_path / "data"
+    out = tmp_path / "out"
+    build_store(store_dir, days=80)
+    store = DataStore(store_dir)
+    days = store.dates("twse_quotes")
+    split_day = days[-10]
+    # 分割日起價格變成 1/4（官方分割表＋行情一致）
+    for d in days[-10:]:
+        q = store.read("twse_quotes", d)
+        for col in ("open", "high", "low", "close", "change"):
+            q.loc[q["code"] == "0050", col] = q.loc[q["code"] == "0050", col] / 4
+        store.write("twse_quotes", d, q)
+    store.write(
+        "twse_etfsplit",
+        split_day,
+        pd.DataFrame([{"date": split_day.isoformat(), "code": "0050", "name": "元大台灣50", "factor": 0.25}]),
+    )
+    build_web(store_dir, out, demo=True)
+    stock = _strict_loads((out / "stocks" / "0050.json").read_text())
+    assert stock["adj_events"] == [[split_day.isoformat(), 0.25, "split"]]
+    i = stock["d"].index(split_day.isoformat())
+    assert abs(stock["af"][i - 1] - 0.25) < 1e-9 and stock["af"][i] == 1
+    summary = _strict_loads((out / "summary.json").read_text())
+    cols = summary["columns"]
+    row = next(dict(zip(cols, r, strict=True)) for r in summary["rows"] if r[0] == "0050")
+    assert row["adj_ev"] == [[split_day.isoformat(), 0.25, "split"]]
+    # summary 的精簡版：小額除息（< 1.5%）不列；大額除息只寫 [日期, 因子]
+    from pipeline.derive.build import summary_adj_events
+
+    ev = [["2026-09-01", 0.995, "dividend"], ["2026-09-02", 0.95, "dividend"], ["2026-09-03", 0.25, "split"]]
+    assert summary_adj_events(ev, "2026-08-01") == [["2026-09-02", 0.95], ["2026-09-03", 0.25, "split"]]
+    assert summary_adj_events(ev, "2026-09-03") is None
+    other = next(dict(zip(cols, r, strict=True)) for r in summary["rows"] if r[0] == "2330")
+    assert other["adj_ev"] is None

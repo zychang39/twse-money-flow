@@ -11,6 +11,16 @@
 - 使用者資料（自選、日誌、持倉、設定）只存在瀏覽器 IndexedDB，可單檔 JSON 匯出／匯入。
 - 詳細規格：`docs/METHODOLOGY.md`（計算定義）、`docs/DATA_SOURCES.md`（資料源）、`docs/DECISIONS.md`（決策紀錄）。
 
+### 產品原則（2026-09-28 健檢補充，docs/BACKLOG.md 第四節）
+1. **遊戲化只獎勵紀律**：XP、連續天數、徽章只來自看完簡報、完成檢查表（包括「檢查後決定不進場」）、平倉檢討、備份、回測自己的條件；不因交易次數、獲利或勝率給獎勵；每日有上限；休市日不中斷連續天數；可在設定關閉（DECISIONS #38）。
+2. **預設深色模式、不跟隨系統**：三段式切換（深色／淺色／跟隨系統），存在 localStorage 的 `tmf-theme`，並在第一次繪製前套用（DECISIONS #85）。
+3. **不使用付費資料源，也不轉載付費或需要登入的內容**：評估新資料源時，若只有付費來源就不採用（DECISIONS #72、#84）；AI 摘要是選配功能、不是資料源，必須標示「AI 生成」，也遵守不使用買賣字眼的規則。
+4. **不推薦個股、不串接下單**：系統清單與選股一律標示「依規則產生，非推薦」；不提供券商下單或帳戶連結。
+5. **資料不足時說明原因，不留白**：顯示「資料累積中：目前只有 N 週（自 M/D 起）」，而不是空白圖表。
+6. **休市、停牌不是資料錯誤**：狀態判斷一律用交易日曆（前端與 pipeline 共用 `meta.json` 的 `calendar`）；只有真正的風險才用琥珀色。
+7. **無障礙底線**：點擊區域至少 44pt（`--tap`）；深淺色對比都符合 WCAG AA（至少 4.5:1）；支援 VoiceOver 與「減少動態效果」。
+8. **行動版基準尺寸**：以 iPhone 393×852 與 375pt 驗收；表格不需要左右滑動。
+
 ## 架構
 ```
 [排程 data.yml] → python -m pipeline daily|periodic|backfill|alerts
@@ -36,7 +46,7 @@
 | `web/` | 前端（Vite + Preact + TS）；`web/src/lib` 為純函式（可測）、`web/src/pages` 為頁面 |
 | `config/` | **單一事實來源**：權重、門檻、交易成本、資料源、產業代碼、提醒、介面行為參數（`ui.yml`）；pipeline 與 web 共用 |
 | `docs/` | 文件 |
-| `tests/` | pytest；`tests/fixtures/raw` 為 Actions 抓的真實樣本（勿手改），`tests/fixtures/local` 為本機抓取並裁切的樣本 |
+| `tests/` | pytest；`tests/fixtures/raw` 為 Actions 抓的真實樣本（勿手改），`tests/fixtures/samples` 為裁切後的代表性樣本（保留原始欄位結構），`tests/fixtures/golden` 為 pytest 與 vitest 共用的比對檔 |
 | `.github/workflows/` | `data.yml`、`deploy.yml`、`ci.yml`；`smoke-test.yml`、`capture-fixtures.yml` 為使用者建立，**不要修改**（例外：2026-09-27 使用者要求在 `smoke-test.yml` 新增 `fields` job，原 `probe` job 未動） |
 
 ## 開發指令

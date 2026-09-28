@@ -3,6 +3,7 @@
  * - 結構有版本號（DB_VERSION）；升級時依序執行 MIGRATIONS。
  * - 匯出為單一 JSON（含 schemaVersion）；匯入舊版本時先套用資料層遷移（EXPORT_MIGRATIONS）。
  */
+import { normCode } from '../lib/code';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
 
 export const DB_NAME = 'twse-money-flow';
@@ -54,6 +55,10 @@ export interface Trade {
   errorTags?: string[];
   fees?: number;
   dividends?: { date: string; cash: number; shares: number }[];
+  /** D-01：平倉時計算的還原因子（進場日之後到平倉日的分割、減資、除權息）；平倉價是當時的價格基準。1 或省略＝沒有公司行動 */
+  adjFactor?: number;
+  /** D-01：平倉時的公司行動說明（例：已依 2025/6/18 分割調整） */
+  adjNote?: string;
 }
 
 /** 紀律行為紀錄（遊戲化）：只記錄紀律行為，不記錄下單次數或損益。day＝該晚儀式對應的資料日期。 */
@@ -139,7 +144,8 @@ export async function listWatch(): Promise<WatchItem[]> {
   return items.sort((a, b) => a.order - b.order);
 }
 
-export async function addWatch(code: string, group = '預設', origin: WatchOrigin = 'user'): Promise<boolean> {
+export async function addWatch(rawCode: string, group = '預設', origin: WatchOrigin = 'user'): Promise<boolean> {
+  const code = normCode(rawCode);
   const db = await getDb();
   if (await db.get('watchlist', code)) return false;
   const count = await db.count('watchlist');
@@ -155,7 +161,7 @@ export async function addWatchMany(codes: string[], group: string, origin: Watch
   let order = await tx.store.count();
   let added = 0;
   const now = new Date().toISOString();
-  for (const code of codes) {
+  for (const code of [...new Set(codes.map(normCode))]) {
     if (await tx.store.get(code)) continue;
     await tx.store.put({ code, group, addedAt: now, order: order++, origin });
     added++;
@@ -177,7 +183,7 @@ export async function clearSampleWatch(): Promise<number> {
 }
 
 export async function removeWatch(code: string): Promise<void> {
-  await (await getDb()).delete('watchlist', code);
+  await (await getDb()).delete('watchlist', normCode(code));
   notify();
 }
 
@@ -187,7 +193,7 @@ export async function updateWatch(item: WatchItem): Promise<void> {
 }
 
 export async function isWatched(code: string): Promise<boolean> {
-  return !!(await (await getDb()).get('watchlist', code));
+  return !!(await (await getDb()).get('watchlist', normCode(code)));
 }
 
 // ------------------------------------------------------------------ 設定
@@ -233,7 +239,7 @@ export async function listTrades(): Promise<Trade[]> {
   return all.sort((a, b) => b.openedAt.localeCompare(a.openedAt));
 }
 export async function saveTrade(t: Trade): Promise<void> {
-  await (await getDb()).put('trades', t);
+  await (await getDb()).put('trades', { ...t, code: normCode(t.code) });
   notify();
 }
 export async function deleteTrade(id: string): Promise<void> {

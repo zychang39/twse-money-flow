@@ -21,7 +21,7 @@ export function hasReview(t: Trade): boolean {
   return !!t.review && t.review.trim().length > 0;
 }
 
-/** 三環：看完今晚簡報、新持倉都完成買進前檢查表、平倉後完成檢討。day＝該晚對應的資料日期。 */
+/** 三環：看完今晚簡報、新持倉都完成新增持倉前檢查表、平倉後完成檢討。day＝該晚對應的資料日期。 */
 export function ritualRings(day: string, activities: Activity[], trades: Trade[], today: string, cfg: Gcfg = uiConfig.gamification): { rings: RingState[]; complete: boolean } {
   const brief = activities.some((a) => a.type === 'brief_read' && a.day === day);
   const newPositions = trades.filter((t) => t.openedAt >= day);
@@ -100,9 +100,12 @@ export function levelFor(xp: number, step = uiConfig.gamification.level_step): {
 
 /** 守住停損：虧損出場，且出場價不低於停損價過多（容忍度見 config）。 */
 export function stopRespected(t: Trade, tolPct = uiConfig.gamification.stop_respected_tolerance_pct): boolean {
-  if (t.status !== 'closed' || t.exit === undefined || t.exit >= t.entry) return false;
+  // D-01：平倉價是平倉當時的價格基準；進場價、停損依 adjFactor（持有期間的分割、除權息）換算
+  const f = t.adjFactor ?? 1;
+  const entry = t.entry * f, stop = t.stop * f;
+  if (t.status !== 'closed' || t.exit === undefined || t.exit >= entry) return false;
   if (t.errorTags?.includes('未守停損')) return false;
-  return t.exit <= t.stop * (1 + tolPct / 100) && t.exit >= t.stop * (1 - 2 * tolPct / 100);
+  return t.exit <= stop * (1 + tolPct / 100) && t.exit >= stop * (1 - 2 * tolPct / 100);
 }
 
 export interface BadgeState extends BadgeConfig { value: number; earned: boolean; progress: number }
@@ -114,7 +117,8 @@ export function badgeMetrics(activities: Activity[], trades: Trade[], best: numb
     best_streak: best,
     reviews: trades.filter((t) => t.status === 'closed' && hasReview(t)).length,
     stops_respected: trades.filter((t) => stopRespected(t)).length,
-    checklists: trades.length + activities.filter((a) => a.type === 'checklist_done' && a.meta?.outcome === 'skip').length,
+    // U-11：只計實際完成的檢查表（建立持倉或決定不進場都算）；匯入或補登的交易不推進徽章
+    checklists: count('checklist_done'),
     backtests_own: count('backtest_own'),
     backups: Math.max(count('backup'), hadBackup ? 1 : 0),
   };

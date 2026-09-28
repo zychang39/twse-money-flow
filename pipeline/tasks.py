@@ -42,6 +42,27 @@ from pipeline.sources.base import ParseError, ParseResult, drain_format_warnings
 
 log = logging.getLogger(__name__)
 
+# D-02：單一來源的任何解析或抓取錯誤只記為該來源失敗，不中斷整個每日任務。
+# 解析器應丟 ParseError；其他例外（KeyError、StopIteration…）代表解析器沒有預期到的格式變動，一樣攔下。
+SOURCE_ERRORS: tuple[type[Exception], ...] = (
+    FetchError,
+    ParseError,
+    KeyError,
+    ValueError,
+    IndexError,
+    TypeError,
+    AttributeError,
+    StopIteration,
+    UnicodeError,
+)
+
+
+def err_text(exc: BaseException) -> str:
+    """失敗訊息：非預期的例外標成「格式不符」，資料健康頁才會正確歸類。"""
+    if isinstance(exc, FetchError | ParseError):
+        return str(exc)
+    return f"格式不符（{type(exc).__name__}）：{exc}"
+
 
 @dataclass
 class RunContext:
@@ -131,8 +152,8 @@ def load_calendar(ctx: RunContext, years: list[int] | None = None, *, fetch_miss
                     ctx.store.write("twse_holidays", key, res.df)
                     ctx.note("twse_holidays", "ok", data_date=key, rows=len(res.df))
                     df = res.df
-            except (FetchError, ParseError) as exc:
-                ctx.note("twse_holidays", "failed", data_date=key, message=str(exc))
+            except SOURCE_ERRORS as exc:
+                ctx.note("twse_holidays", "failed", data_date=key, message=err_text(exc))
         if df is not None:
             frames.append(df)
     ctx.calendar = TradingCalendar.from_frames(frames, ctx.manifest.get("closed_days", []))
@@ -148,6 +169,17 @@ def target_trading_date(ctx: RunContext) -> date:
 
 
 # ------------------------------------------------------------------ 每日型
+def _other_market_traded(ctx: RunContext, d: date) -> bool:
+    """櫃買在 d 是否有收盤行情（已存檔或查詢得到）。查詢失敗視為不知道 → False（維持原本的休市判斷）。"""
+    if ctx.store.exists("tpex_quotes", d):
+        return True
+    try:
+        res = SPECS["tpex_quotes"].parse(_fetch(ctx, build_url("tpex_quotes", d)))
+    except SOURCE_ERRORS:
+        return False
+    return not res.no_data and not res.df.empty
+
+
 def run_daily_source(ctx: RunContext, spec: Spec, d: date, *, overwrite: bool = False) -> str:
     """抓取並驗證單一交易日。回傳狀態：ok / exists / no_data / pending / failed / closed。"""
     if ctx.store.exists(spec.id, d) and not overwrite:
@@ -155,8 +187,8 @@ def run_daily_source(ctx: RunContext, spec: Spec, d: date, *, overwrite: bool = 
     try:
         raw = _fetch(ctx, build_url(spec.id, d))
         res: ParseResult = spec.parse(raw)
-    except (FetchError, ParseError) as exc:
-        ctx.note(spec.id, "failed", data_date=d, message=str(exc)[:300])
+    except SOURCE_ERRORS as exc:
+        ctx.note(spec.id, "failed", data_date=d, message=err_text(exc)[:300])
         return "failed"
     if res.no_data:
         if spec.min_rows == 0:
@@ -165,6 +197,12 @@ def run_daily_source(ctx: RunContext, spec: Spec, d: date, *, overwrite: bool = 
             ctx.note(spec.id, "ok", data_date=d, rows=0, message="無資料（清單為空）")
             return "ok"
         if spec.id == "twse_quotes" and (d < ctx.today or ctx.now.hour >= 16):
+            # Q-08：颱風等臨時休市要兩個市場都沒有行情；櫃買有資料 → 是證交所的問題，不是休市
+            if _other_market_traded(ctx, d):
+                ctx.note(
+                    spec.id, "failed", data_date=d, message=f"證交所無行情，但櫃買有 {d} 的資料：不是休市，稍後重試"
+                )
+                return "failed"
             closed = set(ctx.manifest.setdefault("closed_days", []))
             closed.add(d.isoformat())
             ctx.manifest["closed_days"] = sorted(closed)
@@ -205,8 +243,8 @@ def run_range_source(ctx: RunContext, spec: Spec, start: date, end: date) -> str
     try:
         raw = _fetch(ctx, build_url(spec.id, start=start, end=end))
         res = spec.parse(raw)
-    except (FetchError, ParseError) as exc:
-        ctx.note(spec.id, "failed", data_date=end, message=str(exc)[:300])
+    except SOURCE_ERRORS as exc:
+        ctx.note(spec.id, "failed", data_date=end, message=err_text(exc)[:300])
         return "failed"
     df = res.df
     if not df.empty:
@@ -231,8 +269,8 @@ def run_month_query(ctx: RunContext, spec: Spec, month: date) -> str:
     try:
         raw = _fetch(ctx, build_url(spec.id, month))
         res = spec.parse(raw)
-    except (FetchError, ParseError) as exc:
-        ctx.note(spec.id, "failed", data_date=month, message=str(exc)[:300])
+    except SOURCE_ERRORS as exc:
+        ctx.note(spec.id, "failed", data_date=month, message=err_text(exc)[:300])
         return "failed"
     if res.df.empty:
         ctx.note(spec.id, "no_data", data_date=month)
@@ -252,8 +290,8 @@ def run_snapshot(ctx: RunContext, spec: Spec, key_date: date) -> str:
     try:
         raw = _fetch(ctx, build_url(spec.id))
         res = spec.parse(raw)
-    except (FetchError, ParseError) as exc:
-        ctx.note(spec.id, "failed", data_date=key_date, message=str(exc)[:300])
+    except SOURCE_ERRORS as exc:
+        ctx.note(spec.id, "failed", data_date=key_date, message=err_text(exc)[:300])
         return "failed"
     df = res.df
     if len(df) < spec.min_rows:
@@ -294,26 +332,59 @@ def merge_revenue(store: DataStore, df: pd.DataFrame, *, seen: date | None) -> i
     return written
 
 
+def revenue_deadline(month: date) -> date:
+    """月營收的法定公布期限：次月 revenue_fallback_day 日（預設 10 日）。"""
+    day = int(config.thresholds()["backtest"].get("revenue_fallback_day", 10))
+    nm = next_month(month)
+    return nm.replace(day=day)
+
+
 def run_mops_revenue(ctx: RunContext, month: date) -> str:
+    """D-04：MOPS 對還沒公布的月份回傳「查無資料」頁（標題仍在）→ 不可記成 ok。
+    期限前查無資料記為 pending（尚未公布）；期限後仍查無資料記為失敗。"""
     total = 0
     for market in ("twse", "tpex"):
         try:
             raw = _fetch(ctx, mops_revenue_url(market, month))
             res = parse_mops(raw)
-        except (FetchError, ParseError) as exc:
-            ctx.note("mops_revenue", "failed", data_date=month, message=f"{market}: {exc}"[:300])
+        except SOURCE_ERRORS as exc:
+            ctx.note("mops_revenue", "failed", data_date=month, message=f"{market}: {err_text(exc)}"[:300])
             return "failed"
+        if res.no_data or res.df.empty:
+            due = revenue_deadline(month)
+            status = "failed" if ctx.today > due else "pending"
+            ctx.note(
+                "mops_revenue",
+                status,
+                data_date=month,
+                message=f"{market}：{month:%Y-%m} 月營收查無資料（法定期限 {due}）",
+            )
+            return status
         total += merge_revenue(ctx.store, res.df, seen=None)
     ctx.note("mops_revenue", "ok", data_date=month, rows=total)
     return "ok"
 
 
 # ------------------------------------------------------------------ 任務
+MAX_HEAL_DAYS = 30
+
+
+def heal_window(ctx: RunContext, target: date, heal_days: int) -> int:
+    """E-05：每日任務被取消或失敗時，下次執行自動補抓漏掉的交易日：
+    從最後一個有收盤行情的交易日之後補到目標日（最多 MAX_HEAL_DAYS 個交易日；平常仍檢查最近 heal_days 天）。"""
+    have = [d for d in ctx.store.dates("twse_quotes") if d <= target]
+    if not have:
+        return heal_days
+    missing = len(ctx.calendar.trading_days(have[-1] + timedelta(days=1), target))
+    return max(heal_days, min(missing + 1, MAX_HEAL_DAYS))
+
+
 def task_daily(ctx: RunContext, sources: list[str] | None = None, heal_days: int = 5) -> None:
     load_calendar(ctx, [ctx.today.year, (ctx.today - timedelta(days=10)).year])
     target = target_trading_date(ctx)
     ctx.manifest["last_target_date"] = target.isoformat()
-    recent = [d for d in ctx.calendar.trading_days(target - timedelta(days=heal_days * 2), target)][-heal_days:]
+    heal_days = heal_window(ctx, target, heal_days)
+    recent = [d for d in ctx.calendar.trading_days(target - timedelta(days=heal_days * 2 + 14), target)][-heal_days:]
     wanted = sources or (CORE_DAILY + ADVANCED_DAILY + CORE_RANGE + CORE_SNAPSHOT + ADVANCED_SNAPSHOT + ["tpex_index"])
     # 1) 每日型：收盤行情優先（無行情 → 臨時休市，略過其他來源）
     daily = [s for s in wanted if s in SPECS and SPECS[s].kind == "daily"]
@@ -483,6 +554,9 @@ def task_backfill(
                 remaining[sid] = len(months) - i
                 break
             if _month_done(ctx, sid, m):
+                continue
+            # D-04：還沒到公布期限的月份（例：9/28 回補時的 9 月）不查詢
+            if sid == "mops_revenue" and ctx.today <= revenue_deadline(m):
                 continue
             before = len(ctx.failures)
             if sid == "mops_revenue":

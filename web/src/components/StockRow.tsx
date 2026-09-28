@@ -8,6 +8,7 @@ import { useRef, useState } from 'preact/hooks';
 import type { StockHistory, StockRow } from '../data/types';
 import { adjClose } from '../lib/history';
 import { direction, fmtPrice } from '../lib/format';
+import { tradeStatusLabel } from '../lib/tradeStatus';
 import { ChangePill } from './Change';
 import { ScoreRing, Sparkline } from './Viz';
 
@@ -102,7 +103,7 @@ export function StockListRow({ code, row, hist, sub, onOpen, onPreview, actions 
         <Sparkline values={spark} dir={d} />
         <span class="price">
           <span class="body" style={{ display: 'block' }}>{row ? fmtPrice(row.close) : '—'}</span>
-          <ChangePill change={row?.change} pct={row?.change_pct} />
+          <ChangePill change={row?.change} pct={row?.change_pct} status={tradeStatusLabel(row)} />
         </span>
         <ScoreRing value={(row?.composite as number | null | undefined) ?? null} size={32} stroke={3} label="綜合分" />
       </button>
@@ -118,7 +119,7 @@ export function StockMiniRow({ row, text, onOpen, risk }: { row: StockRow; text:
         <span class="name body ellipsis" style={{ display: 'block' }}>{row.name} <span class="caption muted">{row.code}</span></span>
         <span class={`sub ${risk ? 'risk w6' : ''}`}>{text}</span>
       </span>
-      <span class="price"><span class="body" style={{ display: 'block' }}>{fmtPrice(row.close)}</span><ChangePill change={row.change} pct={row.change_pct} /></span>
+      <span class="price"><span class="body" style={{ display: 'block' }}>{fmtPrice(row.close)}</span><ChangePill change={row.change} pct={row.change_pct} status={tradeStatusLabel(row)} /></span>
       <ScoreRing value={(row.composite as number | null | undefined) ?? null} size={32} stroke={3} label="綜合分" />
     </button>
   );

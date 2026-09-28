@@ -10,7 +10,7 @@ import pandas as pd
 
 from pipeline.core import config
 from pipeline.derive import indicators as ind
-from pipeline.derive.export import arr
+from pipeline.derive.export import arr, num_text, text, text_or_none
 
 
 def revenue_table(revenue: pd.DataFrame, code: str, months: int = 24) -> list[dict[str, Any]]:
@@ -50,32 +50,47 @@ def events_for(ds: Any, code: str, since: str) -> list[dict[str, Any]]:
 
     for _, r in pick(ds.exright).iterrows():
         cash = r.get("cash_dividend")
-        txt = f"除{r.get('kind', '')}，參考價 {r.get('ref_price')}（權值＋息值 {r.get('rights_dividend')}）"
+        kind = text(r.get("kind"), "權息")
+        txt = f"除{kind}，參考價 {num_text(r.get('ref_price'))}（權值＋息值 {num_text(r.get('rights_dividend'))}）"
         if cash == cash and cash:
-            txt = f"除{r.get('kind', '')}，現金股利 {cash:g} 元，參考價 {r.get('ref_price')}"
+            txt = f"除{kind}，現金股利 {cash:g} 元，參考價 {num_text(r.get('ref_price'))}"
         ev.append({"date": r["date"], "type": "除權息", "text": txt})
     for _, r in pick(ds.exright_notice).iterrows():
         cash = r.get("cash_dividend")
-        txt = f"預告除{r.get('kind', '')}" + (f"，現金股利 {cash:g} 元" if cash == cash and cash else "")
+        txt = f"預告除{text(r.get('kind'), '權息')}" + (f"，現金股利 {cash:g} 元" if cash == cash and cash else "")
         ev.append({"date": r["date"], "type": "預告", "text": txt})
     for _, r in pick(ds.capreduce).iterrows():
         ev.append(
-            {"date": r["date"], "type": "減資", "text": f"{r.get('reason', '')}，恢復買賣參考價 {r.get('ref_price')}"}
+            {
+                "date": r["date"],
+                "type": "減資",
+                "text": f"{text(r.get('reason'), '減資')}，恢復買賣參考價 {num_text(r.get('ref_price'))}",
+            }
         )
     for df in ds.extra.get("splits", []):
         for _, r in pick(df).iterrows():
             ev.append(
-                {"date": r["date"], "type": str(r.get("kind", "分割")), "text": f"恢復買賣參考價 {r.get('ref_price')}"}
+                {
+                    "date": r["date"],
+                    "type": text(r.get("kind"), "分割"),
+                    "text": f"恢復買賣參考價 {num_text(r.get('ref_price'))}",
+                }
             )
     for _, r in pick(ds.attention).iterrows():
-        ev.append({"date": r["date"], "type": "注意", "text": str(r.get("reason", ""))[:120]})
+        ev.append({"date": r["date"], "type": "注意", "text": text(r.get("reason"), "—")[:120]})
     for _, r in pick(ds.disposition, "announce_date").iterrows():
         iv = r.get("interval_minutes")
         extra = f"，約每 {int(iv)} 分鐘撮合" if iv == iv and iv else ""
-        ev.append({"date": r["announce_date"], "type": "處置", "text": f"{r.get('start')}～{r.get('end')}{extra}"})
+        ev.append(
+            {
+                "date": r["announce_date"],
+                "type": "處置",
+                "text": f"{text(r.get('start'), '—')}～{text(r.get('end'), '—')}{extra}",
+            }
+        )
     for df in ds.extra.get("calendar", []):
         for _, r in pick(df).iterrows():
-            ev.append({"date": r["date"], "type": str(r.get("type", "")), "text": str(r.get("text", ""))[:120]})
+            ev.append({"date": r["date"], "type": text(r.get("type"), "—"), "text": text(r.get("text"), "—")[:120]})
     ev.sort(key=lambda e: str(e["date"]), reverse=True)
     return ev[:30]
 
@@ -260,14 +275,14 @@ def conferences_for(src: dict[str, pd.DataFrame], code: str, since: str, limit: 
     part = part[part["date"].astype(str) >= since].sort_values("date", ascending=False).head(limit)
     out = []
     for _, r in part.iterrows():
-        text = str(r.get("text") or "")
+        desc = text(r.get("text"))
         out.append(
             {
                 "date": str(r["date"]),
-                "time": str(r.get("time") or "") or None,
-                "place": str(r.get("place") or "") or None,
-                "text": text[:200],
-                "host": conference_host(text),
+                "time": text_or_none(r.get("time")),
+                "place": text_or_none(r.get("place")),
+                "text": desc[:200],
+                "host": conference_host(desc),
             }
         )
     return out
@@ -394,7 +409,7 @@ def dividends_for(ds: Any, code: str) -> list[dict[str, Any]]:
     notice = ds.exright_notice[ds.exright_notice["code"] == code] if not ds.exright_notice.empty else pd.DataFrame()
     out = []
     for _, r in ex.iterrows():
-        pre, ref, kind = r.get("pre_close"), r.get("ref_price"), str(r.get("kind", ""))
+        pre, ref, kind = r.get("pre_close"), r.get("ref_price"), text(r.get("kind"))
         cash = r.get("cash_dividend")
         if (cash != cash or cash is None) and "權" in kind and not notice.empty:
             hit = notice[notice["date"] == r["date"]]

@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { addWatch, addWatchMany, clearSampleWatch, getSetting, listRecentSearches, listTrades, listWatch, pushRecentSearch, resetDbConnection, saveTrade, setSetting, DB_VERSION, RECENT_MAX } from './db';
-import { EXPORT_MIGRATIONS, exportAll, importAll, migrateBackup, type BackupFile } from './backup';
+import { EXPORT_MIGRATIONS, exportAll, importAll, migrateBackup, previewImport, type BackupFile } from './backup';
 
 beforeEach(async () => {
   await resetDbConnection();
@@ -22,17 +22,64 @@ describe('IndexedDB 與備份', () => {
     expect(await getSetting('theme', 'auto')).toBe('dark');
   });
 
+  it('代號一律轉成大寫（E-08）', async () => {
+    await addWatch('00980a');
+    await addWatch('00980A'); // 同一檔，不重複
+    await addWatchMany([' 2330 ', '00631l'], 'ETF');
+    expect((await listWatch()).map((w) => w.code)).toEqual(['00980A', '2330', '00631L']);
+    await saveTrade({ id: 'x', code: '00631l', name: 'x', status: 'open', openedAt: '2026-09-01', entry: 1, shares: 1, stop: 0.5, target: 2, reasonType: '', checklist: { market: '', trend: '', revenue: '', valuation: '', reason: '' } });
+    expect((await listTrades())[0].code).toBe('00631L');
+  });
+
   it('匯出 → 清空 → 匯入往返', async () => {
     await addWatch('2317');
     await saveTrade({ id: 't1', code: '2317', name: '鴻海', status: 'open', openedAt: '2026-09-01', entry: 200, shares: 1000, stop: 190, target: 230, reasonType: '籌碼', checklist: { market: '偏多', trend: '年線上', revenue: '成長', valuation: '合理', reason: '投信連買' } });
     const backup = await exportAll();
     expect(backup.schemaVersion).toBe(DB_VERSION);
     const json = JSON.parse(JSON.stringify(backup));
-    await importAll({ ...json, stores: { watchlist: [], settings: [], screens: [], trades: [] } }, 'replace');
+    await importAll({ ...json, stores: { watchlist: [], settings: [], screens: [], trades: [], activity: [] } }, 'replace');
     expect(await listWatch()).toEqual([]);
     const counts = await importAll(json, 'replace');
     expect(counts.trades).toBe(1);
     expect((await listTrades())[0].code).toBe('2317');
+  });
+
+  it('壞檔匯入（E-04）：先完整驗證，任何錯誤都不改動現有資料', async () => {
+    await addWatch('2330');
+    await saveTrade({ id: 't1', code: '2330', name: '台積電', status: 'open', openedAt: '2026-09-01', entry: 1000, shares: 1000, stop: 900, target: 1200, reasonType: '', checklist: { market: '', trend: '', revenue: '', valuation: '', reason: '' } });
+    const bad: unknown[] = [
+      null,
+      [],
+      { app: 'twse-money-flow', schemaVersion: 3 }, // 健檢報告的例子：沒有 stores
+      { app: 'twse-money-flow', stores: { watchlist: [] } }, // 沒有版本號
+      { app: 'twse-money-flow', schemaVersion: '3', stores: {} },
+      { app: 'twse-money-flow', schemaVersion: 2.5, stores: {} },
+      { app: 'twse-money-flow', schemaVersion: 3, stores: { watchlist: [], settings: [], screens: [], trades: [] } }, // 缺 activity
+      { app: 'twse-money-flow', schemaVersion: 3, stores: { watchlist: {}, settings: [], screens: [], trades: [], activity: [] } },
+      { app: 'twse-money-flow', schemaVersion: 3, stores: { watchlist: [{ group: '預設' }], settings: [], screens: [], trades: [], activity: [] } }, // 缺主鍵
+      { app: 'twse-money-flow', schemaVersion: 3, stores: { watchlist: [], settings: [], screens: [], trades: [null], activity: [] } },
+      { app: 'other', schemaVersion: 3, stores: {} },
+    ];
+    for (const b of bad) {
+      await expect(importAll(b, 'replace')).rejects.toThrow();
+      await expect(importAll(b, 'merge')).rejects.toThrow();
+    }
+    expect((await listWatch()).map((w) => w.code)).toEqual(['2330']);
+    expect((await listTrades()).map((t) => t.id)).toEqual(['t1']);
+  });
+
+  it('寫入途中出錯會整筆撤銷（tx.abort），清空也一起還原', async () => {
+    await addWatch('2330');
+    // 主鍵存在但值無法存入 IndexedDB（函式無法結構化複製）→ put 失敗
+    const file = { app: 'twse-money-flow', schemaVersion: 3, stores: { watchlist: [{ code: '2317', group: '預設', addedAt: '', order: 0 }], settings: [], screens: [{ id: 's', fn: () => 1 }], trades: [], activity: [] } };
+    await expect(importAll(file, 'replace')).rejects.toThrow('現有資料未變更');
+    expect((await listWatch()).map((w) => w.code)).toEqual(['2330']);
+  });
+
+  it('previewImport 回傳筆數、不寫入', async () => {
+    const { counts } = previewImport({ app: 'twse-money-flow', schemaVersion: 1, stores: { watchlist: [{ code: '2330' }], settings: [], screens: [], trades: [] } });
+    expect(counts).toEqual({ watchlist: 1, settings: 0, screens: 0, trades: 0, activity: 0 });
+    expect(await listWatch()).toEqual([]);
   });
 
   it('舊版匯出檔依遷移升級；拒絕未知或較新版本', () => {

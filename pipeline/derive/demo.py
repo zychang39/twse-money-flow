@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from pipeline.core.calendar import TradingCalendar
 from pipeline.core.store import DataStore
 
 DEMO_STOCKS = [
@@ -85,11 +86,49 @@ def _demo_conferences(store: DataStore, end: date) -> None:
         store.write("conference", m, pd.DataFrame(rows))
 
 
+# 2026 年證交所休市日曆（tests/fixtures/raw/twse_holidaySchedule.json，官方 OpenAPI）：示範資料也依同一份日曆
+DEMO_HOLIDAYS_2026: list[tuple[str, str]] = [
+    ("2026-01-01", "中華民國開國紀念日"),
+    ("2026-01-02", "國曆新年開始交易日"),
+    ("2026-02-11", "農曆春節前最後交易日"),
+    ("2026-02-12", "市場無交易，僅辦理結算交割作業"),
+    ("2026-02-13", "市場無交易，僅辦理結算交割作業"),
+    ("2026-02-15", "農曆除夕及春節"),
+    ("2026-02-16", "農曆除夕及春節"),
+    ("2026-02-17", "農曆除夕及春節"),
+    ("2026-02-18", "農曆除夕及春節"),
+    ("2026-02-19", "農曆除夕及春節"),
+    ("2026-02-20", "農曆除夕及春節"),
+    ("2026-02-23", "農曆春節後開始交易日"),
+    ("2026-02-27", "和平紀念日"),
+    ("2026-02-28", "和平紀念日"),
+    ("2026-04-03", "兒童節及民族掃墓節"),
+    ("2026-04-04", "兒童節及民族掃墓節"),
+    ("2026-04-05", "兒童節及民族掃墓節"),
+    ("2026-04-06", "兒童節及民族掃墓節"),
+    ("2026-05-01", "勞動節"),
+    ("2026-06-19", "端午節"),
+    ("2026-09-25", "中秋節"),
+    ("2026-09-28", "孔子誕辰紀念日/ 教師節"),
+    ("2026-10-09", "國慶日"),
+    ("2026-10-10", "國慶日"),
+    ("2026-10-25", "臺灣光復暨金門古寧頭大捷紀念日"),
+    ("2026-10-26", "臺灣光復暨金門古寧頭大捷紀念日"),
+    ("2026-12-25", "行憲紀念日"),
+]
+
+
+def _demo_calendar() -> TradingCalendar:
+    df = pd.DataFrame([{"date": d, "name": n, "description": ""} for d, n in DEMO_HOLIDAYS_2026])
+    return TradingCalendar.from_frames([df])
+
+
 def _trading_days(end: date, n: int) -> list[date]:
+    cal = _demo_calendar()
     out: list[date] = []
     d = end
     while len(out) < n:
-        if d.weekday() < 5:
+        if cal.is_trading_day(d):
             out.append(d)
         d -= timedelta(days=1)
     return list(reversed(out))
@@ -213,6 +252,11 @@ def build_store(root: Path, *, days: int = 320, end: date | None = None, seed: i
     for source, by_date in rows.items():
         for iso, recs in by_date.items():
             store.write(source, date.fromisoformat(iso), pd.DataFrame(recs))
+    store.write(
+        "twse_holidays",
+        date(2026, 1, 1),
+        pd.DataFrame([{"date": d, "name": n, "description": ""} for d, n in DEMO_HOLIDAYS_2026]),
+    )
     # 除息事件（台泥）
     ex_day = dates[-60].isoformat()
     store.write(

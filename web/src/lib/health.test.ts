@@ -1,6 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { HealthSource } from '../data/types';
-import { affectedFor, describeSource, healthConclusion, siteName } from './health';
+import { PAGE_SOURCES, affectedFor, describeSource, healthConclusion, siteName } from './health';
 
 const base: HealthSource = {
   id: 'tpex_valuation', label: '上櫃本益比', tier: 'core', market: 'tpex', frequency: 'daily', verified: 'verified',
@@ -24,7 +25,18 @@ describe('資料健康白話說明', () => {
   });
   it('影響最新資料的格式錯誤與連線錯誤', () => {
     expect(describeSource({ ...base, last_status: 'failed', last_message: '找不到必要欄位「本益比」', affects_latest: true }).tone).toBe('risk');
-    expect(describeSource({ ...base, last_status: 'failed', last_message: '被網站安全機制阻擋', affects_latest: true }).text).toContain('連不上');
+    // E-09：WAF 阻擋（即使訊息同時提到「不是 JSON」）也不是格式變動
+    const blocked = describeSource({ ...base, id: 'twse_insti', market: 'twse', last_status: 'failed', last_message: '被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：…', affects_latest: true });
+    expect(blocked.text).toBe('證交所暫時阻擋自動抓取，已放慢速度，下次排程會自動重試');
+    expect(blocked.text).not.toContain('格式');
+  });
+  it('Q-08：PAGE_SOURCES 的每個來源 id 都在 config/sources.yml（行事曆是 investor_conference）', () => {
+    const yml = readFileSync(new URL('../../../config/sources.yml', import.meta.url), 'utf8');
+    const ids = new Set([...yml.matchAll(/^ {2}([a-z0-9_]+):\s*$/gm)].map((m) => m[1]));
+    for (const [page, list] of Object.entries(PAGE_SOURCES)) {
+      for (const id of list) expect(ids.has(id), `${page}: ${id}`).toBe(true);
+    }
+    expect(PAGE_SOURCES.calendar).toContain('investor_conference');
   });
   it('頁首結論', () => {
     expect(healthConclusion([base])).toBe('所有資料源都正常更新');

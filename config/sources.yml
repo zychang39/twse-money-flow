@@ -368,6 +368,8 @@ sources:
     form: { queryStartDate: "{start_slash}", queryEndDate: "{end_slash}", commodityId: "{commodity}" }
     encoding: big5
     commodities: [TXF, MXF, TMF]
+    # D-03：各商品的上市日；查詢區間早於上市日的商品略過（微台 TMF 2024-07-29 上市，更早的月份期交所回傳 HTML）
+    listed_since: { TMF: "2024-07-29" }
     status: verified
   taifex_oi:
     label: 期貨各契約全市場未平倉量
@@ -379,6 +381,7 @@ sources:
     form: { down_type: "1", commodity_id: "{commodity}", commodity_id2: "", queryStartDate: "{start_slash}", queryEndDate: "{end_slash}" }
     encoding: big5
     commodities: [TX, MTX, TMF]
+    listed_since: { TMF: "2024-07-29" }
     status: verified
   fx_usdtwd:
     label: 台幣兌美元匯率（期交所每日匯率）

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { IconClose } from './components/Icons';
 import { useRoute } from './router';
+import { normCode } from './lib/code';
 import { Dock } from './components/Chrome';
 import { Footer } from './components/Footer';
 import { lazy } from './lazy';
@@ -41,15 +42,18 @@ function Page({ parts }: { parts: string[] }) {
     case undefined: return <Tonight />;
     case 'mine': return <Mine />;
     case 'search': return <Search />;
-    case 'stock':
+    case 'stock': {
       if (!b) return <Placeholder title="個股" back="/mine" />;
+      // E-08：代號一律大寫（網址另由 router 的 legacyRedirect 改成大寫）
+      const code = normCode(b);
       switch (c) {
-        case undefined: return <Stock code={b} />;
-        case 'institutional': return <Institutional code={b} />;
-        case 'holders': return <Holders code={b} />;
-        case 'bullbear': return <BullBear code={b} />;
+        case undefined: return <Stock code={code} />;
+        case 'institutional': return <Institutional code={code} />;
+        case 'holders': return <Holders code={code} />;
+        case 'bullbear': return <BullBear code={code} />;
         default: return <Placeholder title="找不到頁面" back={`/stock/${b}`} />;
       }
+    }
     case 'explore':
       switch (b) {
         case undefined: return <Explore />;

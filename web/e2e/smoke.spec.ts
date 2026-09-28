@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 // 冒煙測試：逐一載入每個頁面（新資訊架構），確認沒有 JS 錯誤、有頁面標題、頁尾免責聲明與 4 個圖示 Tab。
 const PAGES: { hash: string; title?: RegExp }[] = [
-  { hash: '#/', title: /今晚|大盤/ },
+  { hash: '#/', title: /今晚|資金/ }, // 資料載入前是「今晚的盤後簡報」，載入後是結論句（後半句一定是資金環境）
   { hash: '#/mine' },
   { hash: '#/mine?seg=watch' },
   { hash: '#/stock/2330', title: /台積電/ },
@@ -125,7 +125,7 @@ test('回測：預設組合顯示統計與可信度；自訂條件在 Web Worker
   await expect(page.getByText(/訊號 \d+ 筆 · 範圍：成交值前/)).toBeVisible();
 });
 
-test('日誌：冷靜卡 → 買進前檢查表 → 新增持倉 → 平倉 → 統計出現錯誤標籤', async ({ page }) => {
+test('日誌：冷靜卡 → 新增持倉前檢查表 → 新增持倉 → 平倉 → 統計出現錯誤標籤', async ({ page }) => {
   await page.goto('#/discipline/journal');
   await page.getByRole('button', { name: '新增持倉' }).click();
   await page.getByRole('searchbox', { name: '搜尋股票' }).fill('2330');

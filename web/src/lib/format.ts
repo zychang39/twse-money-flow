@@ -35,9 +35,24 @@ export function fmtPct(v: number | null | undefined, digits = 2, sign = true): s
 
 export type Direction = 'up' | 'down' | 'flat';
 
-export function direction(v: number | null | undefined): Direction {
-  if (v === null || v === undefined || !Number.isFinite(v) || v === 0) return 'flat';
+/**
+ * U-09：漲跌色的共用判斷。0、空值、非有限數 → 'flat'（中性色）；|v| ≤ eps 也視為持平。
+ * 全站「v > 0 ? 'up' : 'down'」「v >= 0 ? …」一律改用這個，避免 0 顯示成上漲的紅色。
+ */
+export function dirClass(v: number | null | undefined, eps = 0): Direction {
+  if (v === null || v === undefined || !Number.isFinite(v) || Math.abs(v) <= eps) return 'flat';
   return v > 0 ? 'up' : 'down';
+}
+
+/** 同 dirClass（舊名稱，保留給既有呼叫端） */
+export function direction(v: number | null | undefined): Direction {
+  return dirClass(v);
+}
+
+/** 漲跌色對應的 CSS 變數（SVG fill 等無法用 class 的地方）：0 → 中性色 */
+export function dirColor(v: number | null | undefined, eps = 0): string {
+  const d = dirClass(v, eps);
+  return d === 'up' ? 'var(--up)' : d === 'down' ? 'var(--down)' : 'var(--flat)';
 }
 
 export function arrow(v: number | null | undefined): string {

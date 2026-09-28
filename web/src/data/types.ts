@@ -17,6 +17,8 @@ export interface Meta {
   adjust_events?: number;
   /** 以價格跳空推估的還原事件（沒有任何官方事件可以解釋的跳空） */
   adjust_inferred?: InferredEvent[];
+  /** E-02：pipeline 的交易日曆（證交所休市日曆＋臨時休市日）；前端依此判斷休市、落後交易日 */
+  calendar?: { closed: string[]; years?: number[] };
 }
 
 export interface InferredEvent { date: string; code: string; name: string; factor: number }
@@ -66,6 +68,10 @@ export interface StockRow {
   pb: number | null;
   dividend_yield: number | null;
   flags: Flag[];
+  /** U-02：最新交易日沒有成交時為最後成交日；有成交為 null */
+  last_trade_date?: string | null;
+  /** U-02：no_trade＝有掛牌但今日無成交；halted＝今日不在行情表（暫停交易、停牌）；正常為 null */
+  trade_status?: 'no_trade' | 'halted' | null;
   composite?: number | null;
   chip?: number | null;
   momentum?: number | null;
@@ -177,3 +183,7 @@ export interface LongHistory {
   c: (number | null)[];
   af: number[];
 }
+
+/** U-01：沒有個股檔的證券（近 20 個交易日無成交） */
+export interface InactiveRow { code: string; name: string; market: 'twse' | 'tpex' | null; last_trade_date: string | null; status: 'halted' | 'inactive' }
+export interface InactiveList { date: string; rows: InactiveRow[] }

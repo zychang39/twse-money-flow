@@ -12,9 +12,11 @@ from pipeline.core.normalize import is_security_code, sign_from_html, strip_tags
 from pipeline.sources.base import (
     ParseError,
     ParseResult,
+    col,
     expect_fields,
     finalize,
     frame_from_fields,
+    frame_from_records,
     is_no_data,
     load_json,
     match_interval_minutes,
@@ -23,6 +25,13 @@ from pipeline.sources.base import (
 )
 
 QUOTE_COLS = ["date", "code", "name", "open", "high", "low", "close", "volume", "value", "trades", "change"]
+
+
+def columns_frame(cols: dict[str, list[Any]], columns: list[str]) -> pd.DataFrame:
+    """依欄建表（型別推斷與 list-of-dict 相同）；沒有資料列時回傳只有欄名的空表（與舊版一致）。"""
+    if not any(cols.values()):
+        return pd.DataFrame(columns=columns)
+    return pd.DataFrame(cols, columns=columns)
 
 
 def _response_date(obj: dict[str, Any]) -> date | None:
@@ -516,21 +525,14 @@ ACCUM_COLS = ["code", "name", "situation"]
 
 
 def parse_attention_accum(payload: bytes | str | list[dict[str, Any]]) -> ParseResult:
-    rows = load_json(payload)
-    if not isinstance(rows, list):
-        raise ParseError("notetrans 應為 list")
-    df = pd.DataFrame(
-        [
-            {
-                "code": r.get("Code"),
-                "name": r.get("Name"),
-                "situation": r.get("RecentlyMetAttentionSecuritiesCriteria"),
-            }
-            for r in rows
-            if r.get("Code")
-        ],
-        columns=ACCUM_COLS,
+    raw = frame_from_records(
+        load_json(payload),
+        {"code": "Code", "name": opt("Name"), "situation": col("RecentlyMetAttentionSecuritiesCriteria")},
+        source="notetrans",
+        infer_types=False,
     )
+    raw = raw[raw["code"].map(bool).astype(bool)]
+    df = columns_frame({c: raw[c].tolist() for c in ACCUM_COLS}, ACCUM_COLS)
     return ParseResult(finalize(df))
 
 
@@ -561,26 +563,30 @@ def parse_holidays(payload: bytes | str | Any) -> ParseResult:
 COMPANY_COLS = ["code", "name", "market", "industry_code", "capital", "shares", "listing_date"]
 
 
+def company_frame(raw: pd.DataFrame, market: str) -> pd.DataFrame:
+    """frame_from_records(infer_types=False) 的公司基本資料 → COMPANY_COLS（上市、上櫃共用）。"""
+    cols = {c: raw[c].tolist() for c in COMPANY_COLS if c in raw.columns}
+    cols["market"] = [market] * len(raw)
+    cols["industry_code"] = [str("" if v is None else v).strip() for v in cols["industry_code"]]
+    return columns_frame(cols, COMPANY_COLS)
+
+
 def parse_company(payload: bytes | str | list[dict[str, Any]]) -> ParseResult:
-    rows = load_json(payload)
-    if not isinstance(rows, list):
-        raise ParseError("t187ap03_L 應為 list")
-    df = pd.DataFrame(
-        [
-            {
-                "code": r.get("公司代號"),
-                "name": r.get("公司簡稱"),
-                "market": "twse",
-                "industry_code": str(r.get("產業別", "")).strip(),
-                "capital": r.get("實收資本額"),
-                "shares": r.get("已發行普通股數或TDR原股發行股數"),
-                "listing_date": r.get("上市日期"),
-            }
-            for r in rows
-        ],
-        columns=COMPANY_COLS,
+    """產業別為必要欄位（產業分組用）；股數缺少時由行情的發行股數補（見 derive.dataset）。"""
+    raw = frame_from_records(
+        load_json(payload),
+        {
+            "code": "公司代號",
+            "name": opt("公司簡稱"),
+            "industry_code": col("產業別"),
+            "capital": opt("實收資本額"),
+            "shares": opt("已發行普通股數或TDR原股發行股數"),
+            "listing_date": opt("上市日期"),
+        },
+        source="t187ap03_L",
+        infer_types=False,
     )
-    df = finalize(df, numeric=["capital", "shares"], dates=["listing_date"])
+    df = finalize(company_frame(raw, "twse"), numeric=["capital", "shares"], dates=["listing_date"])
     return ParseResult(df.reset_index(drop=True))
 
 
@@ -604,36 +610,36 @@ REVENUE_COLS = [
 ]
 
 
+# 月營收：資料年月、當月營收、去年同月增減為必要（分數與篩選用），其餘缺少時以空值處理
+_REVENUE_API_MAP: dict[str, Any] = {
+    "ym": col("資料年月"),
+    "code": "公司代號",
+    "name": opt("公司名稱"),
+    "industry": opt("產業別"),
+    "revenue": col("營業收入-當月營收"),
+    "revenue_prev_month": opt("營業收入-上月營收"),
+    "revenue_last_year": opt("營業收入-去年當月營收"),
+    "mom": opt("營業收入-上月比較增減(%)"),
+    "yoy": col("營業收入-去年同月增減(%)"),
+    "cum_revenue": opt("累計營業收入-當月累計營收"),
+    "cum_last_year": opt("累計營業收入-去年累計營收"),
+    "cum_yoy": opt("累計營業收入-前期比較增減(%)"),
+    "note": opt("備註"),
+    "report_date": opt("出表日期"),
+}
+
+
 def parse_revenue_openapi(payload: bytes | str | list[dict[str, Any]], market: str) -> ParseResult:
     from pipeline.core.dates import parse_ym
 
-    rows = load_json(payload)
-    if not isinstance(rows, list):
-        raise ParseError("月營收 OpenAPI 應為 list")
-    out = []
-    for r in rows:
-        ym = parse_ym(r.get("資料年月"))
-        rep = parse_date(r.get("出表日期"))
-        out.append(
-            {
-                "ym": ym.strftime("%Y-%m") if ym else None,
-                "code": r.get("公司代號"),
-                "name": r.get("公司名稱"),
-                "market": market,
-                "industry": r.get("產業別"),
-                "revenue": r.get("營業收入-當月營收"),
-                "revenue_prev_month": r.get("營業收入-上月營收"),
-                "revenue_last_year": r.get("營業收入-去年當月營收"),
-                "mom": r.get("營業收入-上月比較增減(%)"),
-                "yoy": r.get("營業收入-去年同月增減(%)"),
-                "cum_revenue": r.get("累計營業收入-當月累計營收"),
-                "cum_last_year": r.get("累計營業收入-去年累計營收"),
-                "cum_yoy": r.get("累計營業收入-前期比較增減(%)"),
-                "note": r.get("備註"),
-                "report_date": rep.isoformat() if rep else None,
-            }
-        )
-    df = pd.DataFrame(out, columns=REVENUE_COLS)
+    raw = frame_from_records(load_json(payload), _REVENUE_API_MAP, source="月營收 OpenAPI", infer_types=False)
+    cols: dict[str, list[Any]] = {c: raw[c].tolist() for c in REVENUE_COLS if c in raw.columns}
+    yms = [parse_ym(v) for v in cols["ym"]]
+    reps = [parse_date(v) for v in cols["report_date"]]
+    cols["ym"] = [ym.strftime("%Y-%m") if ym else None for ym in yms]
+    cols["report_date"] = [d.isoformat() if d else None for d in reps]
+    cols["market"] = [market] * len(raw)
+    df = columns_frame(cols, REVENUE_COLS)
     df = finalize(
         df,
         numeric=[

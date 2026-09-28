@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 from bisect import bisect_right
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -79,6 +80,22 @@ def infer_events(
     return pd.DataFrame(rows, columns=["date", "code", "factor", "source"])
 
 
+def tag(df: pd.DataFrame | None, kind: str) -> pd.DataFrame:
+    """標記事件類型（dividend／capreduce／split），供前端判斷是否要標示「已依某日分割調整」（D-01）。"""
+    if df is None or df.empty:
+        return pd.DataFrame()
+    return df.assign(adj_kind=kind)
+
+
+def tag_official(ds: Any) -> list[pd.DataFrame]:
+    """Dataset 的官方還原事件（除權息、減資、分割／面額變更），各自標上類型。"""
+    return [
+        tag(ds.exright, "dividend"),
+        tag(ds.capreduce, "capreduce"),
+        *[tag(s, "split") for s in ds.extra.get("splits", [])],
+    ]
+
+
 def official_events(*frames: pd.DataFrame) -> pd.DataFrame:
     parts = []
     for df in frames:
@@ -86,9 +103,10 @@ def official_events(*frames: pd.DataFrame) -> pd.DataFrame:
             continue
         part = df[["date", "code", "factor"]].copy()
         part["source"] = "official"
+        part["kind"] = df["adj_kind"].to_numpy() if "adj_kind" in df.columns else "official"
         parts.append(part)
     if not parts:
-        return pd.DataFrame(columns=["date", "code", "factor", "source"])
+        return pd.DataFrame(columns=["date", "code", "factor", "source", "kind"])
     ev = pd.concat(parts, ignore_index=True).dropna(subset=["factor"])
     ev = ev[(ev["factor"] > 0) & np.isfinite(ev["factor"])]
     return ev.drop_duplicates(subset=["date", "code"], keep="first").reset_index(drop=True)
@@ -101,4 +119,4 @@ def all_events(close: pd.DataFrame, open_: pd.DataFrame, change: pd.DataFrame, *
     inferred = infer_events(close, open_, change, known)
     if inferred.empty:
         return off
-    return pd.concat([off, inferred], ignore_index=True)
+    return pd.concat([off, inferred.assign(kind="inferred")], ignore_index=True)

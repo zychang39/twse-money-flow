@@ -12,7 +12,7 @@ import { Sheet } from '../components/Sheet';
 import { ChangePill } from '../components/Change';
 import { StockMiniRow } from '../components/StockRow';
 import { IconChevron, IconChevronDown, IconClipboard, IconStar } from '../components/Icons';
-import { useAsync, useRestoredState } from '../hooks';
+import { useAsync, useHistories, useRestoredState } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { useUser } from '../data/useUser';
 import { loadAiSummary, loadIndex, loadMarket } from '../data/api';
@@ -58,7 +58,9 @@ export default function Tonight() {
   const env = envInfo(market.data?.env?.lights);
   const byCode = summary.data?.byCode;
   const open = useMemo(() => (user?.trades ?? []).filter((t) => t.status === 'open'), [user]);
-  const alerts = useMemo(() => (byCode ? holdingAlerts(open, byCode) : []), [open, byCode]);
+  // D-01：持股的停損依個股檔的完整還原事件換算（分割可能發生在很久以前，summary 只有近期事件）
+  const holdHist = useHistories(useMemo(() => [...new Set(open.map((t) => t.code))], [open]));
+  const alerts = useMemo(() => (byCode ? holdingAlerts(open, byCode, undefined, holdHist) : []), [open, byCode, holdHist]);
   const risky = alerts.filter((a) => a.risk);
   const calm = alerts.filter((a) => !a.risk);
   const holdCodes = new Set(open.map((t) => t.code));
@@ -108,7 +110,7 @@ export default function Tonight() {
   const openStock = (code: string, name: string, codes: string[]) => { setListContext({ name, codes }); navigate(`/stock/${code}`); };
   const envAnswer = !market.data ? '' : env.state === 'conservative'
     ? `資金環境偏保守：${env.red.length} 項指標亮起風險`
-    : env.state === 'aggressive' ? `資金環境偏積極：${env.green.length} 項指標有利` : env.state === 'neutral' ? '資金環境中性，沒有指標亮起風險' : '資金指標資料不足';
+    : env.state === 'aggressive' ? `資金面有利：${env.green.length} 項指標有利` : env.state === 'neutral' ? '資金環境中性，沒有指標亮起風險' : '資金指標資料不足';
 
   return (
     <div class="page">
@@ -149,8 +151,8 @@ export default function Tonight() {
       <Block question="我的持股有沒有出事？" answer={!user ? '' : !open.length ? '還沒有持倉' : risky.length ? `${risky.length} 檔需要注意` : '沒有需要注意的持股'}>
         <div class="block-body">
           {user && !open.length ? (
-            <EmptyState icon={<IconClipboard />} title="建立第一筆持倉" text="先完成買進前檢查表（市場、趨勢、營收、估值、停損與目標），持股出狀況時這裡會提醒你。"
-              action={<a class="btn primary" href="#/discipline/checklist">開始買進前檢查表</a>} />
+            <EmptyState icon={<IconClipboard />} title="建立第一筆持倉" text="先完成新增持倉前檢查表（市場、趨勢、營收、估值、停損與目標），持股出狀況時這裡會提醒你。"
+              action={<a class="btn primary" href="#/discipline/checklist">開始新增持倉前檢查表</a>} />
           ) : null}
           {risky.map((a) => (
             <a key={a.trade.id} class="card" href={`#/stock/${a.trade.code}`} onClick={() => setListContext({ name: '持股', codes: alerts.map((x) => x.trade.code) })}>

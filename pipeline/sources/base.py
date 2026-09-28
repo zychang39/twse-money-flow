@@ -188,6 +188,49 @@ def frame_from_fields(
     )
 
 
+def cell(row: Sequence[Any], pos: int | None) -> Any:
+    """依 resolve_fields 的位置取值；選用欄位缺少（None）或該列欄數不足時回傳 None。"""
+    return row[pos] if pos is not None and pos < len(row) else None
+
+
+def last_position(positions: Mapping[str, int | None]) -> int:
+    """resolve_fields 結果中最右邊的欄位位置（用來略過欄數不足的列）；全部缺少時為 -1。"""
+    return max((p for p in positions.values() if p is not None), default=-1)
+
+
+def frame_from_records(
+    records: Any,
+    mapping: Mapping[str, FieldSpec],
+    *,
+    required: Collection[str] | None = None,
+    source: str = "",
+    infer_types: bool = True,
+) -> pd.DataFrame:
+    """list-of-dict（OpenAPI 風格）→ 標準欄位；欄名取所有紀錄 key 的聯集（依首次出現順序），交給 frame_from_fields。
+
+    - records 不是 list、或元素不是 dict：丟 ParseError。
+    - 空 list：回傳只有標準欄位的空表（無法檢查欄位）。
+    - infer_types=True：依欄重新推斷型別（與 pd.DataFrame(list-of-dict) 相同，字串欄為 str、None 轉 NaN）；
+      False：保留原始值（object 型別，None 不變），適合之後逐列處理的解析器。
+    """
+    tag = f"{source}：" if source else ""
+    if not isinstance(records, list):
+        raise ParseError(f"{tag}回應應為 list，實際為 {type(records).__name__}")
+    if not records:
+        return pd.DataFrame(columns=list(mapping))
+    fields: dict[str, None] = {}
+    for r in records:
+        if not isinstance(r, dict):
+            raise ParseError(f"{tag}清單元素應為 dict，實際為 {type(r).__name__}")
+        fields.update(dict.fromkeys(r))
+    names = list(fields)
+    rows = [[r.get(k) for k in names] for r in records]
+    df = frame_from_fields(names, rows, mapping, required=required, source=source)
+    if not infer_types:
+        return df
+    return pd.DataFrame({t: df[t].tolist() for t in df.columns}, columns=list(df.columns))
+
+
 def expect_fields(
     fields: Sequence[str], expected: Sequence[str], *, prefix_only: bool = True, source: str = ""
 ) -> None:

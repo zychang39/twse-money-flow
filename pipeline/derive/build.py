@@ -15,7 +15,7 @@ from pipeline.derive import adjust
 from pipeline.derive import etf as etfmod
 from pipeline.derive import indicators as ind
 from pipeline.derive.dataset import Dataset, industry_map, pivot, shares_outstanding
-from pipeline.derive.export import arr, clean, is_listed_security, write_json
+from pipeline.derive.export import arr, clean, is_listed_security, text_or_none, write_json
 
 log = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ def build_panels(ds: Dataset) -> Panels:
     close = p(q, "close")
     open_ = p(q, "open")
     change = p(q, "change")
-    events = adjust.all_events(close, open_, change, ds.exright, ds.capreduce, *ds.extra.get("splits", []))
+    events = adjust.all_events(close, open_, change, *adjust.tag_official(ds))
     panels = Panels(
         dates=dates,
         codes=codes,
@@ -140,16 +140,25 @@ def stock_metrics(p: Panels, code: str) -> dict[str, Any]:
     if last_i is None:
         return {}
     close = float(c[last_i])
-    chg = _f(p.change[code].get(last_i))
+    market_last = p.dates[-1]
+    # U-02：最新交易日沒有收盤價時，不把舊的漲跌當成「今日」。
+    # 行情表有這檔但沒有成交 → no_trade；行情表完全沒有這檔（暫停交易、停牌）→ halted
+    trade_status = None
+    if last_i != market_last:
+        listed_today = pd.notna(p.volume[code].get(market_last)) or pd.notna(p.open[code].get(market_last))
+        trade_status = "no_trade" if listed_today else "halted"
+    chg = _f(p.change[code].get(last_i)) if trade_status is None else None
     prev_close = close - chg if chg is not None else None
-    vol = _f(p.volume[code].get(last_i))
-    val = _f(p.value[code].get(last_i))
+    vol = _f(p.volume[code].get(market_last if trade_status else last_i))
+    val = _f(p.value[code].get(market_last if trade_status else last_i))
     mb = p.margin_balance[code]
     fn5 = _sum_last(p.foreign_net[code], 5)
     tn5 = _sum_last(p.trust_net[code], 5)
     avg20 = _f(p.value[code].iloc[-21:-1].mean())
     return {
         "date": last_i,
+        "last_trade_date": last_i if trade_status else None,
+        "trade_status": trade_status,
         "close": close,
         "change": clean(chg),
         "change_pct": clean(_div(chg, prev_close, 100), 2),
@@ -230,6 +239,9 @@ BASE_COLUMNS = [
     "pe",
     "pb",
     "dividend_yield",
+    "last_trade_date",
+    "trade_status",
+    "adj_ev",
 ]
 SCORE_COLUMNS = ["composite", "chip", "momentum", "fundamental", "valuation"]
 
@@ -265,7 +277,71 @@ def short_halt_for(ds: Dataset, code: str) -> dict[str, Any] | None:
     if hit.empty:
         return None
     r = hit.iloc[0]
-    return {"last_cover_date": r.get("last_cover_date"), "end": r.get("end"), "reason": r.get("reason")}
+    return {
+        "last_cover_date": text_or_none(r.get("last_cover_date")),
+        "end": text_or_none(r.get("end")),
+        "reason": text_or_none(r.get("reason")),
+    }
+
+
+# summary 的 adj_ev 只放最近這麼多個交易日內的還原事件（快照比較、持股警示用；更早的由個股檔的 adj_events 提供）
+ADJ_RECENT_DAYS = 120
+
+
+def adjust_events_by_code(events: pd.DataFrame) -> dict[str, list[list[Any]]]:
+    """還原事件依代號分組：[[日期, 因子, 類型], …]（日期由舊到新）。類型：dividend、capreduce、split、inferred。"""
+    if events.empty:
+        return {}
+    out: dict[str, list[list[Any]]] = {}
+    ev = events.sort_values("date")
+    kinds = ev["kind"] if "kind" in ev.columns else pd.Series("official", index=ev.index)
+    for d, c, f, k in zip(ev["date"], ev["code"], ev["factor"], kinds, strict=True):
+        out.setdefault(str(c), []).append([str(d), round(float(f), 6), str(k)])
+    return out
+
+
+def summary_adj_events(code_ev: list[list[Any]], since: str) -> list[list[Any]] | None:
+    """summary 的精簡版還原事件（只給「自上次查看」的快照比較用；持股換算一律讀個股檔的完整 adj_events）。
+
+    分割、減資等結構性事件全部保留；除權息只保留跌幅 ≥ 顯著門檻一半（預設 1.5%）的——較小的股利
+    不會讓「自上次漲跌 ≥ 3%」誤判。除權息寫成 [日期, 因子]、其他寫成 [日期, 因子, 類型]，減少 summary 大小。
+    """
+    half = float(config.ui()["significance"]["price_pct"]) / 200
+    out: list[list[Any]] = []
+    for d, f, k in code_ev:
+        if d <= since:
+            continue
+        if k != "dividend":
+            out.append([d, round(float(f), 4), k])
+        elif f < 1 - half:
+            out.append([d, round(float(f), 4)])
+    return out or None
+
+
+def inactive_list(ds: Dataset, p: Panels, active: set[str], last_date: str) -> dict[str, Any]:
+    """U-01：近 20 個交易日沒有成交、因此沒有個股檔的證券（下市、長期停牌）。
+
+    輸出最小資料（名稱、市場、最後交易日、是否仍在上市櫃公司清單），讓持股／自選與個股頁
+    能說明原因，而不是無聲消失或露出 HTTP 404。
+    """
+    listed: set[str] | None = None
+    if not ds.company.empty and "code" in ds.company.columns:
+        listed = set(ds.company["code"].astype(str))
+    rows = []
+    for code in p.codes:
+        if code in active:
+            continue
+        last = p.close[code].last_valid_index()
+        rows.append(
+            {
+                "code": code,
+                "name": p.names.get(code, code),
+                "market": p.markets.get(code),
+                "last_trade_date": last,
+                "status": "halted" if listed is not None and code in listed else "inactive",
+            }
+        )
+    return {"date": last_date, "rows": rows}
 
 
 def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
@@ -296,6 +372,8 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
     chip_src = stockdetail.chip_sources(ds)
     holder_src = stockdetail.holder_sources(ds)
     conf_src = stockdetail.conference_sources(ds)
+    ev_by_code = adjust_events_by_code(p.events)
+    recent_from = p.dates[max(0, len(p.dates) - ADJ_RECENT_DAYS)]
     for code in active:
         m = stock_metrics(p, code)
         if not m:
@@ -324,6 +402,8 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
         m.update(
             {"code": code, "name": p.names.get(code), "market": p.markets.get(code), "industry": p.industries.get(code)}
         )
+        code_ev = ev_by_code.get(code, [])
+        m["adj_ev"] = summary_adj_events(code_ev, recent_from)
         rows.append([clean(m.get(col)) for col in cols])
         fair = fairvalue.fair_detail(fv, p.close, code)
         idx = [d for d, ok in zip(p.dates, p.close[code].notna(), strict=True) if ok]
@@ -358,6 +438,8 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
             "chip": stockdetail.chip_block(p, mp, chip_src, code, idx),
             "holders": stockdetail.holders_block(holder_src, code),
             "conferences": stockdetail.conferences_for(conf_src, code, since),
+            # D-01：還原事件（日期、因子、類型），前端換算持倉的進場價、停損價、股數
+            "adj_events": [e for e in code_ev if idx and e[0] > idx[0]],
         }
         write_json(out / "stocks" / f"{code}.json", stock_file(p, code, m, extra_file))
         written += 1
@@ -373,6 +455,7 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
         ],
     }
     write_json(out / "summary.json", summary)
+    write_json(out / "inactive.json", inactive_list(ds, p, set(active), last_date))
     from pipeline.derive.lists import build_lists
 
     write_json(out / "lists.json", build_lists(cols, rows, last_date))

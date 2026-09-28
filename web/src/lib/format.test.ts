@@ -26,3 +26,18 @@ describe('glueNumbers', () => {
     expect(glueNumbers('佔成交量 4.9%）')).toBe('佔成交量 4.9%）');
   });
 });
+
+describe('dirClass（U-09：0 用中性色）', () => {
+  it('0、空值、NaN → flat；正負 → up/down；eps 內視為持平', async () => {
+    const { dirClass, dirColor } = await import('./format');
+    expect(dirClass(0)).toBe('flat');
+    expect(dirClass(-0)).toBe('flat');
+    expect(dirClass(null)).toBe('flat');
+    expect(dirClass(Number.NaN)).toBe('flat');
+    expect(dirClass(0.1)).toBe('up');
+    expect(dirClass(-2)).toBe('down');
+    expect(dirClass(0.004, 0.005)).toBe('flat');
+    expect(dirColor(0)).toBe('var(--flat)');
+    expect(dirColor(3)).toBe('var(--up)');
+  });
+});

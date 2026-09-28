@@ -32,7 +32,7 @@ gamification:
   stop_respected_tolerance_pct: 2   # 出場價 ≤ 停損價 × (1 + 2%) 且為虧損出場 → 「守住停損」
   xp:
     brief_read: 10          # 看完今晚簡報（每個交易日一次）
-    checklist_done: 20      # 完成買進前檢查表（含「檢查後決定不進場」；每日最多一次）
+    checklist_done: 20      # 完成新增持倉前檢查表（含「檢查後決定不進場」；每日最多一次）
     review_done: 30         # 完成一筆平倉檢討（每日最多 3 筆）
     ritual_done: 20         # 三環全部完成（每個交易日一次）
     backup: 20              # 匯出備份（每 7 天最多一次）
@@ -66,7 +66,7 @@ gamification:
       target: 10
     - id: checklists_10
       label: 完成 10 份檢查表
-      description: 完成 10 份買進前檢查表（包含檢查後決定不進場）。
+      description: 完成 10 份新增持倉前檢查表（包含檢查後決定不進場）。
       metric: checklists
       target: 10
     - id: backtest_own

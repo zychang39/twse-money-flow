@@ -15,7 +15,18 @@ import pandas as pd
 
 from pipeline.core.dates import parse_date
 from pipeline.core.normalize import clean_code, clean_name, strip_tags, to_num
-from pipeline.sources.base import ParseError, ParseResult, load_json
+from pipeline.sources.base import (
+    ParseError,
+    ParseResult,
+    cell,
+    col,
+    frame_from_fields,
+    frame_from_records,
+    last_position,
+    load_json,
+    opt,
+    resolve_fields,
+)
 
 HOLDING_COLS = ["date", "etf", "code", "name", "shares", "weight"]
 TW_CODE = re.compile(r"^\d{4,6}[A-Z]?$")
@@ -54,6 +65,15 @@ def _empty(message: str) -> ParseResult:
     return ParseResult(pd.DataFrame(columns=HOLDING_COLS), no_data=True, message=message)
 
 
+def _holding_map(code: str, name: str, shares: str, weight: str) -> dict[str, Any]:
+    """持股表欄位：代號與股數必要（_frame 以股數篩選）；名稱、權重缺少時以空值處理。"""
+    return {"code": code, "name": opt(name), "shares": col(shares), "weight": opt(weight)}
+
+
+def _tuples(df: pd.DataFrame) -> list[tuple[Any, Any, Any, Any]]:
+    return list(zip(df["code"], df["name"], df["shares"], df["weight"], strict=True))
+
+
 # ------------------------------------------------------------------ 野村投信（POST JSON Fund/GetFundAssets）
 def parse_nomura(payload: bytes | str, etf: str) -> ParseResult:
     obj = load_json(payload)
@@ -72,12 +92,10 @@ def parse_nomura(payload: bytes | str, etf: str) -> ParseResult:
             pd.DataFrame(columns=HOLDING_COLS), response_date=d, no_data=True, message="野村：無股票持股表"
         )
     cols = [str(c.get("Name", "")).strip() for c in stock.get("Columns", [])]
-    try:
-        i_code, i_name, i_sh, i_w = (cols.index(k) for k in ("股票代號", "股票名稱", "股數", "權重(%)"))
-    except ValueError as exc:
-        raise ParseError(f"野村：股票表欄位與預期不符：{cols}") from exc
-    rows = [(r[i_code], r[i_name], r[i_sh], r[i_w]) for r in stock.get("Rows", [])]
-    return ParseResult(_frame(rows, etf, d), response_date=d)
+    df = frame_from_fields(
+        cols, stock.get("Rows", []), _holding_map("股票代號", "股票名稱", "股數", "權重(%)"), source="野村股票表"
+    )
+    return ParseResult(_frame(_tuples(df), etf, d), response_date=d)
 
 
 # ------------------------------------------------------------------ 群益投信（POST JSON etf/items、etf/buyback）
@@ -104,8 +122,10 @@ def parse_capital(payload: bytes | str, etf: str) -> ParseResult:
     stocks = data.get("stocks")
     if not isinstance(stocks, list):
         raise ParseError("群益：缺少 stocks 欄位")
-    rows = [(s.get("stocNo"), s.get("stocName"), s.get("share"), s.get("weight")) for s in stocks]
-    return ParseResult(_frame(rows, etf, d), response_date=d)
+    df = frame_from_records(
+        stocks, _holding_map("stocNo", "stocName", "share", "weight"), source="群益 stocks", infer_types=False
+    )
+    return ParseResult(_frame(_tuples(df), etf, d), response_date=d)
 
 
 # ------------------------------------------------------------------ 元大投信（GET api/bridge PCF/Daily）
@@ -123,8 +143,10 @@ def parse_yuanta(payload: bytes | str, etf: str) -> ParseResult:
     stocks = weights.get("StockWeights")
     if not isinstance(stocks, list):
         raise ParseError("元大：缺少 FundWeights.StockWeights")
-    rows = [(s.get("code"), s.get("name"), s.get("qty"), s.get("weights")) for s in stocks]
-    return ParseResult(_frame(rows, etf, d), response_date=d)
+    df = frame_from_records(
+        stocks, _holding_map("code", "name", "qty", "weights"), source="元大 StockWeights", infer_types=False
+    )
+    return ParseResult(_frame(_tuples(df), etf, d), response_date=d)
 
 
 # ------------------------------------------------------------------ 富邦投信（GET Trade/Assets.aspx，HTML 表格）
@@ -147,13 +169,17 @@ def parse_fubon(html: bytes | str, etf: str) -> ParseResult:
         raise ParseError(f"富邦：無法解析資料日期 {m.group(1)!r}")
     for table in _TABLE.findall(text):
         rows = [[strip_tags(c).strip() for c in _TD.findall(tr)] for tr in _TR.findall(table)]
-        if not rows or rows[0][:3] != ["股票代碼", "股票名稱", "股數"]:
+        # 持股表：表頭有「股票…」或「股數」欄（另一張為現金等「項目／金額」表）
+        if not rows or not any(h.startswith("股票") or h == "股數" for h in rows[0]):
             continue
         header = rows[0]
-        if "權重(%)" not in header:
-            raise ParseError(f"富邦：持股表欄位與預期不符：{header}")
-        i_w = header.index("權重(%)")
-        body = [(r[0], r[1], r[2], r[i_w]) for r in rows[1:] if len(r) > i_w]
+        pos = resolve_fields(header, _holding_map("股票代碼", "股票名稱", "股數", "權重(%)"), source="富邦持股表")
+        width = last_position(pos)
+        body = [
+            (cell(r, pos["code"]), cell(r, pos["name"]), cell(r, pos["shares"]), cell(r, pos["weight"]))
+            for r in rows[1:]
+            if len(r) > width
+        ]
         return ParseResult(_frame(body, etf, d), response_date=d)
     return ParseResult(pd.DataFrame(columns=HOLDING_COLS), response_date=d, no_data=True, message="富邦：無股票持股表")
 
@@ -181,5 +207,7 @@ def parse_cathay(payload: bytes | str, etf: str, d: date) -> ParseResult:
         return _empty(str(obj.get("returnMessage") or "國泰：查無持股資料"))
     if not isinstance(result, list):
         raise ParseError("國泰：result 不是清單")
-    rows = [(s.get("stockCode"), s.get("stockName"), s.get("volumn"), s.get("weights")) for s in result]
-    return ParseResult(_frame(rows, etf, d), response_date=d)
+    df = frame_from_records(
+        result, _holding_map("stockCode", "stockName", "volumn", "weights"), source="國泰 result", infer_types=False
+    )
+    return ParseResult(_frame(_tuples(df), etf, d), response_date=d)

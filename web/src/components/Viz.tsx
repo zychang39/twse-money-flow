@@ -2,7 +2,7 @@
 import { extent, pathD, points, yOf } from '../lib/chartMath';
 import { fillForward } from '../lib/periods';
 import { useRef, useState } from 'preact/hooks';
-import { fmtLotsUnit } from '../lib/format';
+import { dirClass, dirColor, fmtLotsUnit } from '../lib/format';
 import { IconCheck } from './Icons';
 
 /**
@@ -130,13 +130,13 @@ export function NetBars({ values, dates, label, height = 120, unit = '張', form
           {values.map((v, i) => {
             if (v === null || v === undefined) return null;
             const bh = Math.max(1.5, (Math.abs(v) / max) * (mid - 4));
-            return <rect key={i} x={(i + off) * 6 + 1} y={v >= 0 ? mid - bh : mid} width={4} height={bh} rx={1.5} fill={v >= 0 ? 'var(--up)' : 'var(--down)'} opacity={hover === null ? (!emphasizeRecent || i >= n - 5 ? 1 : 0.7) : i === hover ? 1 : 0.45} />;
+            return <rect key={i} x={(i + off) * 6 + 1} y={v >= 0 ? mid - bh : mid} width={4} height={bh} rx={1.5} fill={dirColor(v)} opacity={hover === null ? (!emphasizeRecent || i >= n - 5 ? 1 : 0.7) : i === hover ? 1 : 0.45} />;
           })}
         </svg>
         {hover !== null ? (
           <div class={`nb-tip ${hover > n / 2 ? 'left' : ''}`} style={{ left: `${((hover + off + 0.5) / slots) * 100}%` }} role="status">
             <span class="caption muted">{dates?.[hover] ?? `第 ${hover + 1} 日`}</span>
-            <span class={`num ${hv === null || hv === undefined || hv === 0 ? '' : hv > 0 ? 'up' : 'down'}`}>
+            <span class={`num ${dirClass(hv)}`}>
               {hv === null || hv === undefined ? '無資料' : `${hv > 0 ? `▲ ${words[0]} ` : hv < 0 ? `▼ ${words[1]} ` : ''}${format(hv, false)}`}
             </span>
           </div>

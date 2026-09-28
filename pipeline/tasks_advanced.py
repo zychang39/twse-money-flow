@@ -9,11 +9,11 @@ import pandas as pd
 
 from pipeline.core import config
 from pipeline.core.dates import month_start, next_month, slash
-from pipeline.core.http import CircuitOpenError, FetchError
+from pipeline.core.http import CircuitOpenError
 from pipeline.registry import build_url
 from pipeline.sources import advanced
 from pipeline.sources.base import ParseError, ParseResult
-from pipeline.tasks import RunContext, _fetch
+from pipeline.tasks import SOURCE_ERRORS, RunContext, _fetch, err_text
 
 
 def _upsert_by_month(ctx: RunContext, source: str, df: pd.DataFrame, keys: list[str]) -> None:
@@ -30,8 +30,38 @@ def _post(ctx: RunContext, source: str, start: date, end: date, commodity: str |
     return _fetch(ctx, str(cfg["url"]), method="POST", form=form)
 
 
+def taifex_query_end(ctx: RunContext, end: date) -> date:
+    """E-07：期交所對「迄日＝今天、但今天還沒有資料」的查詢回傳 DateTime error；迄日夾到最近一個已收盤的交易日。"""
+    from pipeline.tasks import target_trading_date
+
+    return min(end, target_trading_date(ctx))
+
+
+def _listed(source: str, commodity: str, end: date) -> date | None:
+    """商品在 end 之前（含）已上市 → 回傳上市日（沒有設定為 date.min）；尚未上市 → None。"""
+    since = (config.source(source).get("listed_since") or {}).get(commodity)
+    first = date.fromisoformat(str(since)) if since else date.min
+    return first if first <= end else None
+
+
+def _max_date(df: pd.DataFrame) -> date | None:
+    """Q-08：區間型來源的最後成功日＝實際資料的最新日期，不是查詢迄日。"""
+    if df.empty or "date" not in df.columns:
+        return None
+    s = df["date"].dropna()
+    return date.fromisoformat(str(s.max())[:10]) if len(s) else None
+
+
 def run_taifex(ctx: RunContext, start: date, end: date) -> None:
-    """三大法人期貨（TXF/MXF/TMF）、全市場未平倉（TX/MTX/TMF）、美元兌台幣；以月為單位查詢。"""
+    """三大法人期貨（TXF/MXF/TMF）、全市場未平倉（TX/MTX/TMF）、美元兌台幣；以月為單位查詢。
+
+    D-03：每個商品各自處理——單一商品失敗（例：TMF 上市前）不會連帶丟掉同月已抓到的其他商品；
+    查詢區間早於 config listed_since 的商品直接略過。
+    D-04：區間內有交易日、但某商品回傳 0 筆（查無資料）記為失敗，不記成 ok。
+    """
+    end = taifex_query_end(ctx, end)
+    if end < start:
+        return
     jobs: list[tuple[str, Any, list[str]]] = [
         ("taifex_insti", advanced.parse_taifex_insti, ["date", "contract", "party"]),
         ("taifex_oi", advanced.parse_taifex_oi, ["date", "contract"]),
@@ -39,23 +69,41 @@ def run_taifex(ctx: RunContext, start: date, end: date) -> None:
     m = month_start(start)
     while m <= end:
         a, b = max(m, start), min(next_month(m) - timedelta(days=1), end)
+        has_trading = bool(ctx.calendar.trading_days(a, b))
         for source, parse, keys in jobs:
-            frames = []
-            try:
-                for commodity in config.source(source)["commodities"]:
-                    res: ParseResult = parse(_post(ctx, source, a, b, commodity))
-                    frames.append(res.df)
-                df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-                _upsert_by_month(ctx, source, df, keys)
-                ctx.note(source, "ok", data_date=b, rows=len(df))
-            except (FetchError, ParseError) as exc:
-                ctx.note(source, "failed", data_date=b, message=str(exc)[:300])
+            frames, failed = [], []
+            for commodity in config.source(source)["commodities"]:
+                listed = _listed(source, commodity, b)
+                if listed is None:
+                    continue
+                try:
+                    res: ParseResult = parse(_post(ctx, source, max(a, listed), b, commodity))
+                except SOURCE_ERRORS as exc:
+                    failed.append(f"{commodity}：{err_text(exc)[:120]}")
+                    continue
+                if res.df.empty:
+                    if has_trading:
+                        failed.append(f"{commodity}：查無資料")
+                    continue
+                frames.append(res.df)
+            df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+            _upsert_by_month(ctx, source, df, keys)
+            if failed:
+                kept = f"；已保存其他商品 {len(df)} 列" if len(df) else ""
+                ctx.note(source, "failed", data_date=b, message="；".join(failed)[:300] + kept)
+            elif df.empty:
+                ctx.note(source, "no_data", data_date=b, message="區間內沒有交易日")
+            else:
+                ctx.note(source, "ok", data_date=_max_date(df), rows=len(df))
         try:
             fx = advanced.parse_fx(_post(ctx, "fx_usdtwd", a, b)).df
-            _upsert_by_month(ctx, "fx_usdtwd", fx, ["date"])
-            ctx.note("fx_usdtwd", "ok", data_date=b, rows=len(fx))
-        except (FetchError, ParseError) as exc:
-            ctx.note("fx_usdtwd", "failed", data_date=b, message=str(exc)[:300])
+            if fx.empty and has_trading:
+                ctx.note("fx_usdtwd", "failed", data_date=b, message="查無資料（區間內有交易日但 0 筆）")
+            else:
+                _upsert_by_month(ctx, "fx_usdtwd", fx, ["date"])
+                ctx.note("fx_usdtwd", "ok", data_date=_max_date(fx), rows=len(fx))
+        except SOURCE_ERRORS as exc:
+            ctx.note("fx_usdtwd", "failed", data_date=b, message=err_text(exc)[:300])
         m = next_month(m)
 
 
@@ -67,15 +115,15 @@ def run_ust(ctx: RunContext, year: int) -> None:
         ctx.note(
             "ust_10y", "ok", data_date=date.fromisoformat(df["date"].max()) if not df.empty else None, rows=len(df)
         )
-    except (FetchError, ParseError) as exc:
-        ctx.note("ust_10y", "failed", message=str(exc)[:300])
+    except SOURCE_ERRORS as exc:
+        ctx.note("ust_10y", "failed", message=err_text(exc)[:300])
 
 
 def run_tdcc(ctx: RunContext) -> None:
     try:
         res = advanced.parse_tdcc(_fetch(ctx, build_url("tdcc_holders")))
-    except (FetchError, ParseError) as exc:
-        ctx.note("tdcc_holders", "failed", message=str(exc)[:300])
+    except SOURCE_ERRORS as exc:
+        ctx.note("tdcc_holders", "failed", message=err_text(exc)[:300])
         return
     if res.no_data or res.response_date is None:
         ctx.note("tdcc_holders", "failed", message="集保資料為空")
@@ -150,8 +198,8 @@ def run_tdcc_history(ctx: RunContext, codes: list[str] | None = None) -> None:
     codes = codes or tdcc_focus_codes(ctx)
     try:
         token, weeks = advanced.parse_tdcc_form(ctx.client.get_bytes(url))
-    except (FetchError, ParseError) as exc:
-        ctx.note("tdcc_history", "failed", message=str(exc)[:300])
+    except SOURCE_ERRORS as exc:
+        ctx.note("tdcc_history", "failed", message=err_text(exc)[:300])
         return
     have_weeks, have_pairs = _tdcc_have(ctx)
     todo = [(c, w) for c in codes for w in weeks if w not in have_weeks and (w, c) not in have_pairs]
@@ -185,11 +233,11 @@ def run_tdcc_history(ctx: RunContext, codes: list[str] | None = None) -> None:
                 _tdcc_upsert(ctx, frames)
                 ctx.note("tdcc_history", "failed", rows=rows, message="；".join(failed)[:300])
                 return
-            except (FetchError, ParseError) as exc:
+            except SOURCE_ERRORS as exc:
                 failed.append(f"{code} {week}：{exc}"[:120])
                 try:  # 重新取得表單（token 可能已失效）
                     token = advanced.parse_tdcc_form(ctx.client.get_bytes(url))[0]
-                except (FetchError, ParseError):
+                except SOURCE_ERRORS:
                     break
                 continue
             if res.no_data:
@@ -214,8 +262,8 @@ def run_cbc_money(ctx: RunContext) -> None:
 
     try:
         df = optional.parse_cbc_money(_fetch(ctx, str(config.source("cbc_money")["url"]))).df
-    except (FetchError, ParseError) as exc:
-        ctx.note("cbc_money", "failed", message=str(exc)[:300])
+    except SOURCE_ERRORS as exc:
+        ctx.note("cbc_money", "failed", message=err_text(exc)[:300])
         return
     latest = df.dropna(subset=["m1b_yoy", "m2_yoy"]).iloc[-1]
     key = date(int(latest["ym"][:4]), int(latest["ym"][5:7]), 1)
@@ -236,8 +284,8 @@ def run_conference(ctx: RunContext, month: date) -> None:
         for typek in ("sii", "otc"):
             url = tmpl.format(typek=typek, roc=month.year - 1911, month=f"{month.month:02d}")
             frames.append(optional.parse_conference(_fetch(ctx, url)).df)
-    except (FetchError, ParseError) as exc:
-        ctx.note("investor_conference", "failed", data_date=month, message=str(exc)[:300])
+    except SOURCE_ERRORS as exc:
+        ctx.note("investor_conference", "failed", data_date=month, message=err_text(exc)[:300])
         return
     df = pd.concat(frames, ignore_index=True).drop_duplicates(["date", "code", "time"])
     if df.empty:
@@ -287,7 +335,7 @@ class _EtfFetcher:
                     self._maps[issuer] = eh.parse_capital_items(self.ctx.client.post_json(str(cfg["list_url"]), {}))
                 else:
                     self._maps[issuer] = eh.parse_cathay_list(_fetch(self.ctx, str(cfg["list_url"])))
-            except (FetchError, ParseError):
+            except SOURCE_ERRORS:
                 self.list_failed.add(issuer)  # 清單取不到，本輪不再請求該投信
                 raise
         return self._maps[issuer]
@@ -389,7 +437,7 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
         asked.add((etf, d))
         try:
             res = fetcher.fetch(issuer, etf, d)
-        except (FetchError, ParseError) as exc:
+        except SOURCE_ERRORS as exc:
             errors.append(f"{etf}（{issuers[issuer]['label']}）：{str(exc)[:120]}")
             if isinstance(exc, CircuitOpenError) or "HTTP 4" in str(exc) or issuer in fetcher.list_failed:
                 dead_issuers.add(issuer)

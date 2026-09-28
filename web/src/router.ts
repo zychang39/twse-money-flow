@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { isTabSwitch } from './lib/tabs';
 import { enterEntry, entryIndex, installScrollRestore, restoreScroll, snapshot } from './lib/scrollRestore';
+import { normCode } from './lib/code';
 
 export interface Route {
   path: string;
@@ -36,6 +37,9 @@ export function legacyRedirect(path: string, query: string): string | null {
     '/more/disposition': '/explore/disposition',
   };
   if (map[path]) return map[path];
+  // E-08：小寫代號（#/stock/00980a）→ 大寫網址
+  const st = path.match(/^\/stock\/([^/]+)(.*)$/);
+  if (st && normCode(st[1]) !== st[1]) return `/stock/${normCode(st[1])}${st[2]}${q}`;
   const m = path.match(/^\/market\/(.+)$/);
   if (m) return `/explore/sectors/${m[1]}`;
   return null;

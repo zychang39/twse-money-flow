@@ -3,7 +3,8 @@
  * 手指左右拖曳時整條軌道跟著手指移動，前一檔或後一檔同時被帶出來；放開後依距離與速度吸附到相鄰一檔或彈回。
  * - 頂列與下方內容不動；吸附完成才更新網址（不做整頁轉場、不捲回頂端），下方內容換成新的一檔。
  * - 相鄰兩檔（與再下一檔）預先載入，換股時直接顯示、不出現載入畫面或黑屏。
- * - 只有水平拖曳會換股；垂直捲動交給瀏覽器（touch-action: pan-y）。走勢圖改為按住約 0.2 秒才查價。
+ * - 只有水平拖曳會換股；垂直捲動交給瀏覽器（touch-action: pan-y）。
+ * - M5：換股手勢只從頁首區域（名稱列，[data-swipe]）開始；走勢圖區域完全交給圖表（查價、區間），不會換股。
  * - 非目前的一檔 aria-hidden＋inert（螢幕閱讀器與 Tab 鍵不會進入）；頂列的 ‹ › 也走同一個動畫。
  */
 import type { ComponentChildren } from 'preact';
@@ -102,6 +103,9 @@ export function StockPager({ codes, index, renderPane, onCommit, apiRef }: {
 
   const onDown = (e: PointerEvent) => {
     if (busy.current || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    // M5：只有頁首區域（股票名稱）可以左右滑動換股；圖表、期間按鈕等其他區域的手勢不歸換股
+    const t = e.target as Element | null;
+    if (!t?.closest?.('[data-swipe]')) return;
     g.current = { id: e.pointerId, x: e.clientX, y: e.clientY, lock: null, samples: [[e.timeStamp, e.clientX]] };
   };
   const onMove = (e: PointerEvent) => {

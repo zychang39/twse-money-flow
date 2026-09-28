@@ -12,7 +12,7 @@ import { loadIndex, loadJson, loadMarket } from '../data/api';
 import { TAIEX, TAIEX_TR, TPEX } from '../data/types';
 import { envInfo } from '../lib/envState';
 import { screenerConfig } from '../lib/config';
-import { arrow, fmtNum } from '../lib/format';
+import { arrow, dirClass, fmtNum, glueNumbers } from '../lib/format';
 import { PAGE_SOURCES } from '../lib/health';
 
 function IndexCard({ name, values }: { name: string; values: (number | null)[] | undefined }) {
@@ -21,7 +21,7 @@ function IndexCard({ name, values }: { name: string; values: (number | null)[] |
   const prev = v[v.length - 2] ?? null;
   const chg = last !== null && prev !== null ? last - prev : null;
   const pct = chg !== null && prev ? (chg / prev) * 100 : null;
-  const d = chg === null || chg === 0 ? 'flat' : chg > 0 ? 'up' : 'down';
+  const d = dirClass(chg);
   return (
     <a class="index-card" href="#/explore/market">
       <div class="caption muted">{name}</div>
@@ -32,13 +32,16 @@ function IndexCard({ name, values }: { name: string; values: (number | null)[] |
   );
 }
 
+/** U-06：數字與單位不斷開（不換行空白），只在「・」後換行（零寬空格）；搭配 CSS word-break: keep-all */
+const tileText = (s: string) => glueNumbers(s).replace(/・/g, '・\u200b');
+
 function Tile({ href, icon, label, status }: { href: string; icon: ComponentChildren; label: string; status?: ComponentChildren }) {
   return (
     <a class="tile" href={href}>
       <span class="ico">{icon}</span>
       <span>
         <span class="body w6" style={{ display: 'block' }}>{label}</span>
-        <span class="caption muted">{status}</span>
+        <span class="caption muted tile-status">{typeof status === 'string' ? tileText(status) : status}</span>
       </span>
     </a>
   );
@@ -67,7 +70,7 @@ export default function Explore() {
       </div>
       <div class="tile-grid" style={{ marginTop: 'var(--s-6)' }}>
         <Tile href="#/explore/screener" icon={<IconFilter />} label="選股" status={`${screenerConfig.presets.length} 組內建條件＋自訂`} />
-        <Tile href="#/explore/backtest" icon={<IconHistory />} label="回測" status="訊號的歷史統計與可信度" />
+        <Tile href="#/explore/backtest" icon={<IconHistory />} label="回測" status="訊號的歷史統計・可信度" />
         <Tile href="#/explore/sectors" icon={<IconGrid />} label="產業資金輪動" status={topSector ? `近 5 日流入最多：${topSector.industry}` : '依法人金額排列'} />
         <Tile href="#/explore/etf" icon={<IconLayers />} label="主動式 ETF" status={market.data?.active_etfs ? `${market.data.active_etfs.length} 檔・持股資料待處理` : '清單'} />
         <Tile href="#/explore/market" icon={<IconThermo />} label="市場溫度" status={`資金環境 ${env.label}・${env.counts || '—'}`} />

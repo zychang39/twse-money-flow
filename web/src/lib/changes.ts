@@ -5,6 +5,7 @@
 import type { Flag, StockRow } from '../data/types';
 import { uiConfig } from './config';
 import { fmtLotsAbs } from './format';
+import { eventsFor, factorBetween } from './corpActions';
 
 export interface SnapRow { c: number | null; s: number | null; f: string[]; fs: number | null; ts: number | null; mb: number | null }
 export interface Snapshot { at: string; date: string; rows: Record<string, SnapRow> }
@@ -35,10 +36,11 @@ function streakText(who: string, s: number): string {
 }
 
 /** 單檔變化。prev 為上次查看的快照；沒有快照時用日變化。 */
-export function diffRow(r: StockRow, prev: SnapRow | undefined, th: Th = uiConfig.significance): Change {
+export function diffRow(r: StockRow, prev: SnapRow | undefined, th: Th = uiConfig.significance, snapDate?: string): Change {
   const reasons: Reason[] = [];
-  // 價格
-  const pct = prev ? (prev.c && r.close !== null ? ((r.close - prev.c) / prev.c) * 100 : null) : r.change_pct;
+  // 價格。D-01：快照存的是當時的原始收盤；之後有分割、除權息時先換算到目前的價格基準，避免假的「自上次跌 X%」
+  const prevC = prev?.c && snapDate ? prev.c * factorBetween(eventsFor(r), snapDate) : prev?.c;
+  const pct = prev ? (prevC && r.close !== null ? ((r.close - prevC) / prevC) * 100 : null) : r.change_pct;
   if (pct !== null && pct !== undefined && Number.isFinite(pct) && Math.abs(pct) >= th.price_pct) {
     reasons.push({ kind: 'price', text: `${prev ? '自上次' : '今日'}${pct > 0 ? '漲' : '跌'} ${Math.abs(pct).toFixed(1)}%`, dir: pct > 0 ? 'up' : 'down', weight: Math.abs(pct) });
   }
@@ -79,7 +81,7 @@ export function diffRow(r: StockRow, prev: SnapRow | undefined, th: Th = uiConfi
 }
 
 export function diffAll(rows: StockRow[], snap: Snapshot | null, th: Th = uiConfig.significance): Change[] {
-  return rows.map((r) => diffRow(r, snap?.rows[r.code], th)).sort((a, b) => Number(b.significant) - Number(a.significant) || b.score - a.score);
+  return rows.map((r) => diffRow(r, snap?.rows[r.code], th, snap?.date)).sort((a, b) => Number(b.significant) - Number(a.significant) || b.score - a.score);
 }
 
 /** 「自上次查看以來」的說明文字。 */
