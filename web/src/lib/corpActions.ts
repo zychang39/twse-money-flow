@@ -11,13 +11,16 @@
 import type { StockHistory, StockRow } from '../data/types';
 import type { Trade } from '../db/db';
 
-/** [日期, 因子, 類型]；類型：dividend、capreduce、split、inferred */
-export type AdjEvent = [string, number, string];
+/** [日期, 因子, 類型]；類型：dividend、capreduce、split、inferred（summary 的 adj_ev 省略 dividend 的類型） */
+export type AdjEvent = [string, number, string?];
 
 const KIND_LABEL: Record<string, string> = { split: '分割', capreduce: '減資', inferred: '面額變更' };
 const STRUCTURAL = new Set(Object.keys(KIND_LABEL));
 
-/** 事件來源：已載入的個股檔（完整）優先，否則用 summary 的近期事件（adj_ev，最近 120 個交易日）。 */
+/**
+ * 事件來源：已載入的個股檔（完整）優先，否則用 summary 的精簡版近期事件（adj_ev：最近 120 個交易日的分割、減資，
+ * 與跌幅 ≥ 1.5% 的除權息；只適合快照比較——持股換算請傳入個股檔）。
+ */
 export function eventsFor(row?: StockRow | null, hist?: StockHistory | null): AdjEvent[] {
   const h = hist?.adj_events as AdjEvent[] | undefined;
   if (h) return h;
@@ -50,8 +53,8 @@ function ymd(iso: string): string {
 export function adjustTrade(t: Pick<Trade, 'openedAt' | 'entry' | 'stop' | 'target' | 'shares'>, events: AdjEvent[], until?: string): AdjustedTrade {
   const factor = factorBetween(events, t.openedAt, until);
   const notes = events
-    .filter(([d, , k]) => STRUCTURAL.has(k) && d > t.openedAt.slice(0, 10) && (!until || d <= until.slice(0, 10)))
-    .map(([d, , k]) => `已依 ${ymd(d)} ${KIND_LABEL[k]}調整`);
+    .filter(([d, , k]) => !!k && STRUCTURAL.has(k) && d > t.openedAt.slice(0, 10) && (!until || d <= until.slice(0, 10)))
+    .map(([d, , k]) => `已依 ${ymd(d)} ${KIND_LABEL[k as string]}調整`);
   return {
     factor,
     entry: t.entry * factor,

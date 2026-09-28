@@ -300,6 +300,24 @@ def adjust_events_by_code(events: pd.DataFrame) -> dict[str, list[list[Any]]]:
     return out
 
 
+def summary_adj_events(code_ev: list[list[Any]], since: str) -> list[list[Any]] | None:
+    """summary 的精簡版還原事件（只給「自上次查看」的快照比較用；持股換算一律讀個股檔的完整 adj_events）。
+
+    分割、減資等結構性事件全部保留；除權息只保留跌幅 ≥ 顯著門檻一半（預設 1.5%）的——較小的股利
+    不會讓「自上次漲跌 ≥ 3%」誤判。除權息寫成 [日期, 因子]、其他寫成 [日期, 因子, 類型]，減少 summary 大小。
+    """
+    half = float(config.ui()["significance"]["price_pct"]) / 200
+    out: list[list[Any]] = []
+    for d, f, k in code_ev:
+        if d <= since:
+            continue
+        if k != "dividend":
+            out.append([d, round(float(f), 4), k])
+        elif f < 1 - half:
+            out.append([d, round(float(f), 4)])
+    return out or None
+
+
 def inactive_list(ds: Dataset, p: Panels, active: set[str], last_date: str) -> dict[str, Any]:
     """U-01：近 20 個交易日沒有成交、因此沒有個股檔的證券（下市、長期停牌）。
 
@@ -385,7 +403,7 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
             {"code": code, "name": p.names.get(code), "market": p.markets.get(code), "industry": p.industries.get(code)}
         )
         code_ev = ev_by_code.get(code, [])
-        m["adj_ev"] = [e for e in code_ev if e[0] > recent_from] or None
+        m["adj_ev"] = summary_adj_events(code_ev, recent_from)
         rows.append([clean(m.get(col)) for col in cols])
         fair = fairvalue.fair_detail(fv, p.close, code)
         idx = [d for d, ok in zip(p.dates, p.close[code].notna(), strict=True) if ok]

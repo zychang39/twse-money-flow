@@ -12,7 +12,7 @@ import { Sheet } from '../components/Sheet';
 import { ChangePill } from '../components/Change';
 import { StockMiniRow } from '../components/StockRow';
 import { IconChevron, IconChevronDown, IconClipboard, IconStar } from '../components/Icons';
-import { useAsync, useRestoredState } from '../hooks';
+import { useAsync, useHistories, useRestoredState } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { useUser } from '../data/useUser';
 import { loadAiSummary, loadIndex, loadMarket } from '../data/api';
@@ -58,7 +58,9 @@ export default function Tonight() {
   const env = envInfo(market.data?.env?.lights);
   const byCode = summary.data?.byCode;
   const open = useMemo(() => (user?.trades ?? []).filter((t) => t.status === 'open'), [user]);
-  const alerts = useMemo(() => (byCode ? holdingAlerts(open, byCode) : []), [open, byCode]);
+  // D-01：持股的停損依個股檔的完整還原事件換算（分割可能發生在很久以前，summary 只有近期事件）
+  const holdHist = useHistories(useMemo(() => [...new Set(open.map((t) => t.code))], [open]));
+  const alerts = useMemo(() => (byCode ? holdingAlerts(open, byCode, undefined, holdHist) : []), [open, byCode, holdHist]);
   const risky = alerts.filter((a) => a.risk);
   const calm = alerts.filter((a) => !a.risk);
   const holdCodes = new Set(open.map((t) => t.code));

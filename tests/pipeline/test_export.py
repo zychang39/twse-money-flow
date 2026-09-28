@@ -309,5 +309,11 @@ def test_adjust_events_exported_with_kind(tmp_path):
     cols = summary["columns"]
     row = next(dict(zip(cols, r, strict=True)) for r in summary["rows"] if r[0] == "0050")
     assert row["adj_ev"] == [[split_day.isoformat(), 0.25, "split"]]
+    # summary 的精簡版：小額除息（< 1.5%）不列；大額除息只寫 [日期, 因子]
+    from pipeline.derive.build import summary_adj_events
+
+    ev = [["2026-09-01", 0.995, "dividend"], ["2026-09-02", 0.95, "dividend"], ["2026-09-03", 0.25, "split"]]
+    assert summary_adj_events(ev, "2026-08-01") == [["2026-09-02", 0.95], ["2026-09-03", 0.25, "split"]]
+    assert summary_adj_events(ev, "2026-09-03") is None
     other = next(dict(zip(cols, r, strict=True)) for r in summary["rows"] if r[0] == "2330")
     assert other["adj_ev"] is None
