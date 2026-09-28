@@ -40,6 +40,7 @@ def test_quarterly_decomposition_and_factors():
                     "revenue": 100 * q,
                     "gross_profit": gp * q,
                     "ni_parent": 10 * q,
+                    "eps": 0.5 * q,
                     "equity_parent": 200,
                 }
             )
@@ -51,6 +52,12 @@ def test_quarterly_decomposition_and_factors():
     assert r["gross_margin_change"] == pytest.approx(10.0)  # 30% − 20%（去年同季）
     assert r["roe"] == pytest.approx(40 / 200 * 100)  # 近四季淨利 40 ÷ 權益 200
     assert fundamentals.effective_date(2025, 4) == "2026-03-31"
+    # 個股頁「獲利品質」：單季 EPS（YTD 相減：1.0 − 0.5 = 0.5）與近四季 ROE（40 ÷ 200 = 20%）
+    t = fundamentals.latest_table(fin, "A")
+    assert t[-1]["period"] == "2026Q2"
+    assert t[-1]["eps"] == pytest.approx(0.5)
+    assert t[-1]["roe"] == pytest.approx(20.0)
+    assert t[0]["roe"] == pytest.approx(10 * 4 / 200 * 100)  # 只有 1 季：年化 10 × 4 ÷ 200
 
 
 def test_latest_due_quarter():

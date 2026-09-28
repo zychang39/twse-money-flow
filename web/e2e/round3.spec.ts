@@ -160,8 +160,9 @@ for (const width of [375, 393]) {
 // ---------------------------------------------------------------- M4 多空對照
 test('M4：個股頁的多空區塊有比例條與入口；多空對照並排列出四個面向的多方與空方', async ({ page }) => {
   await page.goto('#/stock/2330');
-  const block = page.getByRole('region', { name: '多空' });
-  await expect(block.getByRole('heading', { level: 2 })).toHaveText(/^多方 \d+ 項、空方 \d+ 項$/);
+  // v3：多空比例條併入「整體狀態如何？」區塊
+  const block = page.getByRole('region', { name: /^整體狀態如何？/ });
+  await expect(block.getByRole('region', { name: '多空' })).toContainText(/多空條件：多方 \d+ 項、空方 \d+ 項/);
   await expect(block.getByRole('img', { name: /^多方 \d+ 項、中性 \d+ 項、空方 \d+ 項$/ })).toBeVisible();
   await block.getByRole('link', { name: /多空對照/ }).click();
   await expect(page).toHaveURL(/#\/stock\/2330\/bullbear$/);
@@ -198,8 +199,9 @@ for (const width of [375, 393]) {
 // ---------------------------------------------------------------- M5 研究參考
 test('M5：個股頁列出近一年法說會（含主辦／邀請券商）與研究參考連結；第三方連結清楚標示', async ({ page }) => {
   await page.goto('#/stock/2330');
-  const block = page.getByRole('region', { name: '研究參考' });
-  await expect(block.getByRole('heading', { level: 2 })).toHaveText(/^近一年 \d+ 場法說會$/);
+  // v3：研究參考併入「最近有什麼事件？」區塊
+  const block = page.getByRole('region', { name: '最近有什麼事件？' });
+  await expect(block.getByRole('heading', { level: 2 })).toHaveText(/^近一年 \d+ 筆事件、\d+ 場法說會$/);
   await expect(block).toContainText('主辦／邀請券商：BofA、元大證券');
   await expect(block.locator('.rs-item')).toHaveCount(4);
   const official = block.getByRole('link', { name: /公開資訊觀測站・法人說明會一覽表/ });

@@ -52,7 +52,7 @@ test.describe('M2-1 每日籌碼表', () => {
 test.describe('M2-2 信用與空方', () => {
   test('散戶信用與空方分成兩張卡；每個數字標明比較基準；價量解讀四種之一或說明不套用', async ({ page }) => {
     await page.goto('#/stock/2330');
-    const block = page.getByRole('region', { name: '信用與空方：散戶與空方在做什麼？' });
+    const block = page.getByRole('region', { name: '融資與空方在做什麼？' });
     await block.scrollIntoViewIfNeeded();
     await expect(block.getByRole('heading', { name: '散戶信用（融資）' })).toBeVisible();
     await expect(block.getByRole('heading', { name: '空方（融券與借券）' })).toBeVisible();
@@ -86,7 +86,7 @@ test.describe('M2-2 信用與空方', () => {
 test.describe('M2-3 籌碼結構', () => {
   test('一句話結論、四段堆疊比例條與週變化、分級定義；查看趨勢在底部面板（比例／人數／人均張數）', async ({ page }) => {
     await page.goto('#/stock/2330');
-    const block = page.getByRole('region', { name: '籌碼結構：大戶在增加還是減少？' });
+    const block = page.getByRole('region', { name: '大戶在增加還是減少？' });
     await block.scrollIntoViewIfNeeded();
     await expect(block.getByRole('heading', { level: 2 })).toHaveText(/^千張大戶本週 (\+|−)[\d.]+ 個百分點|^千張大戶本週持平/);
     const bar = block.getByTestId('structure-bar');

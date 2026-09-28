@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { PageHead, ThemeSwitch, TopBar } from '../components/Chrome';
-import { useDb } from '../hooks';
+import { useDb, useInvestStyle } from '../hooks';
+import { STYLE_DESC, STYLE_NAME, setStyle } from '../lib/style';
 import { getSetting, setSetting } from '../db/db';
 import { CATEGORY_IDS, scoresConfig } from '../lib/config';
 import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
@@ -18,6 +19,7 @@ export default function Settings() {
     portfolio: await getSetting<PortfolioSettings>('portfolio', DEFAULT_PORTFOLIO),
   }));
   const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS);
+  const style = useInvestStyle();
   useEffect(() => { if (stored) setWeights(stored.weights); }, [stored?.weights]);
   if (!stored) return <div class="page"><TopBar back="/" avatar={false} /><PageHead title="設定" /></div>;
   const total = CATEGORY_IDS.reduce((s, c) => s + weights[c], 0) || 1;
@@ -26,6 +28,16 @@ export default function Settings() {
     <div class="page">
       <TopBar back="/" avatar={false} />
       <PageHead eyebrow="我的" title="設定" />
+
+      <h2 class="section-title">投資風格</h2>
+      <div class="card">
+        <div class="segmented" role="group" aria-label="投資風格">
+          {(['swing', 'long'] as const).map((v) => (
+            <button key={v} aria-pressed={style === v} onClick={() => setStyle(v)}>{STYLE_NAME[v]}</button>
+          ))}
+        </div>
+        <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>{STYLE_DESC[style]}。決定個股頁區塊順序、預設期間與一句話結論的側重點；不影響分數計算。</p>
+      </div>
 
       <h2 class="section-title">外觀</h2>
       <div class="card">

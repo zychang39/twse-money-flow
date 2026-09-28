@@ -179,7 +179,7 @@ export function primeKeyboard(): void {
 }
 
 const MENU = [
-  { path: '/me/settings', label: '設定', desc: '環境光、遊戲化、分數權重、交易成本、外觀、提醒匯出', icon: IconSliders },
+  { path: '/me/settings', label: '設定', desc: '投資風格、環境光、遊戲化、分數權重、交易成本、外觀、提醒匯出', icon: IconSliders },
   { path: '/me/backup', label: '備份', desc: '匯出／匯入所有本機資料（單一 JSON）', icon: IconExport },
   { path: '/me/health', label: '資料健康', desc: '各資料源狀態、推估事件與最近執行紀錄', icon: IconPulse },
   { path: '/me/methodology', label: '方法說明', desc: '所有指標與分數的計算方式', icon: IconDoc },

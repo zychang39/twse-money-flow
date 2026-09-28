@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { loadState, registerState } from './lib/scrollRestore';
+import { type InvestStyle, getStyle } from './lib/style';
 import { loadStock, peekStock } from './data/api';
 import type { StockHistory } from './data/types';
 import { subscribe } from './db/db';
@@ -98,4 +99,15 @@ export function useRestoredState<T>(name: string, initial: T | (() => T)): [T, (
   ref.current = v;
   useEffect(() => registerState(name, () => ref.current), [name]);
   return [v, setV];
+}
+
+/** 投資風格（localStorage，設定頁切換時即時更新）。 */
+export function useInvestStyle(): InvestStyle {
+  const [s, setS] = useState<InvestStyle>(getStyle);
+  useEffect(() => {
+    const on = () => setS(getStyle());
+    window.addEventListener('style-change', on);
+    return () => window.removeEventListener('style-change', on);
+  }, []);
+  return s;
 }

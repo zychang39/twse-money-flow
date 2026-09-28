@@ -21,13 +21,17 @@ const reduceMotion = () => typeof window !== 'undefined' && !!window.matchMedia?
 
 export function usePeriod(id: string, fallback: Period = '3M', allowed: Period[] = PERIODS): [Period, (p: Period) => void] {
   const key = `period:${id}`;
-  const [p, setP] = useState<Period>(() => {
+  const read = (): Period => {
     try {
       const v = localStorage.getItem(key) as Period | null;
       return v && allowed.includes(v) ? v : fallback;
     } catch { return fallback; }
-  });
-  return [p, (v: Period) => { setP(v); try { localStorage.setItem(key, v); } catch { /* 無痕模式 */ } }];
+  };
+  const [state, setState] = useState<{ key: string; p: Period }>(() => ({ key, p: read() }));
+  // 鍵改變（例：投資風格切換）時重新讀取該鍵的期間
+  const p = state.key === key ? state.p : read();
+  useEffect(() => { if (state.key !== key) setState({ key, p }); }, [key]);
+  return [p, (v: Period) => { setState({ key, p: v }); try { localStorage.setItem(key, v); } catch { /* 無痕模式 */ } }];
 }
 
 export function dirColor(d: Dir): string {

@@ -29,7 +29,7 @@ def _single_quarter(cur_row: Any, prev_row: Any, q: int, field: str) -> float | 
 
 
 def quarterly(fin: pd.DataFrame) -> pd.DataFrame:
-    """YTD → 單季。回傳 code, year, quarter, rev_q, gp_q, ni_q, equity, gm_q。"""
+    """YTD → 單季。回傳 code, year, quarter, rev_q, gp_q, ni_q, eps_q, equity, gm_q（EPS 為基本每股盈餘，YTD 相減）。"""
     if fin.empty:
         return pd.DataFrame()
     fin = fin.sort_values(["code", "year", "quarter"]).drop_duplicates(["code", "year", "quarter"], keep="last")
@@ -42,6 +42,7 @@ def quarterly(fin: pd.DataFrame) -> pd.DataFrame:
                 continue  # 缺上一季 YTD，無法拆出單季
 
             rev, gp, ni = (_single_quarter(r, prev, q, f) for f in ("revenue", "gross_profit", "ni_parent"))
+            eps = _single_quarter(r, prev, q, "eps") if hasattr(r, "eps") else None
             out.append(
                 {
                     "code": code,
@@ -50,6 +51,7 @@ def quarterly(fin: pd.DataFrame) -> pd.DataFrame:
                     "rev_q": rev,
                     "gp_q": gp,
                     "ni_q": ni,
+                    "eps_q": eps,
                     "equity": r.equity_parent,
                     "gm_q": gp / rev * 100 if gp is not None and rev else None,
                 }
@@ -105,16 +107,29 @@ def latest_table(fin: pd.DataFrame, code: str, n: int = 8) -> list[dict[str, Any
     q = quarterly(fin[fin["code"] == code]) if not fin.empty else pd.DataFrame()
     if q.empty:
         return []
-    q = q.sort_values(["year", "quarter"]).tail(n)
-    return [
-        {
-            "period": f"{int(r.year)}Q{int(r.quarter)}",
-            "revenue": r.rev_q,
-            "gross_margin": None if r.gm_q is None or r.gm_q != r.gm_q else round(r.gm_q, 2),
-            "net_income": r.ni_q,
-        }
-        for r in q.itertuples()
-    ]
+    q = q.sort_values(["year", "quarter"]).reset_index(drop=True)
+    out = []
+    for i, r in q.iterrows():
+        # ROE（近四季，年化）＝近四季單季淨利合計 × 4 ÷ 季數 ÷ 當季歸屬母公司權益 × 100（同 fundamental_records）
+        last4 = q.iloc[max(0, i - 3) : i + 1]["ni_q"].dropna()
+        eq = r["equity"]
+        roe = (
+            float(last4.sum()) * (4 / len(last4)) / float(eq) * 100
+            if len(last4) and eq and eq == eq and eq > 0
+            else None
+        )
+        eps = r.get("eps_q")
+        out.append(
+            {
+                "period": f"{int(r['year'])}Q{int(r['quarter'])}",
+                "revenue": r["rev_q"],
+                "gross_margin": None if r["gm_q"] is None or r["gm_q"] != r["gm_q"] else round(r["gm_q"], 2),
+                "net_income": r["ni_q"],
+                "eps": None if eps is None or eps != eps else round(float(eps), 2),
+                "roe": None if roe is None else round(roe, 2),
+            }
+        )
+    return out[-n:]
 
 
 _ = np
