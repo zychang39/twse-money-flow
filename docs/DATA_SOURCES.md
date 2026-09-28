@@ -171,6 +171,20 @@
 | investor_conference | 法說會日期 | `mopsov.twse.com.tw/mops/web/ajax_t100sb02_1?…&TYPEK={sii\|otc}&year={民國年}&month={MM}`（GET） | ✅ Actions 實測（DECISIONS #26） |
 | intraday | 盤中即時報價（盤中到價提醒用，每 15 分鐘一次批次請求） | `mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_2330.tw\|otc_6488.tw&json=1&delay=0` | ✅ Actions 可用（`pipeline/alerts.py`） |
 
+## 歷史長度與資料量（v3 M5）
+
+| 資料 | 回補長度 | 最早可取得（實測 2026-09-28，Actions 擷取 `tests/fixtures/raw/*_2004/2010/2016*`） |
+|---|---|---|
+| 上市收盤行情 `twse_quotes`（MI_INDEX） | 10 年（backfill 只指定收盤行情且未給起日時的預設） | 2004-02-11（696 筆，欄位與現在相同） |
+| 上櫃收盤行情 `tpex_quotes`（dailyQuotes） | 10 年 | 2010-01-04（538 筆，欄位相同）；2007-01-02（交易日）回傳空表，2007–2009 未逐日實測，`earliest` 暫設 2010-01-04 |
+| 籌碼、信用、借券、估值等其他來源 | 維持 3 年 | — |
+
+- 休市日曆：證交所 2016 年的 `holidaySchedule` 回傳空清單（舊年度沒有資料），回補時改以「當天沒有上市行情」判斷休市（例：2016-09-28 梅姬颱風停市，上市回傳「沒有符合條件的資料」）。
+- 回補方式：`python -m pipeline backfill --source twse_quotes,tpex_quotes`（起日預設 10 年前），或 Data workflow `task=backfill, source=twse_quotes,tpex_quotes`；由近到遠、已存在略過、3–5 秒間隔＋抖動、時間預算用完自動接續。約 2,450 個交易日 × 2 個市場 ≈ 4,900 次請求 ≈ 5.5 小時（兩次接續執行）。
+- **實際資料量（2026-09-28 量測，回補前）**：data 分支工作目錄 159 MB（7,331 個 `.csv.gz`）；收盤行情每日約 42 KB（上市）＋約 40 KB（上櫃），目前自 2024-04-11 起 → `raw/twse_quotes` 25 MB、`raw/tpex_quotes` 23 MB。正式站單一個股 JSON（2330，600 個交易日）127 KB，gzip 41 KB。
+- **預估（回補 10 年後）**：收盤行情再增加約 2,000 個交易日 × 82 KB ≈ 165 MB → data 分支約 330 MB（< 500 MB）。個股檔以衍生計算視窗 1,100 個交易日為上限：約 230 KB（gzip 約 70 KB）；長歷史檔 `stocks/{code}.hist.json` 約 2,450 筆日期＋收盤＋還原因子 ≈ 70 KB（gzip 約 20 KB），只在選 5Y／10Y／ALL 時載入。回補完成後請以 `du -sh` 與 `stocks/2330*.json` 更新本段實測值。
+- **若 data 分支超過 500 MB 的方案**：①把 3 年以前的每日檔依年合併成 `raw/{來源}/archive/{YYYY}.csv.gz`（一年一檔，gzip 對同欄位的長表壓縮率高，預估縮小 30–40%），`DataStore.read_range` 先讀年檔再讀日檔；②data 分支本身是孤兒分支，定期以「單一快照 commit」重建（`git checkout --orphan` → 強制推送），移除歷史 blob，倉庫大小回到工作目錄大小；③最後手段：10 年以前的上櫃行情改成週資料。
+
 ## 格式變動的偵測與相容
 
 - **解析策略**（所有來源）：欄位以「主名稱＋別名」對應，只有必要欄位缺少才整批失敗；其他欄位缺少時補空值並在 manifest 的 `sources.{id}.format_warnings` 記錄警告（資料健康頁顯示「相容模式」，技術細節收在「詳細資訊」）。詳見 METHODOLOGY 第 1 節。

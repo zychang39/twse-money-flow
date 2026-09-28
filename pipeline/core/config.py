@@ -30,6 +30,11 @@ def source(source_id: str) -> dict[str, Any]:
     return sources()[source_id]
 
 
+def history() -> dict[str, Any]:
+    """歷史長度設定（收盤行情 10 年、其他 3 年、衍生計算視窗、各來源最早日期）。"""
+    return dict(load("sources").get("history") or {})
+
+
 def crawl() -> dict[str, Any]:
     return load("sources")["crawl"]
 

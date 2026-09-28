@@ -116,7 +116,8 @@ jobs:
 
   deploy:
     needs: data
-    if: always() && needs.data.outputs.deploy == 'true'
+    # 只有 main 會部署 GitHub Pages：在開發分支執行的回補（v3 M5 的 10 年股價）只寫入 data 分支，不發布開發中的前端
+    if: always() && needs.data.outputs.deploy == 'true' && github.ref_name == 'main'
     uses: ./.github/workflows/deploy.yml
     with:
       digest: ${{ needs.data.outputs.digest }}

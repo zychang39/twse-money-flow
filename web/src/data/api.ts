@@ -49,6 +49,9 @@ const stockPath = (code: string) => `stocks/${encodeURIComponent(code)}.json`;
 export const loadStock = (code: string) => getJson<StockHistory>(stockPath(code));
 /** 已載入的個股檔（沒有則為 undefined，不發出請求）。 */
 export const peekStock = (code: string) => resolved.get(stockPath(code)) as StockHistory | undefined;
+/** 長歷史股價（沒有輸出長歷史檔的部署、或這一檔沒有 → null，不影響其他畫面）。 */
+export const loadLongHistory = (code: string) =>
+  loadMeta().then((m) => (m.long_history?.files ? getJson<import('./types').LongHistory>(`stocks/${encodeURIComponent(code)}.hist.json`).catch(() => null) : null));
 export const loadJson = <T>(path: string) => getJson<T>(path);
 export const loadMarket = () => getJson<import('./types').MarketData>('market.json');
 /** 系統清單（熱門動能）；舊版部署沒有這個檔案時回傳 null，不影響其他畫面。 */

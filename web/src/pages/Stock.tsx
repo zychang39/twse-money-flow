@@ -22,13 +22,15 @@ import { Sheet } from '../components/Sheet';
 import { NetBars } from '../components/Viz';
 import { IconChevron, IconStar, IconStarFill } from '../components/Icons';
 import { lazy } from '../lazy';
-import { useDb, useStockData } from '../hooks';
+import { useAsync, useDb, useStockData } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { addWatch, isWatched, removeWatch } from '../db/db';
 import type { CategoryId } from '../lib/config';
 import type { ChipBlock } from '../lib/chips';
 import { adjClose } from '../lib/history';
-import { STOCK_PERIODS, change, sliceWindow, type Period } from '../lib/periods';
+import { LONG_PERIODS, STOCK_PERIODS, WEEKLY_PERIODS, change, periodStart, pick, sliceWindow, weeklyIndices, type Period, type Window } from '../lib/periods';
+import { loadLongHistory } from '../data/api';
+import type { StockHistory } from '../data/types';
 import { SECTION_ORDER, STYLE_DESC, STYLE_NAME, STYLE_PERIOD, type SectionId } from '../lib/style';
 import { useInvestStyle } from '../hooks';
 import { type QuarterRow, type RevenueRow, momentumAnswer, momentumFacts, profitAnswer, profitFacts, revenueAnswer, revenueFacts } from '../lib/fundamentals';
@@ -54,6 +56,31 @@ function lastOf(a: unknown): number | null {
   return null;
 }
 
+/**
+ * 主角走勢的視窗（v3 M5）：期間在個股檔範圍內（約 4.5 年）直接用；5Y／10Y／ALL 超過時載入長歷史股價檔
+ * （收盤回補 10 年）；10Y、ALL 改為週線取樣。回傳還原價與原始價（區間報酬切換用，同一組點）。
+ */
+function useHeroWindow(code: string, h: StockHistory | null, period: Period): { win: Window | null; raw: Window | null } {
+  const needLong = !!h && LONG_PERIODS.includes(period) && (period === 'ALL' || periodStart(h.d, period).truncated);
+  const long = useAsync(() => (needLong ? loadLongHistory(code) : Promise.resolve(null)), [code, needLong]);
+  return useMemo(() => {
+    if (!h) return { win: null, raw: null };
+    const L = needLong && long.data && long.data.d.length > h.d.length ? long.data : null;
+    const d = L ? L.d : h.d;
+    const c = L ? L.c : h.c;
+    const af = L ? L.af : h.af;
+    const adj = c.map((x, i) => (x === null ? null : x * (af[i] ?? 1)));
+    let win = sliceWindow(d, adj, period);
+    let raw = sliceWindow(d, c, period);
+    if (win && WEEKLY_PERIODS.includes(period)) {
+      const idx = weeklyIndices(win.dates);
+      raw = raw && raw.values.length === win.values.length ? { ...raw, dates: pick(raw.dates, idx), values: pick(raw.values, idx) } : null;
+      win = { ...win, dates: pick(win.dates, idx), values: pick(win.values, idx) };
+    }
+    return { win, raw };
+  }, [h, long.data, period, needLong]);
+}
+
 /** 主角區（名稱、股價、走勢圖）：個股頁左右換股時，前一檔／目前／後一檔各一份。 */
 function StockHero({ code, fallbackName, fallbackIndustry, period, onPeriod, seen, advanced = false, holdToScrub = false }: {
   code: string;
@@ -66,10 +93,7 @@ function StockHero({ code, fallbackName, fallbackIndustry, period, onPeriod, see
   holdToScrub?: boolean;
 }) {
   const { data: h, error } = useStockData(code);
-  const adj = useMemo(() => (h ? adjClose(h) : []), [h]);
-  const win = h ? sliceWindow(h.d, adj, period) : null;
-  // 區間報酬可切換成原始價：與還原價同一組日期（sliceWindow 依日期切，兩者長度相同）
-  const raw = h ? sliceWindow(h.d, h.c, period) : null;
+  const { win, raw } = useHeroWindow(code, h, period);
   return (
     <>
       <header class="page-head">
@@ -109,7 +133,7 @@ export default function Stock({ code }: { code: string }) {
 
   useEffect(() => { setSeen(undefined); heroSeen(`stock:${code}`).then(setSeen); setAdvanced(false); setSheet(null); }, [code]);
   const adj = useMemo(() => (h ? adjClose(h) : []), [h]);
-  const win = h ? sliceWindow(h.d, adj, period) : null;
+  const { win } = useHeroWindow(code, h, period);
   const dir = win ? change(win.values).dir : 'flat';
   const latest = lastOf(adj);
   useEffect(() => { if (seen !== undefined) commitHero(`stock:${code}`, latest); }, [seen, latest, code]);

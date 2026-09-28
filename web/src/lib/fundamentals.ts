@@ -1,5 +1,5 @@
 /**
- * 個股頁的動能、營收成長、獲利品質（純函式；定義見 METHODOLOGY §4.8）。
+ * 個股頁的動能、營收成長、獲利品質（純函式；定義見 METHODOLOGY §4.14）。
  * 動能一律用還原收盤；營收用 revenue 表（近 24 個月，年增率）；獲利用 quarters（單季 EPS、毛利率、近四季 ROE）。
  */
 import { numberFormat } from './format';

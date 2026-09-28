@@ -9,6 +9,8 @@ export interface Meta {
   /** 影響最新資料的異常來源（回補歷史失敗不算） */
   sources_affected?: string[];
   stocks?: number;
+  /** v3：長歷史股價檔（stocks/{code}.hist.json）的檔數與最早日期；沒有時前端不嘗試載入 */
+  long_history?: { files: number; first_date?: string | null };
   /** 有 ANTHROPIC_API_KEY 時產生 ai_summary.json */
   ai_summary?: boolean;
   /** 還原價事件總數（官方＋推估） */
@@ -167,3 +169,11 @@ export interface IndexData { dates: string[]; series: Record<string, (number | n
 export const TAIEX = '發行量加權股價指數';
 export const TAIEX_TR = '發行量加權股價報酬指數';
 export const TPEX = '櫃買指數';
+
+/** v3：長歷史股價（收盤回補 10 年；日期、收盤、還原因子），5Y／10Y／ALL 才載入。 */
+export interface LongHistory {
+  code: string;
+  d: string[];
+  c: (number | null)[];
+  af: number[];
+}

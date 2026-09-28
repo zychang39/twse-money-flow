@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -278,3 +279,50 @@ def test_tdcc_history_respects_budget(tmp_path, monkeypatch):
     tasks_advanced.run_tdcc_history(ctx, ["3406"])
     assert len(client.posts) == 2
     assert "剩餘 1 次" in ctx.manifest["sources"]["tdcc_history"]["last_message"]
+
+
+def test_backfill_default_start_prices_10_years_others_3(tmp_path):
+    """v3 M5：只回補收盤行情時預設 10 年，其他來源維持 3 年。"""
+    end = date(2026, 9, 28)
+    assert tasks.default_backfill_start(["twse_quotes", "tpex_quotes"], end) == date(2016, 9, 1)
+    assert tasks.default_backfill_start(["twse_quotes"], end) == date(2016, 9, 1)
+    assert tasks.default_backfill_start(["twse_quotes", "twse_insti"], end) == date(2023, 9, 1)
+    assert tasks.default_backfill_start(None, end) == date(2023, 9, 1)
+
+
+def test_backfill_skips_days_before_source_earliest(tmp_path, monkeypatch):
+    """早於來源最早可取得日期（實測）的日子不發請求。"""
+    monkeypatch.setattr(tasks, "source_earliest", lambda s: date(2026, 9, 23) if s == "tpex_quotes" else None)
+    # 上市樣本日期為 9/24：其他日子驗證失敗（不是休市），上櫃仍會照常請求
+    ctx = make_ctx(tmp_path, {"MI_INDEX": sample("twse_rwd_MI_INDEX_ALL.json")})
+    tasks.task_backfill(ctx, ["twse_quotes", "tpex_quotes"], date(2026, 9, 21), date(2026, 9, 24))
+    urls = ctx.client.urls  # type: ignore[attr-defined]
+    tpex = [u for u in urls if "tpex" in u]
+    assert tpex and all(("2026/09/23" in u or "2026/09/24" in u) for u in tpex)
+    assert any("date=20260922" in u for u in urls if "MI_INDEX" in u)
+
+
+def raw_sample(name: str) -> bytes:
+    return (Path(__file__).resolve().parents[1] / "fixtures" / "raw" / name).read_bytes()
+
+
+@pytest.mark.parametrize(
+    ("sid", "name", "rows", "first"),
+    [
+        ("twse_quotes", "twse_rwd_MI_INDEX_ALL_2004.json", 696, "2004-02-11"),
+        ("twse_quotes", "twse_rwd_MI_INDEX_ALL_2010.json", 769, "2010-01-04"),
+        ("tpex_quotes", "tpex_dailyQuotes_2010.json", 538, "2010-01-04"),
+    ],
+)
+def test_price_parsers_handle_old_formats(sid, name, rows, first):
+    """v3 M5：10 年回補用同一個解析器；Actions 實測的舊日期樣本（2004、2010，tests/fixtures/raw）欄位相同、可解析。"""
+    res = SPECS[sid].parse(raw_sample(name))
+    assert len(res.df) == rows and not res.no_data
+    assert res.df["date"].iloc[0] == first
+    assert {"open", "high", "low", "close", "volume", "value", "change"} <= set(res.df.columns)
+
+
+def test_price_parsers_no_data_on_closed_or_unavailable_days():
+    """2016-09-28（梅姬颱風停市）上市回傳沒有資料；櫃買 2007-01-02 回傳空表 → no_data，不寫入。"""
+    assert SPECS["twse_quotes"].parse(raw_sample("twse_rwd_MI_INDEX_ALL_2016.json")).no_data
+    assert SPECS["tpex_quotes"].parse(raw_sample("tpex_dailyQuotes_2007.json")).no_data

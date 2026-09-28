@@ -405,6 +405,20 @@ def _mark_month(ctx: RunContext, key: str, m: date, failures_before: int) -> Non
         done.sort()
 
 
+def default_backfill_start(sources: list[str] | None, end: date) -> date:
+    """未給起日時的回補起點：只回補收盤行情（上市／上櫃）→ 10 年；其他 → 3 年（config/sources.yml history）。"""
+    h = config.history()
+    prices = set(h.get("price_sources", []))
+    years = int(h.get("price_years", 10)) if sources and set(sources) <= prices else int(h.get("default_years", 3))
+    return date(end.year - years, end.month, 1)
+
+
+def source_earliest(source_id: str) -> date | None:
+    """來源可取得的最早日期（依實測，config/sources.yml history.earliest）；沒有設定 → None。"""
+    v = (config.history().get("earliest") or {}).get(source_id)
+    return date.fromisoformat(str(v)) if v else None
+
+
 def task_backfill(
     ctx: RunContext, sources: list[str] | None, start: date, end: date, *, refresh: bool = False
 ) -> dict[str, Any]:
@@ -485,16 +499,20 @@ def task_backfill(
     if daily:
         adv_from = (end - timedelta(days=ADVANCED_BACKFILL_DAYS)).isoformat() if full else ""
 
+        earliest = {s: source_earliest(s) or date.min for s in daily}
+
         def wanted(d: date) -> list[str]:
-            if d.isoformat() >= adv_from:
-                return daily
-            return [s for s in daily if s not in ADVANCED_DAILY]
+            base = daily if d.isoformat() >= adv_from else [s for s in daily if s not in ADVANCED_DAILY]
+            # 早於來源最早可取得日期的日子不發請求（例：櫃買 2007 年以前）
+            return [s for s in base if d >= earliest[s]]
 
         closed = set(ctx.manifest.get("closed_days", []))
         days = [
             d
             for d in reversed(ctx.calendar.trading_days(start, end))
-            if d.isoformat() not in closed and (refresh or any(not ctx.store.exists(s, d) for s in wanted(d)))
+            if d.isoformat() not in closed
+            and wanted(d)
+            and (refresh or any(not ctx.store.exists(s, d) for s in wanted(d)))
         ]
         for i, d in enumerate(days):
             if ctx.out_of_time():

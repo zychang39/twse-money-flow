@@ -73,7 +73,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             deploy = "true"
         elif task == "backfill":
             end = _date(args.end) or now_tpe().date()
-            start = _date(args.start) or date(end.year - 3, end.month, 1)
+            start = _date(args.start) or tasks.default_backfill_start(sources, end)
             refresh = _truthy(args.refresh)
             extra = tasks.task_backfill(ctx, sources, start, end, refresh=refresh)
             deploy = "true" if not extra.get("remaining") else "false"

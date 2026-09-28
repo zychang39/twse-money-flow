@@ -137,10 +137,16 @@ def build_web(data_dir: Path, out: Path, *, demo: bool = False) -> dict[str, Any
         log.warning("沒有收盤行情資料：只輸出 meta 與 health")
         return {"status": "no_data"}
 
+    from pipeline.derive import history
     from pipeline.derive.build import build_all
 
+    # v3：衍生計算只用最近一段（約 4.5 年）；更早的收盤另存長歷史檔（stocks/{code}.hist.json）
+    full_quotes = history.trim_window(ds)
     report = build_all(ds, out, meta)
     meta.update(report.get("meta", {}))
+    codes = sorted(p.stem for p in (out / "stocks").glob("*.json") if not p.stem.endswith(".hist"))
+    report["long_history"] = history.write_long_history(full_quotes, ds, out, codes)
+    meta["long_history"] = {k: v for k, v in report["long_history"].items() if k in ("files", "first_date")}
     if not demo:
         from pipeline.derive import ai_summary
 

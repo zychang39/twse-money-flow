@@ -409,7 +409,7 @@ export function HeroChart({
           </span>
         </div>
       ) : null}
-      <div ref={wrapRef} class="chart-wrap bleed" style={{ height: `${height / 16}rem` }}
+      <div ref={wrapRef} class="chart-wrap bleed" style={{ height: `${height / 16}rem` }} data-points={win?.values.length ?? 0} data-from={win?.dates[0]}
         tabIndex={win ? 0 : -1} role="img" aria-label={`${summary}。可用左右鍵查看每日數值。`}
         onPointerMove={onMove} onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={onCancelPointer}
         onPointerLeave={(e) => { if (e.pointerType !== 'mouse') return; if (mouseSel.current?.moved) { mouseSel.current = null; releaseRange(); } end(); }}
