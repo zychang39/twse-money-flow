@@ -154,7 +154,7 @@ export default function Stats() {
       <TopBar back="/discipline" />
       <PageHead eyebrow="我的紀律與結果" title={stats.n ? <>已平倉 {stats.n} 筆{topTag ? <>，<br />最常見的錯誤是「{topTag[0]}」</> : ''}</> : '個人統計'} />
       {!trades.length ? (
-        <EmptyState icon={<IconBars />} title="還沒有交易紀錄" text="建立持倉並平倉後，這裡會出現勝率、期望值與錯誤標籤。" action={<a class="btn primary" href="#/discipline/checklist">開始買進前檢查表</a>} />
+        <EmptyState icon={<IconBars />} title="還沒有交易紀錄" text="建立持倉並平倉後，這裡會出現勝率、期望值與錯誤標籤。" action={<a class="btn primary" href="#/discipline/checklist">開始新增持倉前檢查表</a>} />
       ) : (
         <>
           <div class="card" style={{ marginTop: 'var(--s-5)' }}>

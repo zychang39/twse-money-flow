@@ -812,3 +812,24 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 .swipe-zone { touch-action: pan-y; cursor: grab; -webkit-user-select: none; user-select: none; }
 .swipe-caption { display: inline-flex; }
 .pager-arrow { min-width: var(--tap); min-height: var(--tap); display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-section); }
+
+/* U-03：所有點擊區域至少 44pt（--tap）。選單與摺疊標題直接加高；
+   視覺上要維持較小尺寸的元件（分段控制、膠囊、小按鈕、還原價／原始價），用 ::before 往上下（與左右）擴大可點擊範圍 */
+.sort-select, details.tech summary { min-height: var(--tap); }
+.btn.small, .segmented button, .chip, .env-pill, .range-seg button, .search-clear { position: relative; }
+.btn.small::before, .segmented button::before, .chip::before, .env-pill::before, .range-seg button::before, .search-clear::before {
+  content: ''; position: absolute;
+  top: min(0px, calc((100% - var(--tap)) / 2)); bottom: min(0px, calc((100% - var(--tap)) / 2));
+  left: 0; right: 0;
+}
+.search-clear::before { left: min(0px, calc((100% - var(--tap)) / 2)); right: min(0px, calc((100% - var(--tap)) / 2)); }
+
+/* U-04：表格列標題的單位放在下方小字（不用括號、不讓單位被擠到下一行） */
+.chip-stats th { white-space: nowrap; }
+.chip-stats .th-unit { display: block; font-size: var(--fs-micro); line-height: var(--lh-micro); font-weight: var(--fw-regular); color: var(--text-2); white-space: nowrap; }
+
+/* U-05：清單列的變化理由最多兩行（原本一行截斷，關鍵數字看不到） */
+.srow .sub { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; word-break: keep-all; overflow-wrap: anywhere; }
+
+/* U-06：雙欄卡片的中文不在詞中間斷行（只在空白、「・」後換行） */
+.tile-status, .tile .body { word-break: keep-all; overflow-wrap: anywhere; }

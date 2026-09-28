@@ -1,5 +1,5 @@
 /**
- * 交易流程元件：買進前檢查表（含衝動攔截的冷靜卡）、平倉、補寫檢討。
+ * 交易流程元件：新增持倉前檢查表（含衝動攔截的冷靜卡）、平倉、補寫檢討。
  * 遊戲化只記錄紀律行為：完成檢查表（不論最後是否建立持倉）、完成檢討。
  */
 import { useEffect, useState } from 'preact/hooks';
@@ -109,7 +109,7 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset }: 
   );
 
   return (
-    <Sheet open={open} onClose={onClose} title="買進前檢查表" detent="full">
+    <Sheet open={open} onClose={onClose} title="新增持倉前檢查表" detent="full">
       {!row ? <StockSearch rows={rows} onPick={setRow} autoFocus /> : (
         <div class="row between"><span class="body w6">{row.name} <span class="caption muted">{row.code}</span></span>{!preset ? <button class="btn small" onClick={() => setRow(undefined)}>更換</button> : null}</div>
       )}

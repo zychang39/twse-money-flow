@@ -1,4 +1,4 @@
-/** 日誌：持倉與已平倉紀錄；新增持倉一律經過買進前檢查表；平倉後可立即或稍後補寫檢討。 */
+/** 日誌：持倉與已平倉紀錄；新增持倉一律經過新增持倉前檢查表；平倉後可立即或稍後補寫檢討。 */
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { PageHead, TopBar } from '../components/Chrome';
 import { DataStatus, EmptyState } from '../components/DataStatus';
@@ -61,7 +61,7 @@ export default function Journal({ startChecklist }: { startChecklist?: boolean }
       {tab === 'open' ? (
         <>
           {user && !open.length ? (
-            <EmptyState icon={<IconClipboard />} title="沒有持倉" text="新增前需完成買進前檢查表。" action={<button class="btn primary" onClick={() => setAdding(true)}>開始買進前檢查表</button>} />
+            <EmptyState icon={<IconClipboard />} title="沒有持倉" text="新增前需完成新增持倉前檢查表。" action={<button class="btn primary" onClick={() => setAdding(true)}>開始新增持倉前檢查表</button>} />
           ) : null}
           {open.map((t) => {
             const price = byCode.get(t.code)?.close ?? null;

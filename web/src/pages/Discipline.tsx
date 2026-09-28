@@ -1,5 +1,5 @@
 /**
- * 紀律：回答「我該記錄或檢討什麼？」。三環、紀律等級、連續天數，以及日誌、買進前檢查表、個人統計、成就、週報。
+ * 紀律：回答「我該記錄或檢討什麼？」。三環、紀律等級、連續天數，以及日誌、新增持倉前檢查表、個人統計、成就、週報。
  * 只獎勵紀律行為；不因交易次數、頻率或獲利給予任何獎勵或慶祝。
  */
 import type { ComponentChildren } from 'preact';
@@ -12,12 +12,16 @@ import { loadIndex, loadSummary } from '../data/api';
 import { useUser } from '../data/useUser';
 import { badgeMetrics, badges, hasReview, levelFor, ritualRings, streaks, totalXp } from '../lib/ritual';
 import { todayTpe } from '../lib/dates';
+import { glueNumbers } from '../lib/format';
+
+/** U-06：數字與單位不斷開（不換行空白），只在「・」後換行（零寬空格）；搭配 CSS word-break: keep-all */
+const tileText = (s: string) => glueNumbers(s).replace(/・/g, '・\u200b');
 
 function Tile({ href, icon, label, status }: { href: string; icon: ComponentChildren; label: string; status?: ComponentChildren }) {
   return (
     <a class="tile" href={href}>
       <span class="ico">{icon}</span>
-      <span><span class="body w6" style={{ display: 'block' }}>{label}</span><span class="caption muted">{status}</span></span>
+      <span><span class="body w6" style={{ display: 'block' }}>{label}</span><span class="caption muted tile-status">{typeof status === 'string' ? tileText(status) : status}</span></span>
     </a>
   );
 }
@@ -53,7 +57,7 @@ export default function Discipline() {
       ) : <p class="caption muted" style={{ marginTop: 'var(--s-4)' }}>遊戲化已關閉（等級、徽章與完成動畫已隱藏）。可在設定重新開啟。</p>}
       <div class="tile-grid" style={{ marginTop: 'var(--s-6)' }}>
         <Tile href="#/discipline/journal" icon={<IconNotebook />} label="日誌" status={`持倉 ${open.length}・已平倉 ${closed.length}${pending ? `・待檢討 ${pending}` : ''}`} />
-        <Tile href="#/discipline/checklist" icon={<IconClipboard />} label="買進前檢查表" status="新增持倉前的 7 個問題" />
+        <Tile href="#/discipline/checklist" icon={<IconClipboard />} label="新增持倉前檢查表" status="新增持倉前的 7 個問題" />
         <Tile href="#/discipline/stats" icon={<IconBars />} label="個人統計" status="勝率、期望值、錯誤標籤、組合" />
         <Tile href="#/discipline/badges" icon={<IconMedal />} label="成就" status={user.gamification ? `${bs.filter((b) => b.earned).length} / ${bs.length} 個徽章` : '遊戲化已關閉'} />
         <Tile href="#/discipline/weekly" icon={<IconPaper />} label="週報" status="本週分數、籌碼、旗標與下週事件" />

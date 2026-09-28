@@ -322,7 +322,7 @@ export default function Mine() {
     <div class="page">
       <Ambient mood={seg === 'hold' && holdCodes.length && win ? dir : 'neutral'} />
       <TopBar caption="我的股票" actions={
-        <button class="icon-btn" aria-label={seg === 'hold' ? '新增持倉（買進前檢查表）' : '加入自選股'} onClick={() => setAdding(true)}><IconPlus /></button>
+        <button class="icon-btn" aria-label={seg === 'hold' ? '新增持倉（新增持倉前檢查表）' : '加入自選股'} onClick={() => setAdding(true)}><IconPlus /></button>
       } />
       <PageHead twoLine eyebrow={seg === 'hold' ? '我的持股有沒有出事？' : '自選股出現了什麼新變化？'} title={user && summary.data ? conclusion : '我的股票'} />
       <DataStatus date={summary.data?.date} uses={PAGE_SOURCES.mine} />
@@ -381,8 +381,8 @@ export default function Mine() {
 
       <div class="stock-list">
         {user && seg === 'hold' && !holdCodes.length ? (
-          <EmptyState icon={<IconClipboard />} title="還沒有持倉" text="新增持倉前需要完成買進前檢查表；之後持股的停損與風險旗標會出現在這裡與今晚頁。"
-            action={<button class="btn primary" onClick={() => setAdding(true)}>開始買進前檢查表</button>} />
+          <EmptyState icon={<IconClipboard />} title="還沒有持倉" text="新增持倉前需要完成新增持倉前檢查表；之後持股的停損與風險旗標會出現在這裡與今晚頁。"
+            action={<button class="btn primary" onClick={() => setAdding(true)}>開始新增持倉前檢查表</button>} />
         ) : null}
         {group === HOT ? rows.map((r) => (
           <StockListRow key={r.code} code={r.code} row={r} hist={hist.get(r.code)} sub={sub(r.code, [])}

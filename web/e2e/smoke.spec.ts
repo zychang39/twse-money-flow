@@ -125,7 +125,7 @@ test('回測：預設組合顯示統計與可信度；自訂條件在 Web Worker
   await expect(page.getByText(/訊號 \d+ 筆 · 範圍：成交值前/)).toBeVisible();
 });
 
-test('日誌：冷靜卡 → 買進前檢查表 → 新增持倉 → 平倉 → 統計出現錯誤標籤', async ({ page }) => {
+test('日誌：冷靜卡 → 新增持倉前檢查表 → 新增持倉 → 平倉 → 統計出現錯誤標籤', async ({ page }) => {
   await page.goto('#/discipline/journal');
   await page.getByRole('button', { name: '新增持倉' }).click();
   await page.getByRole('searchbox', { name: '搜尋股票' }).fill('2330');

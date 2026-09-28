@@ -72,13 +72,14 @@ export function ChipStats({ block, sharesOut }: { block: ChipBlock; sharesOut: n
   const cfg = uiConfig.chip;
   const [days, setDays] = useState(cfg.stats_default);
   const s = useMemo(() => rangeStats(block, days, sharesOut), [block, days, sharesOut]);
-  const rows: { label: string; cell: (p: (typeof s.parties)[number]) => ComponentChildren }[] = [
-    { label: '買賣超（張）', cell: (p) => <Sig v={p.lots} digits={0} /> },
-    { label: '金額（億元・估）', cell: (p) => <Sig v={p.amount} digits={2} /> },
-    { label: '佔區間成交量（%）', cell: (p) => <Sig v={p.pctVolume} digits={2} /> },
-    { label: '佔股本（%）', cell: (p) => <Sig v={p.pctCapital} digits={3} /> },
-    { label: '估計成本（元・估）', cell: (p) => <span class="num">{fmtPrice(p.cost)}</span> },
-    { label: '現價相對成本（%）', cell: (p) => <Sig v={p.costRel} digits={1} /> },
+  // U-04：單位放在列標題下方的小字（不放括號、不讓單位被擠到下一行）
+  const rows: { label: string; unit?: string; name?: string; cell: (p: (typeof s.parties)[number]) => ComponentChildren }[] = [
+    { label: '買賣超', unit: '張', name: '買賣超（張）', cell: (p) => <Sig v={p.lots} digits={0} /> },
+    { label: '金額', unit: '億元・估', name: '金額（億元・估）', cell: (p) => <Sig v={p.amount} digits={2} /> },
+    { label: '佔成交量', unit: '%・區間', name: '佔區間成交量（%）', cell: (p) => <Sig v={p.pctVolume} digits={2} /> },
+    { label: '佔股本', unit: '%', name: '佔股本（%）', cell: (p) => <Sig v={p.pctCapital} digits={3} /> },
+    { label: '估計成本', unit: '元・估', name: '估計成本（元・估）', cell: (p) => <span class="num">{fmtPrice(p.cost)}</span> },
+    { label: '現價比成本', unit: '%', name: '現價相對成本（%）', cell: (p) => <Sig v={p.costRel} digits={1} /> },
     { label: '目前連續', cell: (p) => <span class="caption">{streakText(p.streak, block.d.length - 1)}</span> },
   ];
   return (
@@ -94,11 +95,11 @@ export function ChipStats({ block, sharesOut }: { block: ChipBlock; sharesOut: n
       <div class="scroll-x">
         <table class="chip-stats">
           <thead>
-            <tr><th scope="col"><span class="sr-only">項目</span></th>{s.parties.map((p) => <th key={p.key} scope="col">{p.key === 'dealerSelf' ? <>自營商<span class="sub">（自行買賣）</span></> : p.label}</th>)}</tr>
+            <tr><th scope="col"><span class="sr-only">項目</span></th>{s.parties.map((p) => <th key={p.key} scope="col">{p.key === 'dealerSelf' ? <span aria-label="自營商（自行買賣）">自營商<span class="th-unit" aria-hidden="true">自行買賣</span></span> : p.label}</th>)}</tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.label}><th scope="row">{r.label}</th>{s.parties.map((p) => <td key={p.key}>{r.cell(p)}</td>)}</tr>
+              <tr key={r.label}><th scope="row" aria-label={r.name}>{r.label}{r.unit ? <span class="th-unit">{r.unit}</span> : null}</th>{s.parties.map((p) => <td key={p.key}>{r.cell(p)}</td>)}</tr>
             ))}
           </tbody>
         </table>

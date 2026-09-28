@@ -14,7 +14,7 @@ const n = (v: number) => `${NB}${v}${NB}`;
 const ENV_TEXT: Record<EnvState, string> = {
   conservative: '資金環境偏保守',
   neutral: '資金環境中性',
-  aggressive: '資金環境偏積極',
+  aggressive: '資金面有利',
   unknown: '資金指標資料不足',
 };
 

@@ -21,7 +21,7 @@ export function hasReview(t: Trade): boolean {
   return !!t.review && t.review.trim().length > 0;
 }
 
-/** 三環：看完今晚簡報、新持倉都完成買進前檢查表、平倉後完成檢討。day＝該晚對應的資料日期。 */
+/** 三環：看完今晚簡報、新持倉都完成新增持倉前檢查表、平倉後完成檢討。day＝該晚對應的資料日期。 */
 export function ritualRings(day: string, activities: Activity[], trades: Trade[], today: string, cfg: Gcfg = uiConfig.gamification): { rings: RingState[]; complete: boolean } {
   const brief = activities.some((a) => a.type === 'brief_read' && a.day === day);
   const newPositions = trades.filter((t) => t.openedAt >= day);
