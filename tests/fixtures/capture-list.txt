@@ -62,3 +62,11 @@ twse_rwd_holiday_2023.json|https://www.twse.com.tw/rwd/zh/holidaySchedule/holida
 twse_etfortune_index.html|https://www.twse.com.tw/zh/ETFortune/index
 twse_etfortune_etfInfo_00980A.html|https://www.twse.com.tw/zh/ETFortune/etfInfo/00980A
 twse_etf_zone.html|https://www.twse.com.tw/zh/products/securities/etf/overview/intro.html
+# v3 M5：10 年股價回補的最早可取得日期與舊格式（實測）
+twse_rwd_MI_INDEX_ALL_2016.json|https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=20160928&type=ALLBUT0999&response=json
+twse_rwd_MI_INDEX_ALL_2010.json|https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=20100104&type=ALLBUT0999&response=json
+twse_rwd_MI_INDEX_ALL_2004.json|https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=20040211&type=ALLBUT0999&response=json
+twse_rwd_holiday_2016.json|https://www.twse.com.tw/rwd/zh/holidaySchedule/holidaySchedule?date=20160101&response=json
+tpex_dailyQuotes_2016.json|https://www.tpex.org.tw/www/zh-tw/afterTrading/dailyQuotes?date=2016/09/28&id=&response=json
+tpex_dailyQuotes_2010.json|https://www.tpex.org.tw/www/zh-tw/afterTrading/dailyQuotes?date=2010/01/04&id=&response=json
+tpex_dailyQuotes_2007.json|https://www.tpex.org.tw/www/zh-tw/afterTrading/dailyQuotes?date=2007/01/02&id=&response=json
