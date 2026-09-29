@@ -715,7 +715,8 @@ details.tech ul { margin: var(--s-1) 0 0; padding-left: var(--s-4); color: var(-
 /* ---------- 我的股票：歡迎卡、範例提示、系統清單 ---------- */
 .welcome { margin-top: var(--s-4); padding: var(--s-5); }
 .welcome .section { margin-bottom: var(--s-1); }
-.welcome-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: var(--s-4) 0 var(--s-3); }
+.welcome-main { margin-top: var(--s-4); }
+.welcome-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: var(--s-2) 0 var(--s-3); }
 .welcome-actions .btn { flex: 1 1 9rem; }
 .chip.system { display: inline-flex; align-items: center; gap: var(--s-1); }
 .chip .sys-mark { font-size: 0.6875rem; line-height: 1; padding: 0.1875rem 0.3125rem; border-radius: var(--r-xs); background: var(--surface-2); color: var(--text-2); font-weight: var(--fw-medium); }

@@ -229,3 +229,22 @@ test('#12 從清單底部進入個股頁時在頂端；按返回回到清單原�
   await expect(page).toHaveURL(/#\/mine/);
   await expect.poll(() => page.evaluate(() => Math.round(window.scrollY)), { timeout: 5000 }).toBeGreaterThan(listY - 5);
 });
+
+test('#13 自選為空：主要按鈕「搜尋並加入股票」→ 搜尋 2330 → 加入 → 清單出現台積電；之後右上角「＋」開同一個面板', async ({ page }) => {
+  await page.goto('#/mine');
+  const welcome = page.getByRole('region', { name: '先追蹤幾檔股票' });
+  const main = welcome.getByRole('button', { name: '搜尋並加入股票' });
+  await expect(main).toHaveClass(/primary/);
+  await expect(welcome.getByRole('button', { name: '加入範例自選' })).not.toHaveClass(/primary/);
+  await expect(welcome.getByRole('button', { name: '從熱門動能挑選' })).not.toHaveClass(/primary/);
+  await main.click();
+  const sheet = page.getByRole('dialog', { name: '加入自選股' });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole('searchbox', { name: '搜尋股票' }).fill('2330');
+  await sheet.getByRole('option', { name: /2330/ }).click();
+  await expect(sheet.getByRole('status')).toContainText('已加入 台積電');
+  await sheet.getByRole('button', { name: '關閉' }).click();
+  await expect(page.locator('.srow').filter({ hasText: '台積電' })).toBeVisible();
+  await page.getByRole('button', { name: '加入自選股' }).click();
+  await expect(page.getByRole('dialog', { name: '加入自選股' })).toBeVisible();
+});

@@ -2,7 +2,8 @@
  * 我的股票：自選與持股合併在同一頁（分段控制「自選｜持股」，自選在左、預設）。
  * 回答「自選股有什麼新變化？」與「我的持股有沒有出事？」。
  * - 自選：使用者群組＋系統清單「熱門動能」（唯讀，依規則產生，非推薦；可一鍵複製成自己的群組或挑幾檔加入）。
- * - 新用戶還沒有自選時顯示歡迎卡：加入範例自選（config/ui.yml，標示「範例」、可一鍵清除）或從熱門動能挑選。
+ * - 新用戶還沒有自選時顯示歡迎卡：主要動作「搜尋並加入股票」（與右上角「＋」同一個搜尋面板）；
+ *   次要：加入範例自選（config/ui.yml，標示「範例」、可一鍵清除）或從熱門動能挑選。
  * - 持股：組合走勢（環境光與走勢線同一個期間、同一個顏色）。
  */
 import { useEffect, useMemo, useState } from 'preact/hooks';
@@ -104,14 +105,18 @@ function mdLabel(iso: string | undefined): string {
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
 }
 
-/** 新用戶（還沒有任何自選）：精簡的歡迎卡，兩個起點。 */
-function WelcomeCard({ onSample, onHot, hotCount, sampleNames }: { onSample: () => void; onHot: () => void; hotCount: number; sampleNames: string }) {
+/**
+ * 新用戶（還沒有任何自選）：歡迎卡。主要動作是「搜尋並加入股票」（#13：打開與右上角「＋」相同的搜尋面板，
+ * 搜尋結果直接加入自選）；範例自選與熱門動能改為次要選項。
+ */
+function WelcomeCard({ onSearch, onSample, onHot, hotCount, sampleNames }: { onSearch: () => void; onSample: () => void; onHot: () => void; hotCount: number; sampleNames: string }) {
   return (
     <section class="card welcome" aria-labelledby="welcome-title">
       <h2 id="welcome-title" class="section">先追蹤幾檔股票</h2>
       <p class="caption muted">加入自選後，每晚只會列出自上次查看以來有顯著變化的股票。</p>
+      <button class="btn primary block welcome-main" onClick={onSearch}>搜尋並加入股票</button>
       <div class="welcome-actions">
-        <button class="btn primary" onClick={onSample}>加入範例自選</button>
+        <button class="btn" onClick={onSample}>加入範例自選</button>
         <button class="btn" onClick={onHot} disabled={!hotCount}>從熱門動能挑選</button>
       </div>
       <p class="caption muted">範例：{sampleNames}（標示「範例」，可一鍵清除）。熱門動能依規則每日產生，非推薦。</p>
@@ -343,7 +348,7 @@ export default function Mine() {
       ) : null}
 
       {seg === 'watch' && user && !watch.length ? (
-        <WelcomeCard onSample={addSamples} onHot={() => setPicking(true)} hotCount={hotItems.length} sampleNames={sampleNames} />
+        <WelcomeCard onSearch={() => setAdding(true)} onSample={addSamples} onHot={() => setPicking(true)} hotCount={hotItems.length} sampleNames={sampleNames} />
       ) : null}
 
       {showChips ? (
