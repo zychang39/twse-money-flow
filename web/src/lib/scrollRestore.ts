@@ -79,8 +79,16 @@ export function snapshot(): void {
   writeEntry(id, { y: Math.round(window.scrollY), s });
 }
 
+let paused = false;
+
+/** 路由切換中（已進入新紀錄、新頁面還沒畫出）暫停記錄捲動位置（#12）。 */
+export function pauseScrollSave(on: boolean): void {
+  paused = on;
+}
+
 /** 記下目前紀錄的捲動位置（離開前、捲動時呼叫）。 */
 export function saveScroll(): void {
+  if (paused) return;
   const id = currentId();
   if (id) writeEntry(id, { y: Math.round(window.scrollY) });
 }
@@ -197,4 +205,5 @@ export function _reset(): void {
   current = null;
   currentPath = '';
   cancelRestore = null;
+  paused = false;
 }

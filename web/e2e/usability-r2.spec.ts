@@ -205,3 +205,27 @@ test('#11 選股：刪掉內建組合的條件後改稱「自訂條件」，回�
   await page.goto(`#/explore/backtest?c=${c}&name=${encodeURIComponent(presetName)}`);
   await expect(page.getByRole('group', { name: '回測對象' }).getByRole('button').first()).toHaveText(`${presetName}（已修改）`);
 });
+
+test('#12 從清單底部進入個股頁時在頂端；按返回回到清單原本的位置', async ({ page }) => {
+  const CHECK = { market: '', trend: '', revenue: '', valuation: '', reason: '' };
+  const codes = ['0050', '2330', '2317', '2454', '2412', '2882', '1101', '3105', '5347', '6182', '6488', '8069'];
+  await seed(page, { trades: codes.map((code, i) => ({ id: `t${i}`, code, name: code, status: 'open', openedAt: '2026-08-03', entry: 100, shares: 1000, stop: 1, target: 2000, reasonType: '', checklist: CHECK })) });
+  await page.goto('#/mine');
+  await page.getByRole('button', { name: /^持股/ }).click();
+  const rows = page.locator('.srow');
+  await expect(rows.last()).toBeVisible();
+  expect(await rows.count()).toBeGreaterThan(6);
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(300);
+  const listY = await page.evaluate(() => Math.round(window.scrollY));
+  expect(listY).toBeGreaterThan(300);
+  // 點清單底部（畫面上看得到、不需要再捲動）的一列
+  await rows.last().click();
+  await expect(page).toHaveURL(/#\/stock\//);
+  await expect(page.locator('.stock-lower')).toBeVisible();
+  await page.waitForTimeout(600);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await page.goBack();
+  await expect(page).toHaveURL(/#\/mine/);
+  await expect.poll(() => page.evaluate(() => Math.round(window.scrollY)), { timeout: 5000 }).toBeGreaterThan(listY - 5);
+});

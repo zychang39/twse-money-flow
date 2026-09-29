@@ -1,7 +1,7 @@
 /** 簡易 hash 路由（GitHub Pages 友善）：#/stock/2330?list=holdings。舊網址自動轉址到新資訊架構。 */
 import { useEffect, useState } from 'preact/hooks';
 import { isTabSwitch } from './lib/tabs';
-import { enterEntry, entryIndex, installScrollRestore, restoreScroll, snapshot } from './lib/scrollRestore';
+import { enterEntry, entryIndex, installScrollRestore, pauseScrollSave, restoreScroll, snapshot } from './lib/scrollRestore';
 import { normCode } from './lib/code';
 
 export interface Route {
@@ -60,47 +60,72 @@ let pendingReplace = false;
 /** 目前這筆歷史紀錄的識別（路由＋查詢字串）；捲動位置與元件狀態以此加上 history key 儲存。 */
 const entryPath = () => location.hash.replace(/^#/, '') || '/';
 
+let booted = false;
+let current: Route | null = null;
+const subscribers = new Set<(r: Route) => void>();
+
+/**
+ * 路由切換的副作用（記下離開頁的捲動位置、進入新紀錄、捲到頂端或還原）每次 hashchange 只做一次，
+ * 再通知所有 useRoute 的元件（#12）。
+ * 原本每個呼叫 useRoute 的元件（App、我的股票、日誌、回測…）各自註冊一個 hashchange 處理：第二個處理
+ * 會把「清單頁在轉場中縮短時被夾住的捲動位置」存成新紀錄的位置、再還原回去，個股頁打開時就不在頂端。
+ */
+function onHashChange(): void {
+  const next = parseHash(location.hash);
+  const redirect = legacyRedirect(next.path, next.query.toString());
+  if (redirect) {
+    location.replace(`#${redirect}`);
+    return;
+  }
+  const dir = pendingDir ?? (depth(next.path) > depth(lastPath) ? 'push' : depth(next.path) < depth(lastPath) ? 'pop' : 'swap');
+  pendingDir = null;
+  // 離開前記下上一筆紀錄的捲動位置與元件狀態，再進入新的紀錄（返回時 saved 為當時的位置）
+  snapshot();
+  // 新頁面畫出來之前，舊頁面縮短造成的捲動不能記成新紀錄的位置
+  pauseScrollSave(true);
+  const saved = enterEntry(entryPath(), pendingReplace);
+  pendingReplace = false;
+  // 切換分頁（例：今晚 → 搜尋）：內容直接替換，只有底部導覽的選取膠囊滑過去（Instagram 的做法）
+  const tabSwitch = isTabSwitch(lastPath, next.path);
+  lastPath = next.path;
+  const apply = () => {
+    current = next;
+    subscribers.forEach((f) => f(next));
+    if (saved !== null) restoreScroll(saved);
+    else if (dir !== 'none') window.scrollTo(0, 0);
+    pauseScrollSave(false);
+  };
+  const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (doc.startViewTransition && !reduce && !tabSwitch && dir !== 'none') {
+    document.documentElement.dataset.nav = dir;
+    doc.startViewTransition(apply);
+  } else apply();
+}
+
+/** 開啟或重新整理時只做一次：安裝捲動記錄與 hashchange 處理、進入目前紀錄、還原重新整理前的位置。 */
+function boot(): void {
+  if (booted) return;
+  booted = true;
+  installScrollRestore();
+  const saved = enterEntry(entryPath());
+  if (saved !== null) restoreScroll(saved); // 重新整理後還原
+  current = parseHash(location.hash);
+  window.addEventListener('hashchange', onHashChange);
+  const redirect = legacyRedirect(current.path, current.query.toString());
+  if (redirect) location.replace(`#${redirect}`);
+}
+
 export function useRoute(): Route {
   const [route, setRoute] = useState(() => {
-    installScrollRestore();
-    const saved = enterEntry(entryPath());
-    if (saved !== null) restoreScroll(saved); // 重新整理後還原
-    return parseHash(location.hash);
+    boot();
+    return current ?? parseHash(location.hash);
   });
   useEffect(() => {
-    const on = () => {
-      const next = parseHash(location.hash);
-      const redirect = legacyRedirect(next.path, next.query.toString());
-      if (redirect) {
-        location.replace(`#${redirect}`);
-        return;
-      }
-      const dir = pendingDir ?? (depth(next.path) > depth(lastPath) ? 'push' : depth(next.path) < depth(lastPath) ? 'pop' : 'swap');
-      pendingDir = null;
-      // 離開前記下上一筆紀錄的捲動位置與元件狀態，再進入新的紀錄（返回時 saved 為當時的位置）
-      snapshot();
-      const saved = enterEntry(entryPath(), pendingReplace);
-      pendingReplace = false;
-      // 切換分頁（例：今晚 → 搜尋）：內容直接替換，只有底部導覽的選取膠囊滑過去（Instagram 的做法）
-      const tabSwitch = isTabSwitch(lastPath, next.path);
-      lastPath = next.path;
-      const apply = () => {
-        setRoute(next);
-        if (saved !== null) restoreScroll(saved);
-        else if (dir !== 'none') window.scrollTo(0, 0);
-      };
-      const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
-      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-      if (doc.startViewTransition && !reduce && !tabSwitch && dir !== 'none') {
-        document.documentElement.dataset.nav = dir;
-        doc.startViewTransition(apply);
-      } else apply();
-    };
-    window.addEventListener('hashchange', on);
-    const first = parseHash(location.hash);
-    const redirect = legacyRedirect(first.path, first.query.toString());
-    if (redirect) location.replace(`#${redirect}`);
-    return () => window.removeEventListener('hashchange', on);
+    subscribers.add(setRoute);
+    // 掛載前剛好切換過路由（轉場進行中）：同步到最新
+    if (current && current !== route) setRoute(current);
+    return () => { subscribers.delete(setRoute); };
   }, []);
   return route;
 }
