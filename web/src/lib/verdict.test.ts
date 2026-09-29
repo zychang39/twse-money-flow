@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { conclusionLine, momentumTone, valuationPhrase } from './verdict';
-import { momentumAnswer, momentumFacts, profitAnswer, profitFacts, revenueAnswer, revenueFacts, smaLast } from './fundamentals';
+import { conclusionLine, momentumPhrase, momentumState, valuationPhrase } from './verdict';
+import { type Alignment, type MomentumFacts, momentumAnswer, momentumFacts, profitAnswer, profitFacts, revenueAnswer, revenueFacts, smaLast } from './fundamentals';
 import { PV_LABELS } from './credit';
 import { SECTION_ORDER, STYLE_PERIOD, parseStyle } from './style';
 
@@ -16,7 +16,7 @@ describe('動能', () => {
     expect(f.alignment).toBe('bull');
     expect(f.ma.every((m) => m.above)).toBe(true);
     expect(momentumAnswer(f)).toBe('RS 87，站上全部均線');
-    expect(momentumTone(f)).toBe('強');
+    expect(momentumState(f)).toEqual({ long: '強', short: 'up' });
   });
   it('一路下跌 → 空頭排列、跌破全部均線；資料不足 240 日 → 只看有的', () => {
     const f = momentumFacts(ramp(300, 400, -1), { rs_percentile: 12 });
@@ -27,6 +27,42 @@ describe('動能', () => {
     expect(g.ma[2].value).toBeNull();
     expect(g.alignment).toBe('na');
     expect(momentumAnswer(g)).toBe('RS 50，跌破 20 日線');
+  });
+});
+
+describe('#7 動能結論：長期強度與短期位置分開描述', () => {
+  const mk = (rs: number, a20: boolean, a60: boolean, a240: boolean, alignment: Alignment): MomentumFacts => ({
+    close: 100, rs, dist52: null, high52: null, volRatio: null, alignment,
+    ma: [{ n: 20, value: 1, above: a20 }, { n: 60, value: 1, above: a60 }, { n: 240, value: 1, above: a240 }],
+  });
+  const cases: [string, MomentumFacts, string][] = [
+    // RS 高 × 站上／跌破短均線
+    ['RS 高、站上 20／60', mk(87, true, true, true, 'bull'), '動能偏強（RS 87、均線多頭排列）'],
+    ['RS 高、跌破 20（5314 的情況）', mk(88, false, true, true, 'bull'), '長期動能強（RS 88、均線多頭排列），短期轉弱（跌破 20 日線）'],
+    ['RS 高、跌破 20／60', mk(95, false, false, true, 'mixed'), '長期動能強（RS 95），短期轉弱（跌破 20／60 日線）'],
+    ['RS 高、站上 20 但在 60 之下', mk(80, true, false, true, 'mixed'), '長期動能強（RS 80），短期回升（站上 20 日線）'],
+    // RS 低 × 站上／跌破短均線
+    ['RS 低、跌破 20／60', mk(12, false, false, false, 'bear'), '動能偏弱（RS 12、均線空頭排列）'],
+    ['RS 低、站上 20／60', mk(20, true, true, false, 'mixed'), '長期動能弱（RS 20），短期偏強（站上 20／60 日線）'],
+    ['RS 低、站上 20', mk(25, true, false, false, 'bear'), '長期動能弱（RS 25、均線空頭排列），短期回升（站上 20 日線）'],
+    ['RS 低、跌破 20', mk(28, false, true, false, 'mixed'), '長期動能弱（RS 28），短期轉弱（跌破 20 日線）'],
+    // RS 中段
+    ['RS 中段、站上 20／60', mk(55, true, true, true, 'bull'), '長期動能中性（RS 55、均線多頭排列），短期偏強（站上 20／60 日線）'],
+    ['RS 中段、跌破 20／60', mk(50, false, false, true, 'mixed'), '長期動能中性（RS 50），短期轉弱（跌破 20／60 日線）'],
+    // RS 高但跌破年線且非多頭排列 → 長期不算強
+    ['RS 高、跌破年線', mk(75, true, true, false, 'mixed'), '長期動能中性（RS 75），短期偏強（站上 20／60 日線）'],
+  ];
+  for (const [name, f, text] of cases) {
+    it(name, () => {
+      expect(momentumPhrase(f)).toBe(text);
+      expect(text).not.toMatch(/買進|賣出|建議|(^|[^期])動能中性/);
+    });
+  }
+  it('長短期一致時才合成一句；RS 缺值 → 不寫動能', () => {
+    expect(momentumPhrase({ ...mk(87, true, true, true, 'bull'), rs: null })).toBeNull();
+    const na = mk(87, true, true, true, 'bull');
+    na.ma = na.ma.map((m) => (m.n === 60 ? { ...m, above: null } : m));
+    expect(momentumPhrase(na)).toBe('長期動能強（RS 87、均線多頭排列）');
   });
 });
 

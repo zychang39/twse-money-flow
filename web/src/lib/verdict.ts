@@ -22,14 +22,45 @@ export interface VerdictInput {
   pePct: N;
 }
 
-export function momentumTone(m: MomentumFacts): '強' | '弱' | '中性' | null {
+export type LongTone = '強' | '弱' | '中性';
+export type ShortPos = 'up' | 'down' | 'dip' | 'rebound' | 'na';
+
+/**
+ * 動能分成兩個時間尺度（#7；METHODOLOGY §4.14）：
+ * - 長期強度：RS 百分位與年線。強＝RS ≥ 70 且（站上 240 日線或均線多頭排列）；弱＝RS ≤ 30，或跌破 240 日線且空頭排列；其餘中性。
+ * - 短期位置：20／60 日線。up＝兩條都站上；down＝兩條都跌破；dip＝跌破 20、仍在 60 之上；rebound＝站上 20、仍在 60 之下。
+ * 原本把兩者合成一個「中性」，會出現「動能中性（RS 88、均線多頭排列）」但同頁寫「跌破 20 日線」的矛盾。
+ */
+export function momentumState(m: MomentumFacts): { long: LongTone; short: ShortPos } | null {
   if (m.rs === null) return null;
-  const known = m.ma.filter((x) => x.above !== null);
-  const allAbove = known.length > 0 && known.every((x) => x.above);
-  const allBelow = known.length > 0 && known.every((x) => !x.above);
-  if (m.rs >= 70 && allAbove) return '強';
-  if (m.rs <= 30 || allBelow) return '弱';
-  return '中性';
+  const at = (n: number) => m.ma.find((x) => x.n === n)?.above ?? null;
+  const a20 = at(20), a60 = at(60), a240 = at(240);
+  const long: LongTone = m.rs >= 70 && (a240 === true || m.alignment === 'bull') ? '強'
+    : m.rs <= 30 || (a240 === false && m.alignment === 'bear') ? '弱' : '中性';
+  const short: ShortPos = a20 === null || a60 === null ? 'na'
+    : a20 && a60 ? 'up' : !a20 && !a60 ? 'down' : !a20 ? 'dip' : 'rebound';
+  return { long, short };
+}
+
+const SHORT_TEXT: Record<Exclude<ShortPos, 'na'>, string> = {
+  up: '短期偏強（站上 20／60 日線）',
+  down: '短期轉弱（跌破 20／60 日線）',
+  dip: '短期轉弱（跌破 20 日線）',
+  rebound: '短期回升（站上 20 日線）',
+};
+
+/**
+ * 動能子句：長短期一致時合成一句「動能偏強（RS 87、均線多頭排列）」；
+ * 不一致時分開寫「長期動能強（RS 88、均線多頭排列），短期轉弱（跌破 20 日線）」。不使用買賣字眼。
+ */
+export function momentumPhrase(m: MomentumFacts): string | null {
+  const st = momentumState(m);
+  if (!st) return null;
+  const facts = `RS ${Math.round(m.rs!)}${m.alignment === 'bull' ? '、均線多頭排列' : m.alignment === 'bear' ? '、均線空頭排列' : ''}`;
+  if (st.long === '強' && st.short === 'up') return `動能偏強（${facts}）`;
+  if (st.long === '弱' && st.short === 'down') return `動能偏弱（${facts}）`;
+  const long = `長期動能${st.long}（${facts}）`;
+  return st.short === 'na' ? long : `${long}，${SHORT_TEXT[st.short]}`;
 }
 
 function streakPhrase(name: string, s: number): string | null {
@@ -48,8 +79,8 @@ export function valuationPhrase(pePct: N): string | null {
 export function conclusionLine(style: InvestStyle, x: VerdictInput): string {
   const parts: string[] = [];
   if (style === 'swing') {
-    const t = momentumTone(x.mom);
-    if (t) parts.push(`動能${t === '中性' ? '中性' : `偏${t}`}（RS ${Math.round(x.mom.rs!)}${x.mom.alignment === 'bull' ? '、均線多頭排列' : x.mom.alignment === 'bear' ? '、均線空頭排列' : ''}）`);
+    const mp = momentumPhrase(x.mom);
+    if (mp) parts.push(mp);
     const inst = [streakPhrase('外資', x.foreignStreak), streakPhrase('投信', x.trustStreak)].filter(Boolean) as string[];
     if (inst.length) parts.push(inst.join('、'));
     if (x.pv) parts.push(`${x.pv.label}（${x.pv.tag}）`);
