@@ -309,7 +309,7 @@ export default function Mine() {
     }
     if (group === HOT) {
       const h = hotItems.find((x) => x.code === code);
-      return h ? `RS ${Math.round(h.rs_percentile)}・成交值第 ${h.value_rank} 名` : '';
+      return h ? `RS\u00a0${Math.round(h.rs_percentile)}・成交值第\u00a0${h.value_rank}\u00a0名` : '';
     }
     const w = watch.find((x) => x.code === code);
     return w?.origin === 'sample' ? '範例' : w?.group ?? '';

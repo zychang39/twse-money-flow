@@ -69,12 +69,12 @@ for (const width of [375, 393]) {
       await expect(table.getByRole('rowheader', { name: '佔區間成交量（%）' })).toBeVisible();
     });
 
-    test('U-05：清單列的變化理由最多兩行（不是一行截斷）', async ({ page }) => {
+    test('U-05／#8：清單列的變化理由可以換行、不截斷', async ({ page }) => {
       await page.goto('#/mine');
       await page.getByRole('button', { name: '加入範例自選' }).click();
       const sub = page.locator('.srow .sub').first();
       await expect(sub).toBeVisible();
-      expect(await sub.evaluate((el) => getComputedStyle(el).webkitLineClamp)).toBe('2');
+      expect(await sub.evaluate((el) => getComputedStyle(el).webkitLineClamp)).toBe('none');
       expect(await sub.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('normal');
     });
 

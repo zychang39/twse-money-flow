@@ -831,8 +831,9 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 .chip-stats th { white-space: nowrap; }
 .chip-stats .th-unit { display: block; font-size: var(--fs-micro); line-height: var(--lh-micro); font-weight: var(--fw-regular); color: var(--text-2); white-space: nowrap; }
 
-/* U-05：清單列的變化理由最多兩行（原本一行截斷，關鍵數字看不到） */
-.srow .sub { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; word-break: keep-all; overflow-wrap: anywhere; }
+/* U-05／#8：清單列的變化理由可以換行、不截斷（原本最多兩行加省略號，390pt 時「（量的 70%）」仍被切掉）；
+ * 文字已精簡、數字在前（changes.instReasonText），只在空白與「・」後換行 */
+.srow .sub { white-space: normal; overflow: visible; text-overflow: clip; word-break: keep-all; overflow-wrap: anywhere; }
 
 /* U-06：雙欄卡片的中文不在詞中間斷行（只在空白、「・」後換行） */
 .tile-status, .tile .body { word-break: keep-all; overflow-wrap: anywhere; }

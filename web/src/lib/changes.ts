@@ -4,7 +4,7 @@
  */
 import type { Flag, StockRow } from '../data/types';
 import { uiConfig } from './config';
-import { fmtLotsAbs } from './format';
+import { fmtLotsUnit } from './format';
 import { eventsFor, factorBetween } from './corpActions';
 
 export interface SnapRow { c: number | null; s: number | null; f: string[]; fs: number | null; ts: number | null; mb: number | null }
@@ -49,7 +49,7 @@ export function diffRow(r: StockRow, prev: SnapRow | undefined, th: Th = uiConfi
   const dComp = prev ? (cur !== null && prev.s !== null ? cur - prev.s : null) : ((r.composite_chg as number | null | undefined) ?? null);
   if (dComp !== null && Math.abs(dComp) >= th.composite_points) {
     const from = prev?.s ?? (cur !== null ? cur - dComp : null);
-    reasons.push({ kind: 'composite', text: `綜合分 ${from === null ? '—' : Math.round(from)} → ${cur === null ? '—' : Math.round(cur)}`, dir: dComp > 0 ? 'up' : 'down', weight: Math.abs(dComp) * 1.5 });
+    reasons.push({ kind: 'composite', text: `綜合分 ${from === null ? '—' : Math.round(from)}\u00a0→\u00a0${cur === null ? '—' : Math.round(cur)}`, dir: dComp > 0 ? 'up' : 'down', weight: Math.abs(dComp) * 1.5 });
   }
   // 法人連買／連賣：新達到門檻或方向反轉
   for (const [who, now, before] of [['外資', r.foreign_streak, prev?.fs], ['投信', r.trust_streak, prev?.ts]] as const) {
@@ -62,7 +62,8 @@ export function diffRow(r: StockRow, prev: SnapRow | undefined, th: Th = uiConfi
   const vol = r.volume_lots ?? 0;
   const inst = (r.foreign_net_lots ?? 0) + (r.trust_net_lots ?? 0);
   if (vol > 0 && (Math.abs(inst) / vol) * 100 >= th.inst_volume_pct && !reasons.some((x) => x.kind === 'streak')) {
-    reasons.push({ kind: 'inst', text: `外資＋投信淨${inst > 0 ? '買' : '賣'} ${fmtLotsAbs(inst)} 張（量的 ${Math.round((Math.abs(inst) / vol) * 100)}%）`, dir: inst > 0 ? 'up' : 'down', weight: (Math.abs(inst) / vol) * 50 });
+    // #8：數字放前面、格式精簡（清單列窄，原本「（量的 70%）」會被截掉）
+    reasons.push({ kind: 'inst', text: instReasonText(inst, vol), dir: inst > 0 ? 'up' : 'down', weight: (Math.abs(inst) / vol) * 50 });
   }
   // 融資
   const mb = r.margin_balance;
@@ -78,6 +79,11 @@ export function diffRow(r: StockRow, prev: SnapRow | undefined, th: Th = uiConfi
   for (const f of newFlags) reasons.push({ kind: 'flag', text: `新風險旗標：${f.label}`, risk: true, weight: 100 });
   const score = reasons.reduce((s, x) => s + x.weight, 0);
   return { code: r.code, row: r, reasons: reasons.sort((a, b) => b.weight - a.weight), newFlags, significant: reasons.length > 0, score };
+}
+
+/** 「外資＋投信 −2.4 萬張・量 70%」：當日外資＋投信淨買賣超與占成交量比例。 */
+export function instReasonText(inst: number, vol: number): string {
+  return `外資＋投信 ${fmtLotsUnit(inst).replace(' ', '\u00a0')}・量\u00a0${Math.round((Math.abs(inst) / vol) * 100)}%`;
 }
 
 export function diffAll(rows: StockRow[], snap: Snapshot | null, th: Th = uiConfig.significance): Change[] {

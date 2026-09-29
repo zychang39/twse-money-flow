@@ -20,3 +20,21 @@ export async function gotoStock(page: Page, hash: string): Promise<void> {
   await page.goto(hash);
   await revealAllSections(page);
 }
+
+/** 直接寫入 IndexedDB（自選、持倉、設定…）。App 第一次讀寫時才建立資料庫，先開設定頁等 object store 建好。 */
+export async function seed(page: Page, stores: Record<string, unknown[]>): Promise<void> {
+  await page.goto('#/me/settings');
+  await expect(page.locator('.page')).toBeVisible();
+  await expect.poll(() => page.evaluate(async () => (await indexedDB.databases()).some((d) => d.name === 'twse-money-flow' && (d.version ?? 0) >= 3))).toBe(true);
+  await page.evaluate((s) => new Promise<void>((resolve, reject) => {
+    const req = indexedDB.open('twse-money-flow');
+    req.onsuccess = () => {
+      const db = req.result;
+      const tx = db.transaction(Object.keys(s), 'readwrite');
+      for (const [name, rows] of Object.entries(s)) for (const r of rows) tx.objectStore(name).put(r);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => reject(tx.error);
+    };
+    req.onerror = () => reject(req.error);
+  }), stores);
+}

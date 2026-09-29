@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { gotoStock } from './helpers';
+import { gotoStock, seed } from './helpers';
 
 // 可用性測試修正（第 2 輪）：每一項的回歸測試。
 // 視窗 390×844（使用者測試環境）；個別測試另指定 375／393。
@@ -89,4 +89,27 @@ test.describe('#4／#5 個股頁區塊樣式', () => {
     const dt = await row.locator('dt').boundingBox();
     expect(dt!.x).toBeLessThan(a!.x);
   });
+});
+
+test.describe('#8 清單列的說明不截斷', () => {
+  for (const width of [375, 393]) {
+    test(`${width}pt：自選列的說明完整顯示（不超出、沒有省略號）`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 852 });
+      await seed(page, { watchlist: ['2317', '2330', '2454', '6488', '5347', '3105'].map((code, i) => ({ code, group: '預設', addedAt: '2026-09-01', order: i, origin: 'user' })) });
+      await page.goto('#/mine');
+      const subs = page.locator('.srow .sub');
+      await expect(subs.first()).toBeVisible();
+      const n = await subs.count();
+      expect(n).toBeGreaterThan(3);
+      for (let i = 0; i < n; i++) {
+        const m = await subs.nth(i).evaluate((el) => ({ text: el.textContent ?? '', sw: el.scrollWidth, cw: el.clientWidth, sh: el.scrollHeight, ch: el.clientHeight, clamp: getComputedStyle(el).webkitLineClamp, to: getComputedStyle(el).textOverflow }));
+        expect(m.sw, m.text).toBeLessThanOrEqual(m.cw);
+        expect(m.sh, m.text).toBeLessThanOrEqual(m.ch + 1);
+        expect(m.text).not.toContain('…');
+        expect(m.text).not.toContain('萬 張');
+        expect(m.clamp).toBe('none');
+        expect(m.to).not.toBe('ellipsis');
+      }
+    });
+  }
 });
