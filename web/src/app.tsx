@@ -10,6 +10,7 @@ import Placeholder from './pages/Placeholder';
 import { getSetting, subscribe } from './db/db';
 import { BackupReminder } from './components/BackupReminder';
 import { applyTheme } from './lib/theme';
+import { getUpdater, subscribeUpdate, updateState, type UpdateState } from './lib/swUpdate';
 
 const Mine = lazy(() => import('./pages/Mine'));
 const Stock = lazy(() => import('./pages/Stock'));
@@ -89,20 +90,21 @@ function Page({ parts }: { parts: string[] }) {
   }
 }
 
-/** 新版本已就緒（service worker 已更新）：由使用者點「重新載入」，不在使用中途自動重新整理。 */
+/**
+ * 更新提示（lib/swUpdate）：使用者正在操作時偵測到新版才出現；不遮擋內容、不打斷表單。
+ * 點擊後送 SKIP_WAITING，新版接手時重新載入。
+ */
 function UpdateToast() {
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    const on = () => setReady(true);
-    window.addEventListener('app-updated', on);
-    return () => window.removeEventListener('app-updated', on);
-  }, []);
-  if (!ready) return null;
+  const [state, setState] = useState<UpdateState>(updateState());
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => subscribeUpdate((s) => { setState(s); if (s === 'available') setDismissed(false); }), []);
+  if (state === 'idle' || dismissed) return null;
   return (
-    <div class="update-toast glass" role="status">
-      <span>新版本已就緒</span>
-      <button class="btn small primary" onClick={() => location.reload()}>重新載入</button>
-      <button class="icon-btn" aria-label="稍後" onClick={() => setReady(false)}><IconClose /></button>
+    <div class="update-toast glass" role="status" data-testid="update-toast">
+      <button class="update-toast-main" disabled={state === 'applying'} onClick={() => getUpdater()?.apply()}>
+        {state === 'applying' ? '更新中…' : '有新版本，點此更新'}
+      </button>
+      {state === 'available' ? <button class="icon-btn" aria-label="稍後" onClick={() => setDismissed(true)}><IconClose /></button> : null}
     </div>
   );
 }

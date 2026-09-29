@@ -2,6 +2,7 @@
  * 資料健康：一般使用者先看到白話說明（發生什麼事、影不影響今天的畫面），技術細節收在「詳細資訊」。
  * 狀態點：正常＝實心；相容模式或等待＝空心；只有影響最新資料的異常用琥珀（不使用 emoji）。
  */
+import { AppVersion } from '../components/AppVersion';
 import { PageHead, TopBar } from '../components/Chrome';
 import { ErrorState, Loading } from '../components/DataStatus';
 import { useAsync } from '../hooks';
@@ -44,6 +45,7 @@ export default function Health() {
             <div class="row between"><span>市場最新交易日</span><span class="num bold">{health.data.market_date ?? '—'}</span></div>
             <div class="row between small muted"><span>歷史資料</span><span>{health.data.first_date ?? '—'} 起，共 {health.data.trading_days} 個交易日</span></div>
             <div class="row between small muted"><span>衍生資料產生時間</span><span>{meta.data?.generated_at?.replace('T', ' ').slice(0, 16) ?? '—'}</span></div>
+            <div class="small muted"><AppVersion /></div>
             {health.data.closed_days.length ? <div class="small muted">臨時休市（無行情）：{health.data.closed_days.join('、')}</div> : null}
           </div>
           {(['core', 'advanced', 'optional'] as const).map((tier) => (

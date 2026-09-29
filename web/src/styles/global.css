@@ -414,13 +414,15 @@ label.field > span { display: block; font-size: var(--fs-caption); line-height: 
 .status-scrim { display: none; position: fixed; z-index: 29; left: 0; right: 0; top: 0; height: var(--safe-top); background: linear-gradient(var(--bg) 60%, transparent); pointer-events: none; }
 @media (display-mode: standalone) { .status-scrim { display: block; } }
 :root.standalone .status-scrim { display: block; }
-/* 新版本已就緒：浮在底部導覽上方 */
+/* 有新版本（lib/swUpdate）：浮在底部導覽上方，不遮擋內容 */
 .update-toast {
   position: fixed; z-index: 31; left: 50%; bottom: calc(var(--dock-h) + var(--s-3)); transform: translateX(-50%);
   display: flex; align-items: center; gap: var(--s-2); padding: var(--s-1) var(--s-1) var(--s-1) var(--s-4);
   border-radius: var(--r-pill); font-size: var(--fs-caption); white-space: nowrap; max-width: calc(100vw - 2 * var(--gutter));
 }
 .update-toast .icon-btn { color: var(--text-2); min-width: 2.25rem; }
+.update-toast-main { min-height: var(--tap); padding: 0 var(--s-2); color: var(--brand); font: inherit; font-weight: var(--fw-semibold); background: none; border: 0; }
+.update-toast-main:disabled { color: var(--text-2); }
 .update-toast .icon-btn svg { width: 1.125rem; height: 1.125rem; }
 /* iOS 鍵盤預熱用的隱形輸入框（見 Chrome.tsx primeKeyboard）；字級 16px 避免 iOS 聚焦時放大 */
 .kb-primer { position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; font-size: 16px; border: 0; padding: 0; pointer-events: none; }
