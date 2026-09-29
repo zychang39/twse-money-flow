@@ -15,7 +15,7 @@ on:
       task:
         description: "任務"
         type: choice
-        options: [daily, periodic, backfill, alerts]
+        options: [daily, periodic, backfill, holders_backfill, alerts]
         default: daily
       source:
         description: "來源 id（逗號分隔，可留白）"
@@ -43,11 +43,12 @@ permissions:
   id-token: write
 
 # 盤中提醒只讀即時報價，用 alerts 群組。
+# M0：全市場集保回補（holders_backfill）用自己的 holders-backfill 群組，和籌碼回補、每日任務互不排隊。
 # E-05：回補用獨立的 data-backfill 群組（每段最多 40 分鐘、交易日 16:30–22:30 不開始新的一段），
 # 不再和每日任務排同一個佇列（GitHub 同一群組只保留最新一個等待中的 run，長時間回補會把排程的每日任務擠掉）。
 # 兩者可能同時寫入 data 分支：commit-data 推送失敗時 rebase 到遠端最新並合併 manifest 後重試（pipeline/gitdata.py）。
 concurrency:
-  group: ${{ (github.event.schedule == '*/15 1-5 * * 1-5' || inputs.task == 'alerts') && 'alerts' || (inputs.task == 'backfill' && 'data-backfill' || 'data-pipeline') }}
+  group: ${{ (github.event.schedule == '*/15 1-5 * * 1-5' || inputs.task == 'alerts') && 'alerts' || (inputs.task == 'backfill' && 'data-backfill' || (inputs.task == 'holders_backfill' && 'holders-backfill' || 'data-pipeline')) }}
   cancel-in-progress: false
 
 jobs:
@@ -103,7 +104,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
-          python -m pipeline run --data-dir data --chain --max-minutes ${{ inputs.task == 'backfill' && 40 || 320 }}
+          python -m pipeline run --data-dir data --chain --max-minutes ${{ (inputs.task == 'backfill' || inputs.task == 'holders_backfill') && 40 || 320 }}
           --task "${{ inputs.task }}" --schedule "${{ github.event.schedule }}"
           --source "${{ inputs.source }}" --start "${{ inputs.start }}" --end "${{ inputs.end }}"
           --refresh "${{ inputs.refresh }}"

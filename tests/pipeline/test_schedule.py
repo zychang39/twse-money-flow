@@ -140,7 +140,8 @@ def test_data_yml_cron_matches_schedule_tasks():
 @pytest.mark.parametrize(
     ("when", "blocked"),
     [
-        ("2026-09-29T16:29", False),  # 交易日 16:30 前
+        ("2026-09-29T13:29", False),  # 交易日 13:30 前（M0：分段更新 14:15 起，暫停時段提早到 13:30）
+        ("2026-09-29T13:30", True),
         ("2026-09-29T16:30", True),
         ("2026-09-29T22:29", True),
         ("2026-09-29T22:30", False),
@@ -149,7 +150,7 @@ def test_data_yml_cron_matches_schedule_tasks():
     ],
 )
 def test_backfill_quiet_window(when, blocked):
-    """E-05：台灣時間交易日 16:30–22:30 不開始新的一段回補（讓每日任務先跑）。"""
+    """E-05／M0：台灣時間交易日 13:30–22:30 不開始新的一段回補（讓分段更新先跑）。"""
     from pipeline.cli import in_quiet_window
     from pipeline.core.calendar import TradingCalendar
 
@@ -221,3 +222,59 @@ def test_backfill_deferred_in_quiet_window_and_resumed(tmp_path, monkeypatch):
             "main",
         )
     ]
+
+
+def test_holders_backfill_deferred_separately_and_resumed(tmp_path, monkeypatch):
+    """M0：全市場集保回補在交易日 14:00 不開始，記在自己的待續槽；22:40 resume 以 holders_backfill 重新觸發。"""
+    import argparse
+
+    import pandas as pd
+
+    from pipeline import cli
+    from pipeline.core.store import DataStore
+    from pipeline.derive.demo import DEMO_HOLIDAYS_2026
+
+    store = DataStore(tmp_path)
+    store.write(
+        "twse_holidays",
+        datetime(2026, 1, 1).date(),
+        pd.DataFrame([{"date": d, "name": n, "description": ""} for d, n in DEMO_HOLIDAYS_2026]),
+    )
+    monkeypatch.setattr("pipeline.cli.now_tpe", lambda: datetime(2026, 9, 29, 14, 0, tzinfo=TPE))
+    called: list[tuple[str, dict, str]] = []
+    monkeypatch.setattr(
+        "pipeline.notify.github.dispatch_workflow",
+        lambda wf, inputs, ref="main": called.append((wf, inputs, ref)) or True,
+    )
+    monkeypatch.setattr(
+        "pipeline.tasks_advanced.run_tdcc_full", lambda *a, **k: pytest.fail("不應在分段更新時段開始回補")
+    )
+    monkeypatch.setenv("GITHUB_REF_NAME", "claude/dev")
+    args = argparse.Namespace(
+        task="holders_backfill",
+        schedule="",
+        source="",
+        start="",
+        end="",
+        refresh="",
+        data_dir=str(tmp_path),
+        max_minutes=40,
+        chain=True,
+    )
+    assert cli.cmd_run(args) == 0
+    m = store.load_manifest()
+    assert "backfill_pending" not in m and m["holders_backfill_pending"]["task"] == "holders_backfill"
+    assert cli.cmd_resume(argparse.Namespace(data_dir=str(tmp_path))) == 0
+    assert len(called) == 1
+    wf, inputs, ref = called[0]
+    assert wf == "data.yml" and inputs["task"] == "holders_backfill" and ref == "claude/dev"
+
+
+def test_holders_stalled():
+    from pipeline.cli import holders_stalled
+
+    now = datetime(2026, 10, 1, 22, 40, tzinfo=TPE)
+    assert holders_stalled({"remaining": 10, "updated_at": "2026-10-01T18:00+08:00"}, now)
+    assert not holders_stalled({"remaining": 10, "updated_at": "2026-10-01T21:00+08:00"}, now)
+    assert not holders_stalled({"remaining": 0, "updated_at": "2026-09-01T00:00+08:00"}, now)
+    assert not holders_stalled({}, now)

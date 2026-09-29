@@ -44,6 +44,7 @@ def merge_manifests(ours: dict[str, Any], theirs: dict[str, Any]) -> dict[str, A
 
     - 各來源：取 last_attempt 較新的一方；last_success／rows 取兩邊較新的成功日
     - closed_days、backfilled：聯集；coverage：起日取早、迄日取晚；runs：依時間合併（保留 40 筆）
+    - holders_backfill（全市場集保回補進度）：取 updated_at 較新的一段，nodata 聯集
     - 其他欄位（last_target_date、digest_date、backfill_pending…）：取 updated_at 較新的一方
     """
     newer_ours = str(ours.get("updated_at") or "") >= str(theirs.get("updated_at") or "")
@@ -79,6 +80,19 @@ def merge_manifests(ours: dict[str, Any], theirs: dict[str, Any]) -> dict[str, A
                 cur["end"] = c["end"]
     if cov:
         out["coverage"] = cov
+    # M0 全市場集保回補：進度取較新的一段；查無資料的（週, 代號）取聯集
+    hb: list[dict[str, Any]] = [
+        dict(m["holders_backfill"]) for m in (ours, theirs) if isinstance(m.get("holders_backfill"), dict)
+    ]
+    if hb:
+        hb.sort(key=lambda x: str(x.get("updated_at") or ""))
+        best = dict(hb[-1])
+        nodata: dict[str, set[str]] = {}
+        for entry in hb:
+            for code, weeks in (entry.get("nodata") or {}).items():
+                nodata.setdefault(code, set()).update(weeks)
+        best["nodata"] = {c: sorted(w) for c, w in sorted(nodata.items())}
+        out["holders_backfill"] = best
     runs = {(r.get("task"), r.get("at")): r for r in [*theirs.get("runs", []), *ours.get("runs", [])]}
     out["runs"] = sorted(runs.values(), key=lambda r: str(r.get("at") or ""))[-40:]
     return out

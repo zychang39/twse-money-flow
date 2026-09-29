@@ -326,3 +326,61 @@ def test_price_parsers_no_data_on_closed_or_unavailable_days():
     """2016-09-28（梅姬颱風停市）上市回傳沒有資料；櫃買 2007-01-02 回傳空表 → no_data，不寫入。"""
     assert SPECS["twse_quotes"].parse(raw_sample("twse_rwd_MI_INDEX_ALL_2016.json")).no_data
     assert SPECS["tpex_quotes"].parse(raw_sample("tpex_dailyQuotes_2007.json")).no_data
+
+
+def test_tdcc_full_oldest_week_first_skips_known_and_records_progress(tmp_path, monkeypatch):
+    """M0：全市場回補由最舊的週開始（官方只保存約一年，最舊的最先消失）；開放資料已有的週、已補的（週, 代號）
+    與查無資料的（週, 代號）不再查；進度與預估完成時間寫入 manifest。"""
+    ctx = make_ctx(tmp_path, {})
+    client = TdccClient()
+    ctx.client = client  # type: ignore[assignment]
+    from pipeline import tasks_advanced
+
+    weeks = ["20260924", "20260917", "20260911"]
+    monkeypatch.setattr(tasks_advanced.advanced, "parse_tdcc_form", lambda html: ("tok", weeks))
+    ctx.store.write(
+        "tdcc_holders",
+        date(2026, 9, 24),
+        pd.DataFrame(
+            {"date": ["2026-09-24"], "code": ["2330"], "level": [15], "holders": [1], "shares": [1], "pct": [1.0]}
+        ),
+    )
+    res = tasks_advanced.run_tdcc_full(ctx, ["3406", "9999"])
+    asked = [(p["scaDate"], p["stockNo"]) for p in client.posts]
+    assert asked == [("20260911", "3406"), ("20260911", "9999"), ("20260917", "3406"), ("20260917", "9999")]
+    assert res["remaining"] == 0 and res["progressed"]
+    prog = ctx.manifest["holders_backfill"]
+    assert prog["total"] == 4 and prog["done"] == 4 and prog["remaining"] == 0
+    assert prog["nodata"] == {"9999": ["20260911", "20260917"]}
+    assert prog["weeks"] == 3 and prog["codes"] == 2 and prog["oldest_week"] == "20260911"
+    # 續跑：全部略過
+    client.posts.clear()
+    res = tasks_advanced.run_tdcc_full(ctx, ["3406", "9999"])
+    assert client.posts == [] and res["remaining"] == 0
+
+
+def test_tdcc_full_progress_eta():
+    """預估完成時間＝剩餘查詢 × 每次秒數 ÷ 可用比例（(168 − 45) ÷ 168 × 0.9）。"""
+    from datetime import datetime
+
+    from pipeline.tasks_advanced import full_progress
+
+    now = datetime(2026, 9, 30, 0, 0, tzinfo=TPE)
+    p = full_progress({}, total=10_000, remaining=3_600, per_query=5.0, now=now)
+    # 3,600 × 5 秒 ＝ 5 小時；÷ 0.658929 ≈ 7.588 小時 → 07:35
+    assert p["runtime_hours_left"] == 5.0 and p["done"] == 6_400
+    assert p["eta"] == "2026-09-30T07:35+08:00"
+
+
+def test_tdcc_full_codes_common_stocks_by_value(tmp_path):
+    ctx = make_ctx(tmp_path, {}, now=datetime(2026, 9, 29, 23, 0, tzinfo=TPE))
+    ctx.store.write(
+        "twse_quotes",
+        date(2026, 9, 24),
+        pd.DataFrame({"code": ["2330", "0050", "1101", "910322"], "value": [9e9, 8e9, 1e8, 5e9]}),
+    )
+    ctx.store.write("tpex_quotes", date(2026, 9, 24), pd.DataFrame({"code": ["6488", "00679B"], "value": [5e8, 1e9]}))
+    ctx.store.write("twse_quotes", date(2024, 1, 2), pd.DataFrame({"code": ["9999"], "value": [1e9]}))  # 一年以前
+    from pipeline import tasks_advanced
+
+    assert tasks_advanced.tdcc_full_codes(ctx) == ["2330", "6488", "1101"]

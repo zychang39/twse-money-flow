@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import time
 from datetime import date, timedelta
 from typing import Any
 
@@ -253,6 +255,153 @@ def run_tdcc_history(ctx: RunContext, codes: list[str] | None = None) -> None:
         f"；失敗：{'；'.join(failed[:3])}" if failed else ""
     )
     ctx.note("tdcc_history", status, rows=rows, message=message[:300])
+
+
+# ------------------------------------------------------------------ 集保個股歷史：全市場回補（M0）
+FULL_KEY = "holders_backfill"
+
+
+def tdcc_full_codes(ctx: RunContext, days: int = 370) -> list[str]:
+    """全市場普通股：近 days 天內任一交易日出現在上市／上櫃收盤行情的 4 碼普通股（含之後下市者，避免存活者偏差）。
+
+    依最近一日成交值由大到小排序（同一週內先查流動性高的股票）。ETF、ETN、存託憑證、受益證券不查。
+    """
+    from pipeline.core.normalize import is_common_stock
+
+    value: dict[str, float] = {}
+    cutoff = ctx.today - timedelta(days=days)
+    for sid in ("twse_quotes", "tpex_quotes"):
+        for d in ctx.store.dates(sid):
+            if d < cutoff:
+                continue
+            df = ctx.store.read(sid, d)
+            if df is None or "code" not in df.columns:
+                continue
+            vals = pd.to_numeric(df["value"], errors="coerce") if "value" in df.columns else None
+            for i, code in enumerate(df["code"].astype(str)):
+                if is_common_stock(code):
+                    v = float(vals.iloc[i]) if vals is not None and vals.iloc[i] == vals.iloc[i] else 0.0
+                    value[code] = v  # 日期由舊到新，最後留下最近一日
+    return sorted(value, key=lambda c: (-value[c], c))
+
+
+def full_progress(state: dict[str, Any], total: int, remaining: int, per_query: float, now: Any) -> dict[str, Any]:
+    """回補進度與預估完成時間（寫入 manifest[holders_backfill]）。
+
+    預估：剩餘查詢 × 每次實測秒數 ÷ 可用比例。可用比例＝(一週 168 小時 − 5 個交易日 × 9 小時的暫停時段) ÷ 168
+    × 分段銜接損耗 0.9 ≈ 0.66（交易日 13:30–22:30 不開始新的一段）。
+    """
+    avail = (168 - 5 * 9) / 168 * 0.9
+    hours = remaining * per_query / 3600
+    eta = now + timedelta(hours=hours / avail) if remaining else now
+    return {
+        **state,
+        "total": total,
+        "remaining": remaining,
+        "done": total - remaining,
+        "per_query_sec": round(per_query, 2),
+        "runtime_hours_left": round(hours, 1),
+        "eta": eta.isoformat(timespec="minutes"),
+        "updated_at": now.isoformat(timespec="minutes"),
+    }
+
+
+def run_tdcc_full(ctx: RunContext, codes: list[str] | None = None) -> dict[str, Any]:
+    """集保「股權分散表查詢」全市場回補過去一年（M0）：逐週（由舊到新）× 逐檔。
+
+    - 官方只保存約 51 週，最舊的週最先消失 → 由最舊的週開始查。
+    - 已有的週別（開放資料整週全部股票）與已補的（週, 代號）略過；查無資料的（週, 代號）記在 manifest，不再重查。
+    - 禮貌爬取：PoliteClient（3–5 秒間隔＋抖動、退避、斷路器）；時間預算由 ctx.deadline 控制（每段 40 分鐘）。
+    - 進度與預估完成時間寫入 manifest[holders_backfill]。
+    """
+    url = str(config.source("tdcc_history")["url"])
+    headers = {"Referer": url, "Origin": "https://www.tdcc.com.tw"}
+    state: dict[str, Any] = dict(ctx.manifest.get(FULL_KEY) or {})
+    nodata: dict[str, list[str]] = {k: list(v) for k, v in (state.get("nodata") or {}).items()}
+    codes = codes or tdcc_full_codes(ctx)
+    try:
+        token, weeks = advanced.parse_tdcc_form(ctx.client.get_bytes(url))
+    except SOURCE_ERRORS as exc:
+        ctx.note("tdcc_history", "failed", message=err_text(exc)[:300])
+        return {"remaining": int(state.get("remaining") or 1), "progressed": False}
+    have_weeks, have_pairs = _tdcc_have(ctx)
+    skip = {(w, c) for c, ws in nodata.items() for w in ws}
+    todo = [
+        (w, c)
+        for w in sorted(weeks)
+        if w not in have_weeks
+        for c in codes
+        if (w, c) not in have_pairs and (w, c) not in skip
+    ]
+    total = len(have_pairs & {(w, c) for w in weeks for c in codes}) + len(skip) + len(todo)
+    done = rows = 0
+    failed: list[str] = []
+    frames: list[pd.DataFrame] = []
+    started = ctx.client.request_count
+    t0 = time.monotonic()
+    new_nodata = 0
+    for i, (week, code) in enumerate(todo):
+        if ctx.out_of_time():
+            break
+        body = {
+            "SYNCHRONIZER_TOKEN": token,
+            "SYNCHRONIZER_URI": "/portal/zh/smWeb/qryStock",
+            "method": "submit",
+            "firDate": weeks[0],
+            "scaDate": week,
+            "sqlMethod": "StockNo",
+            "stockNo": code,
+            "stockName": "",
+        }
+        done += 1
+        try:
+            payload = ctx.client.post_bytes(url, body, headers=headers)
+            res = advanced.parse_tdcc_stock(payload, code)
+            token = advanced.parse_tdcc_form(payload)[0]
+        except CircuitOpenError as exc:
+            failed.append(f"{code} {week}：{exc}"[:120])
+            break
+        except SOURCE_ERRORS as exc:
+            failed.append(f"{code} {week}：{exc}"[:120])
+            try:  # 重新取得表單（token 可能已失效）
+                token = advanced.parse_tdcc_form(ctx.client.get_bytes(url))[0]
+            except SOURCE_ERRORS:
+                break
+            continue
+        if res.no_data:
+            nodata.setdefault(code, []).append(week)
+            new_nodata += 1
+        else:
+            frames.append(res.df)
+            rows += len(res.df)
+        # 每 200 次或換週時存檔，分段中斷也不會丟掉已查到的資料
+        nxt = todo[i + 1][0] if i + 1 < len(todo) else None
+        if len(frames) >= 200 or nxt != week:
+            _tdcc_upsert(ctx, frames)
+            frames = []
+    _tdcc_upsert(ctx, frames)
+    elapsed = time.monotonic() - t0
+    asked = ctx.client.request_count - started
+    per_query = elapsed / asked if asked else float(state.get("per_query_sec") or 4.6)
+    remaining = len(todo) - done + len(failed)  # 失敗的（週, 代號）下一段重查
+    state["nodata"] = nodata
+    state.setdefault("started_at", ctx.now.isoformat(timespec="minutes"))
+    state["weeks"] = len(weeks)
+    state["codes"] = len(codes)
+    state["oldest_week"] = min(weeks)
+    state["segments"] = int(state.get("segments") or 0) + 1
+    state["ref"] = os.environ.get("GITHUB_REF_NAME", state.get("ref") or "main")
+    ctx.manifest[FULL_KEY] = full_progress(state, total, max(0, remaining), per_query, ctx.now)
+    status = "ok" if rows or not failed else "failed"
+    message = f"全市場 {len(codes)} 檔 × {len(weeks)} 週：本段 {done} 次查詢；剩餘 {max(0, remaining)} 次" + (
+        f"；失敗：{'；'.join(failed[:3])}" if failed else ""
+    )
+    ctx.note("tdcc_history", status, rows=rows, message=message[:300])
+    return {
+        "remaining": max(0, remaining),
+        "progressed": rows > 0 or new_nodata > 0,
+        "by_source": {"tdcc_full": max(0, remaining)},
+    }
 
 
 # ------------------------------------------------------------------ 選配：央行貨幣總計數、法說會
