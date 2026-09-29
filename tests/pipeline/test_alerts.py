@@ -210,3 +210,51 @@ def test_send_skips_without_secrets(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
     assert telegram.send("x") is False
     assert telegram.send_daily_digest(_web_data(tmp_path), []) is False
+
+
+def test_digest_tracking_sections(tmp_path: Path) -> None:
+    """S4：今日新觸發（追蹤中的策略）與明天開盤出場的追蹤部位；沒有 signals.json 時不出現。"""
+    d = _web_data(tmp_path)
+    assert "今日新觸發" not in telegram.build_digest(d, ["2330"])
+    dates = [
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18",
+        "2026-09-21",
+        "2026-09-22",
+        "2026-09-23",
+        "2026-09-24",
+    ]
+    sig = {
+        "dates": dates,
+        "presets": [
+            {
+                "id": "chip_concentration",
+                "label": "三方同買",
+                "triggers": {"2026-09-21": ["2317"], "2026-09-24": ["2330"]},
+            },
+            {"id": "strong_breakout", "label": "近高點放量", "triggers": {"2026-09-24": ["1101"]}},
+        ],
+        "names": {"1101": "台泥"},
+    }
+    (d / "signals.json").write_text(json.dumps(sig, ensure_ascii=False), encoding="utf-8")
+    tracking = [{"preset": "chip_concentration", "horizon": 3, "since": "2026-09-18"}]
+    text = telegram.build_digest(d, ["2330"], tracking=tracking)
+    assert "<b>今日新觸發（依規則產生，非推薦）</b>" in text
+    assert "三方同買：台積電 2330" in text
+    assert "近高點放量" not in text  # 只列追蹤中的策略
+    assert "<b>明天開盤出場（訊號追蹤）</b>" in text and "三方同買（持有 3 日）：鴻海 2317" in text
+    assert "買進" not in text and "賣出" not in text
+    # 沒有設定追蹤：列出全部內建策略的新觸發，沒有出場段落
+    text2 = telegram.build_digest(d, ["2330"])
+    assert "近高點放量：台泥 1101" in text2 and "明天開盤出場" not in text2
+
+
+def test_load_rules_tracking(tmp_path: Path) -> None:
+    p = tmp_path / "alerts.yml"
+    p.write_text(
+        'version: 1\ntracking:\n  - { preset: chip_concentration, horizon: 10, since: "2026-09-24" }\n  - { preset: "", horizon: 5 }\n',
+        encoding="utf-8",
+    )
+    assert alerts.load_rules(p)["tracking"] == [{"preset": "chip_concentration", "horizon": 10, "since": "2026-09-24"}]

@@ -1,6 +1,6 @@
 /** 個股頁的白話重點：只陳述數據（期間加總、在過去一年的相對位置、估算成本），不給建議。 */
 import type { StockHistory } from '../data/types';
-import { fmtLotsAbs, fmtPrice } from './format';
+import { fmtLotsUnit, fmtPrice } from './format';
 
 /** 滾動 n 日加總；不足 n 日為 null。 */
 export function rollingSum(values: (number | null)[], n: number): (number | null)[] {
@@ -33,7 +33,7 @@ export function instInsight(h: StockHistory, who: Who): { title: string; lines: 
   const s20 = sums[sums.length - 1];
   const pct = percentileOfLast(sums);
   const name = WHO_LABEL[who];
-  const title = s20 === null ? `${name}資料不足` : `${name}近 20 日淨${s20 >= 0 ? '買' : '賣'} ${fmtLotsAbs(s20)} 張`;
+  const title = s20 === null ? `${name}資料不足` : `${name}近 20 日淨${s20 >= 0 ? '買' : '賣'} ${fmtLotsUnit(s20, false)}`;
   const lines: string[] = [];
   if (pct !== null && s20 !== null) {
     lines.push(`近 20 日淨買賣超高於過去一年 ${pct}% 的時間${pct >= 80 ? '，屬於偏高的位置' : pct <= 20 ? '，屬於偏低的位置' : ''}。`);

@@ -13,7 +13,7 @@ import { logActivity, saveTrade, uid, type Trade } from '../db/db';
 import type { StockRow } from '../data/types';
 import type { PortfolioSettings } from '../lib/settings';
 import { roundTrip, type CostSettings } from '../lib/costs';
-import { positionSize, rewardRisk } from '../lib/sizing';
+import { checklistCalc, FIELD_LABEL } from '../lib/checklist';
 import { envInfo } from '../lib/envState';
 import { impulseFacts } from '../lib/impulse';
 import { thresholds } from '../lib/config';
@@ -77,17 +77,17 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset }: 
   }, [row]);
   const env = market.data ? envInfo(market.data.env?.lights) : null;
   const facts = row ? impulseFacts(row, env) : [];
-  const entry = Number(f.entry), stop = Number(f.stop), target = Number(f.target);
-  const rr = rewardRisk(entry, stop, target);
-  const size = positionSize(portfolio.capital, portfolio.riskPct, entry, stop, portfolio.oddLot);
-  const shares = f.shares ? Number(f.shares) : size.shares;
-  const qualitative = !!row && !!f.market && !!f.trend && !!f.revenue && !!f.valuation && f.reason.trim().length > 0;
-  const valid = qualitative && entry > 0 && stop > 0 && stop < entry && target > entry && shares > 0;
+  // #10：空的停損／目標不當成 0；按鈕寫出實際卡住的條件
+  const calc = checklistCalc({ hasStock: !!row, ...f }, portfolio, fmtMoney);
+  const { entry, stop, target, rr, shares } = calc;
+  const qualitative = calc.qualitative;
+  const valid = calc.blocker === null;
   const set = (k: keyof typeof f) => (e: Event) => setF({ ...f, [k]: (e.target as HTMLInputElement).value });
   const checklist = () => ({ market: f.market, trend: f.trend, revenue: f.revenue, valuation: f.valuation, reason: f.reason.trim() });
 
   async function save() {
     if (!row || !valid) return;
+    if (entry === null || stop === null || target === null) return;
     await saveTrade({ id: uid(), code: row.code, name: row.name, status: 'open', openedAt: todayTpe(), entry, shares, stop, target, reasonType: f.reasonType, checklist: checklist() });
     await logActivity('checklist_done', day, { outcome: 'open', code: row.code });
     onClose();
@@ -98,14 +98,21 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset }: 
     onClose();
   }
 
-  const sel = (k: keyof typeof f, label: string, options: string[]) => (
-    <label class="field">
-      <span>{label}</span>
-      <select class="select" value={f[k]} onChange={set(k)} aria-label={label}>
+  // #10：每個欄位用 <label for> 對應題目（原本 select 包在 label 裡另加 aria-label，iOS VoiceOver 會唸成目前的值）
+  const sel = (k: keyof typeof f, label: string, options: string[], hint?: string) => (
+    <div class="field">
+      <label for={`ck-${k}`}>{label}{hint ? <span class="muted">{hint}</span> : null}</label>
+      <select id={`ck-${k}`} class="select" value={f[k]} onChange={set(k)}>
         <option value="">請選擇</option>
         {[...new Set([f[k], ...options].filter(Boolean))].map((o) => <option key={o}>{o}</option>)}
       </select>
-    </label>
+    </div>
+  );
+  const num = (k: 'entry' | 'stop' | 'target' | 'shares', label: string, value: string, mode: 'decimal' | 'numeric' = 'decimal') => (
+    <div class="field">
+      <label for={`ck-${k}`}>{label}</label>
+      <input id={`ck-${k}`} class="input" type="number" inputMode={mode} value={value} onInput={set(k)} />
+    </div>
   );
 
   return (
@@ -117,26 +124,26 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset }: 
         <div style={{ marginTop: 'var(--s-4)' }}><CalmCard facts={facts} onContinue={() => setAck(true)} onCancel={onClose} /></div>
       ) : row ? (
         <>
-          {sel('market', '1. 市場燈號（見今晚頁）', ['偏多', '中性', '偏空'])}
-          {sel('trend', '2. 趨勢', ['多頭（年線、季線之上）', '年線之上、短線整理', '年線之下'])}
-          {sel('revenue', '3. 營收', ['高成長（近 3 月年增 ≥ 20%）', '成長', '衰退', '不適用'])}
-          {sel('valuation', '4. 估值', ['偏便宜', '合理', '偏貴', '不適用'])}
-          {sel('reasonType', '5. 理由類型', REASONS)}
-          <label class="field"><span>理由（必填）</span><textarea class="input" rows={2} value={f.reason} onInput={set('reason')} /></label>
+          {sel('market', FIELD_LABEL.market, ['偏多', '中性', '偏空'], '（見今晚頁）')}
+          {sel('trend', FIELD_LABEL.trend, ['多頭（年線、季線之上）', '年線之上、短線整理', '年線之下'])}
+          {sel('revenue', FIELD_LABEL.revenue, ['高成長（近 3 月年增 ≥ 20%）', '成長', '衰退', '不適用'])}
+          {sel('valuation', FIELD_LABEL.valuation, ['偏便宜', '合理', '偏貴', '不適用'])}
+          {sel('reasonType', FIELD_LABEL.reasonType, REASONS)}
+          <div class="field"><label for="ck-reason">理由（必填）</label><textarea id="ck-reason" class="input" rows={2} value={f.reason} onInput={set('reason')} /></div>
           <div class="grid three">
-            <label class="field"><span>進場價</span><input class="input" type="number" inputMode="decimal" value={f.entry} onInput={set('entry')} /></label>
-            <label class="field"><span>6. 停損價</span><input class="input" type="number" inputMode="decimal" value={f.stop} onInput={set('stop')} /></label>
-            <label class="field"><span>7. 目標價</span><input class="input" type="number" inputMode="decimal" value={f.target} onInput={set('target')} /></label>
+            {num('entry', FIELD_LABEL.entry, f.entry)}
+            {num('stop', FIELD_LABEL.stop, f.stop)}
+            {num('target', FIELD_LABEL.target, f.target)}
           </div>
-          <div class="card caption">
-            <div>風險報酬比：<b class={rr !== null && rr < MIN_RR ? 'risk' : ''}>{rr === null ? '—' : `1 : ${rr.toFixed(2)}`}</b>
+          <div class="card caption" data-testid="checklist-calc">
+            <div>風險報酬比：<b class={rr !== null && rr < MIN_RR ? 'risk' : ''} data-testid="checklist-rr">{calc.rrText}</b>
               {rr !== null && rr < MIN_RR ? <span class="tag risk" style={{ marginLeft: 'var(--s-2)' }}>低於 1:{MIN_RR}</span> : null}</div>
-            <div>建議部位：{portfolio.oddLot ? `${size.shares} 股` : `${size.lots} 張`}（總資金 {fmtMoney(portfolio.capital)} × 單筆風險 {portfolio.riskPct}% ÷ 每股風險 {fmtNum(entry - stop)}）</div>
-            <div>觸及停損的虧損：約 {fmtMoney((entry - stop) * shares)}</div>
-            {entry > stop && stop > 0 && size.shares === 0 ? <div class="risk">依風險上限不足 1 張：可改用零股、放寬停損或自行輸入股數</div> : null}
+            <div data-testid="checklist-size">建議部位：{calc.sizeText}</div>
+            <div>觸及停損的虧損：{calc.lossIfStopped === null ? '—' : `約 ${fmtMoney(calc.lossIfStopped)}`}</div>
+            {calc.size && calc.size.shares === 0 ? <div class="risk">依風險上限不足 1 張：可改用零股、放寬停損或自行輸入股數</div> : null}
           </div>
-          <label class="field"><span>實際股數（預設為建議部位）</span><input class="input" type="number" inputMode="numeric" value={f.shares || String(size.shares)} onInput={set('shares')} /></label>
-          <button class="btn primary block" disabled={!valid} onClick={save}>{valid ? '加入持倉' : '請完成檢查表（停損 < 進場 < 目標）'}</button>
+          {num('shares', `${FIELD_LABEL.shares}（預設為建議部位）`, f.shares || String(calc.size?.shares ?? ''), 'numeric')}
+          <button class="btn primary block" disabled={!valid} onClick={save} data-testid="checklist-submit">{valid ? '加入持倉' : calc.blocker}</button>
           <button class="btn block" style={{ marginTop: 'var(--s-2)' }} disabled={!qualitative} onClick={skip}>檢查完，決定先不進場</button>
           <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>兩種結果都算完成一份檢查表；紀律獎勵不因是否建立持倉而不同。</p>
         </>

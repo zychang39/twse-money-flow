@@ -10,6 +10,7 @@ import Placeholder from './pages/Placeholder';
 import { getSetting, subscribe } from './db/db';
 import { BackupReminder } from './components/BackupReminder';
 import { applyTheme } from './lib/theme';
+import { getUpdater, subscribeUpdate, updateState, type UpdateState } from './lib/swUpdate';
 
 const Mine = lazy(() => import('./pages/Mine'));
 const Stock = lazy(() => import('./pages/Stock'));
@@ -26,6 +27,7 @@ const Journal = lazy(() => import('./pages/Journal'));
 const Stats = lazy(() => import('./pages/Stats'));
 const Badges = lazy(() => import('./pages/Badges'));
 const Weekly = lazy(() => import('./pages/Weekly'));
+const Tracking = lazy(() => import('./pages/Tracking'));
 const Me = lazy(() => import('./pages/Me'));
 const Health = lazy(() => import('./pages/Health'));
 const Methodology = lazy(() => import('./pages/Methodology'));
@@ -74,6 +76,7 @@ function Page({ parts }: { parts: string[] }) {
         case 'stats': return <Stats />;
         case 'badges': return <Badges />;
         case 'weekly': return <Weekly />;
+        case 'tracking': return <Tracking />;
         default: return <Placeholder title="找不到頁面" back="/discipline" />;
       }
     case 'me':
@@ -89,20 +92,21 @@ function Page({ parts }: { parts: string[] }) {
   }
 }
 
-/** 新版本已就緒（service worker 已更新）：由使用者點「重新載入」，不在使用中途自動重新整理。 */
+/**
+ * 更新提示（lib/swUpdate）：使用者正在操作時偵測到新版才出現；不遮擋內容、不打斷表單。
+ * 點擊後送 SKIP_WAITING，新版接手時重新載入。
+ */
 function UpdateToast() {
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    const on = () => setReady(true);
-    window.addEventListener('app-updated', on);
-    return () => window.removeEventListener('app-updated', on);
-  }, []);
-  if (!ready) return null;
+  const [state, setState] = useState<UpdateState>(updateState());
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => subscribeUpdate((s) => { setState(s); if (s === 'available') setDismissed(false); }), []);
+  if (state === 'idle' || dismissed) return null;
   return (
-    <div class="update-toast glass" role="status">
-      <span>新版本已就緒</span>
-      <button class="btn small primary" onClick={() => location.reload()}>重新載入</button>
-      <button class="icon-btn" aria-label="稍後" onClick={() => setReady(false)}><IconClose /></button>
+    <div class="update-toast glass" role="status" data-testid="update-toast">
+      <button class="update-toast-main" disabled={state === 'applying'} onClick={() => getUpdater()?.apply()}>
+        {state === 'applying' ? '更新中…' : '有新版本，點此更新'}
+      </button>
+      {state === 'available' ? <button class="icon-btn" aria-label="稍後" onClick={() => setDismissed(true)}><IconClose /></button> : null}
     </div>
   );
 }
@@ -122,6 +126,11 @@ export function App() {
   useEffect(() => {
     applyAppearance();
     return subscribe(() => { applyAppearance(); });
+  }, []);
+  // S3：啟動後（閒置時）同步訊號追蹤的新觸發；沒有追蹤策略時不下載任何資料
+  useEffect(() => {
+    const t = setTimeout(() => { import('./lib/trackingSync').then((m) => m.syncTracking()).catch(() => undefined); }, 2500);
+    return () => clearTimeout(t);
   }, []);
   return (
     <>

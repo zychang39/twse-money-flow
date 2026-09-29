@@ -37,7 +37,7 @@ describe('IndexedDB 與備份', () => {
     const backup = await exportAll();
     expect(backup.schemaVersion).toBe(DB_VERSION);
     const json = JSON.parse(JSON.stringify(backup));
-    await importAll({ ...json, stores: { watchlist: [], settings: [], screens: [], trades: [], activity: [] } }, 'replace');
+    await importAll({ ...json, stores: { watchlist: [], settings: [], screens: [], trades: [], activity: [], strategies: [], tracked: [] } }, 'replace');
     expect(await listWatch()).toEqual([]);
     const counts = await importAll(json, 'replace');
     expect(counts.trades).toBe(1);
@@ -78,7 +78,7 @@ describe('IndexedDB 與備份', () => {
 
   it('previewImport 回傳筆數、不寫入', async () => {
     const { counts } = previewImport({ app: 'twse-money-flow', schemaVersion: 1, stores: { watchlist: [{ code: '2330' }], settings: [], screens: [], trades: [] } });
-    expect(counts).toEqual({ watchlist: 1, settings: 0, screens: 0, trades: 0, activity: 0 });
+    expect(counts).toEqual({ watchlist: 1, settings: 0, screens: 0, trades: 0, activity: 0, strategies: 0, tracked: 0 });
     expect(await listWatch()).toEqual([]);
   });
 

@@ -38,7 +38,17 @@ def load_rules(path: Path | None = None) -> dict[str, Any]:
             continue
         rules.append({"code": code, "above": above, "below": below, "note": str(r.get("note") or "")})
     digest = [str(c).strip() for c in raw.get("digest") or [] if str(c).strip()]
-    return {"alerts": rules, "digest": digest}
+    tracking = []
+    for t in raw.get("tracking") or []:
+        preset = str((t or {}).get("preset", "")).strip()
+        try:
+            horizon = int((t or {}).get("horizon", 10))
+        except (TypeError, ValueError):
+            continue
+        if preset and horizon > 0:
+            since = (t or {}).get("since")
+            tracking.append({"preset": preset, "horizon": horizon, "since": str(since) if since else None})
+    return {"alerts": rules, "digest": digest, "tracking": tracking}
 
 
 def _num(v: Any) -> float | None:

@@ -1,6 +1,8 @@
 /*
  * 個股工具頁（法人買賣超報表、大戶／散戶持股、多空對照）與共用小倍數圖（StackedChart）。
  * 只在這些頁面載入（隨頁面的 JS 分塊一起下載），不增加首頁的 CSS。
+ * 個股頁的區塊內容（.sx-*：StockSections.tsx）與信用卡片（.cr-*：Credit.tsx）也在這裡：使用這些 class 的元件
+ * 必須自己 import 這份 CSS，不能依賴其他頁面先載入（#4／#5 的根本原因；e2e 以 Vite manifest 檢查）。
  * 顏色：紅＝買超／增加、綠＝賣超／減少；線條以實線／虛線＋線尾標註區分，不靠顏色；藍只給可互動元素。
  */
 
@@ -132,6 +134,10 @@
 .cr-basis { display: block; color: var(--text-2); font-size: var(--fs-caption); line-height: var(--lh-caption); }
 .cr-row dd { margin: 0; flex: none; text-align: right; font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
 .cr-chg { display: block; font-size: var(--fs-caption); line-height: var(--lh-caption); }
+/* 外資持股比：數值與變化同一行，中間留間距；太窄時變化換到下一行靠右（#5） */
+.cr-inline { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; column-gap: var(--s-3); }
+.cr-inline .cr-chg { display: inline; white-space: nowrap; font-weight: var(--fw-regular); }
+.cr-chg.muted { color: var(--text-2); }
 .cr-pv { margin-top: var(--s-2); }
 .cr-pv p { margin-top: var(--s-1); }
 .cr-pv-tag { background: var(--surface-2); color: var(--text-1); }

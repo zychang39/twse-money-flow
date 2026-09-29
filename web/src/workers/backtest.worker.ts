@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 /** 自訂條件回測：在 Web Worker 下載精簡面板並計算（避免阻塞畫面）。 */
-import { conditionsMask, run, summarize, type Panel } from '../lib/backtest';
-import type { Condition } from '../lib/config';
+import { buildReport, type Panel } from '../lib/backtest';
+import { screenerConfig, type Condition } from '../lib/config';
 
 interface Meta { dates: string[]; codes: string[]; names: string[]; is_etf: boolean[]; bench: (number | null)[]; regime_up: boolean[]; fields: string[] }
 interface Prices { open: (number | null)[][]; low: (number | null)[][]; close: (number | null)[][]; tradable: number[][]; blocked: [number, number][] }
@@ -31,21 +31,16 @@ ctx.onmessage = async (e: MessageEvent<{ base: string; conditions: Condition[] }
       dates: meta.dates, codes: meta.codes, open: prices.open, low: prices.low, close: prices.close, tradable: prices.tradable,
       blocked: prices.blocked, bench: meta.bench, regimeUp: meta.regime_up, isEtf: meta.is_etf,
     };
-    const mask = conditionsMask(conditions, (f) => fields[f] ?? null, meta.dates.length, meta.codes.length);
-    if (!mask) throw new Error('條件欄位無資料');
-    const res = run(mask, panel);
-    const summary = summarize(res);
-    const detail = (res.trades[10] ?? []).slice().sort((a, b) => b.signal.localeCompare(a.signal)).slice(0, 400).map((t) => ({
+    const rep = buildReport(conditions, (f) => fields[f] ?? null, panel, (f) => screenerConfig.fields[f]?.label ?? f);
+    if (!rep) throw new Error('條件欄位無資料');
+    const { trades_raw: raw, ...summary } = rep;
+    const detail = (raw[10] ?? []).slice().sort((a, b) => b.signal.localeCompare(a.signal)).slice(0, 400).map((t) => ({
       code: t.code, signal: t.signal, entry_date: t.entryDate, exit_date: t.exitDate, entry: t.entry, exit: t.exit,
       net: t.net * 100, mae: t.mae * 100, excess: t.excess === null ? null : t.excess * 100, delisted: t.delisted,
     }));
     const names: Record<string, string> = {};
     meta.codes.forEach((c, i) => (names[c] = meta.names[i]));
-    ctx.postMessage({
-      type: 'done',
-      result: { ...summary, trades: detail, names, detail_horizon: 10, period: { start: meta.dates[0], end: meta.dates[meta.dates.length - 1] },
-        signals: mask.reduce((s, row) => s + row.filter(Boolean).length, 0), universe: meta.codes.length },
-    });
+    ctx.postMessage({ type: 'done', result: { ...summary, trades: detail, names, detail_horizon: 10, universe: meta.codes.length } });
   } catch (err) {
     ctx.postMessage({ type: 'error', text: (err as Error).message });
   }

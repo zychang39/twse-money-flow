@@ -65,7 +65,44 @@ def _lots(v: Any) -> str:
     return f"{'+' if v > 0 else ''}{v:,.0f}"
 
 
-def build_digest(web_data: Path, codes: list[str], site_url: str = "", failures: list[str] | None = None) -> str:
+def tracking_lines(web_data: Path, tracking: list[dict[str, Any]], names: dict[str, str]) -> list[str]:
+    """S4：今日新觸發（追蹤中的內建策略；沒有設定追蹤時列全部內建策略）與「明天開盤出場」的追蹤部位。"""
+    path = web_data / "signals.json"
+    if not path.exists():
+        return []
+    from pipeline.derive.signals import exits_tomorrow, today_triggers
+
+    sig = json.loads(path.read_text(encoding="utf-8"))
+    labels = {p["id"]: p["label"] for p in sig.get("presets", [])}
+    wanted = {labels.get(t["preset"]) for t in tracking} if tracking else set(labels.values())
+    nm = {**sig.get("names", {}), **names}
+
+    def fmt(codes: list[str]) -> str:
+        shown = [f"{html.escape(str(nm.get(c, c)))} {c}" for c in codes[:10]]
+        return "、".join(shown) + (f" 等 {len(codes)} 檔" if len(codes) > 10 else "")
+
+    out: list[str] = []
+    today = {k: v for k, v in today_triggers(sig).items() if k in wanted}
+    if today:
+        out += ["", "<b>今日新觸發（依規則產生，非推薦）</b>"]
+        out += [f"{html.escape(k)}：{fmt(v) if v else '無'}" for k, v in today.items()]
+    exits = []
+    for t in tracking:
+        codes = exits_tomorrow(sig, t["preset"], t["horizon"], t.get("since"))
+        if codes:
+            exits.append(f"{html.escape(labels.get(t['preset'], t['preset']))}（持有 {t['horizon']} 日）：{fmt(codes)}")
+    if exits:
+        out += ["", "<b>明天開盤出場（訊號追蹤）</b>", *exits]
+    return out
+
+
+def build_digest(
+    web_data: Path,
+    codes: list[str],
+    site_url: str = "",
+    failures: list[str] | None = None,
+    tracking: list[dict[str, Any]] | None = None,
+) -> str:
     """盤後日報：大盤、法人金額、自選／持股的漲跌、法人、融資、分數變化與新風險旗標。
 
     codes 來自 config/alerts.yml 的 digest（App「匯出提醒設定」會帶入自選股與持股）；
@@ -119,6 +156,7 @@ def build_digest(web_data: Path, codes: list[str], site_url: str = "", failures:
                 )
     if new_flags:
         lines += ["", "<b>新出現的風險旗標</b>", *new_flags]
+    lines += tracking_lines(web_data, tracking or [], {c: str(r.get("name", c)) for c, r in rows.items()})
     if failures:
         lines += ["", f"資料源異常 {len(failures)} 項（詳見 GitHub Issue「data-failure」）"]
     if site_url:
@@ -127,11 +165,17 @@ def build_digest(web_data: Path, codes: list[str], site_url: str = "", failures:
     return "\n".join(lines)
 
 
-def send_daily_digest(web_data: Path, codes: list[str], site_url: str = "", failures: list[str] | None = None) -> bool:
+def send_daily_digest(
+    web_data: Path,
+    codes: list[str],
+    site_url: str = "",
+    failures: list[str] | None = None,
+    tracking: list[dict[str, Any]] | None = None,
+) -> bool:
     if not configured():
         log.info("未設定 Telegram secrets，略過日報推播")
         return False
     if not (web_data / "summary.json").exists():
         log.warning("找不到 summary.json，略過日報推播")
         return False
-    return send(build_digest(web_data, codes, site_url, failures))
+    return send(build_digest(web_data, codes, site_url, failures, tracking))

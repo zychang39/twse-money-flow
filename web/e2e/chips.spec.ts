@@ -95,14 +95,18 @@ test('每日籌碼：一排控制列；法人檢視固定 4 欄＋日期，收�
   await expect(page.getByRole('region', { name: '每日籌碼明細・借券當沖' }).locator('thead th').nth(2).locator('.cd-sub')).toHaveText('張'); // 餘額沒有佔量的意義
 });
 
-test('每日籌碼：數字 ≥ 10,000 縮寫為「萬」；正負同時用紅綠與 ▲▼；每列至少 44pt；VoiceOver 唸完整句子', async ({ page }) => {
+test('每日籌碼：整張表同一種單位（≥ 10,000 張時整張表改萬張，未滿千張寫整數張）；正負同時用紅綠與 ▲▼；每列至少 44pt；VoiceOver 唸完整句子', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 852 });
   await gotoStock(page, '#/stock/2330');
   await page.getByRole('group', { name: '明細期間' }).getByRole('button', { name: '60 日' }).click();
   const region = page.getByRole('region', { name: /每日籌碼明細/ });
   const texts = await region.locator('tbody td .cd-t').allInnerTexts();
-  for (const t of texts) expect(t).toMatch(/^(—|[▲▼]?[\d,.]+(\u00a0萬)?%?)$/);
-  for (const t of texts) expect(t.replace(/[▲▼,%]/g, '').split('.')[0].length).toBeLessThanOrEqual(4); // 不超過 4 位數（≥ 10,000 已縮寫）
+  for (const t of texts) expect(t).toMatch(/^(—|[▲▼]?[\d,.]+(張)?%?)$/);
+  for (const t of texts) expect(t).not.toMatch(/^[▲▼]0(\.0+)?$/); // #6：不出現 ▲0.0／▼0.0
+  for (const t of texts) expect(t.replace(/[▲▼,%張]/g, '').split('.')[0].length).toBeLessThanOrEqual(4); // 不超過 4 位數（≥ 10,000 已換成萬張）
+  // 單位說明與格子一致：有「張」小字的格子只會出現在萬張表格
+  const label = await page.getByTestId('chip-unit-label').textContent();
+  if (texts.some((t) => t.endsWith('張'))) expect(label).toContain('萬張');
   const cell = region.locator('tbody tr.day td.cd-v.up, tbody tr.day td.cd-v.down').first();
   const [cls, txt] = await cell.evaluate((el) => [el.className, el.textContent]);
   expect(txt).toMatch(cls.includes('up') ? /▲/ : /▼/);

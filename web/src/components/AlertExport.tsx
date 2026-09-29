@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
 import { useDb } from '../hooks';
-import { getSetting, listTrades, listWatch, setSetting } from '../db/db';
+import { getSetting, listStrategies, listTrades, listWatch, setSetting } from '../db/db';
 
 export interface AlertRule { code: string; above?: number | null; below?: number | null; note?: string }
 
@@ -8,16 +8,24 @@ export interface AlertRule { code: string; above?: number | null; below?: number
  * 產生 config/alerts.yml 內容（複製後貼到 repo，由 Actions 盤中檢查並推播 Telegram）。
  * digest：盤後日報要列出的代號（自選股＋持股）。
  */
-export function toAlertsYaml(rules: AlertRule[], digest: string[] = []): string {
+export interface TrackingRule { preset: string; horizon: number; since: string }
+
+/**
+ * tracking（S4）：追蹤中的內建策略（紀律 → 訊號追蹤）；盤後日報列出這些策略的今日新觸發與「明天開盤出場」的部位。
+ * 自訂條件的追蹤只在 App 內計算，不列入。
+ */
+export function toAlertsYaml(rules: AlertRule[], digest: string[] = [], tracking: TrackingRule[] = []): string {
   const codes = [...new Set(digest.filter(Boolean))];
   const lines = [
     '# 由 App「匯出提醒設定」產生',
     'version: 1',
     `digest: [${codes.map((c) => `"${c}"`).join(', ')}]`,
+    tracking.length ? 'tracking:' : 'tracking: []',
+    ...tracking.map((t) => `  - { preset: ${t.preset}, horizon: ${t.horizon}, since: "${t.since}" }`),
     'alerts:',
   ];
   const valid = rules.filter((r) => r.code && ((r.above ?? 0) > 0 || (r.below ?? 0) > 0));
-  if (!valid.length) return lines.join('\n').replace('alerts:', 'alerts: []');
+  if (!valid.length) return lines.join('\n').replace(/alerts:$/, 'alerts: []');
   for (const r of valid) {
     const parts = [`code: "${r.code}"`];
     if (r.above) parts.push(`above: ${r.above}`);
@@ -33,13 +41,14 @@ export function AlertExport() {
     rules: await getSetting<AlertRule[]>('alerts', []),
     watch: await listWatch(),
     held: (await listTrades()).filter((t) => t.status === 'open').map((t) => t.code),
+    tracking: (await listStrategies()).filter((s) => s.active && s.presetId).map((s) => ({ preset: s.presetId!, horizon: s.horizon, since: s.startAfter })),
   }));
   const [copied, setCopied] = useState(false);
   if (!state) return null;
   const rules = state.rules;
   const codes = state.watch.map((w) => w.code);
   const update = (i: number, patch: Partial<AlertRule>) => setSetting('alerts', rules.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  const yaml = toAlertsYaml(rules, [...codes, ...state.held]);
+  const yaml = toAlertsYaml(rules, [...codes, ...state.held], state.tracking);
   return (
     <div class="card">
       {rules.map((r, i) => (

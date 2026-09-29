@@ -6,7 +6,7 @@ import type { ComponentChildren } from 'preact';
 import { PageHead, TopBar } from '../components/Chrome';
 import { Loading } from '../components/DataStatus';
 import { RitualPanel } from '../components/Ritual';
-import { IconBars, IconClipboard, IconMedal, IconNotebook, IconPaper } from '../components/Icons';
+import { IconBars, IconClipboard, IconMedal, IconNotebook, IconPaper, IconPulse } from '../components/Icons';
 import { useAsync } from '../hooks';
 import { loadIndex, loadSummary } from '../data/api';
 import { useUser } from '../data/useUser';
@@ -61,6 +61,7 @@ export default function Discipline() {
         <Tile href="#/discipline/stats" icon={<IconBars />} label="個人統計" status="勝率、期望值、錯誤標籤、組合" />
         <Tile href="#/discipline/badges" icon={<IconMedal />} label="成就" status={user.gamification ? `${bs.filter((b) => b.earned).length} / ${bs.length} 個徽章` : '遊戲化已關閉'} />
         <Tile href="#/discipline/weekly" icon={<IconPaper />} label="週報" status="本週分數、籌碼、旗標與下週事件" />
+        <Tile href="#/discipline/tracking" icon={<IconPulse />} label="訊號追蹤" status="策略的新觸發・紙上交易・和回測比較" />
       </div>
     </div>
   );

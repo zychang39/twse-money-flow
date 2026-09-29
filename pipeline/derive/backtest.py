@@ -7,6 +7,11 @@
 4. 出場日無開盤價（停牌、下市）：往後找第一個有開盤價的日子；找不到則以進場後最後一個收盤價出場並標示。
 5. 成本：買進手續費、賣出手續費、證交稅（百分比模式，不計最低 20 元）。
 6. 超額報酬：相對加權報酬指數（T 日收盤至出場前一日收盤，近似同一持有期間）。
+7. 訊號定義（signal_definition）：預設為「今日新觸發」——T 日全部條件成立、上一個交易日不成立（且上一個交易日
+   每個條件都有資料；資料剛開始的第一天不算新觸發）。「每天符合」的統計另外並列，供比較。
+8. 資料涵蓋：每個條件欄位記錄有資料的股票數與起始日；最晚的起始日之前不產生訊號。
+9. 出場規則（S5）：time＝只看時間；stop＝盤中觸及停損價即出場（跳空低開以開盤價）；trailing＝收盤跌破 N 日均線，
+   隔日開盤出場。三種都以持有 N 日為上限。
 """
 
 from __future__ import annotations
@@ -64,18 +69,44 @@ class Trade:
     horizon: int
 
 
+def _find_exit(
+    px: Prices, c: int, e: int, x: int, entry: float, rule: str, stop_pct: float, ma: np.ndarray | None
+) -> tuple[int, float | None]:
+    """停損規則的提前出場：回傳 (出場日索引, 出場價)；沒有提前出場回傳 (x, None)，交由時間出場處理。"""
+    T = len(px.dates)
+    if rule == "stop":
+        stop_px = entry * (1 + stop_pct / 100)
+        for i in range(e, min(x, T)):
+            lo = px.low[i, c]
+            if np.isfinite(lo) and lo <= stop_px:
+                op = px.open[i, c]
+                # 進場當天以停損價；之後若開盤就跳空在停損價之下，只能以開盤價出場
+                price = stop_px if i == e or not np.isfinite(op) else min(op, stop_px)
+                return i, float(price)
+    elif rule == "trailing" and ma is not None:
+        for i in range(e, min(x - 1, T - 1)):
+            cl, m = px.close[i, c], ma[i, c]
+            if np.isfinite(cl) and np.isfinite(m) and cl < m:
+                return i + 1, None  # 隔日開盤
+    return x, None
+
+
 def run(
     signals: np.ndarray,
     px: Prices,
     horizons: list[int] | None = None,
     decay_days: int | None = None,
     limit_up_pct: float | None = None,
+    rule: str = "time",
+    stop_pct: float | None = None,
+    ma: np.ndarray | None = None,
 ) -> dict[str, Any]:
-    """signals：(T, C) bool。回傳交易明細、排除統計、衰減曲線。"""
+    """signals：(T, C) bool。回傳交易明細、排除統計、衰減曲線。rule：time／stop／trailing（見模組說明 9）。"""
     bt = config.thresholds()["backtest"]
     horizons = horizons or [int(h) for h in bt["horizons"]]
     decay_days = decay_days or int(bt["decay_days"])
     limit_up = (limit_up_pct if limit_up_pct is not None else float(bt["limit_up_pct"])) / 100
+    stop = float(stop_pct if stop_pct is not None else bt.get("stop_loss_pct", -7))
     T = len(px.dates)
     trades: dict[int, list[Trade]] = {h: [] for h in horizons}
     excluded = {"limit_up": 0, "suspended": 0, "disposition": 0, "no_future": 0}
@@ -110,10 +141,13 @@ def run(
             if x >= T:
                 continue
             delisted = False
-            k = x
-            while k < T and not (px.tradable[k, c] and np.isfinite(px.open[k, c])):
+            k, fixed_px = _find_exit(px, c, e, x, float(entry), rule, stop, ma)
+            while fixed_px is None and k < T and not (px.tradable[k, c] and np.isfinite(px.open[k, c])):
                 k += 1
-            if k < T:
+            if fixed_px is not None:
+                exit_px = fixed_px
+                exit_i = k
+            elif k < T:
                 exit_px = px.open[k, c]
                 exit_i = k
             else:
@@ -122,7 +156,7 @@ def run(
                 exit_i = e + int(valid[-1])
                 exit_px = px.close[exit_i, c]
                 delisted = True
-            lows = px.low[e:exit_i, c]
+            lows = px.low[e : exit_i + (1 if fixed_px is not None else 0), c]
             lows = lows[np.isfinite(lows)]
             worst = min(float(lows.min()) if lows.size else entry, exit_px)
             gross = float(exit_px / entry - 1)
@@ -258,3 +292,53 @@ def conditions_mask(conditions: list[dict[str, Any]], lookup: Any) -> np.ndarray
         m = m & np.isfinite(arr)
         mask = m if mask is None else mask & m
     return mask
+
+
+def conditions_evaluable(conditions: list[dict[str, Any]], lookup: Any) -> np.ndarray | None:
+    """(T, C) bool：每個條件欄位都有資料（可以判斷成立與否）。"""
+    ok = None
+    for c in conditions:
+        arr = lookup(c["field"])
+        if arr is None:
+            return None
+        f = np.isfinite(arr)
+        ok = f if ok is None else ok & f
+    return ok
+
+
+def new_triggers(mask: np.ndarray, evaluable: np.ndarray) -> np.ndarray:
+    """今日新觸發：今天成立、上一個交易日可判斷但不成立（第一天沒有前一日可比，不算）。"""
+    out = np.zeros_like(mask, dtype=bool)
+    if len(mask) > 1:
+        out[1:] = mask[1:] & ~mask[:-1] & evaluable[:-1]
+    return out
+
+
+def field_coverage(
+    conditions: list[dict[str, Any]], lookup: Any, dates: list[str], codes: list[str]
+) -> list[dict[str, Any]]:
+    """每個條件欄位：有資料的股票數、資料起始日（全市場第一個有值的日子）。"""
+    out = []
+    for c in conditions:
+        arr = lookup(c["field"])
+        if arr is None:
+            out.append({"field": c["field"], "stocks": 0, "first_date": None})
+            continue
+        fin = np.isfinite(arr)
+        rows = np.nonzero(fin.any(axis=1))[0]
+        out.append(
+            {
+                "field": c["field"],
+                "stocks": int(fin.any(axis=0).sum()),
+                "first_date": dates[int(rows[0])] if rows.size else None,
+            }
+        )
+    return out
+
+
+def eligible_mask(mask: np.ndarray, dates: list[str], start: str | None) -> np.ndarray:
+    """資料涵蓋起始日之前不產生訊號。"""
+    if not start:
+        return np.zeros_like(mask, dtype=bool)
+    keep = np.array([d >= start for d in dates])[:, None]
+    return mask & keep

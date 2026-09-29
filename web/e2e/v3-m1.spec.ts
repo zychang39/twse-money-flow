@@ -34,7 +34,7 @@ test.describe('M1-1 圖表資料不足', () => {
     await page.goto('#/stock/2330/holders');
     await page.getByRole('group', { name: '期間' }).getByRole('button', { name: '6 個月' }).click();
     await expect(page.getByRole('heading', { name: '走勢・6 個月' })).toBeVisible();
-    await expect(page.getByTestId('hd-coverage')).toContainText(/資料累積中：目前只有 1 週（自 \d+\/\d+ 起），所選期間超過可用資料；歷史回補中/);
+    await expect(page.getByTestId('hd-coverage')).toContainText(/資料累積中：目前只有 1 週（自 \d{4}\/\d+\/\d+ 起），所選期間超過可用資料；歷史回補中/);
     // 每個折線面板都有單點標記（舊版只有座標軸）
     expect(await page.getByTestId('sc-point').count()).toBeGreaterThanOrEqual(3);
   });

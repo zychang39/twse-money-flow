@@ -49,8 +49,13 @@ def effective_date_for_month(ym: str, first_seen: str | None, fallback_day: int)
     return deadline
 
 
-def as_of_panel(records: pd.DataFrame, value_col: str, dates: list[str], codes: list[str]) -> pd.DataFrame:
-    """把 (code, effective_date, value) 事件表轉成逐日面板：生效日（含）起沿用到下一次更新。"""
+def as_of_panel(
+    records: pd.DataFrame, value_col: str, dates: list[str], codes: list[str], max_age: int | None = None
+) -> pd.DataFrame:
+    """把 (code, effective_date, value) 事件表轉成逐日面板：生效日（含）起沿用到下一次更新。
+
+    max_age：超過這麼多個交易日沒有更新就視為缺值（週資料停更時不無限期沿用舊值）。
+    """
     out = pd.DataFrame(np.nan, index=dates, columns=codes)
     if records.empty:
         return out
@@ -60,10 +65,16 @@ def as_of_panel(records: pd.DataFrame, value_col: str, dates: list[str], codes: 
             continue
         pos = idx.searchsorted(part["effective"].to_numpy(), side="left")
         series = pd.Series(np.nan, index=range(len(dates)))
+        updated = pd.Series(np.nan, index=range(len(dates)))
         for p, v in zip(pos, part[value_col].to_numpy(dtype=float), strict=True):
             if p < len(dates):
                 series.iloc[p] = v
-        out[code] = series.ffill().to_numpy()
+                updated.iloc[p] = p
+        filled = series.ffill().to_numpy()
+        if max_age is not None:
+            age = np.arange(len(dates)) - updated.ffill().to_numpy()
+            filled = np.where(age > max_age, np.nan, filled)
+        out[code] = filled
     return out
 
 

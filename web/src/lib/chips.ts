@@ -548,25 +548,66 @@ export function compactNum(abs: number, unit: Unit | 'ratio'): string {
  * - 億元、佔量 %：整欄 2 位小數（該欄最大值 ≥ 100 → 1 位、≥ 1,000 → 整數）；比率 %：整欄 1 位小數。
  */
 export interface ColFormat {
-  /** 整欄以「萬」為單位（標題註明「萬張」） */
-  wan: boolean;
   digits: number;
+  /** 張數以萬張顯示（整張表一起切換；未滿 1,000 張的格子寫整數張，見 cellText） */
+  wan?: boolean;
 }
 
 export const WAN_THRESHOLD = 1e4;
+/** 萬張表格中，絕對值小於這個數的格子改寫整數張（避免 ▲0.0） */
+export const WAN_SMALL = 1e3;
+/** 萬張表格中小量格子的單位後綴（表格以小字顯示「張」） */
+export const LOT_SUFFIX = '\u00a0張';
 
-export function colFormat(values: N[], col: ViewCol, unit: Unit): ColFormat {
-  const u = colUnit(col, unit);
-  if (u === 'ratio') return { wan: false, digits: 1 };
-  const max = values.reduce<number>((m, v) => (v !== null && Number.isFinite(v) ? Math.max(m, Math.abs(v)) : m), 0);
-  // 億元、佔量 %：整欄 2 位小數；該欄最大值 ≥ 100 時整欄 1 位、≥ 1,000 時整欄整數（窄欄放得下，仍然整欄一致）
-  if (u !== 'lots') return { wan: false, digits: max >= 1000 ? 0 : max >= 100 ? 1 : 2 };
-  return max >= WAN_THRESHOLD ? { wan: true, digits: 1 } : { wan: false, digits: 0 };
+/**
+ * 表格格式（#6）：同一張表的同一種單位只用一種格式，單位寫在表格上方（tableUnitLabel），不黏在欄名後面。
+ * - 張：整張表（含區間合計）張數欄的最大絕對值 < 10,000 → 全部千分位整數；
+ *   ≥ 10,000 → 全部萬張 1 位小數，但未滿 1,000 張的格子寫「▲315 張」（至少到整數張，不出現 ▲0.0）。
+ * - 億元、佔量 %：整張表依最大絕對值決定小數位（≥ 1,000 整數、≥ 100 一位、否則兩位）。
+ * - 比率：一位小數。
+ */
+export function tableFormats(values: Record<string, N[]>, cols: ViewCol[], unit: Unit): Record<string, ColFormat> {
+  const maxOf: Partial<Record<Unit | 'ratio', number>> = {};
+  for (const c of cols) {
+    const u = colUnit(c, unit);
+    for (const v of values[c.key] ?? []) if (v !== null && Number.isFinite(v)) maxOf[u] = Math.max(maxOf[u] ?? 0, Math.abs(v));
+  }
+  return Object.fromEntries(cols.map((c) => [c.key, unitFormat(colUnit(c, unit), maxOf[colUnit(c, unit)] ?? 0)]));
 }
 
-/** 依整欄格式寫出絕對值（不含正負號與單位）。 */
+function unitFormat(u: Unit | 'ratio', max: number): ColFormat {
+  if (u === 'ratio') return { digits: 1 };
+  if (u === 'lots') return max >= WAN_THRESHOLD ? { digits: 1, wan: true } : { digits: 0 };
+  return { digits: max >= 1000 ? 0 : max >= 100 ? 1 : 2 };
+}
+
+/**
+ * 每個檢視（法人／信用／借券當沖）各是一張表，各自決定格式（#6）；橫向同時顯示全部欄位時仍各組各自一種格式。
+ */
+export function viewFormats(values: Record<string, N[]>, unit: Unit): Record<string, ColFormat> {
+  return Object.assign({}, ...VIEWS.map((v) => tableFormats(values, VIEW_COLS[v], unit)));
+}
+
+/** 表格上方的單位說明：「張」「萬張（未滿 1,000 張寫張數）」「億元（估）」…；views＝目前顯示的檢視。 */
+export function tableUnitLabel(unit: Unit, fmts: Record<string, ColFormat>, views: View[]): string {
+  const wanViews = views.filter((v) => VIEW_COLS[v].some((c) => colUnit(c, unit) === 'lots' && fmts[c.key]?.wan));
+  const lotViews = views.filter((v) => VIEW_COLS[v].some((c) => colUnit(c, unit) === 'lots'));
+  if (!wanViews.length) return UNIT_LABEL[unit];
+  const wanText = '萬張（未滿千張寫張）';
+  if (unit === 'lots' && wanViews.length === lotViews.length) return wanText;
+  const names = wanViews.map((v) => VIEW_LABEL[v]).join('、');
+  return `${UNIT_LABEL[unit]}；${unit === 'lots' ? names : '餘額'}欄為${wanText}`;
+}
+
+/** 單欄格式（卡片、底部面板等只有一欄的情境）；規則同 tableFormats。 */
+export function colFormat(values: N[], col: ViewCol, unit: Unit): ColFormat {
+  return tableFormats({ [col.key]: values }, [col], unit)[col.key];
+}
+
+/** 依格式寫出絕對值（不含正負號與單位）。萬張格式下未滿 1,000 張寫「315 張」。 */
 export function formatAbs(abs: number, f: ColFormat): string {
-  return numberFormat(f.digits).format(f.wan ? abs / 1e4 : abs);
+  if (f.wan) return abs < WAN_SMALL ? `${numberFormat(0).format(abs)}${LOT_SUFFIX}` : numberFormat(f.digits).format(abs / 1e4);
+  return numberFormat(f.digits).format(abs);
 }
 
 /**
@@ -577,9 +618,13 @@ export function formatAbs(abs: number, f: ColFormat): string {
 export function cellText(v: N, col: ViewCol, unit: Unit, signed = col.signed, fmt?: ColFormat): { text: string; arrow: '' | '▲' | '▼'; body: string; dir: 'up' | 'down' | 'flat' | 'none' } {
   if (v === null || !Number.isFinite(v)) return { text: '—', arrow: '', body: '—', dir: 'none' };
   const u = colUnit(col, unit);
-  const raw = fmt ? formatAbs(Math.abs(v), fmt) : compactNum(Math.abs(v), u);
-  // 0 顯示「0」；整欄有小數時，非 0 但四捨五入為 0（例：萬張欄的 −485 張）保留「▼0.0」，不丟掉方向
-  const shownZero = Number(raw.replace(/[^\d.]/g, '')) === 0 && (v === 0 || !fmt || fmt.digits === 0);
+  let raw = fmt ? formatAbs(Math.abs(v), fmt) : compactNum(Math.abs(v), u);
+  const roundsToZero = Number(raw.replace(/[^\d.]/g, '')) === 0;
+  // 非 0 但四捨五入為 0（例：億元欄的 0.004）：寫成「<0.01」，不出現 ▲0.0 這種看似有方向卻是 0 的數字（#6）
+  // 萬張表格中未滿 1,000 張的格子已經寫成整數張，四捨五入為 0 就是 0
+  const intCell = !fmt || fmt.digits === 0 || (!!fmt.wan && Math.abs(v) < WAN_SMALL);
+  if (roundsToZero && v !== 0 && !intCell) raw = `<${numberFormat(fmt!.digits).format(10 ** -fmt!.digits)}`;
+  const shownZero = roundsToZero && (v === 0 || intCell);
   const body = `${shownZero ? '0' : raw}${u === 'ratio' ? '%' : ''}`;
   if (!signed || shownZero) return { text: body, arrow: '', body, dir: signed ? 'flat' : 'none' };
   const arrow = v > 0 ? '▲' : '▼';

@@ -220,8 +220,8 @@ a.list-item { text-decoration: none; }
 }
 /* 焦點框畫在元件內側（inset），父容器 overflow: hidden／捲動區也不會裁切上緣 */
 .input:focus, .select:focus, textarea.input:focus { box-shadow: inset 0 0 0 2px var(--brand); }
-label.field { display: block; margin: var(--s-3) 0; }
-label.field > span { display: block; font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); margin-bottom: var(--s-1); }
+label.field, div.field { display: block; margin: var(--s-3) 0; }
+label.field > span, div.field > label { display: block; font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); margin-bottom: var(--s-1); }
 .sort-select { width: auto; min-height: 2.25rem; padding: 0 var(--s-2); font-size: var(--fs-caption); color: var(--brand); background: var(--surface-1); flex: none; }
 .check { display: flex; align-items: center; gap: var(--s-3); min-height: var(--tap); cursor: pointer; }
 .check input { width: 1.25rem; height: 1.25rem; accent-color: var(--brand-fill); }
@@ -414,13 +414,15 @@ label.field > span { display: block; font-size: var(--fs-caption); line-height: 
 .status-scrim { display: none; position: fixed; z-index: 29; left: 0; right: 0; top: 0; height: var(--safe-top); background: linear-gradient(var(--bg) 60%, transparent); pointer-events: none; }
 @media (display-mode: standalone) { .status-scrim { display: block; } }
 :root.standalone .status-scrim { display: block; }
-/* 新版本已就緒：浮在底部導覽上方 */
+/* 有新版本（lib/swUpdate）：浮在底部導覽上方，不遮擋內容 */
 .update-toast {
   position: fixed; z-index: 31; left: 50%; bottom: calc(var(--dock-h) + var(--s-3)); transform: translateX(-50%);
   display: flex; align-items: center; gap: var(--s-2); padding: var(--s-1) var(--s-1) var(--s-1) var(--s-4);
   border-radius: var(--r-pill); font-size: var(--fs-caption); white-space: nowrap; max-width: calc(100vw - 2 * var(--gutter));
 }
 .update-toast .icon-btn { color: var(--text-2); min-width: 2.25rem; }
+.update-toast-main { min-height: var(--tap); padding: 0 var(--s-2); color: var(--brand); font: inherit; font-weight: var(--fw-semibold); background: none; border: 0; }
+.update-toast-main:disabled { color: var(--text-2); }
 .update-toast .icon-btn svg { width: 1.125rem; height: 1.125rem; }
 /* iOS 鍵盤預熱用的隱形輸入框（見 Chrome.tsx primeKeyboard）；字級 16px 避免 iOS 聚焦時放大 */
 .kb-primer { position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; font-size: 16px; border: 0; padding: 0; pointer-events: none; }
@@ -589,7 +591,9 @@ table.table tbody tr td:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0;
 .cd-unit:focus-within .cd-unit-face { box-shadow: inset 0 0 0 2px var(--brand); }
 .cd-views { margin-top: var(--s-2); }
 .cd-meta { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); margin: var(--s-3) 0 var(--s-1); color: var(--text-2); font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); }
-.cd-unit-label { flex: none; color: var(--text-1); font-weight: var(--fw-medium); }
+.cd-unit-label { flex: 0 1 auto; min-width: 0; text-align: right; color: var(--text-1); font-weight: var(--fw-medium); }
+/* 萬張表格中未滿千張的「張」（#6）：小字，讓整數張放得進窄欄 */
+.cd-u { margin-left: 0.0625rem; font-size: calc(var(--fs-micro) * var(--dt)); font-weight: var(--fw-regular); }
 /* 量測用：與儲存格同字型；fixed 不影響版面與捲動範圍 */
 /* 量測元素要與表格內的日期（15pt）與日期下方小字（12pt）同字級，欄寬才不會把「▼1.34%」裁掉 */
 .chip-daily .cd-measure.cd-date { font-size: calc(var(--fs-table-date) * var(--dt)); }
@@ -620,7 +624,6 @@ table.table tbody tr td:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0;
 .chip-daily .cd-table tbody tr.day .cd-date { font-size: calc(var(--fs-table-date) * var(--dt)); line-height: calc(var(--lh-table-date) * var(--dt)); }
 .chip-daily .cd-table tbody tr.day .cd-sub { font-size: calc(var(--fs-table-sub) * var(--dt)); line-height: calc(var(--lh-table-sub) * var(--dt)); color: var(--text-2); }
 .cd-arrow { font-size: 0.72em; margin-right: 0.0625rem; vertical-align: baseline; }
-.cd-wan { display: inline-block; margin-left: 0.125rem; font-size: calc(var(--fs-micro) * var(--dt)); color: var(--text-2); font-weight: var(--fw-regular); }
 .cd-mini { margin: var(--s-3) 0 0; }
 .cd-mini-bars { display: flex; align-items: stretch; gap: 2px; height: 3rem; padding: 0 var(--s-2); background: linear-gradient(var(--surface-row), var(--surface-row)) no-repeat center / 100% 1px; }
 .cd-mini-slot { position: relative; flex: 1 1 0; max-width: 1rem; margin: 0 auto; }
@@ -712,7 +715,8 @@ details.tech ul { margin: var(--s-1) 0 0; padding-left: var(--s-4); color: var(-
 /* ---------- 我的股票：歡迎卡、範例提示、系統清單 ---------- */
 .welcome { margin-top: var(--s-4); padding: var(--s-5); }
 .welcome .section { margin-bottom: var(--s-1); }
-.welcome-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: var(--s-4) 0 var(--s-3); }
+.welcome-main { margin-top: var(--s-4); }
+.welcome-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: var(--s-2) 0 var(--s-3); }
 .welcome-actions .btn { flex: 1 1 9rem; }
 .chip.system { display: inline-flex; align-items: center; gap: var(--s-1); }
 .chip .sys-mark { font-size: 0.6875rem; line-height: 1; padding: 0.1875rem 0.3125rem; border-radius: var(--r-xs); background: var(--surface-2); color: var(--text-2); font-weight: var(--fw-medium); }
@@ -828,8 +832,18 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 .chip-stats th { white-space: nowrap; }
 .chip-stats .th-unit { display: block; font-size: var(--fs-micro); line-height: var(--lh-micro); font-weight: var(--fw-regular); color: var(--text-2); white-space: nowrap; }
 
-/* U-05：清單列的變化理由最多兩行（原本一行截斷，關鍵數字看不到） */
-.srow .sub { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; word-break: keep-all; overflow-wrap: anywhere; }
+/* U-05／#8：清單列的變化理由可以換行、不截斷（原本最多兩行加省略號，390pt 時「（量的 70%）」仍被切掉）；
+ * 文字已精簡、數字在前（changes.instReasonText），只在空白與「・」後換行 */
+.srow .sub { white-space: normal; overflow: visible; text-overflow: clip; word-break: keep-all; overflow-wrap: anywhere; }
 
 /* U-06：雙欄卡片的中文不在詞中間斷行（只在空白、「・」後換行） */
 .tile-status, .tile .body { word-break: keep-all; overflow-wrap: anywhere; }
+
+/* 回測：資料涵蓋（S1） */
+.bt-cov { margin: var(--s-2) 0 0; font-size: var(--fs-caption); line-height: var(--lh-caption); }
+.bt-cov > div { display: flex; gap: var(--s-2); }
+.bt-cov dt { flex: none; min-width: 6.5rem; color: var(--text-2); }
+.bt-cov dd { margin: 0; }
+.bt-stats { display: flex; flex-wrap: wrap; column-gap: var(--s-3); color: var(--text-2); }
+.bt-stats span { white-space: nowrap; }
+.bt-stats b { font-weight: var(--fw-medium); }

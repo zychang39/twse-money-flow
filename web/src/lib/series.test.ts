@@ -1,5 +1,6 @@
+import { heroWindows } from './heroSeries';
 import { describe, expect, it } from 'vitest';
-import { countValid, coverage, coverageNote, segments } from './series';
+import { countValid, coverage, coverageNote, segments, windowCoverageNote } from './series';
 import { sliceWindow, periodStart } from './periods';
 import { points, extent } from './chartMath';
 import { groupSeries, headline, shortTitle, type HolderBlock } from './holders';
@@ -26,7 +27,7 @@ describe('圖表資料邊界：coverage', () => {
   it('所選 26 週、只有 1 週 → 說明目前週數與起始日', () => {
     const c = coverage(['2026-09-18'], 26);
     expect(c).toMatchObject({ have: 1, want: 26, short: true, single: true });
-    expect(coverageNote(c, '週')).toBe('資料累積中：目前只有 1 週（自 9/18 起），所選期間超過可用資料；歷史回補中');
+    expect(coverageNote(c, '週')).toBe('資料累積中：目前只有 1 週（自 2026/9/18 起），所選期間超過可用資料；歷史回補中');
   });
   it('資料足夠 → null；沒有資料 → 說明還沒有資料', () => {
     expect(coverageNote(coverage(Array.from({ length: 26 }, (_, i) => `2026-01-${String(i + 1).padStart(2, '0')}`), 26), '週')).toBeNull();
@@ -69,5 +70,25 @@ describe('大戶與散戶：只有 1 週資料', () => {
     expect(s.bigChange).toEqual([null]);
     expect(shortTitle(one, 26, 5, 1000)).toBe('大戶持股 60.0%');
     expect(headline(one, 26, 5, 1000)).toBe('大戶（≥ 1,000 張）持股 60.00%');
+  });
+});
+
+describe('#9 主角走勢圖的「資料累積中」', () => {
+  // 0050：2024-04-11 起共 595 個交易日（週一到週五）
+  const days: string[] = [];
+  for (let t = Date.UTC(2024, 3, 11); days.length < 595; t += 86400000) {
+    const d = new Date(t);
+    if (d.getUTCDay() % 6 !== 0) days.push(d.toISOString().slice(0, 10));
+  }
+  const closes = days.map((_, i) => 100 + i * 0.1);
+  const af = days.map(() => 1);
+  it('5Y、10Y、ALL（週線取樣）都寫同一個交易日數，日期帶年份', () => {
+    const notes = (['5Y', '10Y'] as const).map((p) => windowCoverageNote(heroWindows(days, closes, af, p).adj!));
+    for (const n of notes) expect(n).toBe('資料累積中：目前只有 595 個交易日（自 2024/4/11 起），所選期間超過可用資料');
+    // 10Y 的視窗本身只有約 128 個週線點
+    expect(heroWindows(days, closes, af, '10Y').adj!.dates.length).toBeLessThan(140);
+  });
+  it('資料足夠（不截斷）→ null', () => {
+    expect(windowCoverageNote(heroWindows(days, closes, af, '1Y').adj!)).toBeNull();
   });
 });

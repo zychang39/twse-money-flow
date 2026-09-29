@@ -14,3 +14,12 @@ describe('alerts.yml 匯出', () => {
     expect(toAlertsYaml([], ['2330', '0050', '2330'])).toContain('digest: ["2330", "0050"]');
   });
 });
+
+describe('S4 追蹤策略匯出', () => {
+  it('tracking 列出內建策略、持有日數與啟用日', () => {
+    const y = toAlertsYaml([], [], [{ preset: 'chip_concentration', horizon: 10, since: '2026-09-24' }]);
+    expect(y).toContain('tracking:\n  - { preset: chip_concentration, horizon: 10, since: "2026-09-24" }');
+    expect(y).toContain('alerts: []');
+    expect(toAlertsYaml([])).toContain('tracking: []');
+  });
+});

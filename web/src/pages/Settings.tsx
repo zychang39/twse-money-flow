@@ -8,6 +8,7 @@ import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
 import { DEFAULT_WEIGHTS, type Weights } from '../lib/scores';
 import { DEFAULT_COSTS, type CostSettings } from '../lib/costs';
 import { AlertExport } from '../components/AlertExport';
+import { AppVersion } from '../components/AppVersion';
 
 
 export default function Settings() {
@@ -105,6 +106,12 @@ export default function Settings() {
 
       <h2 class="section-title">盤中到價提醒</h2>
       <AlertExport />
+
+      <h2 class="section-title">版本</h2>
+      <div class="card">
+        <AppVersion withCheck />
+        <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>新版本上線後，開啟 App 時會自動更新；正在操作時只在畫面下方提示，不會打斷正在填寫的內容。</p>
+      </div>
     </div>
   );
 }

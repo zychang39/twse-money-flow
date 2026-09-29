@@ -2,6 +2,8 @@
 
 export interface Meta {
   generated_at: string;
+  /** 週資料（集保大戶）：資料基準日（每週最後營業日）、公布日（次一日）、涉及的欄位 */
+  weekly?: { data_date: string; published: string; fields: string[] } | null;
   market_date: string | null;
   demo: boolean;
   status: 'ok' | 'no_data';

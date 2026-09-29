@@ -60,7 +60,36 @@ export function periodStart(dates: string[], p: Period): { start: number; trunca
   return { start: Math.min(idx, n - 2), truncated: false };
 }
 
-export interface Window { dates: string[]; values: number[]; truncated: boolean }
+export interface Window {
+  dates: string[];
+  values: number[];
+  truncated: boolean;
+  /**
+   * 完整日資料（同一價格基準）：「今日」與查價時「該日」的漲跌一律用它和前一個交易日比較（#3）。
+   * 10Y、ALL 是週線取樣，視窗裡相鄰兩點相隔一週，不能拿來算日漲跌。
+   */
+  daily?: { dates: string[]; values: number[] };
+  /**
+   * 視窗實際涵蓋的交易日數與起日（週線取樣前；#9）。沒有提供時視窗本身就是日資料，以 dates 計。
+   */
+  span?: { days: number; since: string };
+}
+
+/**
+ * 某一天相對前一個交易日的漲跌（#3）：用日資料，和期間、取樣方式無關。
+ * 找不到該日或沒有前一日 → null。
+ */
+export function dayChangeAt(daily: { dates: string[]; values: number[] }, date: string): { abs: number; pct: number | null; dir: Dir } | null {
+  const i = daily.dates.lastIndexOf(date);
+  if (i < 1) return null;
+  return change([daily.values[i - 1], daily.values[i]]);
+}
+
+/** 視窗第 at 點（預設最後一點＝今日）的日漲跌：有日資料用日資料，否則用視窗相鄰兩點（#3）。 */
+export function windowDayChange(win: Window, at = win.values.length - 1): { abs: number; pct: number | null; dir: Dir } | null {
+  if (win.daily) return dayChangeAt(win.daily, win.dates[at]);
+  return at >= 1 ? change(win.values.slice(at - 1, at + 1)) : null;
+}
 
 /** 前值補齊（開頭的空值用第一個有效值），圖表不斷線。 */
 export function fillForward(values: (number | null | undefined)[]): number[] | null {

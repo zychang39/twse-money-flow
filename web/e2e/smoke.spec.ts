@@ -87,7 +87,7 @@ test('我的股票：加入自選後出現清單列，點擊進入個股頁', as
 
 test('選股：切換預設組合、新增條件、一鍵回測連結', async ({ page }) => {
   await page.goto('#/explore/screener');
-  await page.getByRole('button', { name: '強勢突破' }).click();
+  await page.getByRole('button', { name: '近高點放量' }).click();
   await expect(page.getByRole('heading', { name: /結果/ })).toBeVisible();
   await page.getByRole('button', { name: '新增條件' }).click();
   await expect(page.getByLabel('欄位').last()).toHaveValue('composite');
@@ -135,7 +135,7 @@ test('日誌：冷靜卡 → 新增持倉前檢查表 → 新增持倉 → 平�
   await expect(cont).toBeDisabled();
   await page.getByText('我已看過以上事實').click();
   await cont.click();
-  const save = page.getByRole('button', { name: /請完成檢查表|加入持倉/ });
+  const save = page.getByTestId('checklist-submit');
   await expect(save).toBeDisabled();
   await page.getByLabel('1. 市場燈號（見今晚頁）').selectOption('中性');
   for (const [label, idx] of [['2. 趨勢', 1], ['3. 營收', 1], ['4. 估值', 1]] as const) {

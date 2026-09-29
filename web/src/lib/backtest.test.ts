@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conditionsMask, netReturn, nonOverlapping, run, stats, summarize, type Panel } from './backtest';
+import { buildReport, conditionsMask, netReturn, newTriggers, nonOverlapping, run, stats, summarize, type Panel } from './backtest';
 
 const T = 12;
 const DATES = Array.from({ length: T }, (_, i) => `2026-01-${String(5 + i).padStart(2, '0')}`);
@@ -64,5 +64,47 @@ describe('回測引擎（與 Python 版同規則）', () => {
     const a = [[1, null], [3, 5]];
     expect(conditionsMask([{ field: 'x', op: '>=', value: 2 }], () => a, 2, 2)).toEqual([[false, false], [true, true]]);
     expect(conditionsMask([{ field: 'x', op: '>=', value: 2 }], () => null, 2, 2)).toBeNull();
+  });
+});
+
+describe('S1／S2／S5：新觸發、資料涵蓋、停損', () => {
+  const T = 12;
+  const dates = Array.from({ length: T }, (_, i) => `2026-01-${String(i + 5).padStart(2, '0')}`);
+  const mk = (opens: number[], lows?: number[], C = 1): Panel => ({
+    dates, codes: Array.from({ length: C }, (_, j) => `S${j}`),
+    open: opens.map((o) => new Array(C).fill(o)), low: (lows ?? opens).map((l) => new Array(C).fill(l)), close: opens.map((o) => new Array(C).fill(o)),
+    tradable: opens.map(() => new Array(C).fill(1)), blocked: [], bench: opens.map(() => 100), regimeUp: opens.map(() => true), isEtf: new Array(C).fill(false),
+  });
+
+  it('newTriggers：第一天與前一日無法判斷時都不算', () => {
+    const mask = [[true], [true], [false], [true], [true], [true]];
+    const ev = [[true], [true], [true], [true], [false], [true]];
+    expect(newTriggers(mask, ev).map((r) => r[0])).toEqual([false, false, false, true, false, false]);
+  });
+
+  it('buildReport：欄位只有少數股票有資料 → 樣本範圍受限；起始日前不產生訊號', () => {
+    const C = 4;
+    const px = mk(Array.from({ length: T }, (_, i) => 100 + i), undefined, C);
+    // x 欄位只有 S0 有資料，且從第 3 天開始；第 3 天以後 x 交替 1、0
+    const x = dates.map((_, t) => Array.from({ length: C }, (_, j) => (j === 0 && t >= 3 ? (t % 2 ? 1 : 0) : null)));
+    const rep = buildReport([{ field: 'x', op: '>', value: 0 }], (f) => (f === 'x' ? x : null), px)!;
+    expect(rep.coverage.start).toBe(dates[3]);
+    expect(rep.coverage.fields[0]).toMatchObject({ stocks: 1, first_date: dates[3] });
+    expect(rep.coverage.limited).toBe(true);
+    expect(rep.coverage.by_code).toEqual([['S0', rep.signals]]);
+    // 第 3 天（x=1）是資料第一天、不算新觸發；之後每次 0 → 1 才算
+    expect(rep.first_signal).toBe(dates[5]);
+    expect(rep.signals).toBeLessThan(rep.signals_level);
+  });
+
+  it('停損：盤中觸及 −7% 以停損價出場；只看時間則持有到期', () => {
+    const opens = [100, 100, 99, 97, 96, 95, 94, 93, 92, 91, 90, 89];
+    const lows = [100, 99, 98, 92, 95, 94, 93, 92, 91, 90, 89, 88];
+    const px = mk(opens, lows);
+    const signals = dates.map((_, t) => [t === 0]);
+    const stop = run(signals, px, [5], 3, 9.5, 'stop', -7).trades[5][0];
+    expect(stop.exitDate).toBe(dates[3]);
+    expect(stop.exit).toBeCloseTo(93);
+    expect(run(signals, px, [5], 3).trades[5][0].exit).toBe(94);
   });
 });

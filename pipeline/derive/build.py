@@ -463,4 +463,10 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
     from pipeline.derive import extras as extras_mod
 
     report_extra = extras_mod.build_extras(ds, p, mp, sc, fv, out)
+    from pipeline.derive import signals as signals_mod
+
+    report_extra.update(signals_mod.screen_days(ds, p, mp, sc, out))
+    report_extra.update(signals_mod.tracking_signals(ds, p, mp, sc, out))
+    # S2：週資料（集保大戶）的資料基準日與公布日，選股頁在條件含這些欄位時顯示
+    meta_extra["weekly"] = signals_mod.weekly_asof(ds)
     return {"stocks": written, "dates": len(p.dates), **report_extra, "meta": {"stocks": written, **meta_extra}}

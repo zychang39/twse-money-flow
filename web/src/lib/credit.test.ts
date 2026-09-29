@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PV_LABELS, basisText, creditAnswer, creditSummary, deltaOver, lotsDelta, marginUsageText, priceMarginLabel, shortAnswer, shortRatio, shortRatioHigh } from './credit';
+import { PV_LABELS, basisText, foreignHoldLine, creditAnswer, creditSummary, deltaOver, lotsDelta, marginUsageText, priceMarginLabel, shortAnswer, shortRatio, shortRatioHigh } from './credit';
 
 // 8 個交易日（手算用）
 const d = ['2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24'];
@@ -70,5 +70,23 @@ describe('空方與融資使用率', () => {
     expect(marginUsageText(null)).toMatchObject({ text: '—' });
     expect(marginUsageText(null).reason).toMatch(/融資限額/);
     expect(marginUsageText(12.345)).toEqual({ text: '12.3%', reason: null });
+  });
+});
+
+describe('#5 外資持股比與 20 個交易日前相比', () => {
+  const d = ['2026-08-27', '2026-08-28', '2026-09-24'];
+  it('沒有前值：顯示「變化：資料累積中」，不是持平的破折號', () => {
+    const line = foreignHoldLine(deltaOver(d, [null, 69.1, 69.2], 2))!;
+    expect(line).toEqual({ value: '69.20%', change: '變化：資料累積中', dir: 'na' });
+  });
+  it('持平', () => {
+    expect(foreignHoldLine(deltaOver(d, [69.2, 69.1, 69.2], 2))).toEqual({ value: '69.20%', change: '持平', dir: 'flat' });
+  });
+  it('上升與下降：百分點，數值在前', () => {
+    expect(foreignHoldLine(deltaOver(d, [68.85, 69.1, 69.2], 2))).toEqual({ value: '69.20%', change: '▲0.35 百分點', dir: 'up' });
+    expect(foreignHoldLine(deltaOver(d, [69.5, 69.1, 69.2], 2))).toEqual({ value: '69.20%', change: '▼0.30 百分點', dir: 'down' });
+  });
+  it('沒有持股比 → 不顯示這一行', () => {
+    expect(foreignHoldLine(deltaOver(d, [null, null, null], 2))).toBeNull();
   });
 });
