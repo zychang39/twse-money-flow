@@ -201,7 +201,7 @@ def evaluate(ev: EvData, *, only: list[str] | None = None, with_exits: bool = Tr
     H = str(int(c["primary_horizon"]))
     end = ev.dates[-1]
     rows, details = [], {}
-    today: dict[str, list[str]] = {}
+    today: dict[str, Any] = {}
     keep: dict[str, dict[str, Any]] = {}
     for test in tests:
         if only and test.id not in only:
@@ -286,7 +286,8 @@ def evaluate(ev: EvData, *, only: list[str] | None = None, with_exits: bool = Tr
             recent["since"] = ev.dates[max(cut, 0)]
         main_mask = test.variants["main"][1]
         keep[test.id] = {"mask": main_mask, "start": start}
-        today[test.id] = [ev.codes[i] for i in np.nonzero(main_mask[-1] & uni[-1])[0]]
+        # 月營收一個月只觸發一次：近 25 個交易日；其他指標為判定用的持有天數
+        today[test.id] = stock_states(test, res, main_mask, ev, uni, 25 if test.data == "revenue" else int(H))
         row = {
             **base,
             **dec,
@@ -345,10 +346,38 @@ def evaluate(ev: EvData, *, only: list[str] | None = None, with_exits: bool = Tr
         "meta": meta,
         "rows": rows,
         "details": details,
-        "today": {"date": end, "tests": today},
+        # 個股頁只顯示有效與環境依賴的指標
+        "today": {
+            "date": end,
+            "tests": {
+                r["id"]: today[r["id"]]
+                for r in rows
+                if r["id"] in today and r["verdict"] in (verdict.VALID, verdict.ENV)
+            },
+        },
         # 策略庫（M2）用的中間結果：不寫入 JSON
         "_ctx": {"ev": ev, "mk": mk, "uni": uni, "tests": keep, "cfg": c},
     }
+
+
+def stock_states(
+    test: catalog.Test, res: dict[str, Any], mask: np.ndarray, ev: EvData, uni: np.ndarray, H: int
+) -> dict[str, Any]:
+    """個股頁「有效訊號面板」：近 H 個交易日內觸發（代號 → 最近一次訊號日）與今日「接近觸發」的股票。"""
+    T = len(ev.dates)
+    lo = max(0, T - H)
+    trig: dict[str, str] = {}
+    for t in range(lo, T):
+        for i in np.nonzero(mask[t] & uni[t])[0]:
+            trig[ev.codes[i]] = ev.dates[t]
+    near = test.near
+    if near is None and test.near_fn is not None and res.get("grid"):
+        chosen = next(cell for cell in test.grid if cell.key == res["grid"]["chosen"])
+        near = test.near_fn(chosen.params)
+    near_codes = []
+    if near is not None:
+        near_codes = [ev.codes[i] for i in np.nonzero(near[-1] & uni[-1])[0] if ev.codes[i] not in trig]
+    return {"t": trig, "near": near_codes}
 
 
 def run_and_write(ev: EvData, out: Any = None, doc: Any = None) -> dict[str, Any]:

@@ -138,3 +138,42 @@ export function filterRows(rows: EvidenceRow[], f: Filter): EvidenceRow[] {
 }
 
 export const FAMILIES = ['動能', '籌碼', '基本面', '組合'] as const;
+
+// ------------------------------------------------------------------ 個股頁「有效訊號面板」（M3）
+/** evidence_today.json：每個有效／環境依賴指標近期觸發（代號 → 訊號日）與今日接近觸發的股票。 */
+export interface EvidenceToday {
+  date: string;
+  tests: Record<string, { t: Record<string, string>; near: string[] }>;
+}
+
+export type SignalState = 'triggered' | 'near' | 'off';
+export const STATE_TEXT: Record<SignalState, string> = { triggered: '觸發', near: '接近觸發', off: '未觸發' };
+
+export interface PanelItem {
+  row: EvidenceRow;
+  state: SignalState;
+  date: string | null;
+  /** 歷史 10 日（判定持有天數）超額報酬 */
+  excess: number | null;
+}
+
+/** 只列判定為有效或環境依賴的指標，依 t 由高到低；狀態：近期觸發（日期）／今日接近觸發／未觸發。 */
+export function panelItems(rows: EvidenceRow[], today: EvidenceToday | null, code: string, horizon = 10): PanelItem[] {
+  return rows
+    .filter((r) => r.kind === 'event' && isUsable(r.verdict))
+    .sort((a, b) => (b.t ?? -99) - (a.t ?? -99))
+    .map((row) => {
+      const t = today?.tests[row.id];
+      const date = t?.t[code] ?? null;
+      const state: SignalState = date ? 'triggered' : t?.near.includes(code) ? 'near' : 'off';
+      return { row, state, date, excess: row.h?.[String(horizon)]?.mean_excess ?? row.mean_excess ?? null };
+    });
+}
+
+export function panelSummary(items: PanelItem[]): string {
+  const trig = items.filter((i) => i.state === 'triggered').length;
+  const near = items.filter((i) => i.state === 'near').length;
+  if (!items.length) return '目前沒有通過驗證的指標';
+  if (!trig && !near) return `${items.length} 個有效指標都未觸發`;
+  return `${items.length} 個有效指標：觸發 ${trig}・接近 ${near}`;
+}

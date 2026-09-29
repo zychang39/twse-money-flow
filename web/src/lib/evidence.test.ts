@@ -32,3 +32,22 @@ describe('evidence', () => {
     expect(verdictTone('無效')).toBe('plain');
   });
 });
+
+describe('有效訊號面板', () => {
+  it('只列有效與環境依賴的事件型指標，依 t 排序，並判斷狀態', async () => {
+    const { panelItems, panelSummary } = await import('./evidence');
+    const rows = [
+      row('a', '有效', 2.6, { h: { '10': { mean_excess: 0.68 } } }),
+      row('b', '環境依賴', 3.1),
+      row('c', '無效', 5),
+      row('q', '有效', 4, { kind: 'quintile' }),
+    ];
+    const today = { date: '2026-09-24', tests: { a: { t: { '2330': '2026-09-22' }, near: [] }, b: { t: {}, near: ['2330'] } } };
+    const items = panelItems(rows, today, '2330');
+    expect(items.map((i) => [i.row.id, i.state])).toEqual([['b', 'near'], ['a', 'triggered']]);
+    expect(items[1].date).toBe('2026-09-22');
+    expect(items[1].excess).toBe(0.68);
+    expect(panelSummary(items)).toBe('2 個有效指標：觸發 1・接近 1');
+    expect(panelItems(rows, today, '1101').every((i) => i.state === 'off')).toBe(true);
+  });
+});

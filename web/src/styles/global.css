@@ -615,7 +615,7 @@ table.table tbody tr td:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0;
 .cd-h { display: block; white-space: normal; font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); color: var(--text-1); }
 .cd-sub { display: block; font-size: calc(var(--fs-micro) * var(--dt)); line-height: calc(var(--lh-micro) * var(--dt)); color: var(--text-2); font-weight: var(--fw-regular); margin-top: 0.125rem; }
 .cd-date { display: block; font-size: calc(var(--fs-body) * var(--dt)); line-height: calc(var(--lh-body) * var(--dt)); color: var(--text-1); font-weight: var(--fw-medium); }
-.cd-v { position: relative; font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+.cd-v { position: relative; font-size: calc(var(--cd-fs, 0.9375rem) * var(--dt)); line-height: calc(1.25rem * var(--dt)); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
 /* v3：每日籌碼列高約 52pt；分隔線從文字起點開始（inset，第一格從左內距起算） */
 .cd-table tbody th, .cd-table tbody td { height: var(--tap); box-shadow: inset 0 -0.5px 0 var(--surface-row); }
 .chip-daily .cd-table tbody th, .chip-daily .cd-table tbody td { height: var(--row-table); box-shadow: inset 0 -0.5px 0 var(--surface-row); }
@@ -848,3 +848,8 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 .bt-stats span { white-space: nowrap; }
 .bt-stats b { font-weight: var(--fw-medium); }
 .st-entry { background: var(--surface-1); border-radius: var(--r-card); margin-top: var(--s-4); min-height: var(--tap); }
+/* M3：區間統計的單位只在右上角顯示一次 */
+.cs-unit { text-align: right; color: var(--text-1); font-weight: var(--fw-medium); margin-top: var(--s-2); }
+/* M3.4 分段更新狀態列：逾時用琥珀（風險），其他中性 */
+.stage-line { margin-top: 0; }
+.stage.late { color: var(--risk); }

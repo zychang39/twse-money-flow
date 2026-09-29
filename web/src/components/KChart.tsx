@@ -1,5 +1,5 @@
 /** K 線（原始／還原切換）＋ 成交量 ＋ 下方指標面板。使用 TradingView lightweight-charts v5。
- * 成交量與下方指標的座標軸、數值標籤都帶單位（張數不顯示小數，1 萬張以上縮寫為萬張）；
+ * 成交量與下方指標的座標軸、數值標籤都帶單位（張數為完整的千分位整數（不縮寫））；
  * 手指拖曳或滑鼠移動時，圖上方的讀數顯示該日日期、價格、成交量與下方指標（含單位）。 */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { dirClass, fmtLotsUnit, fmtPrice } from '../lib/format';
@@ -18,7 +18,7 @@ export interface ValuePoint { time: string; value: number; color?: string }
 export interface Overlay { label: string; color: string; data: ValuePoint[] }
 export interface LowerPanel { label: string; kind: 'histogram' | 'line'; data: ValuePoint[]; signed?: boolean; unit?: string }
 
-/** 依單位格式化：張 → 整數＋萬張縮寫；% → 1 位小數；倍 → 1 位小數。 */
+/** 依單位格式化：張 → 完整的千分位整數；% → 1 位小數；倍 → 1 位小數。 */
 export function formatUnit(v: number, unit: string | undefined, signed = false): string {
   if (!Number.isFinite(v)) return '—';
   if (unit === '張') return fmtLotsUnit(v, signed);

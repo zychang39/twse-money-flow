@@ -23,8 +23,10 @@ log = logging.getLogger("pipeline")
 
 # 排程字串 → 任務（與 .github/workflows/data.yml 的 cron 對應）
 SCHEDULE_TASKS = {
-    "30 9 * * 1-5": "daily",
-    "30 13 * * 1-5": "daily",
+    # M3.4 分段更新（config/schedule.yml）：14:15 收盤行情、15:30 法人、21:30 信用（台北）
+    "15 6 * * 1-5": "stage:close",
+    "30 7 * * 1-5": "stage:insti",
+    "30 13 * * 1-5": "stage:credit",
     "0 2 * * 6": "periodic",
     "0 3 11 * *": "periodic",
     "0 3 16 5,8,11 *": "periodic",
@@ -78,6 +80,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         return cmd_alerts(args)
     if task == "resume":
         return cmd_resume(args)
+    stage = None
+    if task.startswith("stage:"):
+        task, stage = "stage", task.split(":", 1)[1]
+    elif task == "stage":
+        stage = getattr(args, "stage", "") or "credit"
     sources = [s.strip() for s in (args.source or "").split(",") if s.strip()] or None
     store = DataStore(args.data_dir)
     ctx = tasks.RunContext(store=store, client=PoliteClient.from_config(), now=now_tpe())
@@ -90,6 +97,13 @@ def cmd_run(args: argparse.Namespace) -> int:
         if task == "daily":
             tasks.task_daily(ctx, sources)
             deploy = "true"
+        elif task == "stage":
+            from pipeline.stages import run_stage
+
+            extra = run_stage(ctx, str(stage))
+            deploy = "true"
+        elif task == "probe":
+            extra = run_probe(ctx, args)
         elif task == "periodic":
             tasks.task_periodic(ctx, sources)
             deploy = "true"
@@ -146,7 +160,12 @@ def cmd_run(args: argparse.Namespace) -> int:
     # 每日任務的最後一次（台北 20:30 後）部署完成時推播 Telegram 日報。
     # E-06：今天休市（或同一交易日已推播過）不推播，避免重送前一個交易日的內容
     digest = "false"
-    if task == "daily" and ctx.is_final_run:
+    stage_digest = False
+    if task == "stage":
+        from pipeline.stages import schedule
+
+        stage_digest = bool(schedule()["stages"][str(stage)].get("digest"))
+    if (task == "daily" and ctx.is_final_run) or stage_digest:
         target = ctx.manifest.get("last_target_date")
         if should_send_digest(target, ctx.today.isoformat(), ctx.manifest.get("digest_date")):
             digest = "true"
@@ -160,6 +179,35 @@ def cmd_run(args: argparse.Namespace) -> int:
         remaining=extra.get("remaining", 0),
     )
     return 0
+
+
+def run_probe(ctx: Any, args: argparse.Namespace) -> dict[str, object]:
+    """M3.4 公布時間實測（task=probe）：等到 13:30 開始探測；每個 job 最多約 5.5 小時，未完成就觸發下一段接續。"""
+    from datetime import timedelta
+
+    from pipeline import probe, tasks
+    from pipeline.notify.github import dispatch_workflow
+
+    tasks.load_calendar(ctx, [ctx.today.year], fetch_missing=False)
+    today = now_tpe().date()
+    if not ctx.calendar.is_trading_day(today):
+        return {"probe": "休市"}
+    start = probe._at(today, "13:30")
+    job_end = now_tpe() + timedelta(minutes=330)
+    ref = os.environ.get("GITHUB_REF_NAME", "main")
+    if now_tpe() < start:
+        wait = min((start - now_tpe()).total_seconds(), 300 * 60)
+        log.info("公布時間實測：等待 %.0f 分鐘", wait / 60)
+        time.sleep(wait)
+        if now_tpe() < start:
+            ok = dispatch_workflow("data.yml", {"task": "probe"}, ref=ref) if args.chain else False
+            return {"probe": "等待中", "chained": ok}
+    found = probe.probe_day(ctx, today, deadline=job_end)
+    left = len(probe.EXPECTED) - len(found)
+    chained = False
+    if left and now_tpe() < probe._at(today, probe.END) and args.chain:
+        chained = dispatch_workflow("data.yml", {"task": "probe"}, ref=ref)
+    return {"probe": found, "remaining": left, "chained": chained}
 
 
 class _Deferred(Exception):
@@ -363,6 +411,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--max-minutes", type=float, default=0, help="時間預算（回補用）")
     run.add_argument("--chain", action="store_true", help="回補未完成時自動觸發下一輪")
     run.add_argument("--refresh", default="", help="回補時重抓已存在的每日型檔案（true／false；需指定 --source）")
+    run.add_argument("--stage", default="", help="分段更新：close／insti／credit（config/schedule.yml）")
     run.set_defaults(func=cmd_run)
 
     for name in ("daily", "periodic", "backfill", HOLDERS_TASK):

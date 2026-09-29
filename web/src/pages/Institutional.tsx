@@ -39,11 +39,10 @@ const TABS: Tab[] = PARTIES;
 const TAB_NAME: Record<Tab, string> = PARTY_NAME;
 
 const INT = numberFormat(0);
-/** 座標軸：≥ 1 萬寫成「1.2萬」 */
+/** 座標軸：完整的千分位整數（M3：不縮寫成萬） */
 function axisLots(v: number): string {
-  const a = Math.abs(v);
-  const s = a >= 1e4 ? `${Number((a / 1e4).toFixed(a >= 1e5 ? 0 : 1))}萬` : INT.format(Math.round(a));
-  return v < 0 && s !== '0' ? `−${s}` : s;
+  const s = INT.format(Math.round(Math.abs(v)));
+  return v < 0 && s !== '0' ? `\u2212${s}` : s;
 }
 
 /** 日期下方的小字：「548.0 ▼1.3%」（漲跌取 1 位小數，窄欄也放得下） */
@@ -120,8 +119,8 @@ export default function Institutional({ code }: { code: string }) {
         format: axisLots, tipFormat: (v) => lotsUnit(v), zero: true,
       });
     }
-    panels.push({ id: 'net', title: '每日買賣超（張）', kind: 'bars', height: 96, series: [{ key: 'net', label: '買賣超', values: rows.map((r) => r.net) }], format: axisLots, tipFormat: (v) => `${signedLots(v).text.endsWith('萬') ? `${signedLots(v).text}張` : `${signedLots(v).text} 張`}` });
-    panels.push({ id: 'cum', title: '累計買賣超（張）', kind: 'lines', height: 72, series: [{ key: 'cum', label: '累計', values: rows.map((r) => r.cum) }], format: axisLots, tipFormat: (v) => `${signedLots(v).text.endsWith('萬') ? `${signedLots(v).text}張` : `${signedLots(v).text} 張`}`, zero: true });
+    panels.push({ id: 'net', title: '每日買賣超（張）', kind: 'bars', height: 96, series: [{ key: 'net', label: '買賣超', values: rows.map((r) => r.net) }], format: axisLots, tipFormat: (v) => `${signedLots(v).text} 張` });
+    panels.push({ id: 'cum', title: '累計買賣超（張）', kind: 'lines', height: 72, series: [{ key: 'cum', label: '累計', values: rows.map((r) => r.cum) }], format: axisLots, tipFormat: (v) => `${signedLots(v).text} 張`, zero: true });
   }
 
   async function copy(text: string, ok: string) {

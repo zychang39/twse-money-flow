@@ -35,3 +35,10 @@
 .st-actions .btn { min-height: var(--tap); }
 .st-actions p { flex-basis: 100%; margin: 0; }
 .lv-input { font-variant-numeric: tabular-nums; }
+/* 有效訊號面板（M3） */
+.sp { margin-top: var(--s-3); }
+.sp-skel { min-height: 12rem; margin-top: var(--s-3); }
+.sp-state { flex: none; font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); text-align: right; font-variant-numeric: tabular-nums; }
+.sp-state.triggered { color: var(--text-1); font-weight: var(--fw-semibold); }
+.sp-state.near { color: var(--text-1); }
+.sp-date { font-weight: var(--fw-regular); color: var(--text-2); }

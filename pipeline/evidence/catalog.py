@@ -39,6 +39,9 @@ class Test:
     note: str = ""
     breakout_level: np.ndarray | None = None
     horizons_focus: list[int] = field(default_factory=list)
+    # 個股頁「有效訊號面板」的「接近觸發」（M3）：near＝固定遮罩；near_fn＝依選定參數產生（參數格指標）
+    near: np.ndarray | None = None
+    near_fn: Any = None
 
 
 def _grid(dims: dict[str, list[Any]], make: Any) -> list[Cell]:
@@ -445,6 +448,8 @@ def build(ev: Any, f: dict[str, Any], p: dict[str, Any], universe: np.ndarray) -
         )
     )
 
+    _attach_near(tests, ev, f, p)
+
     # 1.6 分組檢定
     for tid, label, data, vals, note in (
         ("q_rs", "RS 百分位", "price", rs, ""),
@@ -486,3 +491,35 @@ def _cross_strict(x: np.ndarray, level: float) -> np.ndarray:
 
 def asof_chg4(ev: Any) -> np.ndarray:
     return np.asarray(ev.whale_chg4)
+
+
+def _attach_near(tests: list[Test], ev: Any, f: dict[str, Any], p: dict[str, Any]) -> None:
+    """「接近觸發」的定義（事先決定；只用來顯示個股目前狀態，不影響評估）。"""
+    by = {t.id: t for t in tests}
+    with np.errstate(invalid="ignore", divide="ignore"):
+        rs, h, bs, kv = f["rs_pct"], f["h52"], f["bias20"], f["K"]
+        by["rs90"].near = (rs >= 85) & (rs < 90)  # RS 百分位 85–90
+        by["high52"].near = (h >= 0.93) & (h < 0.95)  # 距 52 週高點 5–7%
+        for n in p["breakout_n"]:
+            level = ind.shift(ind.rolling(ev.close, int(n), "max"), 1)
+            by[f"breakout{n}"].near = (ev.close >= level * 0.98) & (ev.close <= level)  # 收盤在前 N 日高點 2% 內
+        by["bias15"].near = (bs >= 0.12) & (bs <= 0.15)
+        rl = ind.run_length(kv >= float(p["kd_high"]))
+        by["kd_run"].near = (rl >= 3) & (rl < int(p["kd_run"]))
+        by["kd_drop"].near = (rl >= int(p["kd_run"])) & (kv < 85)
+        hist = f["hist"]
+        by["macd"].near = (hist <= 0) & (hist > ind.shift(hist, 1)) & (ind.shift(hist, 1) > ind.shift(hist, 2))
+        for key, net in (("trust_run", f["trust"]), ("foreign_run", f["foreign"])):
+            run = ind.run_length(net > 0)
+            by[key].near_fn = lambda prm, run=run: run == int(prm["n"]) - 1
+        f5 = ind.rolling(f["foreign"], 5, "sum")
+        t5 = ind.rolling(f["trust"], 5, "sum")
+        by["sync"].near = ((f5 > 0) & (t5 <= 0)) | ((t5 > 0) & (f5 <= 0))  # 只有一方買超
+        by["margin_up_up"].near = (ind.ret(ev.close, 5) >= 0.02) & (ev.margin / ind.shift(ev.margin, 5) - 1 >= 0.02)
+        by["margin_up_down"].near = (ind.ret(ev.close, 5) >= 0.02) & (ev.margin / ind.shift(ev.margin, 5) - 1 <= -0.02)
+        wc = f["whale_chg_asof"]
+        by["whale_up"].near_fn = lambda prm: (wc > 0) & (wc < float(prm["門檻"]))
+        rs80 = rs >= float(p["combo_rs"])
+        trun = ind.run_length(f["trust"] > 0) >= int(p["combo_trust_run"])
+        by["combo_rs_trust"].near = rs80 ^ trun  # 只成立一個條件
+        by["combo_rs_rev"].near = rs80 ^ (f["rev_accel_asof"] >= 1)

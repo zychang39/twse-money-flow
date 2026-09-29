@@ -73,7 +73,7 @@ export function Rings3({ progress, complete, animate }: { progress: number[]; co
 }
 
 /** 法人淨買賣超柱狀圖：淨買超紅、淨賣超綠（台股慣例）；最近 5 日不透明，其餘略淡。
- * 座標軸與數值標籤都帶單位（預設張，1 萬張以上縮寫為萬張）；手指拖曳、滑鼠移動或方向鍵可逐日查看日期與數值。 */
+ * 座標軸與數值標籤都帶單位（預設張，完整的千分位整數）；手指拖曳、滑鼠移動或方向鍵可逐日查看日期與數值。 */
 export function NetBars({ values, dates, label, height = 120, unit = '張', format = fmtLotsUnit, caption, words = ['淨買超', '淨賣超'], emphasizeRecent = true }: {
   values: (number | null)[];
   dates?: string[];
@@ -81,7 +81,7 @@ export function NetBars({ values, dates, label, height = 120, unit = '張', form
   height?: number;
   /** 單位名稱（無障礙說明用） */
   unit?: string;
-  /** 數值＋單位的格式（例：fmtLotsUnit → −4.0 萬張） */
+  /** 數值＋單位的格式（例：fmtLotsUnit → −40,123 張） */
   format?: (v: number | null | undefined, sign?: boolean) => string;
   caption?: string;
   /** 正、負的說法（提示框與圖例）；預設「淨買超／淨賣超」，營收年增率等用「成長／衰退」 */

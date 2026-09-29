@@ -4,6 +4,7 @@
  */
 import type { ComponentChildren } from 'preact';
 import { useAsync } from '../hooks';
+import { stageItems } from '../lib/stages';
 import { loadMeta } from '../data/api';
 import { dataPhase, makeCalendar } from '../lib/tradingCalendar';
 import { affectedFor } from '../lib/health';
@@ -35,7 +36,7 @@ export function DataStatus({ date, extra, uses }: { date?: string | null; extra?
     <>
       <p class="meta-line">
         {phase === 'holiday' ? <span class="meta-phase" title="休市日不會中斷你的連續天數"><IconMoonRest />今天休市・</span> : null}
-        {phase === 'pending' ? <span class="meta-phase" title="通常在 17:30 與 21:30 更新"><IconClock />今天的資料尚未更新・</span> : null}
+        {phase === 'pending' ? <span class="meta-phase" title="分段更新：14:15 收盤行情、15:30 法人、21:30 信用"><IconClock />今天的資料尚未更新・</span> : null}
         {meta.data.demo ? <span class="meta-demo w6">示範資料（合成數據）・</span> : null}
         資料至 {md(d)} 收盤{genText ? `・${genText} 更新` : ''}{extra ? <>・{extra}</> : null}
         {failed ? <>・<a class="meta-alert" href="#/me/health">{failed} 個資料源異常</a></> : null}
@@ -107,5 +108,20 @@ export function Accumulating({ what, since, detail }: { what: string; since?: st
     <Banner icon={<IconSeed />} title={`${what}資料累積中`}>
       {since ? `自 ${since} 開始累積。` : ''}{detail ?? '累積足夠期間後才會計入分數或顯示趨勢。'}
     </Banner>
+  );
+}
+
+/** M3.4：今晚頁狀態列顯示分段更新（收盤行情、法人、信用）各段的狀態。 */
+export function StageStatus() {
+  const meta = useAsync(loadMeta, []);
+  if (!meta.data?.schedule) return null;
+  const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+  const items = stageItems(meta.data, today);
+  return (
+    <p class="meta-line stage-line" data-testid="stage-status" aria-label="今日分段更新">
+      {items.map((s, i) => (
+        <span key={s.id} class={`stage ${s.state}`}>{i ? '・' : ''}{s.label} {s.text}</span>
+      ))}
+    </p>
   );
 }

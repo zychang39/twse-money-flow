@@ -154,18 +154,20 @@ const INT = numberFormat(0);
 export function metricText(v: N, m: Metric): string {
   if (v === null) return '—';
   if (m === 'pct') return `${F2.format(v)}%`;
-  if (m === 'holders') return Math.abs(v) >= 1e5 ? `${F1.format(v / 1e4)}\u00a0萬人` : `${INT.format(Math.round(v))} 人`;
-  return `${v >= 100 ? INT.format(Math.round(v)) : F1.format(v)} 張`;
+  if (m === 'holders') return `${INT.format(Math.round(v))} 人`;
+  return `${INT.format(Math.round(v))} 張`;
 }
 
 /** 變化：比例為「個百分點」，人數為「人」與 %，人均為「張」。 */
 export function changeText(v: N, m: Metric): string {
   if (v === null) return '—';
-  const arrow = v > 0 ? '▲' : v < 0 ? '▼' : '';
   const a = Math.abs(v);
+  // 四捨五入後為 0 → 不帶箭頭（M3：不出現 ▲0）
+  const shown = m === 'pct' ? Number(a.toFixed(2)) : Math.round(a);
+  const arrow = shown === 0 ? '' : v > 0 ? '▲' : '▼';
   if (m === 'pct') return `${arrow}${F2.format(a)} 個百分點`;
-  if (m === 'holders') return `${arrow}${INT.format(Math.round(a))} 人`;
-  return `${arrow}${F1.format(a)} 張`;
+  if (m === 'holders') return `${arrow}${INT.format(shown)} 人`;
+  return `${arrow}${INT.format(shown)} 張`;
 }
 
 /**
@@ -217,14 +219,55 @@ export function alignClose(weeks: string[], d: string[], c: N[]): N[] {
 }
 
 // ------------------------------------------------------------------ v3：全站統一的四級（籌碼結構）
+/**
+ * M3：最上面一段的門檻在顯示層可選 400／800／1,000 張（設定頁；localStorage `tmf-whale-tier`，預設 1,000）。
+ * 回測、選股、指標效度評估固定用 1,000 張（pipeline 另外預先算好 400／800 張的比例與週變化）。
+ */
+export type WhaleTier = 400 | 800 | 1000;
+export const WHALE_TIERS: WhaleTier[] = [400, 800, 1000];
+export const WHALE_KEY = 'tmf-whale-tier';
+export const WHALE_EVENT = 'tmf-whale-tier';
+/** 回測與選股固定使用的門檻 */
+export const BACKTEST_WHALE: WhaleTier = 1000;
+
+export function getWhaleTier(): WhaleTier {
+  try {
+    const v = Number(localStorage.getItem(WHALE_KEY));
+    return (WHALE_TIERS as number[]).includes(v) ? (v as WhaleTier) : 1000;
+  } catch {
+    return 1000;
+  }
+}
+
+export function setWhaleTier(v: WhaleTier): void {
+  try { localStorage.setItem(WHALE_KEY, String(v)); } catch { /* 無痕模式 */ }
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(WHALE_EVENT));
+}
+
+/** 目前的四級門檻（最上面一段依設定）。 */
+export function tiers(whale: WhaleTier = getWhaleTier()): { retail_max: number; big_min: number; whale_min: number } {
+  return { ...uiConfig.holders.tiers, whale_min: whale };
+}
+/** 舊名稱（預設 1,000 張）；畫面請用 tiers() */
 export const TIERS = uiConfig.holders.tiers;
 export type Tier = 'retail' | 'mid' | 'big' | 'whale';
 export const TIER_ORDER: Tier[] = ['retail', 'mid', 'big', 'whale'];
+
+/** 段名：最上面一段 1,000 張叫「千張大戶」，其他寫「800 張大戶」「400 張大戶」。 */
+export function tierName(t: Tier, whale: WhaleTier = getWhaleTier()): string {
+  if (t === 'whale') return whale === 1000 ? '千張大戶' : `${LOTS.format(whale)} 張大戶`;
+  return { retail: '散戶', mid: '中實戶', big: '大戶' }[t];
+}
 export const TIER_NAME: Record<Tier, string> = { retail: '散戶', mid: '中實戶', big: '大戶', whale: '千張大戶' };
 
-/** 比例條上各段的範圍（互斥）：大戶段不含千張大戶。 */
-export function tierRange(t: Tier): string {
-  const { retail_max: r, big_min: b, whale_min: w } = TIERS;
+/** 目前門檻下實際出現的段（門檻 400 時「大戶」段與最上面一段重合，不另列）。 */
+export function tierOrder(whale: WhaleTier = getWhaleTier()): Tier[] {
+  return whale <= tiers(whale).big_min ? ['retail', 'mid', 'whale'] : TIER_ORDER;
+}
+
+/** 比例條上各段的範圍（互斥）：大戶段不含最上面一段。 */
+export function tierRange(t: Tier, whale: WhaleTier = getWhaleTier()): string {
+  const { retail_max: r, big_min: b, whale_min: w } = tiers(whale);
   if (t === 'retail') return `≤ ${LOTS.format(r)} 張`;
   if (t === 'mid') return `${LOTS.format(r)}–${LOTS.format(b)} 張`;
   if (t === 'big') return `${LOTS.format(b)}–${LOTS.format(w)} 張`;
@@ -232,27 +275,30 @@ export function tierRange(t: Tier): string {
 }
 
 /** 畫面上的定義句：「散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 ≥ 400 張（含千張大戶）｜千張大戶 ≥ 1,000 張」 */
-export function tierDefinition(): string {
-  return `散戶 ${tierRange('retail')}｜中實戶 ${tierRange('mid')}｜大戶 ${bigLabel(TIERS.big_min)}（含千張大戶）｜千張大戶 ${tierRange('whale')}`;
+export function tierDefinition(whale: WhaleTier = getWhaleTier()): string {
+  const t = tiers(whale);
+  if (whale <= t.big_min) return `散戶 ${tierRange('retail', whale)}｜中實戶 ${tierRange('mid', whale)}｜${tierName('whale', whale)} ${tierRange('whale', whale)}`;
+  return `散戶 ${tierRange('retail', whale)}｜中實戶 ${tierRange('mid', whale)}｜大戶 ${bigLabel(t.big_min)}（含${tierName('whale', whale)}）｜${tierName('whale', whale)} ${tierRange('whale', whale)}`;
 }
 
 /** 分級（1–15）→ 比例條上的段（互斥）。 */
-export function tierOf(level: number): Tier {
-  if (level <= smallMaxLevel(TIERS.retail_max)) return 'retail';
-  if (level >= bigMinLevel(TIERS.whale_min)) return 'whale';
-  if (level >= bigMinLevel(TIERS.big_min)) return 'big';
+export function tierOf(level: number, whale: WhaleTier = getWhaleTier()): Tier {
+  const t = tiers(whale);
+  if (level <= smallMaxLevel(t.retail_max)) return 'retail';
+  if (level >= bigMinLevel(t.whale_min)) return 'whale';
+  if (level >= bigMinLevel(t.big_min)) return 'big';
   return 'mid';
 }
 
 /** 某一週四段的合計（比例、人數、人均張數；任一分級缺值 → 該段 null）。 */
-export function tierWeek(b: HolderBlock, w: number): Record<Tier, GroupWeek> {
+export function tierWeek(b: HolderBlock, w: number, whale: WhaleTier = getWhaleTier()): Record<Tier, GroupWeek> {
   const out = {} as Record<Tier, GroupWeek>;
   for (const t of TIER_ORDER) {
     let pct = 0;
     let holders = 0;
     let bad = false;
     for (let lv = 1; lv <= 15; lv++) {
-      if (tierOf(lv) !== t) continue;
+      if (tierOf(lv, whale) !== t) continue;
       const p = b.p[lv - 1]?.[w] ?? null;
       const n = b.n[lv - 1]?.[w] ?? null;
       if (p === null || n === null) { bad = true; break; }
@@ -275,11 +321,11 @@ export interface TierStat {
 }
 
 /** 最新一週四段的比例、週變化與連續週數。 */
-export function tierStats(b: HolderBlock): TierStat[] {
+export function tierStats(b: HolderBlock, whale: WhaleTier = getWhaleTier()): TierStat[] {
   const n = b.d.length;
   if (!n) return [];
-  const weeks = Array.from({ length: n }, (_, w) => tierWeek(b, w));
-  return TIER_ORDER.map((t) => {
+  const weeks = Array.from({ length: n }, (_, w) => tierWeek(b, w, whale));
+  return tierOrder(whale).map((t) => {
     const pct = weeks[n - 1][t].pct;
     const prev = n >= 2 ? weeks[n - 2][t].pct : null;
     let streak = 0;
@@ -298,13 +344,14 @@ export function tierStats(b: HolderBlock): TierStat[] {
 }
 
 /** 一句話結論：「千張大戶本週 +0.30 個百分點，連 3 週增加」（只有 1 週 → 只寫目前比例）。 */
-export function structureSentence(b: HolderBlock): string {
-  const st = tierStats(b);
-  const whale = st.find((s) => s.tier === 'whale');
-  if (!whale || whale.pct === null) return '集保資料累積中';
-  if (whale.change === null) return `千張大戶持股 ${F2.format(whale.pct)}%（目前只有 1 週資料，下週起可比較週變化）`;
-  const d = whale.change;
-  if (Math.abs(d) < 0.005) return `千張大戶本週持平（${F2.format(whale.pct)}%）`;
-  const k = Math.abs(whale.streak);
-  return `千張大戶本週 ${d > 0 ? '+' : '−'}${F2.format(Math.abs(d))} 個百分點${k >= 2 ? `，連 ${k} 週${d > 0 ? '增加' : '減少'}` : ''}`;
+export function structureSentence(b: HolderBlock, whale: WhaleTier = getWhaleTier()): string {
+  const st = tierStats(b, whale);
+  const name = tierName('whale', whale);
+  const top = st.find((s) => s.tier === 'whale');
+  if (!top || top.pct === null) return '集保資料累積中';
+  if (top.change === null) return `${name}持股 ${F2.format(top.pct)}%（目前只有 1 週資料，下週起可比較週變化）`;
+  const d = top.change;
+  if (Math.abs(d) < 0.005) return `${name}本週持平（${F2.format(top.pct)}%）`;
+  const k = Math.abs(top.streak);
+  return `${name}本週 ${d > 0 ? '+' : '−'}${F2.format(Math.abs(d))} 個百分點${k >= 2 ? `，連 ${k} 週${d > 0 ? '增加' : '減少'}` : ''}`;
 }

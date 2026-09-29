@@ -173,17 +173,14 @@ export function buySellSince(rows: ReportRow[]): string | null {
 
 const INT = numberFormat(0);
 
-/** 張數文字：≥ 100,000 縮寫為「12.3 萬」；其餘千分位整數。 */
+/** 張數文字：完整的千分位整數（M3：不縮寫成萬）。 */
 export function lotsText(v: number): string {
-  const a = Math.abs(v);
-  if (a >= 1e5) return `${(a / 1e4).toFixed(a >= 1e6 ? 0 : 1)}\u00a0萬`;
-  return INT.format(Math.round(a));
+  return INT.format(Math.round(Math.abs(v)));
 }
 
-/** 張數加單位：「12,345 張」「15.1 萬張」 */
+/** 張數加單位：「12,345 張」「1,234,567 張」 */
 export function lotsUnit(v: number): string {
-  const t = lotsText(v);
-  return t.endsWith('萬') ? `${t}張` : `${t} 張`;
+  return `${lotsText(v)} 張`;
 }
 
 /** 有正負的張數：▲／▼＋絕對值（四捨五入後為 0 → 不加符號）。 */

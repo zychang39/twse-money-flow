@@ -17,8 +17,8 @@ import {
   type HolderBlock,
   LEVEL_LABEL,
   LEVEL_SHORT,
-  TIER_NAME,
-  TIER_ORDER,
+  tierName,
+  tierOrder,
   metricText,
   structureSentence,
   tierDefinition,
@@ -57,7 +57,7 @@ export default function Holders({ code }: { code: string }) {
         </Banner>
       ) : (
         <>
-          <p class="caption muted" data-testid="hd-definition">分級：{tierDefinition()}。</p>
+          <p class="caption muted" data-testid="hd-definition">分級：{tierDefinition()}。回測與選股固定使用 1,000 張。</p>
           <StructureBar block={block} />
           <HolderTrend block={block} d={h!.d} c={h!.c as (number | null)[]} name={h?.name ?? code} />
 
@@ -76,7 +76,7 @@ export default function Holders({ code }: { code: string }) {
               <thead>
                 <tr><th scope="col" class="cd-dh">持股分級（張）</th><th scope="col"><span class="cd-h">人數</span></th><th scope="col"><span class="cd-h">比例</span></th><th scope="col"><span class="cd-h">變化</span></th></tr>
               </thead>
-              {TIER_ORDER.map((t) => {
+              {tierOrder().map((t) => {
                 const levels = Array.from({ length: 15 }, (_, i) => i + 1).filter((lv) => tierOf(lv) === t);
                 const a = now![t];
                 const b = then![t];
@@ -84,7 +84,7 @@ export default function Holders({ code }: { code: string }) {
                 return (
                   <tbody key={t} class={`hd-sec ${t}`}>
                     <tr class="total">
-                      <th scope="rowgroup"><span class="cd-date">{TIER_NAME[t]}</span><span class="cd-sub">{tierRange(t)}</span></th>
+                      <th scope="rowgroup"><span class="cd-date">{tierName(t)}</span><span class="cd-sub">{tierRange(t)}</span></th>
                       <td class="cd-v">{metricText(a.holders, 'holders').replace(' 人', '')}</td>
                       <td class="cd-v">{a.pct === null ? '—' : `${F2.format(a.pct)}%`}</td>
                       <td class={`cd-v ${sd.cls}`}>{sd.text}</td>

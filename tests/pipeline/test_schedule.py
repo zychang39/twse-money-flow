@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -278,3 +278,103 @@ def test_holders_stalled():
     assert not holders_stalled({"remaining": 10, "updated_at": "2026-10-01T21:00+08:00"}, now)
     assert not holders_stalled({"remaining": 0, "updated_at": "2026-09-01T00:00+08:00"}, now)
     assert not holders_stalled({}, now)
+
+
+def test_schedule_yml_crons_match_stage_tasks():
+    """M3.4：config/schedule.yml 的每段 cron 與 SCHEDULE_TASKS 的 stage:* 一致。"""
+    from pipeline.cli import SCHEDULE_TASKS
+    from pipeline.stages import schedule
+
+    stages = {v["cron"]: f"stage:{k}" for k, v in schedule()["stages"].items()}
+    assert {c: t for c, t in SCHEDULE_TASKS.items() if t.startswith("stage:")} == stages
+
+
+def test_run_stage_retries_until_published_and_records_time(tmp_path, monkeypatch):
+    """未公布 → 每 5 分鐘重試；第 3 次看到資料 → done，記錄公布時間（5 分鐘粒度）與分段狀態。"""
+    import pandas as pd
+
+    from pipeline import stages, tasks
+    from tests.pipeline.test_tasks import make_ctx
+
+    now = datetime(2026, 9, 29, 14, 15, tzinfo=TPE)
+    ctx = make_ctx(tmp_path, {}, now=now)
+    calls = {"n": 0}
+
+    def fake_daily(c, sources=None):
+        calls["n"] += 1
+        if calls["n"] >= 3:  # 第 3 次（14:25）才公布
+            for s in ("twse_quotes", "tpex_quotes"):
+                c.store.write(s, now.date(), pd.DataFrame({"code": ["2330"], "close": [1.0]}))
+
+    monkeypatch.setattr(tasks, "task_daily", fake_daily)
+    t = {"v": 0.0}
+    slept: list[float] = []
+    stamps = iter([now + timedelta(minutes=5 * i) for i in range(20)])
+    res = stages.run_stage(
+        ctx,
+        "close",
+        sleep=lambda s: (slept.append(s), t.__setitem__("v", t["v"] + s)),
+        clock=lambda: t["v"],
+        now=lambda: next(stamps),
+    )
+    assert res["status"] == "done" and calls["n"] == 3 and slept == [300.0, 300.0]
+    assert ctx.manifest["publish_times"]["twse_quotes"] == [{"date": "2026-09-29", "at": "14:25"}]
+    assert ctx.manifest["stages"]["date"] == "2026-09-29" and ctx.manifest["stages"]["close"]["status"] == "done"
+
+
+def test_run_stage_gives_up_after_60_minutes(tmp_path, monkeypatch):
+    from pipeline import stages, tasks
+    from tests.pipeline.test_tasks import make_ctx
+
+    ctx = make_ctx(tmp_path, {}, now=datetime(2026, 9, 29, 15, 30, tzinfo=TPE))
+    monkeypatch.setattr(tasks, "task_daily", lambda c, sources=None: None)
+    t = {"v": 0.0}
+    res = stages.run_stage(
+        ctx,
+        "insti",
+        sleep=lambda s: t.__setitem__("v", t["v"] + s),
+        clock=lambda: t["v"],
+        now=lambda: datetime(2026, 9, 29, 16, 30, tzinfo=TPE),
+    )
+    assert res["status"] == "late" and res["waited"] == 60
+    assert ctx.manifest["stages"]["insti"]["status"] == "late"
+
+
+def test_publish_summary_median():
+    from pipeline.derive.export import publish_summary
+
+    rows = [{"date": f"2026-10-{d:02d}", "at": t} for d, t in [(1, "14:25"), (2, "14:20"), (5, "14:35")]]
+    assert publish_summary(rows) == {"median": "14:25", "earliest": "14:20", "latest": "14:35", "days": 3}
+    assert publish_summary([]) is None
+
+
+def test_probe_day_records_first_seen_time():
+    """公布時間實測：每 5 分鐘探測；只在預估時間前 30 分鐘後才探測；看到後停止探測該來源。"""
+    from datetime import date
+
+    from pipeline import probe
+
+    class Ctx:
+        def __init__(self):
+            self.manifest: dict = {}
+
+    d = date(2026, 9, 30)
+    t = {"now": datetime(2026, 9, 30, 13, 30, tzinfo=TPE)}
+    asked: list[tuple[str, str]] = []
+
+    def check(ctx, src, day):
+        asked.append((src, t["now"].strftime("%H:%M")))
+        return t["now"] >= datetime(2026, 9, 30, 14, 20, tzinfo=TPE) if src == "twse_quotes" else src != "twse_margin"
+
+    def sleep(s):
+        t["now"] += timedelta(seconds=s)
+
+    ctx = Ctx()
+    found = probe.probe_day(
+        ctx, d, sleep=sleep, now=lambda: t["now"], deadline=datetime(2026, 9, 30, 15, 0, tzinfo=TPE), check=check
+    )
+    assert found["twse_quotes"] == "14:20"
+    assert "twse_margin" not in found  # 21:00 − 30 分鐘前不探測
+    assert all(s != "twse_margin" for s, _ in asked)
+    assert sum(1 for s, _ in asked if s == "twse_quotes") == 11  # 13:30–14:20 每 5 分鐘
+    assert ctx.manifest["publish_probe"]["2026-09-30"]["twse_quotes"] == "14:20"

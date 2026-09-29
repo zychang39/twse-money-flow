@@ -12,7 +12,6 @@ import {
   type ColFormat,
   type Unit,
   UNIT_LABEL,
-  UNIT_NAME,
   VIEWS,
   VIEW_COLS,
   VIEW_LABEL,
@@ -22,7 +21,6 @@ import {
   cellText,
   chipRows,
   viewFormats,
-  LOT_SUFFIX,
   tableUnitLabel,
   colStreak,
   colTotal,
@@ -76,8 +74,7 @@ export function ChipStats({ block, sharesOut }: { block: ChipBlock; sharesOut: n
   const s = useMemo(() => rangeStats(block, days, sharesOut), [block, days, sharesOut]);
   // U-04：單位放在列標題下方的小字（不放括號、不讓單位被擠到下一行）
   const rows: { label: string; unit?: string; name?: string; cell: (p: (typeof s.parties)[number]) => ComponentChildren }[] = [
-    { label: '買賣超', unit: '張', name: '買賣超（張）', cell: (p) => <Sig v={p.lots} digits={0} /> },
-    { label: '金額', unit: '億元・估', name: '金額（億元・估）', cell: (p) => <Sig v={p.amount} digits={2} /> },
+    { label: '買賣超', name: '買賣超（張）', cell: (p) => <Sig v={p.lots} digits={0} /> },
     { label: '佔成交量', unit: '%・區間', name: '佔區間成交量（%）', cell: (p) => <Sig v={p.pctVolume} digits={2} /> },
     { label: '佔股本', unit: '%', name: '佔股本（%）', cell: (p) => <Sig v={p.pctCapital} digits={3} /> },
     { label: '估計成本', unit: '元・估', name: '估計成本（元・估）', cell: (p) => <span class="num">{fmtPrice(p.cost)}</span> },
@@ -94,7 +91,8 @@ export function ChipStats({ block, sharesOut }: { block: ChipBlock; sharesOut: n
         <Segmented label="統計天數" value={days} options={cfg.stats_periods} onPick={setDays} format={(n) => `${n} 日`} />
       </div>
       <p class="body t1" style={{ marginTop: 'var(--s-3)' }} data-testid="chip-sentence">{rangeSentence(s)}</p>
-      <div class="scroll-x">
+      <div class="cs-unit caption" data-testid="chip-stats-unit">單位：張</div>
+      <div>
         <table class="chip-stats">
           <thead>
             <tr><th scope="col"><span class="sr-only">項目</span></th>{s.parties.map((p) => <th key={p.key} scope="col">{p.key === 'dealerSelf' ? <span aria-label="自營商（自行買賣）">自營商<span class="th-unit" aria-hidden="true">自行買賣</span></span> : p.label}</th>)}</tr>
@@ -108,7 +106,7 @@ export function ChipStats({ block, sharesOut }: { block: ChipBlock; sharesOut: n
       </div>
       <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>
         收盤 {fmtPrice(s.close)}・區間漲跌 <Sig v={s.change} digits={2} suffix="%" />・區間成交 {fmtNum(s.volumeLots, 0)} 張。
-        金額以各日均價估算；估計成本＝區間內淨買超日的（還原）均價加權，只在區間合計為淨買超時顯示；股本以最新已發行股數計。
+        百分比與成本各自標在列名下方；估計成本＝區間內淨買超日的（還原）均價加權，只在區間合計為淨買超時顯示；股本以最新已發行股數計。
       </p>
     </div>
   );
@@ -123,13 +121,14 @@ export function ChipStats({ block, sharesOut }: { block: ChipBlock; sharesOut: n
  *   橫向或平板寬度放得下 12 欄 → 同時顯示全部欄位（不需要切換檢視）。
  * - 點任一列從底部拉出當天完整資料；「複製為 CSV」在右上角「⋯」選單。
  */
-const UNITS: Unit[] = ['lots', 'amount', 'pct'];
-const UNIT_SHORT: Record<Unit, string> = { lots: '張', amount: '億元', pct: '佔量 %' };
 const OPEN_KEY = 'chipDailyOpen';
+/** 表格數字字級（px）：15 放不下依序降到 14、13（最低 13，不得再小；同一張表同一字級） */
+export const FONT_STEPS = [15, 14, 13];
 type Mode = 'table' | 'cards' | 'all';
 
+/** 表格日期：MM/DD（不顯示年份與星期；固定寬度，逐列對齊） */
 export function mdLabel(iso: string): string {
-  return `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
+  return `${iso.slice(5, 7)}/${iso.slice(8, 10)}`;
 }
 function weekday(iso: string): string {
   return '日一二三四五六'[new Date(`${iso}T12:00:00Z`).getUTCDay()];
@@ -167,8 +166,8 @@ function useChipLayout(
   texts: { date: string[]; sub: string[]; cols: Record<string, string[]>; heads: Record<string, string[]> },
   view: View,
   deps: unknown[],
-): { mode: Mode; dateW: number } {
-  const [state, setState] = useState<{ mode: Mode; dateW: number }>({ mode: 'table', dateW: 72 });
+): { mode: Mode; dateW: number; fs: number } {
+  const [state, setState] = useState<{ mode: Mode; dateW: number; fs: number }>({ mode: 'table', dateW: 72, fs: FONT_STEPS[0] });
   useLayoutEffect(() => {
     const body = bodyRef.current;
     const m = measureRef.current;
@@ -190,12 +189,8 @@ function useChipLayout(
       if (!ctx) return 0;
       let max = 0;
       for (const t of longest(arr)) {
-        // 萬張表格中未滿 1,000 張的「▲330 張」：「張」以小字顯示（.cd-u），分開量
-        const small = t.endsWith(LOT_SUFFIX);
         ctx.font = fontOf(cls);
-        let w = ctx.measureText((small ? t.slice(0, -LOT_SUFFIX.length) : t).replace(/\d/g, '0')).width + 2;
-        if (small) { ctx.font = fontOf('cd-u'); w += ctx.measureText('張').width + 2; }
-        max = Math.max(max, w);
+        max = Math.max(max, ctx.measureText(t.replace(/\d/g, '0')).width + 2);
       }
       return max;
     };
@@ -206,17 +201,24 @@ function useChipLayout(
       const pad = 6; // 儲存格左右內距合計（日期欄另有左邊 8px）
       const dateW = Math.ceil(Math.max(72, measure(texts.date, 'cd-date') + pad + 5, measure(texts.sub, 'cd-sub') + pad + 5));
       // 欄寬只看數字與標題下方的小字（標題本身可以折成兩行）
-      const need = (keys: string[]) => Math.max(...keys.map((k) => (texts.cols[k] ? Math.max(measure(texts.cols[k], 'cd-v'), measure(texts.heads[k] ?? [], 'cd-sub')) + pad : Infinity)));
+      // 數字欄寬＝最長數字（含逗號與正負號）的等寬寬度 ＋ 8px（UI_GUIDE）；字級 15 → 14 → 13px 逐級嘗試（同一張表同一字級）
+      const basePx = parseFloat(getComputedStyle((m.className = 'cd-measure cd-v', m)).fontSize) || 15;
+      let scale = 1;
+      const need = (keys: string[]) => Math.max(...keys.map((k) => (texts.cols[k] ? Math.max(measure(texts.cols[k], 'cd-v') * scale, measure(texts.heads[k] ?? [], 'cd-sub')) + 8 : Infinity)));
       const viewKeys = VIEW_COLS[view].map((c) => c.key);
       const allKeys = ALL_COLS.map((c) => c.key);
       const vw = document.documentElement.clientWidth;
       const wideW = wideRef.current?.getBoundingClientRect().width ?? W;
       const wideAllowed = vw > window.innerHeight || vw >= 768;
-      let mode: Mode;
-      if (wideAllowed && dateW + 12 * need(allKeys) <= Math.max(W, wideW)) mode = 'all';
-      else if (dateW + 4 * need(viewKeys) <= W) mode = 'table';
-      else mode = 'cards';
-      setState((s) => (s.mode === mode && s.dateW === dateW ? s : { mode, dateW }));
+      let mode: Mode = 'cards';
+      let fs = FONT_STEPS[FONT_STEPS.length - 1];
+      const dt = parseFloat(getComputedStyle(body).getPropertyValue('--dt')) || 1;
+      for (const step of FONT_STEPS) {
+        scale = (step * dt) / basePx;
+        if (wideAllowed && dateW + 12 * need(allKeys) <= Math.max(W, wideW)) { mode = 'all'; fs = step; break; }
+        if (dateW + 4 * need(viewKeys) <= W) { mode = 'table'; fs = step; break; }
+      }
+      setState((s) => (s.mode === mode && s.dateW === dateW && s.fs === fs ? s : { mode, dateW, fs }));
     };
     compute();
     const ro = new ResizeObserver(() => compute());
@@ -264,7 +266,7 @@ function Cell({ v, col, unit, fmt, signed }: { v: N; col: ViewCol; unit: Unit; f
   const t = cellText(v, col, unit, isSigned, fmt);
   return (
     <td class={`cd-v ${t.dir}`}>
-      <span class="cd-t" aria-hidden="true">{t.arrow ? <span class="cd-arrow">{t.arrow}</span> : null}{t.body.endsWith(LOT_SUFFIX) ? <>{t.body.slice(0, -LOT_SUFFIX.length)}<span class="cd-u">張</span></> : t.body}</span>
+      <span class="cd-t" aria-hidden="true">{t.arrow ? <span class="cd-arrow">{t.arrow}</span> : null}{t.body}</span>
       <span class="sr-only">{cellPhrase(v, col, unit, isSigned)}</span>
     </td>
   );
@@ -279,7 +281,7 @@ export function MiniNetBars({ rows }: { rows: ChipRow[] }) {
   const max = Math.max(0, ...vals.map((v) => Math.abs(v ?? 0)));
   if (!vals.length || !max) return null;
   const sum = vals.reduce<number>((a, v) => a + (v ?? 0), 0);
-  const f = (v: number) => (Math.abs(v) >= 1e4 ? `${fmtNum(v / 1e4, 1)} 萬張` : `${fmtNum(v, 0)} 張`);
+  const f = (v: number) => `${fmtNum(Math.round(v), 0)} 張`;
   return (
     <figure class="cd-mini" role="img" aria-label={`三大法人近 ${vals.length} 日每日買賣超柱狀圖：合計${sum >= 0 ? '買超' : '賣超'} ${f(Math.abs(sum))}，單日最大 ${f(max)}`}>
       <div class="cd-mini-bars" aria-hidden="true">
@@ -318,7 +320,8 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
   const cfg = uiConfig.chip;
   const [open, setOpenState] = useState(true);
   const [days, setDays] = useState(cfg.table_default);
-  const [unit, setUnit] = useState<Unit>('lots');
+  // M3：籌碼數字一律以張為唯一單位（移除 億元／佔量 % 與萬張切換）
+  const unit: Unit = 'lots';
   const [view, setView] = useState<View>('insti');
   const [day, setDay] = useState<ChipRow | null>(null);
   const [status, setStatus] = useState('');
@@ -360,7 +363,7 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
       heads,
     };
   }, [rows, all, unit, view, fmts]);
-  const { mode, dateW } = useChipLayout(bodyRef, measureRef, wideRef, texts, view, [texts, view, open, near, dt]);
+  const { mode, dateW, fs } = useChipLayout(bodyRef, measureRef, wideRef, texts, view, [texts, view, open, near, dt]);
   const cols = mode === 'all' ? ALL_COLS : VIEW_COLS[view];
 
   async function copy(text: string, ok: string) {
@@ -375,13 +378,13 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
   // 表格上方的單位說明跟著實際顯示的單位（#6：整張表改成萬張時不能還寫「張」）
   const unitLabel = tableUnitLabel(unit, fmts, mode === 'all' ? VIEWS : [view]);
 
-  // 單位是億元或佔量 % 時，仍以張顯示的餘額欄在標題下方註明「張」
-  const subFor = (c: ViewCol) => (c.party ? streakText(colStreak(all, c), available) : colUnit(c, unit) === 'lots' && unit !== 'lots' ? '張' : '');
+  // 法人欄的標題下方寫連買／連賣天數（單位只在表格右上角出現一次）
+  const subFor = (c: ViewCol) => (c.party ? streakText(colStreak(all, c), available) : '');
   const notes = missingNotes(rows);
   const period = rows.length ? `${mdLabel(rows[rows.length - 1].date)}–${mdLabel(rows[0].date)}` : '';
 
   return (
-    <section class="chip-daily" ref={sectionRef} aria-labelledby="chip-daily-title" style={{ ['--dt' as string]: dt }}>
+    <section class="chip-daily" ref={sectionRef} aria-labelledby="chip-daily-title" style={{ ['--dt' as string]: dt, ['--cd-fs' as string]: `${fs / 16}rem` }}>
       <div class="cd-head">
         <h3 class="cd-title" id="chip-daily-title">
           <button class="cd-toggle" aria-expanded={open} aria-controls="chip-daily-body" onClick={() => setOpen(!open)}>
@@ -401,12 +404,6 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
             <div class="segmented chip-seg cd-periods" role="group" aria-label="明細期間">
               {cfg.table_periods.map((n) => <button key={n} aria-pressed={n === days} onClick={() => setDays(n)}>{n} 日</button>)}
             </div>
-            <label class="cd-unit">
-              <span class="cd-unit-face" aria-hidden="true"><span class="muted">單位</span> {UNIT_SHORT[unit]}<IconChevronDown /></span>
-              <select aria-label="單位" value={unit} onChange={(e) => { setUnit((e.target as HTMLSelectElement).value as Unit); setStatus(''); }}>
-                {UNITS.map((u) => <option key={u} value={u}>{UNIT_NAME[u]}</option>)}
-              </select>
-            </label>
           </div>
           {mode !== 'all' ? (
             <div class="segmented cd-views" role="group" aria-label="檢視">
@@ -504,10 +501,10 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
           <details class="tech cd-notes">
             <summary>欄位說明</summary>
             <p class="caption muted">
-              張＝1,000 股；金額（億元）以當日均價（成交金額 ÷ 成交股數）估算，標「估」；佔成交量＝淨買賣超股數 ÷ 當日成交股數。
+              單位一律為張（1,000 股，股數四捨五入到整數張），完整顯示千分位，不縮寫。
               外資＝外陸資（不含外資自營商）＋外資自營商；自營商欄為自行買賣（避險部位在當天完整資料）；三大法人合計為官方數字。
-              區間合計：數量欄先以股數相加再換算；餘額欄為區間增減；比率欄為區間平均（當沖比率以成交量加權）。餘額沒有「佔成交量」的意義，選「佔成交量 %」時仍以張顯示（標題下方註明）。
-              同一欄同一種格式：該欄（含區間合計）最大絕對值 ≥ 10,000 張時整欄以「萬張」顯示並保留 1 位小數（標題註明），否則為千分位整數；0 顯示「0」、沒有資料顯示「—」。紅色 ▲＝買超／增加、綠色 ▼＝賣超／減少。
+              區間合計：數量欄先以股數相加再換算；餘額欄為區間增減；比率欄（券資比、當沖比率，%）為區間平均（當沖比率以成交量加權）。
+              0 顯示「0」且不帶箭頭、沒有資料顯示「—」。紅色 ▲＝買超／增加、綠色 ▼＝賣超／減少。
             </p>
             {notes.length ? <p class="caption muted">「—」表示沒有資料：{notes.map((n) => `${n.label}（${n.reason}）`).join('；')}。</p> : null}
           </details>

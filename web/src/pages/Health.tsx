@@ -63,6 +63,7 @@ export default function Health() {
                         <div class="caption muted">
                           {d.tone === 'ok' ? '正常・' : ''}最後成功 {s.last_success ?? '—'}{s.rows !== null && s.rows !== undefined ? `・${s.rows} 筆` : ''}
                           {s.verified === 'unverified' ? '・未以真實樣本驗證' : ''}
+                          {s.publish ? `・實測公布 ${s.publish.median}（${s.publish.earliest}–${s.publish.latest}，${s.publish.days} 天）` : ''}
                         </div>
                         <Details s={s} />
                       </div>

@@ -37,6 +37,7 @@ import { SECTION_ORDER, STYLE_DESC, STYLE_NAME, STYLE_PERIOD, type SectionId } f
 import { useInvestStyle } from '../hooks';
 import { type QuarterRow, type RevenueRow, momentumAnswer, momentumFacts, profitAnswer, profitFacts, revenueAnswer, revenueFacts } from '../lib/fundamentals';
 import { conclusionLine, valuationPhrase } from '../lib/verdict';
+import { techFacts } from '../lib/technical';
 import { instInsight, type Who } from '../lib/insights';
 import { getListContext } from '../lib/listContext';
 import { commitHero, heroSeen } from '../lib/seen';
@@ -47,8 +48,8 @@ import { PAGE_SOURCES } from '../lib/health';
 import { evaluate, tally, title as bbTitle } from '../lib/bullbear';
 import { BullBearBar } from '../components/BullBearBar';
 
-/** 第一次繪製時先畫的區塊數（主角區之下） */
-const FIRST_SECTIONS = 2;
+/** 第一次繪製時先畫的區塊數（主角區之下）：結論、有效訊號面板、四環分數 */
+const FIRST_SECTIONS = 3;
 
 const AdvancedChart = lazy(() => import('../components/AdvancedChart'));
 // 下方區塊的細節元件延後載入：個股頁的 JS 先只包含主角區與區塊標題（一句話結論），縮短 LCP 與 TBT
@@ -69,6 +70,7 @@ const RevenueSection = lazyPick(sections, 'RevenueSection');
 const ValuationSection = lazyPick(sections, 'ValuationSection');
 const Research = lazyPick(() => import('../components/Research'), 'Research');
 const StockExtras = lazyPick(() => import('../components/StockExtras'), 'StockExtras');
+const SignalPanel = lazyPick(() => import('../components/SignalPanel'), 'SignalPanel');
 
 type SheetKind = { kind: 'score'; id?: CategoryId } | { kind: 'more' } | null;
 
@@ -248,6 +250,7 @@ export default function Stock({ code }: { code: string }) {
   const pePct = h ? lastOf((h.series as Record<string, unknown> | undefined)?.pe_percentile) : null;
   const chip = (h?.chip as ChipBlock | null | undefined) ?? null;
   const bb = useMemo(() => (h ? tally(evaluate(h)) : null), [h]);
+  const tech = useMemo(() => (h ? techFacts(h.h, h.l, h.c, h.af) : null), [h]);
   const mom = useMemo(() => momentumFacts(adj, (h?.metrics ?? {}) as Record<string, unknown>, h?.d ?? []), [adj, h]);
   const rev = useMemo(() => revenueFacts((h?.revenue as RevenueRow[] | undefined) ?? []), [h]);
   const profit = useMemo(() => profitFacts((h?.quarters as QuarterRow[] | undefined) ?? []), [h]);
@@ -269,6 +272,15 @@ export default function Stock({ code }: { code: string }) {
             {row.flags.map((f) => <span key={f.id} class="tag risk" title={f.detail}>{f.label}</span>)}
           </div>
         ) : null}
+      </Block>
+    ),
+    signals: () => (
+      <Block id="sec-signals" question="有統計證據的訊號觸發了嗎？" answer="只列指標效度評估判定為有效或環境依賴的指標">
+        <SignalPanel code={code} />
+      </Block>
+    ),
+    scores: () => (
+      <Block id="sec-scores" question="四環分數" answer={`綜合分 ${scoreText(comp)}`}>
         <div style={{ marginTop: 'var(--s-4)' }}>
           <ScoreRings row={row} detail={h.scores} onPick={(id) => setSheet({ kind: 'score', id })} />
         </div>
@@ -292,7 +304,7 @@ export default function Stock({ code }: { code: string }) {
     ),
     momentum: () => (
       <Block id="sec-momentum" question="動能夠不夠強？" answer={momentumAnswer(mom)}>
-        <MomentumSection f={mom} />
+        <MomentumSection f={mom} t={tech ?? undefined} />
       </Block>
     ),
     institutional: () => (
