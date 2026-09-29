@@ -8,7 +8,8 @@ export async function revealAllSections(page: Page): Promise<void> {
   for (let i = 0; i < 20; i++) {
     const ph = page.locator('.sections-placeholder');
     if (!(await ph.count())) break;
-    await ph.scrollIntoViewIfNeeded().catch(() => undefined);
+    // 佔位元素可能在捲動途中被移除（全部區塊已畫出）；沒有逾時的話 locator 會一直等它重新出現，直到整個測試逾時
+    await ph.scrollIntoViewIfNeeded({ timeout: 1000 }).catch(() => undefined);
     await page.waitForTimeout(80);
   }
   await expect(page.locator('.sections-placeholder')).toHaveCount(0);

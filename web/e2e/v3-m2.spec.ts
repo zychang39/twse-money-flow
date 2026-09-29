@@ -15,17 +15,15 @@ test.describe('M2-1 每日籌碼表', () => {
     await expect(daily.locator('.cd-bar')).toHaveCount(0);
     await expect(daily.getByRole('img', { name: /^三大法人近 \d+ 日每日買賣超柱狀圖/ })).toBeVisible();
 
-    // 每欄：全部是「萬張 1 位小數」或全部是整數（—、0 除外）
+    // 整張表（#6）：全部是「萬張 1 位小數」或全部是整數（—、0、萬張表格中未滿千張的「235張」除外）
     const cols = await table.evaluate((t) => {
       const rows = [...t.querySelectorAll('tbody tr')];
       const n = rows[0].querySelectorAll('td').length;
       return Array.from({ length: n }, (_, i) => rows.map((r) => r.querySelectorAll('td')[i].querySelector('.cd-t')?.textContent ?? ''));
     });
-    for (const col of cols) {
-      const nums = col.map((t) => t.replace(/[▲▼%]/g, '')).filter((t) => t !== '—' && t !== '0');
-      const decimals = new Set(nums.map((t) => (t.includes('.') ? t.split('.')[1].length : 0)));
-      expect(decimals.size, col.join(' | ')).toBeLessThanOrEqual(1);
-    }
+    const nums = cols.flat().map((t) => t.replace(/[▲▼%]/g, '')).filter((t) => t !== '—' && t !== '0' && !t.endsWith('張'));
+    const decimals = new Set(nums.map((t) => (t.includes('.') ? t.split('.')[1].length : 0)));
+    expect(decimals.size, cols.flat().join(' | ')).toBeLessThanOrEqual(1);
     // 數字靠右、等寬數字；▲▼ 縮小
     const style = await table.locator('tbody tr.day td.cd-v').first().evaluate((el) => ({ align: getComputedStyle(el).textAlign, num: getComputedStyle(el).fontVariantNumeric }));
     expect(style.align).toBe('right');

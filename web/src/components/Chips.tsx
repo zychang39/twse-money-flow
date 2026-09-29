@@ -21,7 +21,9 @@ import {
   cellPhrase,
   cellText,
   chipRows,
-  colFormat,
+  viewFormats,
+  LOT_SUFFIX,
+  tableUnitLabel,
   colStreak,
   colTotal,
   colUnit,
@@ -186,9 +188,15 @@ function useChipLayout(
     };
     const measure = (arr: string[], cls: string) => {
       if (!ctx) return 0;
-      ctx.font = fontOf(cls);
       let max = 0;
-      for (const t of longest(arr)) max = Math.max(max, ctx.measureText(t.replace(/\d/g, '0')).width + 2);
+      for (const t of longest(arr)) {
+        // 萬張表格中未滿 1,000 張的「▲330 張」：「張」以小字顯示（.cd-u），分開量
+        const small = t.endsWith(LOT_SUFFIX);
+        ctx.font = fontOf(cls);
+        let w = ctx.measureText((small ? t.slice(0, -LOT_SUFFIX.length) : t).replace(/\d/g, '0')).width + 2;
+        if (small) { ctx.font = fontOf('cd-u'); w += ctx.measureText('張').width + 2; }
+        max = Math.max(max, w);
+      }
       return max;
     };
     const compute = () => {
@@ -256,7 +264,7 @@ function Cell({ v, col, unit, fmt, signed }: { v: N; col: ViewCol; unit: Unit; f
   const t = cellText(v, col, unit, isSigned, fmt);
   return (
     <td class={`cd-v ${t.dir}`}>
-      <span class="cd-t" aria-hidden="true">{t.arrow ? <span class="cd-arrow">{t.arrow}</span> : null}{t.body}</span>
+      <span class="cd-t" aria-hidden="true">{t.arrow ? <span class="cd-arrow">{t.arrow}</span> : null}{t.body.endsWith(LOT_SUFFIX) ? <>{t.body.slice(0, -LOT_SUFFIX.length)}<span class="cd-u">張</span></> : t.body}</span>
       <span class="sr-only">{cellPhrase(v, col, unit, isSigned)}</span>
     </td>
   );
@@ -328,10 +336,10 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
   const rows = recent(all, days);
   const available = all.length - 1;
 
-  // 整欄格式：含區間合計列一起決定（同一欄只有一種格式）
-  const fmts = useMemo(() => Object.fromEntries(ALL_COLS.map((c) => [
-    c.key, colFormat([...rows.map((r) => colValue(r, c, unit)), colTotal(rows, all, c, unit)], c, unit),
-  ])) as Record<string, ColFormat>, [rows, all, unit]);
+  // 表格格式（#6）：含區間合計列，整張表同一種單位只用一種格式（張一律千分位整數）
+  const fmts = useMemo(() => viewFormats(Object.fromEntries(ALL_COLS.map((c) => [
+    c.key, [...rows.map((r) => colValue(r, c, unit)), colTotal(rows, all, c, unit)],
+  ])), unit), [rows, all, unit]);
   // 量測用的文字（每欄最長的值、標題、連續天數）
   const texts = useMemo(() => {
     const cols: Record<string, string[]> = {};
@@ -343,7 +351,7 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
       const vals = rows.map((r) => cellText(colValue(r, c, unit), c, unit, c.signed, f).text);
       vals.push(cellText(colTotal(rows, all, c, unit), c, unit, c.kind === 'level' ? true : c.signed, f).text);
       cols[c.key] = vals;
-      heads[c.key] = c.party ? [streakText(colStreak(all, c), available)] : ['萬張'];
+      heads[c.key] = c.party ? [streakText(colStreak(all, c), available)] : ['張'];
     }
     return {
       date: ['區間合計', ...rows.map((r) => mdLabel(r.date))],
@@ -364,10 +372,11 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
     }
   }
   const copyCsv = () => copy(toCsv(rows, unit, { code, name }), `已複製 CSV（${rows.length} 日，單位：${UNIT_LABEL[unit]}）`);
+  // 表格上方的單位說明跟著實際顯示的單位（#6：整張表改成萬張時不能還寫「張」）
+  const unitLabel = tableUnitLabel(unit, fmts, mode === 'all' ? VIEWS : [view]);
 
-  const subFor = (c: ViewCol) => (c.party ? streakText(colStreak(all, c), available) : colUnit(c, unit) === 'lots' && unit !== 'lots' ? (fmts[c.key].wan ? '萬張' : '張') : '');
-  /** 整欄以萬張顯示時，欄位標題後面加「萬張」小字（儲存格不再重複寫「萬」） */
-  const wanTag = (c: ViewCol) => (fmts[c.key].wan ? <span class="cd-wan">萬張</span> : null);
+  // 單位是億元或佔量 % 時，仍以張顯示的餘額欄在標題下方註明「張」
+  const subFor = (c: ViewCol) => (c.party ? streakText(colStreak(all, c), available) : colUnit(c, unit) === 'lots' && unit !== 'lots' ? '張' : '');
   const notes = missingNotes(rows);
   const period = rows.length ? `${mdLabel(rows[rows.length - 1].date)}–${mdLabel(rows[0].date)}` : '';
 
@@ -407,7 +416,7 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
           {view === 'insti' || mode === 'all' ? <MiniNetBars rows={rows} /> : null}
           <div class="cd-meta">
             <span>{rows.length} 日{period ? `・${period}` : ''}・{mode === 'cards' ? '點卡片' : '點一列'}看當天完整資料</span>
-            <span class="cd-unit-label">單位：{UNIT_LABEL[unit]}</span>
+            <span class="cd-unit-label" data-testid="chip-unit-label">單位：{unitLabel}</span>
           </div>
 
           <div class="cd-wide-probe" ref={wideRef} aria-hidden="true" />
@@ -462,7 +471,7 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
                     <th scope="col" class="cd-dh">日期</th>
                     {cols.map((c) => (
                       <th key={c.key} scope="col">
-                        <span class="cd-h">{c.label}{wanTag(c)}{c.full !== c.label ? <span class="sr-only">（{c.full}）</span> : null}</span>
+                        <span class="cd-h">{c.label}{c.full !== c.label ? <span class="sr-only">（{c.full}）</span> : null}</span>
                         <span class="cd-sub">{subFor(c) || '\u00a0'}</span>
                       </th>
                     ))}
