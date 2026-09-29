@@ -187,3 +187,74 @@ describe('SW 更新：註冊完成前就操作', () => {
     expect(states).toEqual(['available']);
   });
 });
+
+describe('SW 更新：建立時還讀不到等待中的新版', () => {
+  it('reg.waiting 在建立後才出現（沒有 updatefound）→ 啟動時的 check() 仍會自動套用', async () => {
+    const reg = new FakeReg();
+    const container = new FakeContainer();
+    const u = createUpdater({ reg, container, now: () => 100, isBusy: () => false, reload: () => undefined, onState: () => undefined, startedAt: 0 });
+    const w = new FakeWorker(); w.state = 'installed'; reg.waiting = w; // 之前的工作階段已裝好
+    expect(await u.check()).toBe('applying');
+    expect(w.sent).toEqual([SKIP_WAITING]);
+  });
+  it('已開始操作 → check() 回報有新版並顯示提示', async () => {
+    const reg = new FakeReg();
+    const states: UpdateState[] = [];
+    const u = createUpdater({ reg, container: new FakeContainer(), now: () => 100, isBusy: () => false, reload: () => undefined, onState: (s) => states.push(s), startedAt: 0 });
+    u.markInteraction();
+    const w = new FakeWorker(); w.state = 'installed'; reg.waiting = w;
+    expect(await u.check()).toBe('available');
+    expect(states).toEqual(['available']);
+    expect(w.sent).toEqual([]);
+  });
+});
+
+describe('SW 更新：新版遲遲沒有接手', () => {
+  const setup2 = (stuck: boolean) => {
+    const reg = new FakeReg();
+    const w = new FakeWorker(); w.state = 'installed'; reg.waiting = w;
+    const reload = vi.fn();
+    const states: UpdateState[] = [];
+    let timer: (() => void) | null = null;
+    const container = new FakeContainer();
+    createUpdater({ reg, container, now: () => 0, isBusy: () => false, reload, onState: (s) => states.push(s), onStuck: () => stuck, setTimer: (fn) => { timer = fn; } });
+    return { reload, states, container, fire: () => timer?.() };
+  };
+  it('8 秒後仍未接手 → 重新載入一次（新頁面沒有進行中的請求）', () => {
+    const s = setup2(true);
+    expect(s.states).toEqual(['applying']);
+    s.fire();
+    expect(s.reload).toHaveBeenCalledTimes(1);
+  });
+  it('8 秒後仍未接手（不強制重新載入）→ 改為提示；新版之後才接手且沒在填表 → 重新載入', () => {
+    const s = setup2(false);
+    s.fire();
+    expect(s.reload).not.toHaveBeenCalled();
+    expect(s.states.at(-1)).toBe('available');
+    s.container.change();
+    expect(s.reload).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('SW 更新：update() 失敗時仍處理已在等待的新版', () => {
+  it('啟動時 update() 被拒絕，但新版已在等待 → 仍自動套用', async () => {
+    const reg = new FakeReg();
+    reg.update = () => Promise.reject(new Error('InvalidStateError'));
+    const u = createUpdater({ reg, container: new FakeContainer(), now: () => 100, isBusy: () => false, reload: () => undefined, onState: () => undefined, startedAt: 0 });
+    const w = new FakeWorker(); w.state = 'installed'; reg.waiting = w;
+    expect(await u.check()).toBe('applying');
+    expect(w.sent).toEqual([SKIP_WAITING]);
+  });
+});
+
+describe('SW 更新：畫面晚於 updater 訂閱', () => {
+  it('subscribeUpdate 立即收到目前的狀態（避免錯過「更新中」）', async () => {
+    const { publishState, subscribeUpdate } = await import('./swUpdate');
+    publishState('applying');
+    const got: string[] = [];
+    const off = subscribeUpdate((s) => got.push(s));
+    expect(got).toEqual(['applying']);
+    off();
+    publishState('idle');
+  });
+});

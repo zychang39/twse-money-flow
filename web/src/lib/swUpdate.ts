@@ -44,6 +44,14 @@ export interface UpdaterDeps {
   startedAt?: number;
   /** 建立之前使用者是否已經操作過（register 完成前就點擊；建立時若已有新版在等待，要據此判斷） */
   interacted?: boolean;
+  /**
+   * 送出 SKIP_WAITING 後這麼久還沒接手（Chromium 會等舊版 service worker 手上的請求都結束才啟用新版，
+   * 這段期間的導覽也會被擋住，所以不能強制重新載入）：改回提示「有新版本，點此更新」，不讓畫面一直停在「更新中」；
+   * 下次開啟 App 時新版也會自動接手。onStuck 回傳 true 時改為重新載入（目前沒有使用）。預設 8 秒。
+   */
+  stuckMs?: number;
+  onStuck?: () => boolean;
+  setTimer?: (fn: () => void, ms: number) => unknown;
 }
 
 export const SKIP_WAITING = { type: 'SKIP_WAITING' } as const;
@@ -53,6 +61,7 @@ export function createUpdater(d: UpdaterDeps) {
   let windowStart = d.startedAt ?? d.now();
   let interacted = d.interacted ?? false;
   let requested = false;
+  let stuck = false;
   let reloading = false;
   let state: UpdateState = 'idle';
   // 第一次安裝（原本沒有 controller）時 clients.claim 也會觸發 controllerchange，這時不重新載入
@@ -71,7 +80,8 @@ export function createUpdater(d: UpdaterDeps) {
     if (!hadController) { hadController = true; return; }
     // 我們要求的更新，或使用者還沒開始操作：直接重新載入；
     // 其他分頁套用的更新而使用者正在操作：只提示，由使用者決定（舊版外殼快取會保留一版，舊頁面仍可運作）
-    if (requested || canAuto()) reloadOnce();
+    // 等太久已改回提示（stuck）而新版這時才接手：使用者沒在填表才重新載入，否則維持提示
+    if ((requested && (!stuck || !d.isBusy())) || canAuto()) reloadOnce();
     else { requested = true; setState('available'); }
   });
 
@@ -100,14 +110,20 @@ export function createUpdater(d: UpdaterDeps) {
     requested = true;
     setState('applying');
     w.postMessage(SKIP_WAITING);
+    (d.setTimer ?? setTimeout)(() => {
+      if (reloading) return;
+      if (d.onStuck?.()) reloadOnce();
+      else { stuck = true; setState('available'); }
+    }, d.stuckMs ?? 8000);
     return true;
   }
 
   async function check(): Promise<CheckResult> {
+    let failed = false;
     try {
       await d.reg.update();
     } catch {
-      return 'error';
+      failed = true; // 沒有網路、或瀏覽器正在處理另一個更新；已經在等待的新版仍要處理
     }
     // update() 完成時新版可能還在下載（installing）；等它裝好或失敗
     const w = d.reg.installing;
@@ -119,8 +135,13 @@ export function createUpdater(d: UpdaterDeps) {
       });
     }
     if (state === 'applying') return 'applying';
-    if (d.reg.waiting) return 'available';
-    return 'latest';
+    if (d.reg.waiting) {
+      // 上次使用時已裝好、一直在等待的新版：建立 updater 當下 reg.waiting 可能還讀不到，也不會再有 updatefound，
+      // 在這裡補做同一個判斷（還沒操作就自動套用，否則提示）
+      if (state === 'idle') onWaiting();
+      return (state as UpdateState) === 'applying' ? 'applying' : 'available';
+    }
+    return failed ? 'error' : 'latest';
   }
 
   return {
@@ -169,5 +190,7 @@ export function publishState(s: UpdateState): void { currentState = s; listeners
 export function updateState(): UpdateState { return currentState; }
 export function subscribeUpdate(fn: (s: UpdateState) => void): () => void {
   listeners.add(fn);
+  // 訂閱前狀態可能已經改變（updater 建立得比畫面的 effect 早）：先同步一次目前的狀態
+  fn(currentState);
   return () => { listeners.delete(fn); };
 }
