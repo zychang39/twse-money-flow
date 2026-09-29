@@ -85,7 +85,9 @@ def preset_backtests(ds: Any, p: Any, mp: Any, sc: dict[str, pd.DataFrame], out:
     for preset in config.load("screener")["presets"]:
         mask = bt.conditions_mask(preset["conditions"], lookup)
         if mask is None:
-            index.append({"id": preset["id"], "label": preset["label"], "status": "資料不足"})
+            index.append(
+                {"id": preset["id"], "label": preset["label"], "subtitle": preset.get("subtitle", ""), "status": "資料不足"}
+            )
             continue
         res = bt.run(mask, px)
         summary = bt.summarize(res, p.dates)
@@ -93,6 +95,7 @@ def preset_backtests(ds: Any, p: Any, mp: Any, sc: dict[str, pd.DataFrame], out:
             {
                 "id": preset["id"],
                 "label": preset["label"],
+                "subtitle": preset.get("subtitle", ""),
                 "description": preset["description"],
                 "conditions": preset["conditions"],
                 "signals": int(mask.sum()),
@@ -105,6 +108,7 @@ def preset_backtests(ds: Any, p: Any, mp: Any, sc: dict[str, pd.DataFrame], out:
             {
                 "id": preset["id"],
                 "label": preset["label"],
+                "subtitle": preset.get("subtitle", ""),
                 "signals": int(mask.sum()),
                 "n10": summary["horizons"].get("10", {}).get("all", {}).get("n", 0),
             }

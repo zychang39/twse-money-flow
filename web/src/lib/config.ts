@@ -36,7 +36,8 @@ export interface CostsConfig {
 }
 export interface ScreenerField { label: string; unit: string; group: string }
 export interface Condition { field: string; op: '>' | '>=' | '<' | '<=' | '==' | 'between'; value: number | [number, number] }
-export interface Preset { id: string; label: string; description: string; conditions: Condition[] }
+/** 內建策略：label 最多 5 個字、subtitle 列出條件；aliases＝改名前的舊名稱（舊資料與網址自動對應）。 */
+export interface Preset { id: string; label: string; subtitle: string; aliases?: string[]; description: string; conditions: Condition[] }
 export interface ScreenerConfig { fields: Record<string, ScreenerField>; presets: Preset[] }
 export interface SourceConfig { label: string; market: string; tier: string; frequency: string; url?: string; status: string; publish?: string }
 

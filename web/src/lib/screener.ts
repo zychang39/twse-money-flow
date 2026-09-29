@@ -1,5 +1,5 @@
 /** 選股條件引擎：同一組合內條件皆須成立（AND）。 */
-import type { Condition } from './config';
+import { screenerConfig, type Condition } from './config';
 
 export type Row = Record<string, unknown>;
 
@@ -61,7 +61,31 @@ export function sameConditions(a: Condition[], b: Condition[]): boolean {
   return norm(a) === norm(b);
 }
 
-export interface NamedScreen { id: string; label: string; conditions: Condition[] }
+export interface NamedScreen { id: string; label: string; conditions: Condition[]; aliases?: string[] }
+
+/**
+ * 舊名稱 → 新名稱（策略改名的相容：我的組合、追蹤策略、網址參數裡的「籌碼集中」自動顯示為「三方同買」）。
+ * 不是任何內建策略的舊名稱就原樣回傳。
+ */
+export function canonicalName(name: string, presets: NamedScreen[]): string {
+  const hit = presets.find((p) => p.aliases?.includes(name.trim()));
+  return hit ? hit.label : name;
+}
+
+/**
+ * 「我的組合」的顯示名稱：以內建策略舊名稱儲存的（當時預設名稱就是內建名稱）→ 新名稱；條件和該內建策略不同時加「（已修改）」，
+ * 避免和內建策略同名。
+ */
+export function savedDisplayName(name: string, conditions: Condition[], presets: NamedScreen[]): string {
+  const p = presets.find((x) => x.label === name.trim() || x.aliases?.includes(name.trim()));
+  if (!p) return name;
+  return sameConditions(p.conditions, conditions) ? p.label : `${p.label}（已修改）`;
+}
+
+/** 內建策略清單（含舊名稱），供名稱對應與比較使用。 */
+export function presetScreens(): NamedScreen[] {
+  return screenerConfig.presets.map((p) => ({ id: p.id, label: p.label, conditions: p.conditions, aliases: p.aliases }));
+}
 
 /**
  * 目前條件的名稱（#11）：和某個內建組合完全相同 → 用它的名稱；和目前選取的「我的組合」相同 → 用那個名稱；
@@ -74,9 +98,10 @@ export function screenIdentity(conditions: Condition[], active: string, presets:
   if (preset) return { name: preset.label, presetId: preset.id, savedId: null, modifiedFrom: null };
   const own = saved.find((s) => s.id === active);
   if (own) {
+    const label = savedDisplayName(own.label, own.conditions, presets);
     return sameConditions(own.conditions, conditions)
-      ? { name: own.label, presetId: null, savedId: own.id, modifiedFrom: null }
-      : { name: `${own.label}（已修改）`, presetId: null, savedId: own.id, modifiedFrom: own.label };
+      ? { name: label, presetId: null, savedId: own.id, modifiedFrom: null }
+      : { name: label.endsWith('（已修改）') ? label : `${label}（已修改）`, presetId: null, savedId: own.id, modifiedFrom: label };
   }
   const base = presets.find((p) => p.id === active);
   return { name: '自訂條件', presetId: null, savedId: null, modifiedFrom: base?.label ?? null };
@@ -89,6 +114,6 @@ export function screenIdentity(conditions: Condition[], active: string, presets:
 export function backtestCustom(conditions: Condition[], name: string | null, presets: NamedScreen[]): { name: string; presetId: string | null } {
   const same = presets.find((p) => sameConditions(p.conditions, conditions));
   if (same) return { name: same.label, presetId: same.id };
-  const n = name?.trim() || '自訂條件';
+  const n = canonicalName(name?.trim() || '自訂條件', presets);
   return { name: presets.some((p) => p.label === n) ? `${n}（已修改）` : n, presetId: null };
 }

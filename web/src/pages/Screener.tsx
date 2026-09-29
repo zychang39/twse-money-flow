@@ -8,7 +8,7 @@ import { useDb, useRestoredState } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { deleteScreen, listScreens, saveScreen, uid, type SavedScreen } from '../db/db';
 import { screenerConfig, type Condition } from '../lib/config';
-import { describeCondition, encodeConditions, screen, screenIdentity } from '../lib/screener';
+import { describeCondition, savedDisplayName, encodeConditions, presetScreens, screen, screenIdentity } from '../lib/screener';
 import { fmtNum } from '../lib/format';
 import { PAGE_SOURCES } from '../lib/health';
 
@@ -68,7 +68,7 @@ export default function Screener() {
   }, [summary.data, conditions]);
   const results = useMemo(() => (summary.data ? screen(summary.data.rows as unknown as Record<string, unknown>[], conditions) : []), [summary.data, conditions]);
   // #11：名稱跟著條件走；改過內建組合就不再沿用它的名稱與選取狀態
-  const presets = screenerConfig.presets.map((p) => ({ id: p.id, label: p.label, conditions: p.conditions }));
+  const presets = presetScreens();
   const id = screenIdentity(conditions, active, presets, saved.map((x) => ({ id: x.id, label: x.name, conditions: x.conditions as Condition[] })));
   const title = id.name;
   const backtestHref = id.presetId
@@ -107,12 +107,12 @@ export default function Screener() {
           <h2 class="section-title">我的組合</h2>
           <div class="chips" role="group" aria-label="我的組合">
             {saved.map((s) => (
-              <button key={s.id} class="chip" aria-pressed={id.savedId === s.id && !id.modifiedFrom} onClick={() => load(s.id, s.name, s.conditions as Condition[])}>{s.name}</button>
+              <button key={s.id} class="chip" aria-pressed={id.savedId === s.id && !id.modifiedFrom} onClick={() => load(s.id, s.name, s.conditions as Condition[])}>{savedDisplayName(s.name, s.conditions as Condition[], presets)}</button>
             ))}
           </div>
         </>
       ) : null}
-      <p class="small muted" data-testid="screen-desc">{id.presetId ? screenerConfig.presets.find((p) => p.id === id.presetId)?.description : id.modifiedFrom ? `由「${id.modifiedFrom}」修改；和任何內建組合都不同。` : id.savedId ? name : '自訂條件：和任何內建組合都不同。'}</p>
+      <p class="small muted" data-testid="screen-desc">{id.presetId ? (() => { const p = screenerConfig.presets.find((x) => x.id === id.presetId)!; return <><b class="t1">{p.subtitle}</b>：{p.description}</>; })() : id.modifiedFrom ? `由「${id.modifiedFrom}」修改；和任何內建組合都不同。` : id.savedId ? name : '自訂條件：和任何內建組合都不同。'}</p>
 
       <h2 class="section-title">條件（全部成立）</h2>
       {conditions.map((c, i) => (

@@ -36,34 +36,46 @@ fields:
   pb_percentile:        { label: 淨值比歷史百分位, unit: 百分位, group: 估值 }
   value_million:        { label: 成交值, unit: 百萬元, group: 流動性 }
 
+# 內建策略命名規則（CLAUDE.md「內建策略命名」）：主標最多 5 個字，讓人一看就知道條件是什麼，
+# 不用比喻或需要先理解的術語（共振、集中、突破、低估…）；副標列出條件。
+# 改名時把舊名稱加進 aliases：自訂條件、追蹤策略、網址參數裡的舊名稱會自動對應到新名稱。
+# id 是內部識別（回測檔名、追蹤紀錄），不改。
 presets:
   - id: chip_concentration
-    label: 籌碼集中
-    description: 投信連買、外資同步偏多、千張大戶持股增加。
+    label: 三方同買
+    subtitle: 投信連買・外資買超・大戶增加
+    aliases: [籌碼集中, 籌碼共振]
+    description: 投信連買 ≥ 3 日、外資近 5 日買超、千張大戶持股比較上週增加，成交值 ≥ 2,000 萬。
     conditions:
       - { field: trust_streak, op: ">=", value: 3 }
       - { field: foreign_net_5d, op: ">", value: 0 }
       - { field: whale_change, op: ">", value: 0 }
       - { field: value_million, op: ">=", value: 20 }
   - id: revenue_acceleration
-    label: 營收加速
-    description: 近 3 月營收年增率轉強且創 12 個月新高。
+    label: 營收創新高
+    subtitle: 近 3 月年增 ≥ 20%・年增擴大・創 12 個月新高
+    aliases: [營收加速]
+    description: 近 3 個月營收年增率 ≥ 20% 且比前期擴大，最新月營收創 12 個月新高，成交值 ≥ 2,000 萬。
     conditions:
       - { field: revenue_yoy_3m, op: ">=", value: 20 }
       - { field: revenue_yoy_trend, op: ">", value: 0 }
       - { field: revenue_high_ratio, op: ">=", value: 100 }
       - { field: value_million, op: ">=", value: 20 }
   - id: strong_breakout
-    label: 強勢突破
-    description: 相對強勢、接近 52 週高點且量能放大。
+    label: 近高點放量
+    subtitle: RS ≥ 80・距 52 週高點 3% 內・量 1.5 倍
+    aliases: [強勢突破]
+    description: RS 百分位 ≥ 80、距 52 週高點 3% 以內、成交值為 20 日均量 1.5 倍以上，成交值 ≥ 5,000 萬。
     conditions:
       - { field: rs_percentile, op: ">=", value: 80 }
       - { field: dist_52w_high, op: ">=", value: -3 }
       - { field: volume_ratio_20, op: ">=", value: 1.5 }
       - { field: value_million, op: ">=", value: 50 }
   - id: value_income
-    label: 低估高息
-    description: 本益比與淨值比位於自身歷史低檔、殖利率高。
+    label: 低本益高息
+    subtitle: 本益比、淨值比在自身低檔・殖利率 ≥ 5%
+    aliases: [低估高息]
+    description: 本益比位於自身歷史第 30 百分位以下、淨值比第 40 百分位以下、殖利率 ≥ 5%，成交值 ≥ 1,000 萬。
     conditions:
       - { field: pe_percentile, op: "<=", value: 30 }
       - { field: pb_percentile, op: "<=", value: 40 }

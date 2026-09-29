@@ -87,7 +87,7 @@ test('我的股票：加入自選後出現清單列，點擊進入個股頁', as
 
 test('選股：切換預設組合、新增條件、一鍵回測連結', async ({ page }) => {
   await page.goto('#/explore/screener');
-  await page.getByRole('button', { name: '強勢突破' }).click();
+  await page.getByRole('button', { name: '近高點放量' }).click();
   await expect(page.getByRole('heading', { name: /結果/ })).toBeVisible();
   await page.getByRole('button', { name: '新增條件' }).click();
   await expect(page.getByLabel('欄位').last()).toHaveValue('composite');
