@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Ambient, Block, PageHead, TopBar } from '../components/Chrome';
-import { DataStatus, EmptyState, ErrorState, Loading } from '../components/DataStatus';
+import { DataStatus, EmptyState, ErrorState, Loading, StageStatus } from '../components/DataStatus';
 import { HeroChart } from '../components/HeroChart';
 import { AiCard, EnvDetail, FlowsRow } from '../components/Market';
 import { RitualPanel } from '../components/Ritual';
@@ -125,6 +125,7 @@ export default function Tonight() {
           </button>
         </div>
         <DataStatus date={day} uses={PAGE_SOURCES.tonight} />
+        <StageStatus />
       </PageHead>
 
       <Block question="大盤環境能不能積極？" answer={envAnswer}>

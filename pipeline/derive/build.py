@@ -427,6 +427,8 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
                 for key, name, scale in (
                     ("sbl", "sbl_balance", 1000),
                     ("whale", "whale_pct", 1),
+                    ("whale400", "whale400_pct", 1),
+                    ("whale800", "whale800_pct", 1),
                     ("qfii", "foreign_hold_pct", 1),
                     ("dt", "daytrade_pct", 1),
                 )

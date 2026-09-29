@@ -2,6 +2,9 @@
 
 export interface Meta {
   generated_at: string;
+  /** M3.4 分段更新：目標交易日與各段狀態（done／late）、完成時間 */
+  stages?: ({ date: string } & Partial<Record<'close' | 'insti' | 'credit', { status: string; at: string; waited: number }>>) | null;
+  schedule?: Record<'close' | 'insti' | 'credit', { label: string; time: string }>;
   /** 週資料（集保大戶）：資料基準日（每週最後營業日）、公布日（次一日）、涉及的欄位 */
   weekly?: { data_date: string; published: string; fields: string[] } | null;
   market_date: string | null;
@@ -134,6 +137,8 @@ export interface HealthSource {
   /** 格式變動警告（欄位改名、缺少選用欄位…）；有值＝相容模式 */
   format_warnings?: string[];
   format_warning_date?: string | null;
+  /** M3.4：分段更新實測的公布時間（最近 20 次；5 分鐘粒度） */
+  publish?: { median: string; earliest: string; latest: string; days: number } | null;
 }
 export interface Health {
   market_date: string | null;

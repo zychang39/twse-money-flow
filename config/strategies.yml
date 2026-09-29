@@ -1,0 +1,71 @@
+# 策略庫（M2；METHODOLOGY §11）：把指標效度評估（config/evidence.yml）判定為「有效」或「環境依賴」的指標包成內建策略。
+# 是否上架由每日重算的判定決定（資料驅動）；沒有通過的候選列在「未通過驗證」並寫明原因，不能設為訊號追蹤。
+# 命名規則（CLAUDE.md 產品原則 9）：主標最多 5 個字、一看就知道條件、不用比喻或術語；副標以「・」列出條件。
+# 改名時把舊名稱放進 aliases；id 不改（訊號追蹤、網址沿用）。策略清單依規則產生，非推薦。
+horizon: 10                   # 策略報表與訊號追蹤的預設持有日數（與判定一致）
+slots: [1, 3, 5, 10]          # 槓桿計算：同時持有檔數（預先模擬的組合）
+recent_days: 60               # 策略健康度：最近 60 個交易日 vs 長期
+health:
+  min_recent: 20              # 近期樣本少於 20 筆 →「資料累積中」
+leverage:
+  ceiling: 2.5                # 倍數天花板（台股融資成數 6 成，最多約 2.5 倍）
+  default_max_dd: 20          # 最大可承受回撤（%）
+  default_interest: 6         # 融資年利率（%）
+  default_breaker: 10         # 回撤斷路器（%）
+  margin_loan_ratio: 0.6      # 融資成數
+  maintenance_call: 130       # 融資維持率低於 130% 追繳
+  lock_days: 2                # 「連續 2 日跌停鎖死」情境
+  limit_pct: 10               # 跌停幅度（%）
+strategies:
+  - id: near_high
+    test: high52
+    label: 近一年高點
+    subtitle: 收盤達 52 週最高收盤 95% 以上・首次達到
+  - id: top_decile
+    test: rs90
+    label: 漲幅前一成
+    subtitle: 近 3–12 個月加權漲幅排名進入全市場前 10%・首次進入
+  - id: far_above_ma
+    test: bias15
+    label: 遠離月線
+    subtitle: 收盤高於 20 日均線 15% 以上・首次達到
+  - id: price_margin_up
+    test: margin_up_up
+    label: 價漲融資增
+    subtitle: 5 日股價上漲 3% 以上・融資餘額增加 3% 以上
+  - id: revenue_year_high
+    test: rev_high12
+    label: 營收一年高
+    subtitle: 月營收高於前 12 個月最高・次月 10 日後進場
+  - id: revenue_yoy_up3
+    test: rev_accel
+    label: 年增連三升
+    subtitle: 營收年增率連 3 個月擴大・最新年增率為正
+  - id: rise_before_revenue
+    test: lead_up
+    label: 先漲營收升
+    subtitle: 營收公布前 20 日漲幅全市場前 10%・年增率較上月上升
+  - id: leader_trust
+    test: combo_rs_trust
+    label: 漲多投信買
+    subtitle: 加權漲幅排名前 20%・投信連買 3 日以上
+  - id: trust_buying
+    test: trust_run
+    label: 投信連買
+    subtitle: 投信連續買超・累計佔均量達門檻（參數依 walk-forward）
+  - id: foreign_trust_sync
+    test: sync
+    label: 外資投信買
+    subtitle: 近 5 日外資與投信同步買超・合計佔均量達門檻
+  - id: k_high_5days
+    test: kd_run
+    label: K值高檔
+    subtitle: KD 指標的 K 值連續 5 日在 80 以上・KD 參數 9、3、3
+  - id: three_buyers
+    test: combo_three
+    label: 三方同買
+    subtitle: 投信連買・外資買超・大戶增加
+  - id: whale_weekly_up
+    test: whale_up
+    label: 大戶週增
+    subtitle: 千張大戶持股比例週增加・達門檻（參數依 walk-forward）

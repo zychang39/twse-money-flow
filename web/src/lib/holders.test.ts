@@ -13,6 +13,11 @@ import {
   smallMaxLevel,
   structureSentence,
   tierDefinition,
+  tierName,
+  tierOrder,
+  BACKTEST_WHALE,
+  getWhaleTier,
+  setWhaleTier,
   tierOf,
   tierRange,
   tierStats,
@@ -84,7 +89,8 @@ describe('大戶／散戶門檻', () => {
 
   it('數字與變化的文字', () => {
     expect(metricText(52.345, 'pct')).toBe('52.35%');
-    expect(metricText(123456, 'holders')).toBe('12.3\u00a0萬人');
+    expect(metricText(123456, 'holders')).toBe('123,456 人');
+    expect(changeText(0.3, 'avg')).toBe('0 張'); // 四捨五入為 0 不帶箭頭
     expect(changeText(-1.2, 'pct')).toBe('▼1.20 個百分點');
     expect(changeText(35, 'holders')).toBe('▲35 人');
   });
@@ -96,15 +102,34 @@ describe('大戶／散戶門檻', () => {
 
 describe('v3 全站統一分級（散戶 ≤ 5｜中實戶｜大戶 ≥ 400｜千張 ≥ 1,000）', () => {
   it('分級對應：散戶＝1–2、中實戶＝3–11、大戶段＝12–14、千張＝15', () => {
-    expect([1, 2].map(tierOf)).toEqual(['retail', 'retail']);
-    expect([3, 11].map(tierOf)).toEqual(['mid', 'mid']);
-    expect([12, 13, 14].map(tierOf)).toEqual(['big', 'big', 'big']);
+    expect([1, 2].map((l) => tierOf(l))).toEqual(['retail', 'retail']);
+    expect([3, 11].map((l) => tierOf(l))).toEqual(['mid', 'mid']);
+    expect([12, 13, 14].map((l) => tierOf(l))).toEqual(['big', 'big', 'big']);
     expect(tierOf(15)).toBe('whale');
     expect(tierRange('retail')).toBe('≤ 5 張');
     expect(tierRange('mid')).toBe('5–400 張');
     expect(tierRange('big')).toBe('400–1,000 張');
     expect(tierRange('whale')).toBe('≥ 1,000 張');
     expect(tierDefinition()).toBe('散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 ≥ 400 張（含千張大戶）｜千張大戶 ≥ 1,000 張');
+  });
+
+  it('M3：顯示層大戶門檻 400／800／1,000 張三選一（回測固定 1,000）', () => {
+    expect(tierOf(14, 800)).toBe('whale');
+    expect(tierOf(13, 800)).toBe('big');
+    expect(tierName('whale', 800)).toBe('800 張大戶');
+    expect(tierName('whale', 1000)).toBe('千張大戶');
+    expect(tierRange('big', 800)).toBe('400–800 張');
+    expect(tierDefinition(800)).toBe('散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 ≥ 400 張（含800 張大戶）｜800 張大戶 ≥ 800 張');
+    expect(tierOf(12, 400)).toBe('whale');
+    expect(tierOrder(400)).toEqual(['retail', 'mid', 'whale']);
+    expect(tierDefinition(400)).toBe('散戶 ≤ 5 張｜中實戶 5–400 張｜400 張大戶 ≥ 400 張');
+    expect(BACKTEST_WHALE).toBe(1000);
+    const store = new Map<string, string>();
+    globalThis.localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) } as unknown as Storage;
+    expect(getWhaleTier()).toBe(1000);
+    setWhaleTier(800);
+    expect(getWhaleTier()).toBe(800);
+    setWhaleTier(1000);
   });
 
   it('四段合計（手算）：第 3 週（w＝2）', () => {

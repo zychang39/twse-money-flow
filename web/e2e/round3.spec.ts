@@ -103,11 +103,11 @@ test('M3（v3）：個股頁有「15 級完整分布」入口；分級定義固�
   await page.getByRole('link', { name: /15 級完整分布/ }).click();
   await expect(page).toHaveURL(/#\/stock\/2330\/holders$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^千張大戶本週/);
-  await expect(page.getByTestId('hd-definition')).toHaveText('分級：散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 ≥ 400 張（含千張大戶）｜千張大戶 ≥ 1,000 張。');
+  await expect(page.getByTestId('hd-definition')).toHaveText('分級：散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 ≥ 400 張（含千張大戶）｜千張大戶 ≥ 1,000 張。回測與選股固定使用 1,000 張。');
   await expect(page.getByRole('slider')).toHaveCount(0);
   await expect(page.getByText(/超過 100 張/)).toHaveCount(0);
   await expect(page.locator('.sc-title', { hasText: '千張大戶（≥ 1,000 張）持股比例（%）' })).toHaveCount(1);
-  await expect(page.locator('.sc-title', { hasText: '大戶（≥ 400 張，含千張）持股比例（%）' })).toHaveCount(1);
+  await expect(page.locator('.sc-title', { hasText: '大戶（≥ 400 張，含千張大戶）持股比例（%）' })).toHaveCount(1);
   await expect(page.locator('.sc-title', { hasText: '散戶（≤ 5 張）持股比例（%）' })).toHaveCount(1);
 });
 
@@ -147,8 +147,8 @@ for (const width of [375, 393]) {
 // ---------------------------------------------------------------- M4 多空對照
 test('M4：個股頁的多空區塊有比例條與入口；多空對照並排列出四個面向的多方與空方', async ({ page }) => {
   await gotoStock(page, '#/stock/2330');
-  // v3：多空比例條併入「整體狀態如何？」區塊
-  const block = page.getByRole('region', { name: /^整體狀態如何？/ });
+  // M3：多空比例條在「四環分數」區塊（結論 → 有效訊號面板 → 四環分數）
+  const block = page.getByRole('region', { name: /^四環分數/ });
   await expect(block.getByRole('region', { name: '多空' })).toContainText(/多空條件：多方 \d+ 項、空方 \d+ 項/);
   await expect(block.getByRole('img', { name: /^多方 \d+ 項、中性 \d+ 項、空方 \d+ 項$/ })).toBeVisible();
   await block.getByRole('link', { name: /多空對照/ }).click();

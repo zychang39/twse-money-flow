@@ -33,14 +33,18 @@ def whale_panels(tdcc: pd.DataFrame, dates: list[str], codes: list[str]) -> dict
                 "code": code,
                 "whale_pct": float(lv.reindex(ind["level_1000"]).sum()),
                 "whale400_pct": float(lv.reindex(ind["level_400"]).sum()),
+                "whale800_pct": float(lv.reindex(ind.get("level_800", [14, 15])).sum()),
             }
         )
     w = pd.DataFrame(rows).sort_values(["code", "date"])
     w["whale_change"] = w.groupby("code")["whale_pct"].diff()
+    # M3：顯示層的 400／800 張門檻也預先算好（回測與選股固定用 1,000 張）
+    w["whale400_change"] = w.groupby("code")["whale400_pct"].diff()
+    w["whale800_change"] = w.groupby("code")["whale800_pct"].diff()
     w["effective"] = [(date.fromisoformat(d) + timedelta(days=2)).isoformat() for d in w["date"]]
     max_age = int(config.thresholds()["backtest"].get("weekly_max_age_days", 7))
     out = {}
-    for col in ("whale_pct", "whale400_pct", "whale_change"):
+    for col in ("whale_pct", "whale400_pct", "whale800_pct", "whale_change", "whale400_change", "whale800_change"):
         out[col] = as_of_panel(w[["code", "effective", col]].rename(columns={col: "v"}), "v", dates, codes, max_age)
     return out
 

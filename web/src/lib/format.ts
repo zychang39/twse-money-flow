@@ -68,24 +68,27 @@ export function changeLabel(change: number | null | undefined, pct: number | nul
   return `${word} ${fmtNum(Math.abs(change ?? 0))} 元${pct !== null && pct !== undefined ? `，${Math.abs(pct).toFixed(2)}%` : ''}`;
 }
 
-/** 張數：正負帶符號，萬張以上以「萬」表示。 */
+/**
+ * 張數（M3 單位統一）：一律完整的千分位整數，不縮寫成萬、千、K、M，不帶小數；四捨五入到整數。
+ * 正負帶符號（負號統一用 U+2212），四捨五入後為 0 → 「0」不帶符號。
+ */
 export function fmtLots(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return '—';
-  const abs = Math.abs(v);
-  const sign = v > 0 ? '+' : v < 0 ? '−' : '';
-  if (abs >= 10000) return `${sign}${(abs / 10000).toFixed(1)}萬`;
-  return `${sign}${Math.round(abs).toLocaleString('zh-TW')}`;
+  const r = Math.round(Math.abs(v));
+  if (r === 0) return '0';
+  return `${v > 0 ? '+' : MINUS}${numberFormat(0).format(r)}`;
 }
 
-/** 張數＋單位（圖表座標軸、數值標籤、提示框用）：不顯示小數，1 萬張以上縮寫為「萬張」，例：−4.0 萬張、+812 張。 */
+/** 張數＋單位（圖表座標軸、數值標籤、提示框用）：例「−40,123 張」「+812 張」「0 張」。 */
 export function fmtLotsUnit(v: number | null | undefined, sign = true): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return '—';
-  const abs = Math.abs(v);
-  const s = !sign ? '' : v > 0 ? '+' : v < 0 ? '−' : '';
-  if (abs >= 10000) return `${s}${(abs / 10000).toFixed(1)} 萬張`;
-  const r = Math.round(abs);
-  return `${r === 0 ? '' : s}${r.toLocaleString('zh-TW')} 張`;
+  const r = Math.round(Math.abs(v));
+  const s = !sign || r === 0 ? '' : v > 0 ? '+' : MINUS;
+  return `${s}${numberFormat(0).format(r)} 張`;
 }
+
+/** 全站統一的負號（U+2212）。 */
+export const MINUS = '\u2212';
 
 /** 億元＋單位（市場法人金額圖）：1 位小數。 */
 export function fmtYiUnit(v: number | null | undefined, sign = true): string {
@@ -94,12 +97,10 @@ export function fmtYiUnit(v: number | null | undefined, sign = true): string {
   return `${s}${Math.abs(v).toFixed(1)} 億元`;
 }
 
-/** 張數（不帶正負號）：萬張以上以「萬」表示。方向由文字（買／賣、增加／減少）或 ▲▼ 表達。 */
+/** 張數（不帶正負號）：完整的千分位整數。方向由文字（買／賣、增加／減少）或 ▲▼ 表達。 */
 export function fmtLotsAbs(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return '—';
-  const abs = Math.abs(v);
-  if (abs >= 10000) return `${(abs / 10000).toFixed(1)} 萬`;
-  return Math.round(abs).toLocaleString('zh-TW');
+  return numberFormat(0).format(Math.round(Math.abs(v)));
 }
 
 export function fmtMoney(v: number | null | undefined): string {

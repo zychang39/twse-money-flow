@@ -2,8 +2,10 @@
 name: Data
 on:
   schedule:
-    - cron: "30 9 * * 1-5"      # 交易日 17:30（台北）每日任務
-    - cron: "30 13 * * 1-5"     # 交易日 21:30（台北）每日任務（融資融券、當沖等晚間資料）
+    # M3.4 分段更新（config/schedule.yml；未公布時每 5 分鐘重試、最多 60 分鐘，每段各自部署）
+    - cron: "15 6 * * 1-5"      # 14:15（台北）收盤行情 → 價格與價格類訊號
+    - cron: "30 7 * * 1-5"      # 15:30（台北）法人 → 訊號、今日新觸發、策略健康度、Telegram
+    - cron: "30 13 * * 1-5"     # 21:30（台北）信用、借券、當沖與其他晚間資料
     - cron: "0 2 * * 6"         # 週六 10:00：集保股權分散表
     - cron: "0 3 11 * *"        # 每月 11 日：月營收
     - cron: "0 3 16 5,8,11 *"   # 季報法定期限後（5/15、8/14、11/14）
@@ -15,7 +17,7 @@ on:
       task:
         description: "任務"
         type: choice
-        options: [daily, periodic, backfill, alerts]
+        options: [daily, periodic, backfill, holders_backfill, stage, probe, alerts]
         default: daily
       source:
         description: "來源 id（逗號分隔，可留白）"
@@ -27,6 +29,10 @@ on:
         default: ""
       end:
         description: "迄日 YYYY-MM-DD（backfill）"
+        required: false
+        default: ""
+      stage:
+        description: "分段更新（task=stage）：close／insti／credit"
         required: false
         default: ""
       refresh:
@@ -43,11 +49,13 @@ permissions:
   id-token: write
 
 # 盤中提醒只讀即時報價，用 alerts 群組。
+# M0：全市場集保回補（holders_backfill）用自己的 holders-backfill 群組，和籌碼回補、每日任務互不排隊。
+# M3.4：公布時間實測（probe）只抓取不寫資料，用 publish-probe 群組。
 # E-05：回補用獨立的 data-backfill 群組（每段最多 40 分鐘、交易日 16:30–22:30 不開始新的一段），
 # 不再和每日任務排同一個佇列（GitHub 同一群組只保留最新一個等待中的 run，長時間回補會把排程的每日任務擠掉）。
 # 兩者可能同時寫入 data 分支：commit-data 推送失敗時 rebase 到遠端最新並合併 manifest 後重試（pipeline/gitdata.py）。
 concurrency:
-  group: ${{ (github.event.schedule == '*/15 1-5 * * 1-5' || inputs.task == 'alerts') && 'alerts' || (inputs.task == 'backfill' && 'data-backfill' || 'data-pipeline') }}
+  group: ${{ (github.event.schedule == '*/15 1-5 * * 1-5' || inputs.task == 'alerts') && 'alerts' || (inputs.task == 'backfill' && 'data-backfill' || (inputs.task == 'holders_backfill' && 'holders-backfill' || (inputs.task == 'probe' && 'publish-probe' || 'data-pipeline'))) }}
   cancel-in-progress: false
 
 jobs:
@@ -103,10 +111,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
-          python -m pipeline run --data-dir data --chain --max-minutes ${{ inputs.task == 'backfill' && 40 || 320 }}
+          python -m pipeline run --data-dir data --chain --max-minutes ${{ (inputs.task == 'backfill' || inputs.task == 'holders_backfill') && 40 || 320 }}
           --task "${{ inputs.task }}" --schedule "${{ github.event.schedule }}"
           --source "${{ inputs.source }}" --start "${{ inputs.start }}" --end "${{ inputs.end }}"
-          --refresh "${{ inputs.refresh }}"
+          --refresh "${{ inputs.refresh }}" --stage "${{ inputs.stage }}"
       - if: always() && steps.prepare.outcome == 'success'
         run: python -m pipeline commit-data --data-dir data
       # resume（22:40）只觸發延後的回補，不抓資料、沒有執行摘要，不回報

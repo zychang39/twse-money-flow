@@ -3,6 +3,7 @@ import { DataStatus, ErrorState, Loading } from '../components/DataStatus';
 import { useAsync } from '../hooks';
 import { loadJson } from '../data/api';
 import { PAGE_SOURCES } from '../lib/health';
+import '../styles/evidence.css';
 
 interface Data {
   date: string;
@@ -52,14 +53,15 @@ export default function Disposition() {
 
           <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>注意累計追蹤</h2>
           <p class="caption muted">門檻：連續注意 ≥ {data.rules.consecutive_days} 日、近 10 日 ≥ {data.rules.within_10_days} 次、近 30 日 ≥ {data.rules.within_30_days} 次時標示「可能進入處置」（再一次即達連續 3 日／10 日 6 次／30 日 12 次標準）。</p>
-          <div class="card scroll-x">
-            <table class="table">
-              <thead><tr><th>股票</th><th>連續</th><th>10 日</th><th>30 日</th><th>最近注意</th></tr></thead>
+          <div class="card flush">
+            <table class="ev-table dp-table">
+              <colgroup><col /><col style={{ width: '3.25rem' }} /><col style={{ width: '3.25rem' }} /><col style={{ width: '3.25rem' }} /><col style={{ width: '3.5rem' }} /></colgroup>
+              <thead><tr><th scope="col">股票</th><th scope="col">連續</th><th scope="col">10 日</th><th scope="col">30 日</th><th scope="col">最近</th></tr></thead>
               <tbody>
                 {data.watch.slice(0, 100).map((r) => (
                   <tr key={r.code}>
-                    <td><a href={`#/stock/${r.code}`}>{r.name}</a>{r.risk ? <span class="tag risk" style={{ marginLeft: 'var(--s-1)' }}>可能進入處置</span> : null}</td>
-                    <td>{r.consecutive}</td><td>{r.in10}</td><td>{r.in30}</td><td>{r.last_date}</td>
+                    <th scope="row" class="ev-wrap"><a class="dp-name" href={`#/stock/${r.code}`}>{r.name}</a>{r.risk ? <span class="tag risk dp-tag">可能進入處置</span> : null}</th>
+                    <td>{r.consecutive}</td><td>{r.in10}</td><td>{r.in30}</td><td>{r.last_date.slice(5).replace('-', '/')}</td>
                   </tr>
                 ))}
               </tbody>

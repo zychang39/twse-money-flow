@@ -1,19 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { fmtLotsUnit, fmtYiUnit, glueNumbers } from './format';
+import { fmtLots, fmtLotsAbs, fmtLotsUnit, fmtYiUnit, glueNumbers } from './format';
 import { formatUnit } from '../components/KChart';
 
 describe('圖表單位格式', () => {
-  it('張數不顯示小數、1 萬張以上縮寫為萬張、帶正負號', () => {
-    expect(fmtLotsUnit(-40123)).toBe('−4.0 萬張');
+  it('M3：張數一律完整的千分位整數（不縮寫、不帶小數）、帶正負號，0 不帶符號', () => {
+    expect(fmtLotsUnit(-40123)).toBe('−40,123 張');
+    expect(fmtLotsUnit(1_234_567)).toBe('+1,234,567 張');
     expect(fmtLotsUnit(812.4)).toBe('+812 張');
     expect(fmtLotsUnit(-4668)).toBe('−4,668 張');
     expect(fmtLotsUnit(0.4)).toBe('0 張');
-    expect(fmtLotsUnit(125000, false)).toBe('12.5 萬張');
+    expect(fmtLotsUnit(125000, false)).toBe('125,000 張');
+    expect(fmtLots(-12_345.6)).toBe('−12,346');
+    expect(fmtLots(0.3)).toBe('0');
+    expect(fmtLots(-0.4)).toBe('0');
+    expect(fmtLotsAbs(1_234_567)).toBe('1,234,567');
+    for (const v of [12_345, 999_999, 12_345_678]) expect(fmtLotsUnit(v)).not.toMatch(/萬|千|K|M|\./);
     expect(fmtLotsUnit(null)).toBe('—');
   });
   it('億元與其他單位', () => {
     expect(fmtYiUnit(-12.345)).toBe('−12.3 億元');
-    expect(formatUnit(-40123, '張', true)).toBe('−4.0 萬張');
+    expect(formatUnit(-40123, '張', true)).toBe('−40,123 張');
     expect(formatUnit(12.34, '%')).toBe('12.3%');
     expect(formatUnit(15.26, '倍')).toBe('15.3 倍');
   });

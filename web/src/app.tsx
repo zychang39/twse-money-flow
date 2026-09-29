@@ -37,6 +37,9 @@ const Search = lazy(() => import('./pages/Search'));
 const Institutional = lazy(() => import('./pages/Institutional'));
 const Holders = lazy(() => import('./pages/Holders'));
 const BullBear = lazy(() => import('./pages/BullBear'));
+const Evidence = lazy(() => import('./pages/Evidence'));
+const Strategies = lazy(() => import('./pages/Strategies'));
+const Leverage = lazy(() => import('./pages/Leverage'));
 
 function Page({ parts }: { parts: string[] }) {
   const [a, b, c] = parts;
@@ -66,6 +69,9 @@ function Page({ parts }: { parts: string[] }) {
         case 'market': return <MarketTemp />;
         case 'calendar': return <CalendarPage />;
         case 'disposition': return <Disposition />;
+        case 'evidence': return <Evidence />;
+        case 'strategies': return <Strategies id={c} />;
+        case 'leverage': return <Leverage />;
         default: return <Placeholder title="找不到頁面" back="/explore" />;
       }
     case 'discipline':

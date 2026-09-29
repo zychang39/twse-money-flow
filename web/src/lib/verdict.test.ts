@@ -108,8 +108,9 @@ describe('投資風格', () => {
   it('預設波段動能、1Y；長期投資 5Y；區塊順序', () => {
     expect(parseStyle(null)).toBe('swing');
     expect(STYLE_PERIOD).toEqual({ swing: '1Y', long: '5Y' });
-    expect(SECTION_ORDER.swing).toEqual(['conclusion', 'momentum', 'institutional', 'credit', 'structure', 'revenue', 'valuation', 'events']);
-    expect(SECTION_ORDER.long).toEqual(['conclusion', 'revenue', 'profit', 'valuation', 'structure', 'institutional', 'credit', 'events']);
+    // M3 波段動能：結論 → 有效訊號面板 → 四環分數 → 動能 → 法人 → 信用與空方 → 籌碼結構 → 營收與基本面 → 估值 → 事件
+    expect(SECTION_ORDER.swing).toEqual(['conclusion', 'signals', 'scores', 'momentum', 'institutional', 'credit', 'structure', 'revenue', 'valuation', 'events']);
+    expect(SECTION_ORDER.long).toEqual(['conclusion', 'scores', 'revenue', 'profit', 'valuation', 'structure', 'institutional', 'credit', 'signals', 'events']);
   });
 });
 

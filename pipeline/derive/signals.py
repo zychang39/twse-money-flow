@@ -128,3 +128,31 @@ def exits_tomorrow(sig_file: dict[str, Any], preset_id: str, horizon: int, since
         if p["id"] == preset_id:
             return list(p.get("triggers", {}).get(d, []))
     return []
+
+
+LAB_PREFIX = "lab:"
+
+
+def merge_strategy_signals(out: Path, lab: dict[str, Any] | None, names: dict[str, str]) -> int:
+    """策略庫（M2）的每日新觸發併入 signals.json（id 加上 lab: 前綴），訊號追蹤與 Telegram 日報沿用同一份檔案。
+
+    價格不另外寫入 signals_px.json：追蹤頁找不到價格時改讀個股檔（lib/trackingSync）。
+    """
+    path = out / "signals.json"
+    if not lab or not path.exists():
+        return 0
+    import json
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    dates = set(data.get("dates", []))
+    for sid, trig in lab.get("presets", {}).items():
+        label, subtitle = lab.get("labels", {}).get(sid, (sid, ""))
+        kept = {d: codes for d, codes in sorted(trig.items()) if d in dates and codes}
+        data["presets"].append(
+            {"id": LAB_PREFIX + sid, "label": label, "subtitle": subtitle, "kind": "lab", "triggers": kept}
+        )
+        for codes in kept.values():
+            for code in codes:
+                data["names"].setdefault(code, names.get(code, code))
+    write_json(path, data)
+    return len(lab.get("presets", {}))

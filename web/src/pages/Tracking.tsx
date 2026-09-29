@@ -10,7 +10,7 @@ import { Sheet } from '../components/Sheet';
 import { useAsync, useDb } from '../hooks';
 import { loadJson, loadSignalPrices, loadSignals, loadSummary } from '../data/api';
 import { deleteStrategy, listScreens, listStrategies, listTracked, saveStrategy, uid } from '../db/db';
-import { screenerConfig, type Condition } from '../lib/config';
+import { labStrategy, screenerConfig, type Condition } from '../lib/config';
 import { describeCondition, savedDisplayName, presetScreens } from '../lib/screener';
 import { exitsTomorrow, trackStats, type Position, type Strategy } from '../lib/tracking';
 import { loadPositions, syncTracking } from '../lib/trackingSync';
@@ -35,7 +35,8 @@ type BacktestFile = { horizons: Record<string, { all?: Stats; out_of_sample?: St
 
 function Compare({ st, ps }: { st: Strategy; ps: Position[] }) {
   const s = trackStats(ps);
-  const bt = useAsync(() => (st.presetId ? loadJson<BacktestFile>(`backtests/${st.presetId}.json`).catch(() => null) : Promise.resolve(null)), [st.presetId]);
+  const lab = labStrategy(st.presetId);
+  const bt = useAsync(() => (st.presetId && !lab ? loadJson<BacktestFile>(`backtests/${st.presetId}.json`).catch(() => null) : Promise.resolve(null)), [st.presetId]);
   const b = bt.data?.horizons[String(st.horizon)]?.all;
   return (
     <div>
@@ -52,7 +53,7 @@ function Compare({ st, ps }: { st: Strategy; ps: Position[] }) {
       </table>
       <p class="tiny muted">
         {bt.data?.coverage?.limited ? '＊回測樣本範圍受限（條件欄位只涵蓋部分股票），見回測頁。' : ''}
-        {st.presetId ? (b ? `回測：持有 ${st.horizon} 日、全部訊號（新觸發），詳見回測頁。` : `回測沒有持有 ${st.horizon} 日的結果（有 5／10／20 日）。`) : '自訂條件請到回測頁計算。'}
+        {lab ? `策略庫「${lab.label}」的歷史統計見策略頁。` : st.presetId ? (b ? `回測：持有 ${st.horizon} 日、全部訊號（新觸發），詳見回測頁。` : `回測沒有持有 ${st.horizon} 日的結果（有 5／10／20 日）。`) : '自訂條件請到回測頁計算。'}
         {s.closed < 30 ? ` 已出場 ${s.closed} 筆，樣本還少，先別據此下結論。` : ''}
       </p>
     </div>
@@ -61,7 +62,7 @@ function Compare({ st, ps }: { st: Strategy; ps: Position[] }) {
 
 function StrategyCard({ st, ps }: { st: Strategy; ps: Position[] }) {
   const [open, setOpen] = useState(false);
-  const preset = screenerConfig.presets.find((p) => p.id === st.presetId);
+  const preset = screenerConfig.presets.find((p) => p.id === st.presetId) ?? labStrategy(st.presetId);
   const tomorrow = exitsTomorrow(ps, st.horizon);
   const shown = open ? ps : ps.slice(0, 8);
   return (

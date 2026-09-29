@@ -1,0 +1,31 @@
+# 分段更新（M3.4；METHODOLOGY §12、DATA_SOURCES「公布時間實測」）
+# 三段各自抓取、驗證、寫入 data 分支並部署；官方還沒公布時每 5 分鐘重試，最多 60 分鐘。
+# cron 寫在 .github/workflows/data.yml（UTC），與 pipeline/cli.py 的 SCHEDULE_TASKS 以測試比對。
+retry:
+  interval_minutes: 5
+  max_minutes: 60
+stages:
+  close:
+    label: 收盤行情
+    time: "14:15"             # 台北；收盤行情約 14:00 公布
+    cron: "15 6 * * 1-5"
+    sources: [twse_quotes, tpex_quotes, tpex_index]
+    ready: [twse_quotes, tpex_quotes]
+    note: 價格與價格類訊號
+    digest: false
+  insti:
+    label: 法人
+    time: "15:30"             # 三大法人約 15:00–16:30 公布
+    cron: "30 7 * * 1-5"
+    sources: [twse_quotes, tpex_quotes, twse_insti, tpex_insti, twse_valuation, tpex_valuation, twse_qfii, tpex_qfii]
+    ready: [twse_insti, tpex_insti]
+    note: 法人、訊號、今日新觸發、策略健康度；推送 Telegram（若有設定）
+    digest: true
+  credit:
+    label: 信用
+    time: "21:30"             # 融資融券約 21:00、借券約 21:30、當沖當晚
+    cron: "30 13 * * 1-5"
+    sources: all              # 全部每日來源（含期交所、注意／處置、主動式 ETF）
+    ready: [twse_margin, tpex_margin]
+    note: 信用、借券、當沖與其他晚間資料
+    digest: false

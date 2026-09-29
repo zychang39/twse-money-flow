@@ -33,11 +33,11 @@ test.describe('M2-1 每日籌碼表', () => {
       const [a, v] = await arrow.evaluate((el) => [parseFloat(getComputedStyle(el).fontSize), parseFloat(getComputedStyle(el.closest('td')!).fontSize)]);
       expect(a).toBeLessThan(v);
     }
-    // 列高約 52pt；日期 15pt、日期下方 12pt
+    // 列高約 52–64pt（M3：日期下方收盤與漲跌分兩行）；日期 15pt、日期下方 12pt
     const row = table.locator('tbody tr.day').first();
     const h = (await row.boundingBox())!.height;
     expect(h).toBeGreaterThanOrEqual(50);
-    expect(h).toBeLessThanOrEqual(56);
+    expect(h).toBeLessThanOrEqual(64);
     expect(await row.locator('.cd-date').evaluate((el) => getComputedStyle(el).fontSize)).toBe('15px');
     expect(await row.locator('.cd-sub').evaluate((el) => getComputedStyle(el).fontSize)).toBe('12px');
     const totalBg = await table.locator('tr.total td').first().evaluate((el) => getComputedStyle(el).backgroundColor);

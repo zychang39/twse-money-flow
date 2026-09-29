@@ -6,6 +6,7 @@ import type { StockHistory } from '../data/types';
 import { ALIGN_NAME, type MomentumFacts, type ProfitFacts, type RevenueFacts, peRiver } from '../lib/fundamentals';
 import { fmtNum, fmtPrice, numberFormat } from '../lib/format';
 import { LineChart } from './LineChart';
+import { type TechFacts, kdText, macdText } from '../lib/technical';
 import { NetBars } from './Viz';
 import { FairRange } from './StockExtras';
 import { IconChevron } from './Icons';
@@ -35,8 +36,8 @@ function high52Sub(f: MomentumFacts): string | undefined {
   return parts.length ? parts.join('・') : undefined;
 }
 
-/** 動能：RS 百分位、距 52 週高點、均線排列（20／60／240）、量能相對 20 日均量。 */
-export function MomentumSection({ f }: { f: MomentumFacts }) {
+/** 動能：RS 百分位、距 52 週高點、均線排列（20／60／240）、量能相對 20 日均量；M3 補 20 日乖離、KD 與鈍化天數、MACD 狀態。 */
+export function MomentumSection({ f, t }: { f: MomentumFacts; t?: TechFacts }) {
   return (
     <>
       <dl class="sx-facts" data-testid="momentum-facts">
@@ -44,6 +45,9 @@ export function MomentumSection({ f }: { f: MomentumFacts }) {
         <Fact k="距 52 週高點" v={f.dist52 === null ? '—' : `${F1.format(f.dist52)}%`} sub={high52Sub(f)} />
         <Fact k="量能" v={f.volRatio === null ? '—' : `${F2.format(f.volRatio)} 倍`} sub="當日量 ÷ 20 日均量" />
         <Fact k="均線排列" v={ALIGN_NAME[f.alignment]} sub="20／60／240 日（還原價）" />
+        {t ? <Fact k="20 日乖離" v={t.bias20 === null ? '—' : `${t.bias20 > 0 ? '+' : t.bias20 < 0 ? '\u2212' : ''}${F1.format(Math.abs(t.bias20))}%`} sub="收盤 ÷ 20 日線 − 1" /> : null}
+        {t ? <Fact k="KD（9,3,3）" v={t.k === null ? '—' : `${Math.round(t.k)}`} sub={kdText(t)} /> : null}
+        {t ? <Fact k="MACD（12,26,9）" v={t.hist === null ? '—' : t.hist > 0 ? '柱狀為正' : '柱狀為負'} sub={macdText(t)} /> : null}
       </dl>
       <ul class="sx-ma" aria-label="收盤與均線">
         {f.ma.map((m) => (

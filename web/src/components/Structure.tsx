@@ -4,7 +4,7 @@
  * - HolderTrend：走勢圖（比例｜人數｜人均張數；3 個月｜6 個月｜1 年），資料不足時單點＋說明。
  * - StructureBlock：個股頁區塊（一句話結論在區塊標題）；走勢放在「查看趨勢」點開的底部面板。
  */
-import { useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { type ChartPanel, StackedChart } from './StackedChart';
 import { Sheet } from './Sheet';
@@ -14,8 +14,11 @@ import {
   METRICS,
   METRIC_NAME,
   METRIC_UNIT,
-  TIERS,
-  TIER_NAME,
+  BACKTEST_WHALE,
+  WHALE_EVENT,
+  getWhaleTier,
+  tierName,
+  tiers,
   type HolderBlock,
   type Metric,
   alignClose,
@@ -40,18 +43,19 @@ export const HOLDER_PERIODS = [{ weeks: 13, label: '3 個月' }, { weeks: 26, la
 function axis(m: Metric) {
   return (v: number) => {
     if (m === 'pct') return F1.format(v);
-    if (m === 'holders') return Math.abs(v) >= 1e4 ? `${Number((v / 1e4).toFixed(1))}萬` : INT.format(v);
-    return Math.abs(v) >= 100 ? INT.format(v) : F1.format(v);
+    if (m === 'holders') return INT.format(v);
+    return INT.format(Math.round(v));
   };
 }
 
 /** 堆疊比例條（最新一週）＋每段本週變化。 */
 export function StructureBar({ block }: { block: HolderBlock }) {
-  const st = tierStats(block);
+  const whale = useWhaleTier();
+  const st = tierStats(block, whale);
   const total = st.reduce((a, s) => a + (s.pct ?? 0), 0) || 100;
   return (
     <div class="st-bar-wrap" data-testid="structure-bar">
-      <div class="st-bar" role="img" aria-label={`籌碼結構（${block.d[block.d.length - 1]}）：${st.map((s) => `${TIER_NAME[s.tier]} ${s.pct === null ? '沒有資料' : `${F1.format(s.pct)}%`}`).join('、')}`}>
+      <div class="st-bar" role="img" aria-label={`籌碼結構（${block.d[block.d.length - 1]}）：${st.map((s) => `${tierName(s.tier, whale)} ${s.pct === null ? '沒有資料' : `${F1.format(s.pct)}%`}`).join('、')}`}>
         {st.map((s) => <span key={s.tier} class={`st-seg ${s.tier}`} style={{ width: `${((s.pct ?? 0) / total) * 100}%` }} />)}
       </div>
       <dl class="st-legend">
@@ -60,7 +64,7 @@ export function StructureBar({ block }: { block: HolderBlock }) {
           const dir = dirClass(d, 0.005);
           return (
             <div key={s.tier} class={`st-item ${s.tier}`}>
-              <dt><span class="st-swatch" aria-hidden="true" />{TIER_NAME[s.tier]}<span class="st-range">{tierRange(s.tier)}</span></dt>
+              <dt><span class="st-swatch" aria-hidden="true" />{tierName(s.tier, whale)}<span class="st-range">{tierRange(s.tier, whale)}</span></dt>
               <dd>
                 <span class="num st-pct">{s.pct === null ? '—' : `${F1.format(s.pct)}%`}</span>
                 <span class={`num st-chg ${dir}`}>
@@ -84,7 +88,9 @@ export function StructureBar({ block }: { block: HolderBlock }) {
 export function HolderTrend({ block, d, c, name }: { block: HolderBlock; d: string[]; c: (number | null)[]; name: string }) {
   const [metric, setMetric] = useState<Metric>('pct');
   const [weeks, setWeeks] = useState<number>(26);
-  const { retail_max: small, big_min: big, whale_min: whale } = TIERS;
+  const tierSel = useWhaleTier();
+  const { retail_max: small, big_min: big, whale_min: whale } = tiers(tierSel);
+  const topName = tierName('whale', tierSel);
   const s400 = useMemo(() => groupSeries(block, weeks, small, big, metric), [block, weeks, metric]);
   const s1000 = useMemo(() => groupSeries(block, weeks, small, whale, metric), [block, weeks, metric]);
   const closes = useMemo(() => alignClose(s400.dates, d, c), [s400, d, c]);
@@ -93,10 +99,10 @@ export function HolderTrend({ block, d, c, name }: { block: HolderBlock; d: stri
   const note = coverageNote(coverage(block.d.slice(-weeks), weeks), '週');
   const panels: ChartPanel[] = s400.dates.length ? [
     { id: 'close', title: '收盤價（元）', kind: 'lines', height: 64, series: [{ key: 'close', label: '收盤', values: closes }], format: (v) => numberFormat(Number.isInteger(v) ? 0 : 1).format(v), tipFormat: (v) => `${fmtPrice(v)} 元` },
-    { id: 'whale', title: `千張大戶（${bigLabel(whale)}）${METRIC_NAME[metric]}（${unit}）`, kind: 'lines', height: 80, series: [{ key: 'whale', label: '千張大戶', values: s1000.big }], format: axis(metric), tipFormat: (v) => metricText(v, metric) },
-    { id: 'big', title: `大戶（${bigLabel(big)}，含千張）${METRIC_NAME[metric]}（${unit}）`, kind: 'lines', height: 80, series: [{ key: 'big', label: '大戶', values: s400.big }], format: axis(metric), tipFormat: (v) => metricText(v, metric) },
+    { id: 'whale', title: `${topName}（${bigLabel(whale)}）${METRIC_NAME[metric]}（${unit}）`, kind: 'lines', height: 80, series: [{ key: 'whale', label: topName, values: s1000.big }], format: axis(metric), tipFormat: (v) => metricText(v, metric) },
+    { id: 'big', title: `大戶（${bigLabel(big)}${whale > big ? `，含${topName}` : ''}）${METRIC_NAME[metric]}（${unit}）`, kind: 'lines', height: 80, series: [{ key: 'big', label: '大戶', values: s400.big }], format: axis(metric), tipFormat: (v) => metricText(v, metric) },
     { id: 'small', title: `散戶（${smallLabel(small)}）${METRIC_NAME[metric]}（${unit}）`, kind: 'lines', height: 80, series: [{ key: 'small', label: '散戶', values: s400.small, style: 'dashed' }], format: axis(metric), tipFormat: (v) => metricText(v, metric) },
-    { id: 'whaleChg', title: `千張大戶每週增減（${metric === 'pct' ? '百分點' : unit}）`, kind: 'bars', height: 72, series: [{ key: 'whaleChg', label: '千張大戶週增減', values: s1000.bigChange }], format: axis(metric), tipFormat: (v) => changeText(v, metric) },
+    { id: 'whaleChg', title: `${topName}每週增減（${metric === 'pct' ? '百分點' : unit}）`, kind: 'bars', height: 72, series: [{ key: 'whaleChg', label: `${topName}週增減`, values: s1000.bigChange }], format: axis(metric), tipFormat: (v) => changeText(v, metric) },
   ] : [];
   return (
     <div class="hd-trend">
@@ -122,11 +128,11 @@ export function StructureBlock({ block, d, c, name, code, extra }: { block: Hold
   return (
     <>
       <StructureBar block={block} />
-      <p class="caption muted st-def">分級：{tierDefinition()}。資料日 {block.d[block.d.length - 1]}，變化為與前一週相比（百分點）。</p>
+      <p class="caption muted st-def">分級：{tierDefinition(getWhaleTier())}。資料日 {block.d[block.d.length - 1]}，變化為與前一週相比（百分點）。最上面一段的門檻可在設定頁改為 400／800／1,000 張；回測與選股固定使用 {BACKTEST_WHALE.toLocaleString('zh-TW')} 張。</p>
       {extra}
       <div class="list">
         <button class="list-item brand" onClick={() => setOpen(true)}>
-          <span class="grow">查看趨勢<span class="caption muted tool-sub">千張大戶、大戶、散戶的持股比例、人數、人均張數逐週走勢</span></span>
+          <span class="grow">查看趨勢<span class="caption muted tool-sub">大戶、散戶的持股比例、人數、人均張數逐週走勢</span></span>
           <span class="chev"><IconChevron /></span>
         </button>
         <a class="list-item brand" href={`#/stock/${code}/holders`}>
@@ -139,4 +145,16 @@ export function StructureBlock({ block, d, c, name, code, extra }: { block: Hold
       </Sheet>
     </>
   );
+}
+
+/** 設定頁改變大戶門檻時重新繪製。 */
+export function useWhaleTier() {
+  const [v, setV] = useState(getWhaleTier());
+  useEffect(() => {
+    const on = () => setV(getWhaleTier());
+    window.addEventListener(WHALE_EVENT, on);
+    window.addEventListener('storage', on);
+    return () => { window.removeEventListener(WHALE_EVENT, on); window.removeEventListener('storage', on); };
+  }, []);
+  return v;
 }

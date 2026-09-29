@@ -532,37 +532,24 @@ export function colStreak(all: ChipRow[], col: ViewCol): number {
   return streak(all.slice(1).map((r) => r[col.key as keyof ChipRow] as N));
 }
 
-/** 精簡數字：≥ 10,000 縮寫為「1.2 萬」（≥ 100 萬取整數）；其餘依單位給小數位數。 */
+/** 數字（不含正負號）：張為完整的千分位整數（M3：不縮寫成萬、千、K、M）；其餘依單位給小數位數。 */
 export function compactNum(abs: number, unit: Unit | 'ratio'): string {
-  if (abs >= 1e4) {
-    const w = abs / 1e4;
-    return `${w >= 100 ? numberFormat(0).format(Math.round(w)) : w.toFixed(1)}\u00a0萬`;
-  }
   const digits = unit === 'lots' ? 0 : unit === 'ratio' ? 1 : abs >= 1000 ? 0 : abs >= 100 ? 1 : 2;
-  return numberFormat(digits).format(abs);
+  return numberFormat(digits).format(unit === 'lots' ? Math.round(abs) : abs);
 }
 
 /**
  * 每日籌碼表的「整欄」數字格式（v3，依 Apple HIG：同一欄同一種格式，小數點才對得齊）：
- * - 張：該欄（含區間合計列）最大絕對值 ≥ 10,000 → 整欄「萬張」、1 位小數；否則整欄千分位整數。
+ * - 張：完整的千分位整數（M3）。
  * - 億元、佔量 %：整欄 2 位小數（該欄最大值 ≥ 100 → 1 位、≥ 1,000 → 整數）；比率 %：整欄 1 位小數。
  */
 export interface ColFormat {
   digits: number;
-  /** 張數以萬張顯示（整張表一起切換；未滿 1,000 張的格子寫整數張，見 cellText） */
-  wan?: boolean;
 }
 
-export const WAN_THRESHOLD = 1e4;
-/** 萬張表格中，絕對值小於這個數的格子改寫整數張（避免 ▲0.0） */
-export const WAN_SMALL = 1e3;
-/** 萬張表格中小量格子的單位後綴（表格以小字顯示「張」） */
-export const LOT_SUFFIX = '\u00a0張';
-
 /**
- * 表格格式（#6）：同一張表的同一種單位只用一種格式，單位寫在表格上方（tableUnitLabel），不黏在欄名後面。
- * - 張：整張表（含區間合計）張數欄的最大絕對值 < 10,000 → 全部千分位整數；
- *   ≥ 10,000 → 全部萬張 1 位小數，但未滿 1,000 張的格子寫「▲315 張」（至少到整數張，不出現 ▲0.0）。
+ * 表格格式（#6）：同一張表的同一種單位只用一種格式，單位寫在表格右上角（tableUnitLabel），不黏在欄名後面。
+ * - 張：完整的千分位整數（M3：不切換萬張）。
  * - 億元、佔量 %：整張表依最大絕對值決定小數位（≥ 1,000 整數、≥ 100 一位、否則兩位）。
  * - 比率：一位小數。
  */
@@ -577,7 +564,7 @@ export function tableFormats(values: Record<string, N[]>, cols: ViewCol[], unit:
 
 function unitFormat(u: Unit | 'ratio', max: number): ColFormat {
   if (u === 'ratio') return { digits: 1 };
-  if (u === 'lots') return max >= WAN_THRESHOLD ? { digits: 1, wan: true } : { digits: 0 };
+  if (u === 'lots') return { digits: 0 }; // M3：張一律完整的千分位整數（不再切換萬張）
   return { digits: max >= 1000 ? 0 : max >= 100 ? 1 : 2 };
 }
 
@@ -588,15 +575,9 @@ export function viewFormats(values: Record<string, N[]>, unit: Unit): Record<str
   return Object.assign({}, ...VIEWS.map((v) => tableFormats(values, VIEW_COLS[v], unit)));
 }
 
-/** 表格上方的單位說明：「張」「萬張（未滿 1,000 張寫張數）」「億元（估）」…；views＝目前顯示的檢視。 */
-export function tableUnitLabel(unit: Unit, fmts: Record<string, ColFormat>, views: View[]): string {
-  const wanViews = views.filter((v) => VIEW_COLS[v].some((c) => colUnit(c, unit) === 'lots' && fmts[c.key]?.wan));
-  const lotViews = views.filter((v) => VIEW_COLS[v].some((c) => colUnit(c, unit) === 'lots'));
-  if (!wanViews.length) return UNIT_LABEL[unit];
-  const wanText = '萬張（未滿千張寫張）';
-  if (unit === 'lots' && wanViews.length === lotViews.length) return wanText;
-  const names = wanViews.map((v) => VIEW_LABEL[v]).join('、');
-  return `${UNIT_LABEL[unit]}；${unit === 'lots' ? names : '餘額'}欄為${wanText}`;
+/** 表格上方的單位說明（M3：只有張；單位只在表格右上角出現一次）。 */
+export function tableUnitLabel(unit: Unit, _fmts?: Record<string, ColFormat>, _views?: View[]): string {
+  return UNIT_LABEL[unit];
 }
 
 /** 單欄格式（卡片、底部面板等只有一欄的情境）；規則同 tableFormats。 */
@@ -604,10 +585,9 @@ export function colFormat(values: N[], col: ViewCol, unit: Unit): ColFormat {
   return tableFormats({ [col.key]: values }, [col], unit)[col.key];
 }
 
-/** 依格式寫出絕對值（不含正負號與單位）。萬張格式下未滿 1,000 張寫「315 張」。 */
+/** 依格式寫出絕對值（不含正負號與單位）。 */
 export function formatAbs(abs: number, f: ColFormat): string {
-  if (f.wan) return abs < WAN_SMALL ? `${numberFormat(0).format(abs)}${LOT_SUFFIX}` : numberFormat(f.digits).format(abs / 1e4);
-  return numberFormat(f.digits).format(abs);
+  return numberFormat(f.digits).format(f.digits === 0 ? Math.round(abs) : abs);
 }
 
 /**
@@ -621,8 +601,7 @@ export function cellText(v: N, col: ViewCol, unit: Unit, signed = col.signed, fm
   let raw = fmt ? formatAbs(Math.abs(v), fmt) : compactNum(Math.abs(v), u);
   const roundsToZero = Number(raw.replace(/[^\d.]/g, '')) === 0;
   // 非 0 但四捨五入為 0（例：億元欄的 0.004）：寫成「<0.01」，不出現 ▲0.0 這種看似有方向卻是 0 的數字（#6）
-  // 萬張表格中未滿 1,000 張的格子已經寫成整數張，四捨五入為 0 就是 0
-  const intCell = !fmt || fmt.digits === 0 || (!!fmt.wan && Math.abs(v) < WAN_SMALL);
+  const intCell = !fmt || fmt.digits === 0;
   if (roundsToZero && v !== 0 && !intCell) raw = `<${numberFormat(fmt!.digits).format(10 ** -fmt!.digits)}`;
   const shownZero = roundsToZero && (v === 0 || intCell);
   const body = `${shownZero ? '0' : raw}${u === 'ratio' ? '%' : ''}`;

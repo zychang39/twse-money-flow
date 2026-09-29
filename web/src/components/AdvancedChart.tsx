@@ -69,7 +69,7 @@ export default function AdvancedChart({ h, mode: ctlMode, onMode }: { h: StockHi
       <KChart ohlc={chart.ohlc} volume={chart.volume} overlays={chart.overlays} lower={chart.lowerPanel}
         ariaLabel={`${h.name} ${mode === 'adj' ? '還原' : '原始'} K 線圖，最新收盤 ${fmtPrice(h.c[last])}`} />
       <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>
-        成交量單位：張（1 萬張以上以萬張表示）・下方指標：{(LOWER_PANELS.find((p) => p.id === lower) ?? LOWER_PANELS[0]).label}（{(LOWER_PANELS.find((p) => p.id === lower) ?? LOWER_PANELS[0]).unit}）
+        成交量單位：張・下方指標：{(LOWER_PANELS.find((p) => p.id === lower) ?? LOWER_PANELS[0]).label}（{(LOWER_PANELS.find((p) => p.id === lower) ?? LOWER_PANELS[0]).unit}）
         {(LOWER_PANELS.find((p) => p.id === lower) ?? LOWER_PANELS[0]).signed ? <>・<span class="up" aria-hidden="true">■</span> 紅色＝淨買超 <span class="down" aria-hidden="true">■</span> 綠色＝淨賣超</> : null}
         ・拖曳或移動游標可查看每日數值。
       </p>

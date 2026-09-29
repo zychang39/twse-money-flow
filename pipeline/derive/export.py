@@ -160,6 +160,8 @@ def build_health(ds: Dataset, market_date: str | None) -> dict[str, Any]:
                 # Q-08：警告日期早於最後成功日 → 是回補舊資料留下的，現在的格式正常，不顯示相容模式
                 "format_warnings": [] if stale_warning(entry) else entry.get("format_warnings") or [],
                 "format_warning_date": None if stale_warning(entry) else entry.get("format_warning_date"),
+                # M3.4：分段更新實測的公布時間（5 分鐘粒度）
+                "publish": publish_summary(manifest.get("publish_times", {}).get(sid, [])),
             }
         )
     return {
@@ -171,6 +173,14 @@ def build_health(ds: Dataset, market_date: str | None) -> dict[str, Any]:
         "trading_days": len(trading),
         "first_date": trading[0] if trading else None,
     }
+
+
+def publish_summary(rows: list[dict[str, str]], last: int = 20) -> dict[str, Any] | None:
+    """最近 last 次實測的公布時間：中位數、最早、最晚（HH:MM）與天數。"""
+    times = sorted(str(r["at"]) for r in rows[-last:] if r.get("at"))
+    if not times:
+        return None
+    return {"median": times[(len(times) - 1) // 2], "earliest": times[0], "latest": times[-1], "days": len(times)}
 
 
 # ------------------------------------------------------------------ 主流程
@@ -196,6 +206,9 @@ def build_web(data_dir: Path, out: Path, *, demo: bool = False) -> dict[str, Any
         "sources_failed": [s["id"] for s in health["sources"] if s["last_status"] == "failed"],
         # 影響最新資料的異常來源（頁首「N 個資料源異常」只依這份清單與該頁用到的來源判斷）
         "sources_affected": [s["id"] for s in health["sources"] if s["affects_latest"]],
+        # M3.4 分段更新：今晚頁狀態列（各段的目標日、狀態、完成時間）與排程
+        "stages": ds.manifest.get("stages"),
+        "schedule": {k: {"label": v["label"], "time": v["time"]} for k, v in config.load("schedule")["stages"].items()},
     }
     if not market_date:
         write_json(out / "meta.json", meta)
@@ -205,9 +218,18 @@ def build_web(data_dir: Path, out: Path, *, demo: bool = False) -> dict[str, Any
     from pipeline.derive import history
     from pipeline.derive.build import build_all
 
+    # M1：指標效度評估用全期間資料（在截衍生計算視窗之前）；每次部署重算，資料補齊後自動移除「樣本範圍受限」
+    evidence = build_evidence(ds, out)
     # v3：衍生計算只用最近一段（約 4.5 年）；更早的收盤另存長歷史檔（stocks/{code}.hist.json）
     full_quotes = history.trim_window(ds)
     report = build_all(ds, out, meta)
+    lab = evidence.pop("_signals", None)
+    from pipeline.derive.signals import merge_strategy_signals
+
+    evidence["lab_signals"] = merge_strategy_signals(
+        out, lab, dict(zip(ds.quotes["code"], ds.quotes["name"], strict=True))
+    )
+    report["evidence"] = evidence
     meta.update(report.get("meta", {}))
     codes = sorted(p.stem for p in (out / "stocks").glob("*.json") if not p.stem.endswith(".hist"))
     report["long_history"] = history.write_long_history(full_quotes, ds, out, codes)
@@ -223,6 +245,19 @@ def build_web(data_dir: Path, out: Path, *, demo: bool = False) -> dict[str, Any
     if size > SUMMARY_LIMIT_BYTES:
         log.warning("summary.json gzip %d bytes 超過 800KB", size)
     return {k: v for k, v in report.items() if k != "meta"}
+
+
+def build_evidence(ds: Dataset, out: Path) -> dict[str, Any]:
+    """指標效度評估（M1）→ evidence.json、evidence/{id}.json、evidence_today.json。失敗時寫出空表並記錄原因，不中斷部署。"""
+    try:
+        from pipeline.evidence import data as evdata
+        from pipeline.evidence.run import run_and_write
+
+        return run_and_write(evdata.from_dataset(ds), out, None)
+    except Exception as exc:  # 評估失敗不影響其他頁面
+        log.exception("指標效度評估失敗")
+        write_json(out / "evidence.json", {"meta": {"error": f"{type(exc).__name__}: {exc}"[:300]}, "rows": []})
+        return {"error": str(exc)[:300]}
 
 
 def is_listed_security(code: str) -> bool:

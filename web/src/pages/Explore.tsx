@@ -70,6 +70,8 @@ export default function Explore() {
       </div>
       <div class="tile-grid" style={{ marginTop: 'var(--s-6)' }}>
         <Tile href="#/explore/screener" icon={<IconFilter />} label="選股" status={`${screenerConfig.presets.length} 組內建條件＋自訂`} />
+        <Tile href="#/explore/strategies" icon={<IconLayers />} label="策略庫" status="通過驗證的策略・槓桿風險計算" />
+        <Tile href="#/explore/evidence" icon={<IconShield />} label="指標效度表" status="哪些指標有統計證據" />
         <Tile href="#/explore/backtest" icon={<IconHistory />} label="回測" status="訊號的歷史統計・可信度" />
         <Tile href="#/explore/sectors" icon={<IconGrid />} label="產業資金輪動" status={topSector ? `近 5 日流入最多：${topSector.industry}` : '依法人金額排列'} />
         <Tile href="#/explore/etf" icon={<IconLayers />} label="主動式 ETF" status={market.data?.active_etfs ? `${market.data.active_etfs.length} 檔・持股資料待處理` : '清單'} />

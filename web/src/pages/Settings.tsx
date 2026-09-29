@@ -9,6 +9,8 @@ import { DEFAULT_WEIGHTS, type Weights } from '../lib/scores';
 import { DEFAULT_COSTS, type CostSettings } from '../lib/costs';
 import { AlertExport } from '../components/AlertExport';
 import { AppVersion } from '../components/AppVersion';
+import { useWhaleTier } from '../components/Structure';
+import { BACKTEST_WHALE, WHALE_TIERS, setWhaleTier } from '../lib/holders';
 
 
 export default function Settings() {
@@ -49,6 +51,8 @@ export default function Settings() {
           <label class="switch"><input type="checkbox" role="switch" aria-label="環境光" checked={stored.ambient} onChange={(e) => setSetting('ambient', (e.target as HTMLInputElement).checked)} /><span /></label>
         </div>
       </div>
+
+      <WhaleTierSetting />
 
       <h2 class="section-title">遊戲化</h2>
       <div class="card">
@@ -113,5 +117,21 @@ export default function Settings() {
         <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>新版本上線後，開啟 App 時會自動更新；正在操作時只在畫面下方提示，不會打斷正在填寫的內容。</p>
       </div>
     </div>
+  );
+}
+
+/** M3：籌碼結構最上面一段的門檻（只影響顯示；回測與選股固定 1,000 張）。 */
+function WhaleTierSetting() {
+  const v = useWhaleTier();
+  return (
+    <>
+      <h2 class="section-title">大戶門檻（顯示）</h2>
+      <div class="card">
+        <div class="segmented" role="group" aria-label="大戶門檻">
+          {WHALE_TIERS.map((t) => <button key={t} aria-pressed={v === t} onClick={() => setWhaleTier(t)}>{t.toLocaleString('zh-TW')} 張</button>)}
+        </div>
+        <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>個股頁「籌碼結構」最上面一段的門檻。回測、選股與指標效度評估固定使用 {BACKTEST_WHALE.toLocaleString('zh-TW')} 張。</p>
+      </div>
+    </>
   );
 }

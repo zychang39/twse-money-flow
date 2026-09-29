@@ -14,12 +14,15 @@ export const STYLE_DESC: Record<InvestStyle, string> = {
 };
 export const STYLE_PERIOD: Record<InvestStyle, Period> = { swing: '1Y', long: '5Y' };
 
-export type SectionId = 'conclusion' | 'momentum' | 'institutional' | 'credit' | 'structure' | 'revenue' | 'profit' | 'valuation' | 'events';
+export type SectionId = 'conclusion' | 'signals' | 'scores' | 'momentum' | 'institutional' | 'credit' | 'structure' | 'revenue' | 'profit' | 'valuation' | 'events';
 
-/** 主角價格與走勢固定在最上方，以下依風格排序。 */
+/**
+ * 主角價格與走勢固定在最上方，以下依風格排序。
+ * 波段動能（M3）：結論 → 有效訊號面板 → 四環分數 → 動能 → 法人 → 信用與空方 → 籌碼結構 → 營收與基本面 → 估值 → 事件。
+ */
 export const SECTION_ORDER: Record<InvestStyle, SectionId[]> = {
-  swing: ['conclusion', 'momentum', 'institutional', 'credit', 'structure', 'revenue', 'valuation', 'events'],
-  long: ['conclusion', 'revenue', 'profit', 'valuation', 'structure', 'institutional', 'credit', 'events'],
+  swing: ['conclusion', 'signals', 'scores', 'momentum', 'institutional', 'credit', 'structure', 'revenue', 'valuation', 'events'],
+  long: ['conclusion', 'scores', 'revenue', 'profit', 'valuation', 'structure', 'institutional', 'credit', 'signals', 'events'],
 };
 
 export function parseStyle(v: string | null | undefined): InvestStyle {

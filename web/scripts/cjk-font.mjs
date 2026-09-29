@@ -6,7 +6,9 @@ import { readFileSync } from 'node:fs';
 
 export async function useCjkFont(context, dir = process.env.CJK_FONT_DIR) {
   if (!dir) return false;
-  const css = ['400', '500', '600'].map((w) => readFileSync(`${dir}/${w}.css`, 'utf8')).join('\n').replaceAll('url(./files/', 'url(/__cjk/');
+  const base = ['400', '500', '600'].map((w) => readFileSync(`${dir}/${w}.css`, 'utf8')).join('\n').replaceAll('url(./files/', 'url(/__cjk/');
+  // M3：App 的字體堆疊是 -apple-system, …, 'PingFang TC'；截圖環境沒有蘋方，以同一份 Noto Sans TC 冒名 PingFang TC（只影響截圖）
+  const css = `${base}\n${base.replaceAll(/font-family: ?'Noto Sans TC'/g, "font-family: 'PingFang TC'")}`;
   await context.route('**/__cjk/**', (route) => route.fulfill({ path: `${dir}/files/${route.request().url().split('/__cjk/')[1]}` }));
   await context.addInitScript((text) => {
     const add = () => { const s = document.createElement('style'); s.textContent = text; document.head.appendChild(s); };

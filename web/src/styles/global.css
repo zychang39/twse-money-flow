@@ -227,6 +227,8 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 .check input { width: 1.25rem; height: 1.25rem; accent-color: var(--brand-fill); }
 .switch-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); min-height: var(--tap); }
 .switch { position: relative; width: 3.125rem; height: 1.875rem; flex: none; }
+/* M3：開關外觀 50×30，點擊範圍以 ::before 上下擴大到 44px */
+.switch::before { content: ''; position: absolute; left: 0; right: 0; top: -0.4375rem; bottom: -0.4375rem; }
 .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
 .switch span { position: absolute; inset: 0; border-radius: var(--r-pill); background: var(--surface-3); transition: background var(--dur-fast) var(--ease-out); pointer-events: none; }
 .switch span::after { content: ''; position: absolute; top: 2px; left: 2px; width: 1.625rem; height: 1.625rem; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25); transition: transform var(--dur-base) var(--ease-spring); }
@@ -349,7 +351,8 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
   backdrop-filter: blur(24px) saturate(160%);
   box-shadow: inset 0 0.5px 0 var(--glass-hi), var(--shadow-float);
 }
-:root[data-ambient='on'] .card.soft-glass { background: color-mix(in srgb, var(--surface-1) 78%, transparent); box-shadow: inset 0 0.5px 0 var(--glass-hi); }
+/* M3（Liquid Glass 規則）：內容卡片一律實心背景，不放在半透明玻璃上 */
+:root[data-ambient='on'] .card.soft-glass { background: var(--surface-1); box-shadow: inset 0 0.5px 0 var(--glass-hi); }
 
 /* ---------- 底部導覽：5 個分頁的玻璃膠囊（Instagram／iOS 26 樣式），搜尋在第 4 格 ----------
  * 固定元素一律 bottom: 0，以 safe-area 補齊，不額外疊加 margin：
@@ -405,8 +408,8 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 :root[data-kb='open'] .dock { opacity: 0; transform: translateY(0.75rem); pointer-events: none; }
 :root[data-kb='open'] .dock > * { pointer-events: none; }
 :root[data-ambient='off'] .tabbar { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--tab-bg-solid); }
-@media (prefers-reduced-transparency: reduce) {
-  .glass, .tabbar { -webkit-backdrop-filter: none; backdrop-filter: none; }
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .glass, .tabbar, .segmented { -webkit-backdrop-filter: none; backdrop-filter: none; }
   .glass { background: var(--surface-2); }
   .tabbar { background: var(--tab-bg-solid); }
 }
@@ -601,7 +604,7 @@ table.table tbody tr td:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0;
 .chip-daily .cd-measure { position: fixed; left: 0; top: 0; visibility: hidden; white-space: nowrap; pointer-events: none; }
 .cd-wide-probe { position: fixed; left: 0; top: 0; height: 0; visibility: hidden; pointer-events: none; width: min(calc(100vw - 2 * (var(--gutter) + max(var(--safe-left), var(--safe-right)))), 64rem); }
 
-.cd-wrap { background: var(--surface-1); border-radius: var(--r-card); overflow: hidden; box-shadow: var(--shadow-card); }
+.cd-wrap { background: var(--surface-1); border-radius: var(--r-card); overflow: clip; box-shadow: var(--shadow-card); } /* clip（不是 hidden）：表頭可以 sticky */
 /* 橫向／平板：同時顯示全部欄位，寬度超出內容欄時置中延伸（仍在畫面內） */
 .cd-wrap.cd-wide { width: min(calc(100vw - 2 * (var(--gutter) + max(var(--safe-left), var(--safe-right)))), 64rem); max-width: none; position: relative; left: 50%; transform: translateX(-50%); }
 .cd-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
@@ -615,7 +618,7 @@ table.table tbody tr td:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0;
 .cd-h { display: block; white-space: normal; font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); color: var(--text-1); }
 .cd-sub { display: block; font-size: calc(var(--fs-micro) * var(--dt)); line-height: calc(var(--lh-micro) * var(--dt)); color: var(--text-2); font-weight: var(--fw-regular); margin-top: 0.125rem; }
 .cd-date { display: block; font-size: calc(var(--fs-body) * var(--dt)); line-height: calc(var(--lh-body) * var(--dt)); color: var(--text-1); font-weight: var(--fw-medium); }
-.cd-v { position: relative; font-size: calc(var(--fs-caption) * var(--dt)); line-height: calc(var(--lh-caption) * var(--dt)); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+.cd-v { position: relative; font-size: calc(var(--cd-fs, 0.9375rem) * var(--dt)); line-height: calc(1.25rem * var(--dt)); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
 /* v3：每日籌碼列高約 52pt；分隔線從文字起點開始（inset，第一格從左內距起算） */
 .cd-table tbody th, .cd-table tbody td { height: var(--tap); box-shadow: inset 0 -0.5px 0 var(--surface-row); }
 .chip-daily .cd-table tbody th, .chip-daily .cd-table tbody td { height: var(--row-table); box-shadow: inset 0 -0.5px 0 var(--surface-row); }
@@ -623,7 +626,7 @@ table.table tbody tr td:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0;
 .cd-table tbody tr:last-child > * { box-shadow: none; background-image: none; }
 .chip-daily .cd-table tbody tr.day .cd-date { font-size: calc(var(--fs-table-date) * var(--dt)); line-height: calc(var(--lh-table-date) * var(--dt)); }
 .chip-daily .cd-table tbody tr.day .cd-sub { font-size: calc(var(--fs-table-sub) * var(--dt)); line-height: calc(var(--lh-table-sub) * var(--dt)); color: var(--text-2); }
-.cd-arrow { font-size: 0.72em; margin-right: 0.0625rem; vertical-align: baseline; }
+.cd-arrow { font-size: max(0.6875rem, 0.72em); margin-right: 0.0625rem; vertical-align: baseline; } /* M3：最小 11px */
 .cd-mini { margin: var(--s-3) 0 0; }
 .cd-mini-bars { display: flex; align-items: stretch; gap: 2px; height: 3rem; padding: 0 var(--s-2); background: linear-gradient(var(--surface-row), var(--surface-row)) no-repeat center / 100% 1px; }
 .cd-mini-slot { position: relative; flex: 1 1 0; max-width: 1rem; margin: 0 auto; }
@@ -847,3 +850,24 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 .bt-stats { display: flex; flex-wrap: wrap; column-gap: var(--s-3); color: var(--text-2); }
 .bt-stats span { white-space: nowrap; }
 .bt-stats b { font-weight: var(--fw-medium); }
+.st-entry { background: var(--surface-1); border-radius: var(--r-card); margin-top: var(--s-4); min-height: var(--tap); }
+/* M3：區間統計的單位只在右上角顯示一次 */
+.cs-unit { text-align: right; color: var(--text-1); font-weight: var(--fw-medium); margin-top: var(--s-2); }
+/* M3.4 分段更新狀態列：逾時用琥珀（風險），其他中性 */
+.stage-line { margin-top: 0; }
+.stage.late { color: var(--risk); }
+/* M3：欄名與標題下方的連續天數可換成兩行，不加寬欄位 */
+.cd-table thead th .cd-sub { white-space: normal; }
+/* M3：日期下方的收盤與漲跌分兩行（日期欄變窄，數字欄放得下完整千分位張數） */
+.cd-table .cd-chg { display: block; }
+
+/* M3：8 個期間按鈕在 375px 寬時延伸到距畫面邊緣 8px（每個按鈕 ≥ 44px） */
+@media (max-width: 24.5rem) {
+  .periods { margin-left: calc(-1 * var(--s-2)); margin-right: calc(-1 * var(--s-2)); }
+}
+
+/* M3（UI_GUIDE §9）：表頭捲動時固定在區塊頂端；1px 分隔線（深色也看得見）；合計列半粗體 */
+.cd-table thead th { position: sticky; top: var(--safe-top); z-index: 2; background: var(--surface-1); }
+.chip-daily .cd-table tbody th, .chip-daily .cd-table tbody td { box-shadow: inset 0 -1px 0 var(--line); }
+.cd-table tbody tr > :first-child { background-image: linear-gradient(var(--line), var(--line)); background-size: calc(100% - var(--s-2)) 1px; }
+.cd-table tr.total .cd-v { font-weight: var(--fw-semibold); }

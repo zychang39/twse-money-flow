@@ -62,8 +62,9 @@ describe('法人買賣超報表', () => {
     expect(s).not.toMatch(/買進|賣出|建議/);
   });
 
-  it('張數文字：≥ 10 萬張縮寫為「萬」，四捨五入為 0 時不加符號', () => {
-    expect(signedLots(123_456).text).toBe('▲12.3\u00a0萬');
+  it('M3：張數文字一律完整的千分位整數，四捨五入為 0 時不加符號', () => {
+    expect(signedLots(123_456).text).toBe('▲123,456');
+    expect(signedLots(1_234_567).text).toBe('▲1,234,567');
     expect(signedLots(-1234).text).toBe('▼1,234');
     expect(signedLots(0.2)).toEqual({ text: '0', dir: 'flat' });
     expect(signedLots(null).dir).toBe('none');

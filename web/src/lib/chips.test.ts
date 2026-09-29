@@ -236,10 +236,11 @@ describe('每日籌碼：三種檢視、單位、縮寫與無障礙句子', () =
     expect(Object.values(UNIT_NAME).join()).not.toContain('估成交量');
   });
 
-  it('≥ 10,000 縮寫為「萬」；張為整數、金額與佔量兩位小數、比率一位', () => {
+  it('M3：張一律完整的千分位整數（不縮寫成萬）；金額與佔量兩位小數、比率一位', () => {
     expect(compactNum(9_999, 'lots')).toBe('9,999');
-    expect(compactNum(12_345, 'lots')).toBe('1.2\u00a0萬');
-    expect(compactNum(1_234_567, 'lots')).toBe('123\u00a0萬');
+    expect(compactNum(12_345, 'lots')).toBe('12,345');
+    expect(compactNum(1_234_567, 'lots')).toBe('1,234,567');
+    expect(compactNum(12_345.6, 'lots')).toBe('12,346');
     expect(compactNum(12.345, 'amount')).toBe('12.35');
     expect(compactNum(123.45, 'amount')).toBe('123.5');
     expect(compactNum(3.216, 'pct')).toBe('3.22');
@@ -252,7 +253,7 @@ describe('每日籌碼：三種檢視、單位、縮寫與無障礙句子', () =
     expect(cellText(colValue(r, col('trust'), 'lots'), col('trust'), 'lots')).toMatchObject({ text: '▲12', dir: 'up' });
     expect(cellText(colValue(r, col('shortRatio'), 'lots'), col('shortRatio'), 'lots')).toMatchObject({ text: '5.0%', dir: 'none' });
     expect(cellText(null, col('foreign'), 'lots').text).toBe('—');
-    expect(cellText(colValue(all[1], col('foreign'), 'lots'), col('foreign'), 'lots').text).toBe('▲2.0\u00a0萬');
+    expect(cellText(colValue(all[1], col('foreign'), 'lots'), col('foreign'), 'lots').text).toBe('▲20,000');
   });
 
   it('表格格式（#6）：張數最大 < 1 萬 → 整張表千分位整數，單位「張」', () => {
@@ -267,32 +268,35 @@ describe('每日籌碼：三種檢視、單位、縮寫與無障礙句子', () =
     expect(cellText(null, f, 'lots', true, fmts.foreign).text).toBe('—');
   });
 
-  it('表格格式：混合大小值（外資 −46,680、投信 315）→ 整張表一起換成萬張，未滿 1,000 張寫整數張，不出現 ▲0.0', () => {
+  it('M3 表格格式：混合大小值（外資 −46,680、投信 315）→ 全部千分位整數張，單位只寫「張」，不出現 ▲0', () => {
     const f = col('foreign');
     const t = col('trust');
     const d = col('dealerSelf');
     const fmts = tableFormats({ foreign: [-46_680, -4_668, 315, -78, 0], trust: [1_234, -12], dealerSelf: [5] }, [f, t, d], 'lots');
-    // 投信、自營商的最大值都小於 1 萬，仍和外資同一種格式（同一張表只有一種單位）
-    expect(fmts.trust).toEqual(fmts.foreign);
-    expect(fmts.dealerSelf).toEqual(fmts.foreign);
-    expect(tableUnitLabel('lots', fmts, ['insti'])).toBe('萬張（未滿千張寫張）');
-    expect(cellText(-46_680, f, 'lots', true, fmts.foreign).text).toBe('▼4.7');
-    expect(cellText(-4_668, f, 'lots', true, fmts.foreign).text).toBe('▼0.5');
-    expect(cellText(1_234, t, 'lots', true, fmts.trust).text).toBe('▲0.1');
-    expect(cellText(315, f, 'lots', true, fmts.foreign).text).toBe('▲315\u00a0張');
-    expect(cellText(-78, f, 'lots', true, fmts.foreign).text).toBe('▼78\u00a0張');
-    expect(cellText(0, f, 'lots', true, fmts.foreign)).toMatchObject({ text: '0', dir: 'flat' });
-    expect(cellText(0.3, f, 'lots', true, fmts.foreign)).toMatchObject({ text: '0', dir: 'flat' });
-    for (const v of [1, -1, 49, 499, 999, 1_000, 99_999]) expect(cellText(v, f, 'lots', true, fmts.foreign).text).not.toMatch(/^[▲▼]0(\.0+)?$/);
+    expect(fmts.trust).toEqual({ digits: 0 });
+    expect(fmts.foreign).toEqual({ digits: 0 });
+    expect(tableUnitLabel('lots', fmts, ['insti'])).toBe('張');
+    expect(cellText(-46_680, f, 'lots', true, fmts.foreign).text).toBe('▼46,680');
+    expect(cellText(1_234_567, f, 'lots', true, fmts.foreign).text).toBe('▲1,234,567'); // 百萬張以上仍完整顯示
+    expect(cellText(315, f, 'lots', true, fmts.foreign).text).toBe('▲315');
+    expect(cellText(0, f, 'lots', true, fmts.foreign)).toMatchObject({ text: '0', arrow: '', dir: 'flat' });
+    expect(cellText(0.3, f, 'lots', true, fmts.foreign)).toMatchObject({ text: '0', arrow: '', dir: 'flat' });
+    expect(cellText(-0.4, f, 'lots', true, fmts.foreign)).toMatchObject({ text: '0', arrow: '' });
+    for (const v of [1, -1, 49, 499, 999, 1_000, 99_999, 12_345_678]) {
+      const text = cellText(v, f, 'lots', true, fmts.foreign).text;
+      expect(text).not.toMatch(/^[▲▼]0(\.0+)?$/);
+      expect(text).not.toMatch(/[萬千KkMm]|\./);
+      expect(text).toMatch(/^[▲▼]?\d{1,3}(,\d{3})*$/);
+    }
   });
 
-  it('每個檢視各是一張表：信用的融資餘額很大，不會讓法人表跟著變萬張', () => {
-    const fmts = viewFormats({ foreign: [-6_128, 330], trust: [47], marginBal: [18_000, 19_000] }, 'lots');
+  it('M3：每個檢視都是千分位整數張，同一畫面不會同時出現萬與張', () => {
+    const fmts = viewFormats({ foreign: [-6_128, 330], trust: [47], marginBal: [18_000, 1_900_000] }, 'lots');
     expect(fmts.foreign).toEqual({ digits: 0 });
-    expect(fmts.marginBal.wan).toBe(true);
-    expect(tableUnitLabel('lots', fmts, ['insti'])).toBe('張');
-    expect(tableUnitLabel('lots', fmts, ['credit'])).toBe('萬張（未滿千張寫張）');
-    expect(tableUnitLabel('lots', fmts, ['insti', 'credit', 'sbl'])).toBe('張；信用欄為萬張（未滿千張寫張）');
+    expect(fmts.marginBal).toEqual({ digits: 0 });
+    expect(tableUnitLabel('lots', fmts, ['credit'])).toBe('張');
+    expect(tableUnitLabel('lots', fmts, ['insti', 'credit', 'sbl'])).toBe('張');
+    expect(cellText(1_900_000, col('marginBal'), 'lots', false, fmts.marginBal).text).toBe('1,900,000');
   });
 
   it('表格格式：億元、佔量整張表依最大值決定小數位；非 0 但四捨五入為 0 → 「<0.01」；比率 1 位', () => {
