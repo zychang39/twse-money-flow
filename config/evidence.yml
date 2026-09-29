@@ -1,0 +1,86 @@
+# 指標效度評估（M1；METHODOLOGY §10、docs/INDICATOR_EVIDENCE.md）
+# 所有參數與「有效」的判定規則寫死在這裡，評估前決定，不得事後調整。
+
+# 1.1 樣本範圍（universe）
+universe:
+  min_listed_days: 120          # 上市櫃滿 120 個交易日
+  min_avg_value: 20000000       # 訊號日 20 日平均成交值 ≥ 2,000 萬元
+  avg_value_days: 20
+  min_close: 10                 # 訊號日收盤價（未還原）≥ 10 元
+  exclude_name_patterns: ["-DR"]   # 存託憑證；ETF、ETN、受益證券以代號排除（只收 4 碼、非 0 開頭的普通股）
+  exclude_disposition: true     # 訊號日為處置股（處置期間內）
+
+# 評估期間：價格類指標自 2022-01-01 起（官方除權息資料自 2020-09 起，RS 需要 252 日還原價回看）；
+# 籌碼、營收等依各資料實際起始日（資料驅動）
+price_start: "2022-01-01"
+
+# 1.3 進出場
+entry:
+  limit_up_pct: 9.5             # 進場日開盤 ≥ 前一日收盤 +9.5% 視為開盤即漲停（無法進場）
+  gap_pct: 5                    # 「排除跳空 ≥ 5%」變體
+  limit_down_pct: -9.5          # 出場日最高價 ≤ 前一日收盤 −9.5% 視為跌停鎖死（當天賣不掉）
+horizons: [5, 10, 20]
+primary_horizon: 10             # 判定用的持有天數（其餘持有天數一併報告）
+
+# 1.5 統計
+stats:
+  t_threshold: 2.5              # 多重檢定：判定「有效」的 t 值門檻（一般 1.96 提高到 2.5）
+  bootstrap: 1000               # 日期分層 bootstrap 次數
+  seed: 20260929
+  oos_fraction: 0.3333          # 樣本外＝訊號期間最後 1/3（有參數的指標改用 walk-forward 驗證期）
+  quarter_end_days: 10          # 投信季底作帳：每季最後 10 個交易日
+  trend_days: 60                # 大盤近 60 日趨勢
+  regime_ma: 240                # 大盤 240 日線
+
+# 1.8 判定（寫死）
+verdict:
+  min_events: 100               # 事件型：去重後樣本 ≥ 100
+  min_months: 24                # 分組型：≥ 24 個月
+  year_pass_ratio: 0.6667       # 逐年至少 2/3 的年份為正
+  coverage_ratio: 0.5           # 納入股票數 < universe 的 50% → 樣本範圍受限
+  sensitive_ratio: 0.5          # 相鄰參數格的平均超額報酬正負號相反，或不到選定格的一半 → 參數敏感
+  wf_min_events: 30             # walk-forward 選參數時，訓練期樣本 < 30 的格子不選
+
+# 1.9 指標參數
+indicators:
+  rs_event: 90
+  high52_event: 0.95
+  high52_bias_max: 0.10
+  breakout_n: [20, 60]
+  breakout_vol: 1.5
+  breakout_close_pos: 0.75
+  false_breakout_days: 5
+  bias_event: 0.15
+  kd: [9, 3, 3]
+  kd_high: 80
+  kd_run: 5
+  macd: [12, 26, 9]
+  macd_warmup: 60
+  chip_runs: [3, 5, 10]
+  chip_thresholds: [0.1, 0.3, 0.5]
+  sync_days: 5
+  extreme_pct: 95
+  extreme_lookback: 250
+  extreme_min_obs: 120
+  whale_thresholds: [0.1, 0.3, 0.5]
+  whale_weeks: 4
+  margin_days: 5
+  margin_price_pct: 3
+  margin_change_pct: 3
+  price_lead_days: 20
+  price_lead_top: 0.9
+  combo_rs: 80
+  combo_trust_run: 3
+  revenue_fallback_day: 10      # 月營收生效日：沒有公布日時為次月 10 日
+
+# 1.10 出場規則（對判定為有效或環境依賴的指標）
+exits:
+  max_days: 60                  # 沒有時間上限的規則（均線、追蹤停損…）最多持有 60 個交易日
+  stop_pct: [-5, -7, -10]       # 固定停損（其餘到 20 日出場），walk-forward 選擇
+  stop_cap: 20
+  trailing_pct: [8, 10, 15]     # 從最高收盤回落
+  ma_days: [10, 20, 60]         # 收盤跌破 N 日線
+  exhaust_days: 3               # 動能衰竭：連續 3 日量能 < 0.5 倍且 3 日內漲跌 ≤ ±2%
+  exhaust_vol: 0.5
+  exhaust_move_pct: 2
+recent_days: 60                # 策略健康度：最近 60 個交易日

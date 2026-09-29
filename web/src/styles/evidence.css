@@ -1,0 +1,29 @@
+/* 指標效度表（M1）與策略庫（M2）共用：可展開的列、4 欄以內的固定欄寬表格（不左右滑動）。 */
+.ev-warn { margin-top: var(--s-4); }
+.ev-filter { margin: var(--s-4) 0 var(--s-2); }
+.ev-filter button { flex: 1; min-height: var(--tap); }
+.ev-group { margin-top: var(--s-6); }
+.ev-list { padding: 0; }
+.ev-item + .ev-item { box-shadow: inset 0 0.5px 0 var(--line, var(--surface-row)); }
+.ev-row {
+  display: flex; align-items: center; gap: var(--s-3); width: 100%; min-height: var(--tap);
+  padding: var(--s-3) var(--s-4); background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.ev-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.ev-label { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); }
+.ev-sub { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.ev-verdict { flex: none; }
+.ev-verdict.strong { background: var(--surface-2); color: var(--text-1); }
+.ev-detail { padding: 0 var(--s-4) var(--s-4); display: flex; flex-direction: column; gap: var(--s-2); }
+.ev-detail p { margin: 0; }
+.ev-h { margin: var(--s-3) 0 0; font-size: var(--fs-caption); line-height: var(--lh-caption); font-weight: var(--fw-semibold); }
+.risk-text { color: var(--risk); }
+.ev-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 0.9375rem; line-height: 1.25rem; }
+.ev-table th, .ev-table td { padding: var(--s-2) var(--s-1); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: clip; border-bottom: 1px solid var(--line, var(--surface-row)); }
+.ev-table th:first-child, .ev-table td:first-child { text-align: left; }
+.ev-table thead th { color: var(--text-2); font-weight: var(--fw-medium); font-size: 0.8125rem; line-height: 1.125rem; vertical-align: bottom; }
+.ev-table tbody th { font-weight: var(--fw-regular); }
+.ev-table th.ev-wrap { white-space: normal; overflow-wrap: anywhere; }
+.ev-table .ev-empty { text-align: left; color: var(--text-2); font-size: 0.8125rem; white-space: normal; }
+.ev-table tr.ev-chosen th, .ev-table tr.ev-chosen td { font-weight: var(--fw-semibold); }
+.ev-foot { margin-top: var(--s-6); }

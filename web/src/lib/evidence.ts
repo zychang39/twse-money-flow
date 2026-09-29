@@ -1,0 +1,140 @@
+/**
+ * 指標效度表（M1）：pipeline 預先計算的 evidence.json（總表）與 evidence/{id}.json（明細）。
+ * 前端只負責顯示；判定規則寫死在 config/evidence.yml，計算見 METHODOLOGY §10。
+ */
+
+export type Verdict = '有效' | '不穩定' | '環境依賴' | '無效' | '樣本不足' | '樣本範圍受限';
+
+export interface Brief {
+  n: number;
+  dates?: number;
+  mean_excess?: number | null;
+  t?: number | null;
+  ci?: [number | null, number | null];
+  win?: number | null;
+  note?: string;
+  since?: string;
+  start?: string;
+}
+
+export interface EvidenceRow {
+  id: string;
+  label: string;
+  family: string;
+  kind: 'event' | 'quintile';
+  definition?: string;
+  verdict: Verdict;
+  reasons: string[];
+  env?: { dim: string; side: string; label: string } | null | Record<string, { on: number | null; off: number | null }>;
+  n?: number;
+  raw?: number;
+  t?: number | null;
+  t_nw?: number | null;
+  mean_excess?: number | null;
+  ci?: [number | null, number | null];
+  win?: number | null;
+  years?: Record<string, number | null>;
+  oos?: number | null;
+  data_start?: string | null;
+  signal_start?: string | null;
+  signal_end?: string | null;
+  coverage?: { included: number; universe: number; ratio: number };
+  note?: string;
+  param?: string | null;
+  h?: Record<string, { n?: number; mean_excess?: number | null; t?: number | null }>;
+  recent?: Brief | null;
+  components?: Record<string, { label: string; n?: number; mean_excess?: number | null; t?: number | null }>;
+}
+
+export interface EvidenceMeta {
+  generated_at?: string;
+  data_end?: string;
+  universe_stocks?: number;
+  universe_daily_avg?: number;
+  bench?: string;
+  regime_share?: number;
+  price_start?: string;
+  starts?: Record<string, string | null>;
+  config?: { primary_horizon: number; stats: { t_threshold: number } };
+  error?: string;
+}
+
+export interface EvidenceFile {
+  meta: EvidenceMeta;
+  rows: EvidenceRow[];
+}
+
+/** 判定的排序：有效 → 環境依賴 → 不穩定 → 樣本範圍受限 → 樣本不足 → 無效；同判定依 t 由高到低。 */
+export const VERDICT_ORDER: Verdict[] = ['有效', '環境依賴', '不穩定', '樣本範圍受限', '樣本不足', '無效'];
+
+export function sortRows(rows: EvidenceRow[]): EvidenceRow[] {
+  return [...rows].sort((a, b) => {
+    const va = VERDICT_ORDER.indexOf(a.verdict);
+    const vb = VERDICT_ORDER.indexOf(b.verdict);
+    if (va !== vb) return va - vb;
+    return (b.t ?? -99) - (a.t ?? -99);
+  });
+}
+
+/** 可以用來做訊號的判定（有效訊號面板、策略庫）：有效與環境依賴。 */
+export const isUsable = (v: Verdict): boolean => v === '有效' || v === '環境依賴';
+
+/** 樣本範圍受限在畫面上用琥珀（代表風險）；其他判定一律中性色，不用漲跌色。 */
+export const verdictTone = (v: Verdict): 'risk' | 'strong' | 'plain' =>
+  v === '樣本範圍受限' ? 'risk' : isUsable(v) ? 'strong' : 'plain';
+
+export const MINUS = '−';
+
+/** 百分比：帶正負號、全站統一的負號（U+2212）。 */
+export function pctSigned(v: number | null | undefined, digits = 2): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+  const s = Math.abs(v).toFixed(digits);
+  if (Number(s) === 0) return `${s}%`;
+  return `${v > 0 ? '+' : MINUS}${s}%`;
+}
+
+export function tText(v: number | null | undefined): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+  return v < 0 ? `${MINUS}${Math.abs(v).toFixed(2)}` : v.toFixed(2);
+}
+
+export function ciText(ci: [number | null, number | null] | undefined): string {
+  if (!ci || ci[0] === null || ci[1] === null) return '—';
+  return `${pctSigned(ci[0])}～${pctSigned(ci[1])}`;
+}
+
+/** 一列的重點：「10 日超額 +0.68%・t 2.62・3,634 筆」（分組型：「Q5−Q1 +2.00%／月・t 2.48・55 個月」）。 */
+export function rowSummary(r: EvidenceRow, horizon = 10): string {
+  const n = (r.n ?? 0).toLocaleString('zh-TW');
+  if (r.kind === 'quintile') return `Q5${MINUS}Q1 ${pctSigned(r.mean_excess)}／月・t ${tText(r.t)}・${n} 個月`;
+  return `${horizon} 日超額 ${pctSigned(r.mean_excess)}・t ${tText(r.t)}・${n} 筆`;
+}
+
+/** 判定的白話說明（不使用買賣字眼）。 */
+export function verdictNote(r: EvidenceRow): string {
+  switch (r.verdict) {
+    case '有效': return '全期間、逐年、樣本外都通過固定門檻。';
+    case '環境依賴': return r.env && 'label' in r.env ? `只在「${String(r.env.label)}」時通過門檻。` : '只在特定大盤環境通過門檻。';
+    case '不穩定': return '全期間顯著，但逐年、樣本外或參數不穩定。';
+    case '無效': return '超額報酬不顯著或為負。';
+    case '樣本不足': return '樣本還不夠，無法判斷。';
+    case '樣本範圍受限': return '資料只涵蓋部分股票，結果不能代表全市場。';
+    default: return '';
+  }
+}
+
+export function counts(rows: EvidenceRow[]): Record<Verdict, number> {
+  const out = Object.fromEntries(VERDICT_ORDER.map((v) => [v, 0])) as Record<Verdict, number>;
+  for (const r of rows) out[r.verdict] = (out[r.verdict] ?? 0) + 1;
+  return out;
+}
+
+export type Filter = 'all' | 'usable' | 'other';
+
+export function filterRows(rows: EvidenceRow[], f: Filter): EvidenceRow[] {
+  if (f === 'usable') return rows.filter((r) => isUsable(r.verdict));
+  if (f === 'other') return rows.filter((r) => !isUsable(r.verdict));
+  return rows;
+}
+
+export const FAMILIES = ['動能', '籌碼', '基本面', '組合'] as const;

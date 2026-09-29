@@ -310,6 +310,20 @@ def cmd_build_web(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_evidence(args: argparse.Namespace) -> int:
+    """指標效度評估（M1）：寫出 evidence.json／evidence/*.json 與 docs/INDICATOR_EVIDENCE.md。"""
+    from pipeline.evidence import data as evdata
+    from pipeline.evidence.run import run_and_write
+
+    ev = evdata.load(DataStore(args.data_dir))
+    out = Path(args.out) if args.out else None
+    if out:
+        out.mkdir(parents=True, exist_ok=True)
+    report = run_and_write(ev, out, Path(args.doc) if args.doc else None)
+    print(json.dumps(report, ensure_ascii=False, indent=1))
+    return 0
+
+
 def cmd_demo_data(args: argparse.Namespace) -> int:
     from pipeline.derive.demo import build_demo
 
@@ -394,6 +408,12 @@ def build_parser() -> argparse.ArgumentParser:
     web.add_argument("--data-dir", default="data")
     web.add_argument("--out", default="web/public/data")
     web.set_defaults(func=cmd_build_web)
+
+    evd = sub.add_parser("evidence", help="指標效度評估（事件研究、分組檢定、walk-forward、判定）")
+    evd.add_argument("--data-dir", default="data")
+    evd.add_argument("--out", default="", help="前端 JSON 輸出目錄（例：web/public/data）")
+    evd.add_argument("--doc", default="", help="Markdown 報告（例：docs/INDICATOR_EVIDENCE.md）")
+    evd.set_defaults(func=cmd_evidence)
 
     demo = sub.add_parser("demo-data", help="以測試樣本產生示範資料（本機開發）")
     demo.add_argument("--out", default="web/public/data")
