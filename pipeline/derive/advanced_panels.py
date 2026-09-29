@@ -15,7 +15,12 @@ from pipeline.derive.metrics import as_of_panel
 
 
 def whale_panels(tdcc: pd.DataFrame, dates: list[str], codes: list[str]) -> dict[str, pd.DataFrame]:
-    """千張大戶（分級 15）與 400 張以上（分級 12–15）比例；集保週資料於次一日公布 → 資料日 +2 天起生效。"""
+    """千張大戶（分級 15）與 400 張以上（分級 12–15）比例。
+
+    生效日（無前視）：集保資料日期是每週最後一個營業日（通常週五；週五休市時為週四），次一日（通常週六）公布。
+    生效日＝資料日 +2 天（週五 → 週日），所以第一個能使用的交易日是公布日之後的第一個交易日（通常週一）：
+    週一收盤後的訊號才用到上週五的持股，週二開盤進場。週資料超過 weekly_max_age_days 個交易日沒有更新就視為缺值。
+    """
     if tdcc.empty:
         return {}
     ind = config.thresholds()["indicators"]["whale"]
@@ -33,9 +38,10 @@ def whale_panels(tdcc: pd.DataFrame, dates: list[str], codes: list[str]) -> dict
     w = pd.DataFrame(rows).sort_values(["code", "date"])
     w["whale_change"] = w.groupby("code")["whale_pct"].diff()
     w["effective"] = [(date.fromisoformat(d) + timedelta(days=2)).isoformat() for d in w["date"]]
+    max_age = int(config.thresholds()["backtest"].get("weekly_max_age_days", 7))
     out = {}
     for col in ("whale_pct", "whale400_pct", "whale_change"):
-        out[col] = as_of_panel(w[["code", "effective", col]].rename(columns={col: "v"}), "v", dates, codes)
+        out[col] = as_of_panel(w[["code", "effective", col]].rename(columns={col: "v"}), "v", dates, codes, max_age)
     return out
 
 

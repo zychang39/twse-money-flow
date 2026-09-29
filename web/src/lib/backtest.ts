@@ -1,6 +1,8 @@
 /**
  * 回測引擎（TS 版；規則與 pipeline/derive/backtest.py 相同）：
  * T 日收盤後訊號 → T+1 開盤進場 → 持有 N 日後開盤出場；排除開盤即漲停、停牌、處置期間；扣成本；相對加權報酬指數。
+ * 訊號預設為「今日新觸發」（今天符合、上一個交易日可判斷但不符合）；條件欄位最晚的資料起始日之前不產生訊號；
+ * 出場規則：只看時間／停損／跌破均線（S5）。
  */
 import { costsConfig, thresholds, type Condition } from './config';
 
@@ -80,6 +82,41 @@ export function conditionsMask(conditions: Condition[], lookup: (field: string) 
   return mask;
 }
 
+/** 每個條件欄位都有資料（可以判斷成立與否）。 */
+export function conditionsEvaluable(conditions: Condition[], lookup: (field: string) => (number | null)[][] | null, T: number, C: number): boolean[][] | null {
+  const ok = Array.from({ length: T }, () => new Array<boolean>(C).fill(true));
+  for (const c of conditions) {
+    const arr = lookup(c.field);
+    if (!arr) return null;
+    for (let t = 0; t < T; t++) for (let j = 0; j < C; j++) if (ok[t][j] && !fin(arr[t]?.[j])) ok[t][j] = false;
+  }
+  return ok;
+}
+
+/** 今日新觸發：今天成立、上一個交易日可判斷但不成立（第一天沒有前一日可比，不算）。 */
+export function newTriggers(mask: boolean[][], evaluable: boolean[][]): boolean[][] {
+  return mask.map((row, t) => row.map((v, j) => t > 0 && v && !mask[t - 1][j] && evaluable[t - 1][j]));
+}
+
+export interface FieldCoverage { field: string; stocks: number; first_date: string | null }
+
+/** 每個條件欄位：有資料的股票數、資料起始日。 */
+export function fieldCoverage(conditions: Condition[], lookup: (field: string) => (number | null)[][] | null, dates: string[], C: number): FieldCoverage[] {
+  return conditions.map((c) => {
+    const arr = lookup(c.field);
+    if (!arr) return { field: c.field, stocks: 0, first_date: null };
+    const has = new Array<boolean>(C).fill(false);
+    let first: string | null = null;
+    arr.forEach((row, t) => row.forEach((v, j) => { if (fin(v)) { has[j] = true; if (first === null) first = dates[t]; } }));
+    return { field: c.field, stocks: has.filter(Boolean).length, first_date: first };
+  });
+}
+
+/** 資料涵蓋起始日之前不產生訊號。 */
+export function eligible(mask: boolean[][], dates: string[], start: string | null): boolean[][] {
+  return mask.map((row, t) => row.map((v) => !!start && v && dates[t] >= start));
+}
+
 export interface RunResult {
   trades: Record<number, Trade[]>;
   excluded: { limit_up: number; suspended: number; disposition: number; no_future: number };
@@ -87,8 +124,32 @@ export interface RunResult {
   decayN: number[];
 }
 
+export type ExitRule = 'time' | 'stop' | 'trailing';
+
+/** 停損規則的提前出場：回傳 [出場日索引, 出場價（null＝該日開盤）]；沒有提前出場回傳 [x, null]。 */
+function findExit(px: Panel, c: number, e: number, x: number, entry: number, rule: ExitRule, stopPct: number, ma: (number | null)[][] | null): [number, number | null] {
+  const T = px.dates.length;
+  if (rule === 'stop') {
+    const stopPx = entry * (1 + stopPct / 100);
+    for (let i = e; i < Math.min(x, T); i++) {
+      const lo = px.low[i][c];
+      if (fin(lo) && lo <= stopPx) {
+        const op = px.open[i][c];
+        return [i, i === e || !fin(op) ? stopPx : Math.min(op, stopPx)];
+      }
+    }
+  } else if (rule === 'trailing' && ma) {
+    for (let i = e; i < Math.min(x - 1, T - 1); i++) {
+      const cl = px.close[i][c], m = ma[i][c];
+      if (fin(cl) && fin(m) && cl < m) return [i + 1, null];
+    }
+  }
+  return [x, null];
+}
+
 export function run(signals: boolean[][], px: Panel, horizons: number[] = thresholds.backtest.horizons, decayDays: number = thresholds.backtest.decay_days,
-  limitUpPct: number = thresholds.backtest.limit_up_pct): RunResult {
+  limitUpPct: number = thresholds.backtest.limit_up_pct, rule: ExitRule = 'time', stopPct: number = thresholds.backtest.stop_loss_pct ?? -7,
+  ma: (number | null)[][] | null = null): RunResult {
   const T = px.dates.length;
   const blocked = new Set(px.blocked.map(([t, c]) => `${t}:${c}`));
   const trades: Record<number, Trade[]> = {};
@@ -116,12 +177,16 @@ export function run(signals: boolean[][], px: Panel, horizons: number[] = thresh
       for (const h of horizons) {
         const x = e + h;
         if (x >= T) continue;
-        let k = x;
-        while (k < T && !(px.tradable[k][c] && fin(px.open[k][c]))) k++;
+        const [k0, fixedPx] = findExit(px, c, e, x, entry, rule, stopPct, ma);
+        let k = k0;
+        while (fixedPx === null && k < T && !(px.tradable[k][c] && fin(px.open[k][c]))) k++;
         let exitI: number;
         let exitPx: number;
         let delisted = false;
-        if (k < T) {
+        if (fixedPx !== null) {
+          exitI = k;
+          exitPx = fixedPx;
+        } else if (k < T) {
           exitI = k;
           exitPx = px.open[k][c] as number;
         } else {
@@ -131,7 +196,7 @@ export function run(signals: boolean[][], px: Panel, horizons: number[] = thresh
           delisted = true;
         }
         let worst = Infinity;
-        for (let i = e; i < exitI; i++) { const lo = px.low[i][c]; if (fin(lo) && lo < worst) worst = lo; }
+        for (let i = e; i < exitI + (fixedPx !== null ? 1 : 0); i++) { const lo = px.low[i][c]; if (fin(lo) && lo < worst) worst = lo; }
         if (worst === Infinity) worst = entry;
         worst = Math.min(worst, exitPx);
         const gross = exitPx / entry - 1;
@@ -207,4 +272,71 @@ export function summarize(res: RunResult, split: number = thresholds.backtest.oo
     };
   }
   return { horizons, excluded: res.excluded, decay: res.decay, decay_n: res.decayN };
+}
+
+/** n 日簡單均線（逐日、逐檔；不足 n 個連續有效收盤為 null）。 */
+export function movingAverage(close: (number | null)[][], n: number): (number | null)[][] {
+  const T = close.length, C = close[0]?.length ?? 0;
+  const out = Array.from({ length: T }, () => new Array<number | null>(C).fill(null));
+  for (let j = 0; j < C; j++) {
+    let sum = 0, cnt = 0;
+    for (let t = 0; t < T; t++) {
+      const v = close[t][j];
+      if (fin(v)) { sum += v; cnt++; } else { sum = 0; cnt = 0; }
+      if (cnt > n) { const old = close[t - n][j] as number; sum -= old; cnt = n; }
+      if (cnt === n) out[t][j] = sum / n;
+    }
+  }
+  return out;
+}
+
+const statsByHorizon = (res: RunResult) => Object.fromEntries(Object.entries(res.trades).map(([h, tr]) => [h, { all: stats(tr), non_overlap: stats(nonOverlapping(tr)) }]));
+
+/**
+ * 完整回測報告（自訂條件；欄位與 pipeline 預先計算的內建策略相同）：
+ * 訊號定義、資料涵蓋（樣本範圍受限）、各股訊號數、每天符合的對照、停損與移動停損的並列比較。
+ */
+export function buildReport(conditions: Condition[], lookup: (field: string) => (number | null)[][] | null, px: Panel, labels: (f: string) => string = (f) => f) {
+  const T = px.dates.length, C = px.codes.length;
+  const mask = conditionsMask(conditions, lookup, T, C);
+  const ev = conditionsEvaluable(conditions, lookup, T, C);
+  if (!mask || !ev) return null;
+  const cov = fieldCoverage(conditions, lookup, px.dates, C);
+  const firsts = cov.map((c) => c.first_date);
+  const start = firsts.length && firsts.every(Boolean) ? (firsts as string[]).sort().at(-1)! : null;
+  const level = eligible(mask, px.dates, start);
+  const nw = eligible(newTriggers(mask, ev), px.dates, start);
+  const bt = thresholds.backtest;
+  const res = run(nw, px);
+  const t0 = start ? px.dates.findIndex((d) => d >= start) : 0;
+  let universe = 0;
+  for (let j = 0; j < C; j++) { for (let t = Math.max(0, t0); t < T; t++) if (fin(px.close[t][j])) { universe++; break; } }
+  const counts = new Map<string, number>();
+  let firstSig: string | null = null, lastSig: string | null = null, signals = 0, signalsLevel = 0;
+  nw.forEach((row, t) => row.forEach((v, j) => { if (v) { signals++; counts.set(px.codes[j], (counts.get(px.codes[j]) ?? 0) + 1); firstSig ??= px.dates[t]; lastSig = px.dates[t]; } }));
+  level.forEach((row) => row.forEach((v) => { if (v) signalsLevel++; }));
+  const ratio = Number(bt.coverage_limited_ratio ?? 0.5);
+  const fields = cov.map((c) => ({ ...c, label: labels(c.field) }));
+  const ma = movingAverage(px.close, Number(bt.trailing_ma ?? 20));
+  return {
+    ...summarize(res),
+    trades_raw: res.trades,
+    signal_definition: 'new' as const,
+    signals,
+    signals_level: signalsLevel,
+    first_signal: firstSig,
+    last_signal: lastSig,
+    coverage: {
+      start, price_start: px.dates[0] ?? null, universe, fields,
+      limited: fields.some((f) => f.stocks < universe * ratio),
+      stocks_in_sample: counts.size,
+      by_code: [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])),
+    },
+    level: statsByHorizon(run(level, px)),
+    exit_rules: {
+      stop: { pct: Number(bt.stop_loss_pct ?? -7), horizons: statsByHorizon(run(nw, px, undefined, undefined, undefined, 'stop')) },
+      trailing: { ma: Number(bt.trailing_ma ?? 20), horizons: statsByHorizon(run(nw, px, undefined, undefined, undefined, 'trailing', undefined, ma)) },
+    },
+    period: { start, end: px.dates[T - 1] ?? null },
+  };
 }

@@ -117,3 +117,35 @@ export function backtestCustom(conditions: Condition[], name: string | null, pre
   const n = canonicalName(name?.trim() || '自訂條件', presets);
   return { name: presets.some((p) => p.label === n) ? `${n}（已修改）` : n, presetId: null };
 }
+
+/** screen_days.json：全市場最近兩個交易日的選股欄位值（pipeline/derive/signals.screen_days）。 */
+export interface ScreenDays {
+  dates: [string, string];
+  fields: string[];
+  rows: [string, (number | null)[], (number | null)[]][];
+  weekly?: { data_date: string; published: string; fields: string[] } | null;
+}
+
+/**
+ * 今日新觸發（S2）：最新交易日全部條件成立、上一個交易日可判斷（每個條件欄位都有資料）但不成立。
+ * 與回測的訊號定義相同（pipeline backtest.new_triggers）。條件欄位不在檔案裡 → null（無法判斷）。
+ */
+export function newTriggerCodes(days: ScreenDays, conditions: Condition[]): Set<string> | null {
+  if (conditions.some((c) => !days.fields.includes(c.field))) return null;
+  const idx = new Map(days.fields.map((f, i) => [f, i]));
+  const toRow = (vals: (number | null)[]): Row => Object.fromEntries(conditions.map((c) => [c.field, vals[idx.get(c.field)!]]));
+  const out = new Set<string>();
+  for (const [code, prev, last] of days.rows) {
+    const p = toRow(prev);
+    const evaluable = conditions.every((c) => typeof p[c.field] === 'number' && Number.isFinite(p[c.field] as number));
+    if (evaluable && matches(toRow(last), conditions) && !matches(p, conditions)) out.add(code);
+  }
+  return out;
+}
+
+/** 條件含週資料（集保大戶）時的說明：「大戶資料：9/18 持股・9/19 公布」。 */
+export function weeklyNote(conditions: Condition[], weekly: { data_date: string; published: string; fields: string[] } | null | undefined): string | null {
+  if (!weekly || !conditions.some((c) => weekly.fields.includes(c.field))) return null;
+  const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
+  return `大戶資料：${md(weekly.data_date)} 持股・${md(weekly.published)} 公布（週資料，每週更新一次）`;
+}

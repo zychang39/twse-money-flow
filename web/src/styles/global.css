@@ -838,3 +838,12 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 
 /* U-06：雙欄卡片的中文不在詞中間斷行（只在空白、「・」後換行） */
 .tile-status, .tile .body { word-break: keep-all; overflow-wrap: anywhere; }
+
+/* 回測：資料涵蓋（S1） */
+.bt-cov { margin: var(--s-2) 0 0; font-size: var(--fs-caption); line-height: var(--lh-caption); }
+.bt-cov > div { display: flex; gap: var(--s-2); }
+.bt-cov dt { flex: none; min-width: 6.5rem; color: var(--text-2); }
+.bt-cov dd { margin: 0; }
+.bt-stats { display: flex; flex-wrap: wrap; column-gap: var(--s-3); color: var(--text-2); }
+.bt-stats span { white-space: nowrap; }
+.bt-stats b { font-weight: var(--fw-medium); }

@@ -2,8 +2,10 @@
 # digest：Telegram 盤後日報要列出的代號（自選股＋持股）；留空則列綜合分數上升最多的 5 檔
 # alerts：above＝盤中價格（含當日最高）≥ 此價推送；below＝（含當日最低）≤ 此價推送；note：備註
 # 同一條件每天只推送一次；需在 repo secrets 設定 TELEGRAM_BOT_TOKEN、TELEGRAM_CHAT_ID
+# tracking：追蹤中的內建策略（紀律 → 訊號追蹤，匯出時自動帶入）；盤後日報列出今日新觸發與「明天開盤出場」的部位
 version: 1
 digest: []
+tracking: []
 alerts: []
 # 範例：
 # digest: ["2330", "0050"]

@@ -27,6 +27,7 @@ const Journal = lazy(() => import('./pages/Journal'));
 const Stats = lazy(() => import('./pages/Stats'));
 const Badges = lazy(() => import('./pages/Badges'));
 const Weekly = lazy(() => import('./pages/Weekly'));
+const Tracking = lazy(() => import('./pages/Tracking'));
 const Me = lazy(() => import('./pages/Me'));
 const Health = lazy(() => import('./pages/Health'));
 const Methodology = lazy(() => import('./pages/Methodology'));
@@ -75,6 +76,7 @@ function Page({ parts }: { parts: string[] }) {
         case 'stats': return <Stats />;
         case 'badges': return <Badges />;
         case 'weekly': return <Weekly />;
+        case 'tracking': return <Tracking />;
         default: return <Placeholder title="找不到頁面" back="/discipline" />;
       }
     case 'me':
@@ -124,6 +126,11 @@ export function App() {
   useEffect(() => {
     applyAppearance();
     return subscribe(() => { applyAppearance(); });
+  }, []);
+  // S3：啟動後（閒置時）同步訊號追蹤的新觸發；沒有追蹤策略時不下載任何資料
+  useEffect(() => {
+    const t = setTimeout(() => { import('./lib/trackingSync').then((m) => m.syncTracking()).catch(() => undefined); }, 2500);
+    return () => clearTimeout(t);
   }, []);
   return (
     <>

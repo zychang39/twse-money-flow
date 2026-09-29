@@ -58,6 +58,7 @@ jobs:
           path: |
             web/public/data/summary.json
             web/public/data/market.json
+            web/public/data/signals.json
           retention-days: 1
       - uses: actions/setup-node@v4
         with:

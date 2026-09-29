@@ -4,10 +4,11 @@
  * - 匯出為單一 JSON（含 schemaVersion）；匯入舊版本時先套用資料層遷移（EXPORT_MIGRATIONS）。
  */
 import { normCode } from '../lib/code';
+import type { Strategy, TrackedSignal } from '../lib/tracking';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
 
 export const DB_NAME = 'twse-money-flow';
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 
 /** 自選的來源：自己加入、歡迎卡的範例（可一鍵清除）、從系統清單「熱門動能」複製或挑選。 */
 export type WatchOrigin = 'user' | 'sample' | 'hot';
@@ -82,10 +83,12 @@ interface Schema extends DBSchema {
   screens: { key: string; value: SavedScreen };
   trades: { key: string; value: Trade; indexes: { status: string; code: string } };
   activity: { key: string; value: Activity; indexes: { type: string; day: string } };
+  strategies: { key: string; value: Strategy };
+  tracked: { key: string; value: TrackedSignal; indexes: { strategyId: string } };
 }
 
-export type StoreName = 'watchlist' | 'settings' | 'screens' | 'trades' | 'activity';
-export const STORES: StoreName[] = ['watchlist', 'settings', 'screens', 'trades', 'activity'];
+export type StoreName = 'watchlist' | 'settings' | 'screens' | 'trades' | 'activity' | 'strategies' | 'tracked';
+export const STORES: StoreName[] = ['watchlist', 'settings', 'screens', 'trades', 'activity', 'strategies', 'tracked'];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type UpgradeTx = IDBPTransaction<Schema, any, 'versionchange'>;
@@ -116,6 +119,12 @@ export const MIGRATIONS: Record<number, Migration> = {
       if (!cursor.value.origin) await cursor.update({ ...cursor.value, origin: 'user' });
       cursor = await cursor.continue();
     }
+  },
+  // v4：訊號追蹤（S3）：追蹤策略與已記錄的觸發
+  4: (db) => {
+    db.createObjectStore('strategies', { keyPath: 'id' });
+    const t = db.createObjectStore('tracked', { keyPath: 'key' });
+    t.createIndex('strategyId', 'strategyId');
   },
 };
 
@@ -264,6 +273,36 @@ export async function logActivityOnce(type: ActivityType, day: string, meta?: Ac
   if (existing.some((a) => a.type === type)) return false;
   await logActivity(type, day, meta);
   return true;
+}
+
+// ------------------------------------------------------------------ 訊號追蹤（S3）
+export async function listStrategies(): Promise<Strategy[]> {
+  return (await getDb()).getAll('strategies');
+}
+export async function saveStrategy(st: Strategy): Promise<void> {
+  await (await getDb()).put('strategies', st);
+  notify();
+}
+/** 刪除追蹤策略與它的全部紀錄。 */
+export async function deleteStrategy(id: string): Promise<void> {
+  const db = await getDb();
+  const tx = db.transaction(['strategies', 'tracked'], 'readwrite');
+  await tx.objectStore('strategies').delete(id);
+  const keys = await tx.objectStore('tracked').index('strategyId').getAllKeys(id);
+  for (const k of keys) await tx.objectStore('tracked').delete(k);
+  await tx.done;
+  notify();
+}
+export async function listTracked(): Promise<TrackedSignal[]> {
+  return (await getDb()).getAll('tracked');
+}
+/** 寫入新觸發或出場後的價格；不通知（避免畫面重複計算），由呼叫端決定何時重新讀取。 */
+export async function putTracked(rows: TrackedSignal[]): Promise<void> {
+  if (!rows.length) return;
+  const db = await getDb();
+  const tx = db.transaction('tracked', 'readwrite');
+  for (const r of rows) await tx.store.put(r);
+  await tx.done;
 }
 
 // ------------------------------------------------------------------ 變更通知（讓畫面重新讀取）

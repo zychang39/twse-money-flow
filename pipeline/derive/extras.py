@@ -78,39 +78,100 @@ def field_lookup(mp: Any, sc: dict[str, pd.DataFrame]) -> Callable[[str], np.nda
     return lookup
 
 
+def preset_signals(preset: dict[str, Any], lookup: Callable[[str], np.ndarray | None], p: Any) -> dict[str, Any] | None:
+    """內建策略的訊號（全市場）：每天符合（level）、今日新觸發（new）、資料涵蓋。資料不足回傳 None。"""
+    conds = preset["conditions"]
+    mask = bt.conditions_mask(conds, lookup)
+    evaluable = bt.conditions_evaluable(conds, lookup)
+    if mask is None or evaluable is None:
+        return None
+    coverage = bt.field_coverage(conds, lookup, p.dates, p.codes)
+    firsts = [c["first_date"] for c in coverage]
+    start = max(firsts) if firsts and all(firsts) else None
+    level = bt.eligible_mask(mask, p.dates, start)
+    new = bt.eligible_mask(bt.new_triggers(mask, evaluable), p.dates, start)
+    return {"level": level, "new": new, "coverage": coverage, "start": start}
+
+
+def _stats_by_horizon(res: dict[str, Any]) -> dict[str, Any]:
+    return {
+        str(h): {"all": bt.stats(trades), "non_overlap": bt.stats(bt.non_overlapping(trades))}
+        for h, trades in res["trades"].items()
+    }
+
+
 def preset_backtests(ds: Any, p: Any, mp: Any, sc: dict[str, pd.DataFrame], out: Path) -> dict[str, Any]:
+    """內建策略的回測（全市場、預先計算）。訊號定義、資料涵蓋與出場規則見 backtest 模組說明與 METHODOLOGY §5。"""
     px = build_prices(ds, p)
     lookup = field_lookup(mp, sc)
+    th = config.thresholds()["backtest"]
+    labels = config.load("screener")["fields"]
+    ma_n = int(th.get("trailing_ma", 20))
+    ma = pd.DataFrame(px.close).rolling(ma_n, min_periods=ma_n).mean().to_numpy()
     index = []
     for preset in config.load("screener")["presets"]:
-        mask = bt.conditions_mask(preset["conditions"], lookup)
-        if mask is None:
-            index.append(
-                {"id": preset["id"], "label": preset["label"], "subtitle": preset.get("subtitle", ""), "status": "資料不足"}
-            )
+        base = {"id": preset["id"], "label": preset["label"], "subtitle": preset.get("subtitle", "")}
+        sig = preset_signals(preset, lookup, p)
+        if sig is None or not sig["start"]:
+            index.append({**base, "status": "資料不足"})
             continue
-        res = bt.run(mask, px)
-        summary = bt.summarize(res, p.dates)
+        start = sig["start"]
+        new, level = sig["new"], sig["level"]
+        res = bt.run(new, px)
+        window = [d for d in p.dates if d >= start]
+        summary = bt.summarize(res, window)
+        # 資料涵蓋：有價格的股票（期間內）vs. 每個條件欄位有資料的股票
+        t0 = p.dates.index(start)
+        universe = int(np.isfinite(px.close[t0:]).any(axis=0).sum())
+        ratio = float(th.get("coverage_limited_ratio", 0.5))
+        fields = [{**c, "label": labels.get(c["field"], {}).get("label", c["field"])} for c in sig["coverage"]]
+        codes_n = new.sum(axis=0)
+        by_code = sorted(((p.codes[i], int(n)) for i, n in enumerate(codes_n) if n), key=lambda x: (-x[1], x[0]))
+        sig_rows = np.nonzero(new.any(axis=1))[0]
         summary.update(
             {
-                "id": preset["id"],
-                "label": preset["label"],
-                "subtitle": preset.get("subtitle", ""),
+                **base,
                 "description": preset["description"],
                 "conditions": preset["conditions"],
-                "signals": int(mask.sum()),
+                "signal_definition": th.get("signal_definition", "new"),
+                "signals": int(new.sum()),
+                "signals_level": int(level.sum()),
+                "first_signal": p.dates[int(sig_rows[0])] if sig_rows.size else None,
+                "last_signal": p.dates[int(sig_rows[-1])] if sig_rows.size else None,
+                "coverage": {
+                    "start": start,
+                    "price_start": p.dates[0],
+                    "universe": universe,
+                    "fields": fields,
+                    "limited": any(f["stocks"] < universe * ratio for f in fields),
+                    "stocks_in_sample": len(by_code),
+                    "by_code": by_code,
+                    # 對照：每天符合（舊定義）的各股訊號數
+                    "by_code_level": sorted(
+                        ((p.codes[i], int(n)) for i, n in enumerate(level.sum(axis=0)) if n),
+                        key=lambda x: (-x[1], x[0]),
+                    ),
+                },
+                # 對照：每天符合都算訊號（舊定義）；出場規則：停損、移動停損（S5）
+                "level": _stats_by_horizon(bt.run(level, px)),
+                "exit_rules": {
+                    "stop": {
+                        "pct": float(th.get("stop_loss_pct", -7)),
+                        "horizons": _stats_by_horizon(bt.run(new, px, rule="stop")),
+                    },
+                    "trailing": {"ma": ma_n, "horizons": _stats_by_horizon(bt.run(new, px, rule="trailing", ma=ma))},
+                },
             }
         )
-        names = {c: p.names.get(c, c) for c in {t["code"] for t in summary["trades"]}}
+        names = {c: p.names.get(c, c) for c in {t["code"] for t in summary["trades"]} | {c for c, _ in by_code}}
         summary["names"] = names
         write_json(out / "backtests" / f"{preset['id']}.json", summary)
         index.append(
             {
-                "id": preset["id"],
-                "label": preset["label"],
-                "subtitle": preset.get("subtitle", ""),
-                "signals": int(mask.sum()),
+                **base,
+                "signals": int(new.sum()),
                 "n10": summary["horizons"].get("10", {}).get("all", {}).get("n", 0),
+                "limited": summary["coverage"]["limited"],
             }
         )
     write_json(

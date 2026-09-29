@@ -4,11 +4,12 @@ import { StockMiniRow } from '../components/StockRow';
 import { setListContext } from '../lib/listContext';
 import { navigate } from '../router';
 import { DataStatus, ErrorState, Loading } from '../components/DataStatus';
-import { useDb, useRestoredState } from '../hooks';
+import { useAsync, useDb, useRestoredState } from '../hooks';
+import { loadMeta, loadScreenDays } from '../data/api';
 import { useScoredSummary } from '../data/useSummary';
 import { deleteScreen, listScreens, saveScreen, uid, type SavedScreen } from '../db/db';
 import { screenerConfig, type Condition } from '../lib/config';
-import { describeCondition, savedDisplayName, encodeConditions, presetScreens, screen, screenIdentity } from '../lib/screener';
+import { describeCondition, newTriggerCodes, savedDisplayName, weeklyNote, encodeConditions, presetScreens, screen, screenIdentity } from '../lib/screener';
 import { fmtNum } from '../lib/format';
 import { PAGE_SOURCES } from '../lib/health';
 
@@ -60,13 +61,26 @@ export default function Screener() {
   const [conditions, setConditions] = useRestoredState<Condition[]>('screener.conditions', screenerConfig.presets[0].conditions);
   const [active, setActive] = useRestoredState<string>('screener.active', screenerConfig.presets[0].id);
   const [name, setName] = useRestoredState('screener.name', screenerConfig.presets[0].label);
+  // S2：全部符合／今日新觸發（今天符合、上一個交易日不符合；與回測的訊號定義相同）
+  const [mode, setMode] = useRestoredState<'all' | 'new'>('screener.mode', 'all');
+  const days = useAsync(() => (mode === 'new' ? loadScreenDays() : Promise.resolve(null)), [mode]);
+  const meta = useAsync(loadMeta, []);
   // 誠實呈現：條件欄位若多數股票還沒有資料（例如集保大戶逐週累積中），結果會偏少，要說清楚
   const sparse = useMemo(() => {
     if (!summary.data) return [];
     const rows = summary.data.rows as unknown as Record<string, unknown>[];
     return conditions.filter((c) => rows.filter((r) => r[c.field] !== null && r[c.field] !== undefined).length < rows.length * 0.2).map((c) => label(c.field));
   }, [summary.data, conditions]);
-  const results = useMemo(() => (summary.data ? screen(summary.data.rows as unknown as Record<string, unknown>[], conditions) : []), [summary.data, conditions]);
+  const matched = useMemo(() => (summary.data ? screen(summary.data.rows as unknown as Record<string, unknown>[], conditions) : []), [summary.data, conditions]);
+  const fresh = useMemo(() => (days.data ? newTriggerCodes(days.data, conditions) : null), [days.data, conditions]);
+  // 今日新觸發：以兩日欄位檔判斷，列表仍用 summary 的列（排序依綜合分）
+  const results = useMemo(() => {
+    if (mode !== 'new') return matched;
+    if (!fresh || !summary.data) return [];
+    return screen((summary.data.rows as unknown as Record<string, unknown>[]).filter((r) => fresh.has(r.code as string)), []);
+  }, [mode, matched, fresh, summary.data]);
+  const weekly = weeklyNote(conditions, meta.data?.weekly ?? days.data?.weekly);
+  const md = (iso?: string) => (iso ? `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}` : '');
   // #11：名稱跟著條件走；改過內建組合就不再沿用它的名稱與選取狀態
   const presets = presetScreens();
   const id = screenIdentity(conditions, active, presets, saved.map((x) => ({ id: x.id, label: x.name, conditions: x.conditions as Condition[] })));
@@ -94,7 +108,7 @@ export default function Screener() {
   return (
     <div class="page">
       <TopBar back="/explore" actions={<a class="btn small" href={backtestHref}>一鍵回測</a>} />
-      <PageHead eyebrow="自選股以外，有哪些符合條件的股票？" title={summary.data ? `${title}：${results.length} 檔符合` : '選股'} />
+      <PageHead eyebrow="自選股以外，有哪些符合條件的股票？" title={summary.data ? `${title}：${mode === 'new' ? `今日新觸發 ${results.length} 檔` : `${results.length} 檔符合`}` : '選股'} />
       <DataStatus date={summary.data?.date} uses={PAGE_SOURCES.screener} />
       <h2 class="section-title">內建組合</h2>
       <div class="chips" role="group" aria-label="內建組合">
@@ -121,10 +135,21 @@ export default function Screener() {
       <div class="row wrap">
         <button class="btn" onClick={() => setConditions([...conditions, { field: 'composite', op: '>=', value: 60 }])}>新增條件</button>
         <button class="btn" onClick={save}>儲存組合</button>
+        <a class="btn" href={id.presetId ? `#/discipline/tracking?preset=${id.presetId}` : `#/discipline/tracking?c=${encodeConditions(conditions)}&name=${encodeURIComponent(id.name)}`}>設為追蹤策略</a>
         {id.savedId ? <button class="btn danger" onClick={() => deleteScreen(id.savedId!)}>刪除組合</button> : null}
       </div>
 
       <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>結果 {summary.data ? <span class="muted caption">{results.length} 檔</span> : null}</h2>
+      <div class="segmented" role="group" aria-label="結果範圍" style={{ marginTop: 'var(--s-2)' }}>
+        <button aria-pressed={mode === 'all'} onClick={() => setMode('all')}>全部符合</button>
+        <button aria-pressed={mode === 'new'} onClick={() => setMode('new')}>今日新觸發</button>
+      </div>
+      <p class="caption muted" data-testid="screen-mode-note" style={{ marginTop: 'var(--s-2)' }}>
+        {mode === 'new'
+          ? days.data ? `今日新觸發＝${md(days.data.dates[1])} 全部條件成立、${md(days.data.dates[0])} 不成立（回測的「訊號」用同一個定義）。${fresh === null ? '有條件欄位無法判斷前一日，無法計算新觸發。' : ''}` : days.error ? '新觸發資料暫時無法取得（資料源待處理）。' : '載入前一交易日資料…'
+          : `全部符合＝${summary.data ? md(summary.data.date) : '最新交易日'}收盤後全部條件成立的股票（含前幾天就已經符合的）。`}
+        {weekly ? <><br /><span data-testid="weekly-note">{weekly}</span></> : null}
+      </p>
       {summary.error ? <ErrorState error={summary.error} /> : null}
       {summary.loading && !summary.data ? <Loading /> : null}
       {summary.data && !results.length ? (

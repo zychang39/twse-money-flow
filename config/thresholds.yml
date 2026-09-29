@@ -78,6 +78,11 @@ backtest:
   limit_up_pct: 9.5                   # 進場日開盤漲幅 ≥ 9.5% 視為開盤即漲停（排除）
   oos_split: 0.6667                   # 前 2/3 樣本內、後 1/3 樣本外
   revenue_fallback_day: 10            # 月營收取不到公布日時，保守假設次月 10 日收盤後生效
+  signal_definition: new              # 訊號定義：new＝今日新觸發（今天符合、上一個交易日不符合）；all＝每天符合都算
+  coverage_limited_ratio: 0.5         # 條件欄位有資料的股票數 < 全市場的這個比例 → 標示「樣本範圍受限」
+  stop_loss_pct: -7                   # S5：停損（相對進場價，收盤前盤中觸及即以停損價出場；跳空低開以開盤價）
+  trailing_ma: 20                     # S5：移動停損（收盤跌破 N 日均線，隔日開盤出場）
+  weekly_max_age_days: 7              # 週資料（集保大戶）超過這麼多個交易日沒有更新就視為缺值，不沿用舊值
   financial_deadlines:                # 財報法定期限（收盤後生效）
     Q1: "05-15"
     Q2: "08-14"

@@ -37,6 +37,10 @@ export function rowsToObjects<T = StockRow>(summary: Pick<Summary, 'columns' | '
 
 export const loadMeta = () => getJson<Meta>('meta.json');
 export const loadHealth = () => getJson<Health>('health.json');
+/** S2：最近兩個交易日的選股欄位（切到「今日新觸發」時才下載） */
+export const loadScreenDays = () => getJson<import('../lib/screener').ScreenDays>('screen_days.json');
+/** S3：內建策略的每日新觸發與價格（訊號追蹤） */
+export const loadSignals = () => getJson<import('../lib/tracking').SignalsFile>('signals.json');
 /** 選配 AI 摘要：meta.ai_summary 為 true 才讀取，避免 404。 */
 export const loadAiSummary = () => loadMeta().then((m) => (m.ai_summary ? getJson<AiSummary>('ai_summary.json') : null));
 

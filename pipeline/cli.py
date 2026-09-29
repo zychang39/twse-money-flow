@@ -226,7 +226,8 @@ def cmd_digest(args: argparse.Namespace) -> int:
         if not should_send_digest(sdate, now_tpe().date().isoformat(), None):
             print(f"digest skipped：資料日期 {sdate} 不是今天（休市或資料未更新），不重送")
             return 0
-    ok = send_daily_digest(Path(args.web_data), load_rules()["digest"], site, failures)
+    rules = load_rules()
+    ok = send_daily_digest(Path(args.web_data), rules["digest"], site, failures, rules["tracking"])
     print("digest sent" if ok else "digest skipped")
     return 0
 

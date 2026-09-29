@@ -20,6 +20,8 @@ export const EXPORT_MIGRATIONS: Record<number, ExportMigration> = {
     ...d,
     stores: { ...d.stores, watchlist: (d.stores.watchlist ?? []).map((w) => ({ origin: 'user', ...(w as object) })) },
   }),
+  // v4：訊號追蹤（追蹤策略、已記錄的觸發）
+  4: (d) => ({ ...d, stores: { ...d.stores, strategies: d.stores.strategies ?? [], tracked: d.stores.tracked ?? [] } }),
 };
 
 export async function exportAll(): Promise<BackupFile> {
@@ -30,9 +32,9 @@ export async function exportAll(): Promise<BackupFile> {
 }
 
 /** 各 store 的主鍵（與 db.ts 的 keyPath 相同） */
-const KEY_PATH: Record<StoreName, string> = { watchlist: 'code', settings: 'key', screens: 'id', trades: 'id', activity: 'id' };
+const KEY_PATH: Record<StoreName, string> = { watchlist: 'code', settings: 'key', screens: 'id', trades: 'id', activity: 'id', strategies: 'id', tracked: 'key' };
 /** 從哪個版本起一定有這個 store（v2 才有 activity） */
-const SINCE: Record<StoreName, number> = { watchlist: 0, settings: 0, screens: 0, trades: 0, activity: 2 };
+const SINCE: Record<StoreName, number> = { watchlist: 0, settings: 0, screens: 0, trades: 0, activity: 2, strategies: 4, tracked: 4 };
 
 /**
  * E-04：寫入任何資料之前先完整驗證。schemaVersion 必須是整數；該版本應有的 store 都要是陣列；
