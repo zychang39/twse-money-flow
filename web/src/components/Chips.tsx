@@ -199,12 +199,14 @@ function useChipLayout(
       if (!W) return;
       fonts.clear(); // 字級（Dynamic Type）可能改變
       const pad = 6; // 儲存格左右內距合計（日期欄另有左邊 8px）
-      const dateW = Math.ceil(Math.max(72, measure(texts.date, 'cd-date') + pad + 5, measure(texts.sub, 'cd-sub') + pad + 5));
+      // 日期欄：MM/DD；下方收盤與漲跌分成兩行（M3：讓 402／375px 放得下完整千分位張數）
+      const dateW = Math.ceil(Math.max(52, measure(texts.date, 'cd-date') + pad + 5, measure(texts.sub, 'cd-sub') + pad + 5));
       // 欄寬只看數字與標題下方的小字（標題本身可以折成兩行）
       // 數字欄寬＝最長數字（含逗號與正負號）的等寬寬度 ＋ 8px（UI_GUIDE）；字級 15 → 14 → 13px 逐級嘗試（同一張表同一字級）
       const basePx = parseFloat(getComputedStyle((m.className = 'cd-measure cd-v', m)).fontSize) || 15;
       let scale = 1;
-      const need = (keys: string[]) => Math.max(...keys.map((k) => (texts.cols[k] ? Math.max(measure(texts.cols[k], 'cd-v') * scale, measure(texts.heads[k] ?? [], 'cd-sub')) + 8 : Infinity)));
+      // 欄名與標題下方的連續天數過長時換成兩行，不加寬欄位（UI_GUIDE §7-4），所以欄寬只看數字
+      const need = (keys: string[]) => Math.max(...keys.map((k) => (texts.cols[k] ? measure(texts.cols[k], 'cd-v') * scale + 8 : Infinity)));
       const viewKeys = VIEW_COLS[view].map((c) => c.key);
       const allKeys = ALL_COLS.map((c) => c.key);
       const vw = document.documentElement.clientWidth;
@@ -212,12 +214,16 @@ function useChipLayout(
       const wideAllowed = vw > window.innerHeight || vw >= 768;
       let mode: Mode = 'cards';
       let fs = FONT_STEPS[FONT_STEPS.length - 1];
-      const dt = parseFloat(getComputedStyle(body).getPropertyValue('--dt')) || 1;
-      for (const step of FONT_STEPS) {
+      // 字級跟著 Dynamic Type（--dt）與瀏覽器／系統文字大小（rem）一起放大
+      const dt = (parseFloat(getComputedStyle(body).getPropertyValue('--dt')) || 1) * ((parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) / 16);
+      // 橫向或平板：先試全部欄位（15 → 13px）；否則（或放不下）試單一檢視（15 → 13px）；都不行 → 卡片
+      const fits = (keys: string[], n: number, width: number) => FONT_STEPS.find((step) => {
         scale = (step * dt) / basePx;
-        if (wideAllowed && dateW + 12 * need(allKeys) <= Math.max(W, wideW)) { mode = 'all'; fs = step; break; }
-        if (dateW + 4 * need(viewKeys) <= W) { mode = 'table'; fs = step; break; }
-      }
+        return dateW + n * need(keys) <= width;
+      });
+      const allFs = wideAllowed ? fits(allKeys, 12, Math.max(W, wideW)) : undefined;
+      const viewFs = allFs === undefined ? fits(viewKeys, 4, W) : undefined;
+      if (allFs !== undefined) { mode = 'all'; fs = allFs; } else if (viewFs !== undefined) { mode = 'table'; fs = viewFs; }
       setState((s) => (s.mode === mode && s.dateW === dateW && s.fs === fs ? s : { mode, dateW, fs }));
     };
     compute();
@@ -358,7 +364,7 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
     }
     return {
       date: ['區間合計', ...rows.map((r) => mdLabel(r.date))],
-      sub: rows.map((r) => { const p = priceLine(r); return `${p.price} ${p.chg}`; }),
+      sub: rows.flatMap((r) => { const p = priceLine(r); return [p.price, p.chg]; }),
       cols,
       heads,
     };
@@ -485,7 +491,7 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
                       <tr key={r.date} class="day" onClick={() => setDay(r)}>
                         <th scope="row" class="cd-rowhead">
                           <span class="cd-date" aria-hidden="true">{mdLabel(r.date)}</span>
-                          <span class="cd-sub" aria-hidden="true">{p.price} <span class={p.dir}>{p.chg}</span></span>
+                          <span class="cd-sub" aria-hidden="true">{p.price}<span class={`cd-chg ${p.dir}`}>{p.chg}</span></span>
                           {/* 透明按鈕蓋住整格（沒有可見文字，名稱就是完整句子；整列也可以點） */}
                           <button class="cd-rowbtn" aria-label={rowSentence(r, cols, unit)} aria-haspopup="dialog" onClick={(e) => { e.stopPropagation(); setDay(r); }} />
                         </th>

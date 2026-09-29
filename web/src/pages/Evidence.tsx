@@ -155,7 +155,9 @@ function DetailPanel({ row, horizon }: { row: EvidenceRow; horizon: number }) {
           ) : null}
         </>
       ) : null}
-      <a class="caption" href={DOC_URL} target="_blank" rel="noopener">完整報告（全部參數格與出場規則）</a>
+      <a class="list-item brand" href={DOC_URL} target="_blank" rel="noopener">
+        <span class="grow">完整報告<span class="caption muted tool-sub">全部參數格與出場規則（GitHub）</span></span>
+      </a>
     </div>
   );
 }

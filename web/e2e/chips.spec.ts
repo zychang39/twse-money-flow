@@ -14,9 +14,13 @@ test('區間統計：天數切換後結論與數字跟著變，且只用規則�
   await card.getByRole('group', { name: '統計天數' }).getByRole('button', { name: '1 日' }).click();
   await expect(sentence).toHaveText(/^最近一個交易日/);
   await expect(sentence).not.toHaveText(/買進|賣出|建議/);
-  for (const label of ['買賣超（張）', '金額（億元・估）', '佔區間成交量（%）', '佔股本（%）', '估計成本（元・估）', '現價相對成本（%）']) {
+  for (const label of ['買賣超（張）', '佔區間成交量（%）', '佔股本（%）', '估計成本（元・估）', '現價相對成本（%）']) {
     await expect(card.getByRole('rowheader', { name: label })).toBeVisible();
   }
+  // M3：籌碼只用張；單位只在右上角出現一次；沒有億元
+  await expect(card.getByTestId('chip-stats-unit')).toHaveText('單位：張');
+  await expect(card).not.toContainText('億元');
+  await expect(card).not.toContainText('萬');
 });
 
 // ---------------------------------------------------------------- 每日籌碼（HIG 改版）
@@ -24,7 +28,7 @@ const daily = (page: Page) => page.locator('section.chip-daily');
 const table = (page: Page) => daily(page).locator('.cd-wrap, .cd-cards').first();
 
 for (const width of [375, 393]) {
-  test(`每日籌碼：${width}pt 寬度預設展開、表格不需要左右滑動（三種檢視、三種單位、四種期間）`, async ({ page }) => {
+  test(`每日籌碼：${width}pt 寬度預設展開、表格不需要左右滑動（三種檢視、兩種期間；M3 只有張）`, async ({ page }) => {
     await page.setViewportSize({ width, height: 852 });
     await gotoStock(page, '#/stock/2330');
     const toggle = daily(page).getByRole('button', { name: '每日籌碼' });
@@ -35,34 +39,27 @@ for (const width of [375, 393]) {
       expect(d.sw).toBeLessThanOrEqual(d.cw);
       const doc = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
       expect(doc.sw).toBeLessThanOrEqual(doc.cw);
-      // 上方的區間統計卡也不需要左右滑動
-      const stats = await page.locator('.chip-stats-card .scroll-x').evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }));
+      // 上方的區間統計卡也不需要左右滑動（M3：不再有 scroll-x 容器）
+      const stats = await page.locator('.chip-stats-card').evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }));
       expect(stats.sw).toBeLessThanOrEqual(stats.cw);
+      await expect(page.locator('.chip-stats-card .scroll-x')).toHaveCount(0);
     };
+    await expect(page.getByRole('combobox', { name: '單位' })).toHaveCount(0); // M3：移除單位切換
     for (const view of ['法人', '信用', '借券當沖']) {
       await page.getByRole('group', { name: '檢視' }).getByRole('button', { name: view }).click();
-      for (const unit of ['lots', 'amount', 'pct']) {
-        await page.getByRole('combobox', { name: '單位' }).selectOption(unit);
-        for (const n of ['5 日', '60 日']) {
-          await page.getByRole('group', { name: '明細期間' }).getByRole('button', { name: n }).click();
-          await expect(table(page)).toHaveAttribute('data-mode', 'table');
-          await noScroll();
-        }
+      for (const n of ['5 日', '60 日']) {
+        await page.getByRole('group', { name: '明細期間' }).getByRole('button', { name: n }).click();
+        await expect(table(page)).toHaveAttribute('data-mode', 'table');
+        await noScroll();
       }
     }
   });
 }
 
-test('每日籌碼：一排控制列；法人檢視固定 4 欄＋日期，收盤與漲跌在日期下方；區間合計在最上方、連買天數在標題下方', async ({ page }) => {
-  await page.setViewportSize({ width: 393, height: 852 });
+test('每日籌碼：法人檢視固定 4 欄＋日期（MM/DD），收盤與漲跌在日期下方；區間合計在最上方、連買天數在標題下方；單位只在右上角', async ({ page }) => {
+  await page.setViewportSize({ width: 402, height: 874 });
   await gotoStock(page, '#/stock/2330');
-  const periods = page.getByRole('group', { name: '明細期間' });
-  const unit = page.getByRole('combobox', { name: '單位' });
-  const pb = (await periods.boundingBox())!;
-  const ub = (await daily(page).locator('.cd-unit').boundingBox())!;
-  expect(Math.abs(pb.y + pb.height / 2 - (ub.y + ub.height / 2))).toBeLessThan(2); // 同一排
-  expect(ub.x).toBeGreaterThan(pb.x + pb.width - 1); // 單位在右
-  await expect(unit.locator('option')).toHaveText(['張', '金額（億元，估）', '佔成交量 %']);
+  await expect(page.getByRole('combobox', { name: '單位' })).toHaveCount(0);
   const views = page.getByRole('group', { name: '檢視' }).getByRole('button');
   await expect(views).toHaveText(['法人', '信用', '借券當沖']);
   await expect(views.first()).toHaveAttribute('aria-pressed', 'true');
@@ -75,7 +72,8 @@ test('每日籌碼：一排控制列；法人檢視固定 4 欄＋日期，收�
   await expect(region.locator('tbody tr').first()).toContainText('區間合計');
   await expect(region.locator('tbody tr.day')).toHaveCount(10);
   await expect(region.getByText('目前連續')).toHaveCount(0);
-  await expect(region.locator('tbody tr.day').first().locator('th .cd-sub')).toHaveText(/^[\d,.]+ [▲▼－][\d.]+%$/);
+  await expect(region.locator('tbody tr.day').first().locator('th .cd-sub')).toHaveText(/^[\d,.]+[▲▼－][\d.]+%$/); // 收盤與漲跌分兩行
+  await expect(region.locator('tbody tr.day').first().locator('th .cd-date')).toHaveText(/^\d{2}\/\d{2}$/); // MM/DD
   await expect(daily(page).locator('.cd-unit-label')).toHaveText('單位：張');
   // 欄位標題不重複單位
   await expect(heads.nth(1).locator('.cd-h')).not.toContainText('張');
@@ -84,36 +82,31 @@ test('每日籌碼：一排控制列；法人檢視固定 4 欄＋日期，收�
   expect(dateStyle).toBe('none');
 
   await page.getByRole('group', { name: '檢視' }).getByRole('button', { name: '信用' }).click();
-  await expect(page.getByRole('region', { name: '每日籌碼明細・信用' }).locator('thead th .cd-h')).toHaveText(['融資增減', '融券增減', /^融資餘額(萬張)?$/, '券資比']);
+  await expect(page.getByRole('region', { name: '每日籌碼明細・信用' }).locator('thead th .cd-h')).toHaveText(['融資增減', '融券增減', '融資餘額', '券資比']);
   await page.getByRole('group', { name: '檢視' }).getByRole('button', { name: '借券當沖' }).click();
-  await expect(page.getByRole('region', { name: '每日籌碼明細・借券當沖' }).locator('thead th .cd-h')).toHaveText([/^借券賣出(萬張)?$/, /^借券賣出餘額(萬張)?$/, '當沖比率', /^當沖量(萬張)?$/]);
-
-  await unit.selectOption('amount');
-  await expect(daily(page).locator('.cd-unit-label')).toHaveText('單位：億元（估）');
-  await unit.selectOption('pct');
-  await expect(daily(page).locator('.cd-unit-label')).toHaveText('單位：佔成交量 %');
-  await expect(page.getByRole('region', { name: '每日籌碼明細・借券當沖' }).locator('thead th').nth(2).locator('.cd-sub')).toHaveText('張'); // 餘額沒有佔量的意義
+  await expect(page.getByRole('region', { name: '每日籌碼明細・借券當沖' }).locator('thead th .cd-h')).toHaveText(['借券賣出', '借券賣出餘額', '當沖比率', '當沖量']);
+  await expect(daily(page).locator('.cd-unit-label')).toHaveText('單位：張');
+  // 同一畫面不可同時出現萬與張
+  await expect(daily(page)).not.toContainText('萬');
 });
 
-test('每日籌碼：整張表同一種單位（≥ 10,000 張時整張表改萬張，未滿千張寫整數張）；正負同時用紅綠與 ▲▼；每列至少 44pt；VoiceOver 唸完整句子', async ({ page }) => {
+test('每日籌碼：M3 一律完整千分位整數張（不縮寫、不帶小數、0 不帶箭頭）；正負同時用紅綠與 ▲▼；每列至少 44pt；VoiceOver 唸完整句子', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 852 });
   await gotoStock(page, '#/stock/2330');
   await page.getByRole('group', { name: '明細期間' }).getByRole('button', { name: '60 日' }).click();
   const region = page.getByRole('region', { name: /每日籌碼明細/ });
   const texts = await region.locator('tbody td .cd-t').allInnerTexts();
-  for (const t of texts) expect(t).toMatch(/^(—|[▲▼]?[\d,.]+(張)?%?)$/);
-  for (const t of texts) expect(t).not.toMatch(/^[▲▼]0(\.0+)?$/); // #6：不出現 ▲0.0／▼0.0
-  for (const t of texts) expect(t.replace(/[▲▼,%張]/g, '').split('.')[0].length).toBeLessThanOrEqual(4); // 不超過 4 位數（≥ 10,000 已換成萬張）
-  // 單位說明與格子一致：有「張」小字的格子只會出現在萬張表格
-  const label = await page.getByTestId('chip-unit-label').textContent();
-  if (texts.some((t) => t.endsWith('張'))) expect(label).toContain('萬張');
+  for (const t of texts) expect(t).toMatch(/^(—|[▲▼]?\d{1,3}(,\d{3})*|[\d.]+%)$/); // 張：千分位整數；比率：%
+  for (const t of texts) expect(t).not.toMatch(/^[▲▼]0$/); // 0 不帶箭頭
+  for (const t of texts) expect(t).not.toMatch(/萬|千|K|M/);
+  await expect(page.getByTestId('chip-unit-label')).toHaveText('單位：張');
   const cell = region.locator('tbody tr.day td.cd-v.up, tbody tr.day td.cd-v.down').first();
   const [cls, txt] = await cell.evaluate((el) => [el.className, el.textContent]);
   expect(txt).toMatch(cls.includes('up') ? /▲/ : /▼/);
   const h = await region.locator('tbody tr.day').first().evaluate((el) => el.getBoundingClientRect().height);
   expect(h).toBeGreaterThanOrEqual(44);
   const btn = region.locator('tbody tr.day').first().getByRole('button');
-  await expect(btn).toHaveAttribute('aria-label', /^\d+ 月 \d+ 日，外資(買超|賣超|持平)( [\d,.]+( 萬)? 張)?，投信.+，自營商（自行買賣）.+，三大法人合計.+；收盤 [\d,.]+ 元/);
+  await expect(btn).toHaveAttribute('aria-label', /^\d+ 月 \d+ 日，外資(買超|賣超|持平)( [\d,]+ 張)?，投信.+，自營商（自行買賣）.+，三大法人合計.+；收盤 [\d,.]+ 元/);
 });
 
 test('每日籌碼：點一列從底部拉出當天完整資料（含自營商避險、成交量、官方來源、複製這天資料）', async ({ page, context }) => {

@@ -11,12 +11,14 @@ test('預設波段動能：區塊順序、預設 1Y、每個區塊標題是「�
   await gotoStock(page, '#/stock/2330');
   await expect(page.locator('.stock-lower')).toHaveAttribute('data-style', 'swing');
   expect(await questions(page)).toEqual([
-    '整體狀態如何？（波段動能）', '動能夠不夠強？', '法人在買還是賣？', '融資與空方在做什麼？', '大戶在增加還是減少？', '營收與基本面如何？', '現在貴不貴？', '最近有什麼事件？',
+    '整體狀態如何？（波段動能）', '有統計證據的訊號觸發了嗎？', '四環分數', '動能夠不夠強？', '法人在買還是賣？', '融資與空方在做什麼？', '大戶在增加還是減少？', '營收與基本面如何？', '現在貴不貴？', '最近有什麼事件？',
   ]);
   await expect(page.getByRole('group', { name: '股價走勢期間' }).first().getByRole('button', { name: /^1Y/ })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#sec-momentum h2')).toHaveText(/^RS \d+，(站上全部均線|跌破全部均線|跌破 [\d／]+ 日線|均線資料不足)$/);
   await expect(page.getByTestId('momentum-facts')).toContainText('距 52 週高點');
   await expect(page.getByTestId('momentum-facts')).toContainText('量能');
+  // M3：動能補 20 日乖離、KD 與鈍化天數、MACD 狀態
+  for (const k of ['20 日乖離', 'KD（9,3,3）', 'MACD（12,26,9）']) await expect(page.getByTestId('momentum-facts')).toContainText(k);
   await expect(page.locator('#sec-momentum')).toContainText('240 日線');
   // 每個區塊都有非空的一句結論
   for (const h of await page.locator('.stock-lower > section.block > h2').allTextContents()) expect(h.trim().length).toBeGreaterThan(3);
@@ -30,7 +32,7 @@ test('切到長期投資：區塊順序、預設 5Y、結論側重營收／獲�
   await gotoStock(page, '#/stock/2330');
   await expect(page.locator('.stock-lower')).toHaveAttribute('data-style', 'long');
   expect(await questions(page)).toEqual([
-    '整體狀態如何？（長期投資）', '營收有沒有在成長？', '獲利品質好不好？', '現在貴不貴？', '大戶在增加還是減少？', '法人在買還是賣？', '融資與空方在做什麼？', '最近有什麼事件？',
+    '整體狀態如何？（長期投資）', '四環分數', '營收有沒有在成長？', '獲利品質好不好？', '現在貴不貴？', '大戶在增加還是減少？', '法人在買還是賣？', '融資與空方在做什麼？', '有統計證據的訊號觸發了嗎？', '最近有什麼事件？',
   ]);
   await expect(page.getByRole('group', { name: '股價走勢期間' }).first().getByRole('button', { name: /^5Y/ })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#sec-conclusion h2')).toHaveText(/營收|ROE|本益比/);

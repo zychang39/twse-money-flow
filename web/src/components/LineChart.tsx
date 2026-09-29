@@ -18,8 +18,8 @@ export function LineChart({ dates, lines, height = 180, ariaLabel, format = (v: 
   return (
     <figure style={{ margin: 0 }}>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={ariaLabel}>
-        <text x={0} y={sy(hi) + 4} font-size="10" fill="var(--text-2)">{format(hi)}</text>
-        <text x={0} y={sy(lo)} font-size="10" fill="var(--text-2)">{format(lo)}</text>
+        <text x={0} y={sy(hi) + 4} font-size="11" fill="var(--text-2)">{format(hi)}</text>
+        <text x={0} y={sy(lo)} font-size="11" fill="var(--text-2)">{format(lo)}</text>
         {lines.map((l) => {
           const seg = segments(l.values);
           const d = seg.runs.map((run) => run.map((i, k) => `${k ? 'L' : 'M'}${sx(i).toFixed(1)},${sy(l.values[i]!).toFixed(1)}`).join('')).join('');
@@ -30,8 +30,8 @@ export function LineChart({ dates, lines, height = 180, ariaLabel, format = (v: 
             </g>
           );
         })}
-        <text x={padL} y={H - 6} font-size="10" fill="var(--text-2)">{dates[0]}</text>
-        {dates.length > 1 ? <text x={W - padR - 56} y={H - 6} font-size="10" fill="var(--text-2)">{dates[dates.length - 1]}</text> : null}
+        <text x={padL} y={H - 6} font-size="11" fill="var(--text-2)">{dates[0]}</text>
+        {dates.length > 1 ? <text x={W - padR - 56} y={H - 6} font-size="11" fill="var(--text-2)">{dates[dates.length - 1]}</text> : null}
       </svg>
       <figcaption class="row wrap caption" style={{ gap: 'var(--s-3)' }}>
         {lines.map((l) => (
