@@ -28,7 +28,7 @@ import type { CategoryId } from '../lib/config';
 import type { ChipBlock } from '../lib/chips';
 import { adjClose } from '../lib/history';
 import { LONG_PERIODS, STOCK_PERIODS, change, periodStart, type Period } from '../lib/periods';
-import { heroWindows, windowFor, type HeroWindows } from '../lib/heroSeries';
+import { heroWindows, windowFor, withDaily, type HeroWindows } from '../lib/heroSeries';
 import { type RangeBasis, getRangeBasis, setRangeBasis } from '../lib/rangeReturn';
 import { isNotFound, loadInactive, loadLongHistory } from '../data/api';
 import { inactiveText, tradeStatusNote } from '../lib/tradeStatus';
@@ -88,7 +88,8 @@ function useHeroWindow(code: string, h: StockHistory | null, period: Period): He
   return useMemo(() => {
     if (!h) return { adj: null, raw: null };
     const L = needLong && long.data && long.data.d.length > h.d.length ? long.data : null;
-    return L ? heroWindows(L.d, L.c, L.af, period) : heroWindows(h.d, h.c, h.af, period);
+    // 「今日」一律用個股檔的日資料（#3），不受期間與週線取樣影響
+    return withDaily(L ? heroWindows(L.d, L.c, L.af, period) : heroWindows(h.d, h.c, h.af, period), h.d, h.c, h.af);
   }, [h, long.data, period, needLong]);
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { costLineFor, heroWindows, windowFor } from './heroSeries';
+import { costLineFor, heroWindows, windowFor, withDaily } from './heroSeries';
 import { rangeReturn } from './rangeReturn';
-import { change } from './periods';
+import { change, windowDayChange } from './periods';
 
 // 除息日 2026-07-15（前收 100、現金股利 3 → 參考價 97，因子 0.97）與分割日 2026-08-20（1 拆 4，因子 0.25）
 const d = ['2026-07-13', '2026-07-14', '2026-07-15', '2026-07-16', '2026-08-18', '2026-08-19', '2026-08-20', '2026-08-21'];
@@ -46,5 +46,44 @@ describe('M5 還原／原始切換：主角數字、走勢、區間報酬同一�
     expect(adj[5]).toBeCloseTo(203 * 0.25);
     expect(adj[7]).toBe(52);
     expect(adj[0]).toBeNull();
+  });
+});
+
+describe('#3 「今日」漲跌與所選期間無關', () => {
+  // 約 12 年的日資料（週一到週五），最後兩日 110.05 → 110.00（▼0.05）；一週前是 107.45
+  const days: string[] = [];
+  const t0 = Date.UTC(2014, 0, 6);
+  for (let k = 0; days.length < 3000; k++) {
+    const dt = new Date(t0 + k * 86400000);
+    if (dt.getUTCDay() !== 0 && dt.getUTCDay() !== 6) days.push(dt.toISOString().slice(0, 10));
+  }
+  const closes = days.map((_, i) => 50 + i * 0.02);
+  closes[closes.length - 2] = 110.05;
+  closes[closes.length - 1] = 110;
+  const factors = days.map(() => 1);
+
+  it('1W～ALL（含週線取樣的 10Y、ALL）今日都是最後兩個交易日的差', () => {
+    const periods = ['1W', '1M', '3M', 'YTD', '1Y', '5Y', '10Y', 'ALL'] as const;
+    for (const p of periods) {
+      for (const basis of ['adj', 'raw'] as const) {
+        const w = windowFor(withDaily(heroWindows(days, closes, factors, p), days, closes, factors), basis)!;
+        const t = windowDayChange(w)!;
+        expect(t.abs, `${p} ${basis}`).toBeCloseTo(-0.05, 9);
+        expect(t.pct!, `${p} ${basis}`).toBeCloseTo((-0.05 / 110.05) * 100, 9);
+      }
+    }
+  });
+
+  it('根本原因的對照：週線取樣的視窗，相鄰兩點相隔一週', () => {
+    const w = windowFor(heroWindows(days, closes, factors, '10Y'), 'adj')!;
+    const naive = windowDayChange(w)!; // 沒有日資料 → 用視窗相鄰兩點
+    expect(Math.abs(naive.abs)).toBeGreaterThan(0.05);
+  });
+
+  it('查價到週線上的某一點：顯示該日相對前一個交易日的漲跌', () => {
+    const w = windowFor(withDaily(heroWindows(days, closes, factors, 'ALL'), days, closes, factors), 'adj')!;
+    const at = Math.floor(w.values.length / 2);
+    const i = days.indexOf(w.dates[at]);
+    expect(windowDayChange(w, at)!.abs).toBeCloseTo(closes[i] - closes[i - 1], 9);
   });
 });

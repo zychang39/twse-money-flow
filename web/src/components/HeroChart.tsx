@@ -17,7 +17,7 @@
  */
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { PERIODS, PERIOD_LABEL, change, type Dir, type Period, type Window } from '../lib/periods';
+import { PERIODS, PERIOD_LABEL, change, windowDayChange, type Dir, type Period, type Window } from '../lib/periods';
 import { areaD, extent, lerpPts, nearestIndex, pathD, points, resample, springEase, yOf, type Frame } from '../lib/chartMath';
 import { arrow, fmtNum } from '../lib/format';
 import { coverage, coverageNote } from '../lib/series';
@@ -200,8 +200,9 @@ export function HeroChart({
   const latest = win ? win.values[last] : null;
   const daily = heroChange === 'daily';
   const both = heroChange === 'both';
-  // daily：與前一個交易日比較（視窗第一點是區間基準，沒有前一日可比）
-  const dayChg = win && at >= 1 ? change(win.values.slice(at - 1, at + 1)) : null;
+  // daily：與前一個交易日比較（#3：有日資料時用日資料，10Y／ALL 的週線取樣相鄰兩點相隔一週；
+  // 沒有日資料時視窗本身就是日資料，第一點是區間基準、沒有前一日可比）
+  const dayChg = win ? windowDayChange(win, at) : null;
   const chg = !win ? null : daily || both ? dayChg : change(win.values, at);
   const periodChg = win && both && win.values.length >= 2 ? change(win.values, at) : null;
   const range = win ? change(win.values) : null;
