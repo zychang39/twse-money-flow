@@ -16,7 +16,7 @@ export function serviceWorker(appVersion = 'dev'): Plugin {
     name: 'service-worker',
     apply: 'build',
     generateBundle(_options, bundle) {
-      const files = Object.keys(bundle).filter((f) => !f.endsWith('.map') && f !== 'index.html');
+      const files = Object.keys(bundle).filter((f) => !f.endsWith('.map') && f !== 'index.html' && !f.startsWith('.vite/'));
       const entry = Object.values(bundle).find((b) => b.type === 'chunk' && b.isEntry)?.fileName ?? '';
       const shell = ['./manifest.webmanifest', './icons/icon-192.png', ...files.map((f) => `./${f}`)];
       const version = createHash('sha256').update(files.sort().join('|') + appVersion).digest('hex').slice(0, 12);

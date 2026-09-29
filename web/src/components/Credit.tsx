@@ -2,9 +2,10 @@
  * 信用與空方（v3 M2-2）：拆成「散戶信用（融資）」與「空方（融券與借券）」兩張卡；外資持股移到法人區塊。
  * 每個數字都標明比較基準（與 N 個交易日前（日期）相比）。定義見 METHODOLOGY §4.7.5。
  */
-import { type CreditSummary, basisText, lotsDelta, marginUsageText, ppDelta } from '../lib/credit';
+import { type CreditSummary, basisText, foreignHoldLine, lotsDelta, marginUsageText } from '../lib/credit';
+import '../styles/tools.css'; // .cr-*（#4／#5：原本只有工具頁載入這份 CSS，個股頁直接開啟時樣式不存在）
 import { uiConfig } from '../lib/config';
-import { dirClass, numberFormat } from '../lib/format';
+import { numberFormat } from '../lib/format';
 
 const INT = numberFormat(0);
 const F1 = numberFormat(1);
@@ -17,10 +18,6 @@ function Row({ k, v, sub, testid }: { k: string; v: string; sub?: string; testid
       <dd class="num">{v}</dd>
     </div>
   );
-}
-
-function dirOf(v: number | null): string {
-  return dirClass(v);
 }
 
 export function MarginCard({ s }: { s: CreditSummary }) {
@@ -70,15 +67,19 @@ export function ShortCard({ s }: { s: CreditSummary }) {
   );
 }
 
-/** 外資持股比與 20 日變化（法人區塊）。 */
+/** 外資持股比與 20 日變化（法人區塊）：標籤左、數值右，變化值與數值同一行並留間距（#5）。 */
 export function ForeignHolding({ s }: { s: CreditSummary }) {
   const f = s.foreign.chg;
-  if (f.now === null) return null;
+  const line = foreignHoldLine(f);
+  if (!line) return null;
   return (
     <dl class="cr-dl cr-foreign" data-testid="foreign-hold">
       <div class="cr-row">
-        <dt>外資持股比<span class="cr-basis">{basisText(f)}</span></dt>
-        <dd class="num">{F2.format(f.now)}%<span class={`cr-chg ${dirOf(f.abs)}`}>{ppDelta(f.abs)}</span></dd>
+        <dt>外資持股比<span class="cr-basis">{f.thenDate && line.dir === 'na' ? `與 ${f.days} 個交易日前相比（${Number(f.thenDate.slice(5, 7))}/${Number(f.thenDate.slice(8, 10))} 無資料）` : basisText(f)}</span></dt>
+        <dd class="num cr-inline">
+          <span>{line.value}</span>
+          <span class={`cr-chg ${line.dir === 'na' ? 'muted' : line.dir}`} data-testid="foreign-hold-change">{line.change}</span>
+        </dd>
       </div>
     </dl>
   );

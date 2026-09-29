@@ -68,7 +68,7 @@ test.describe('M2-2 信用與空方', () => {
     await expect(block.getByTestId('foreign-hold')).toHaveCount(0);
     const inst = page.getByRole('region', { name: '法人在買還是賣？' });
     await expect(inst.getByTestId('foreign-hold')).toContainText(/外資持股比.*與 20 個交易日前（\d+\/\d+）相比/);
-    await expect(inst.getByTestId('foreign-hold')).toContainText('個百分點');
+    await expect(inst.getByTestId('foreign-hold')).toContainText(/百分點|持平|資料累積中/);
   });
 
   test('券資比 ≥ 30% 時說明軋空風險', async ({ page }) => {

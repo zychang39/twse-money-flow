@@ -101,6 +101,18 @@ export function ppDelta(v: N): string {
   return `${arrow}${F2.format(Math.abs(v))} 個百分點`;
 }
 
+/**
+ * 外資持股比的一行（#5）：「69.20%」＋「▲0.35 百分點」／「持平」／「變化：資料累積中」。
+ * 沒有 N 個交易日前的持股比時不能顯示持平的「—」（那是沒有資料，不是沒有變化）。
+ */
+export function foreignHoldLine(d: Delta): { value: string; change: string; dir: 'up' | 'down' | 'flat' | 'na' } | null {
+  if (!ok(d.now)) return null;
+  const value = `${F2.format(d.now)}%`;
+  if (!ok(d.abs)) return { value, change: '變化：資料累積中', dir: 'na' };
+  if (Math.abs(d.abs) < 0.005) return { value, change: '持平', dir: 'flat' };
+  return { value, change: `${d.abs > 0 ? '▲' : '▼'}${F2.format(Math.abs(d.abs))} 百分點`, dir: d.abs > 0 ? 'up' : 'down' };
+}
+
 /** 融資使用率＝融資餘額 ÷ 融資限額；取不到時說明原因。 */
 export function marginUsageText(usage: N): { text: string; reason: string | null } {
   if (!ok(usage)) return { text: '—', reason: '官方未提供融資限額（非融資標的、暫停融資，或當日資料未公布）' };

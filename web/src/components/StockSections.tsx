@@ -9,6 +9,7 @@ import { LineChart } from './LineChart';
 import { NetBars } from './Viz';
 import { FairRange } from './StockExtras';
 import { IconChevron } from './Icons';
+import '../styles/tools.css'; // .sx-*（#4：原本只有工具頁載入這份 CSS，個股頁直接開啟時樣式不存在）
 
 const F1 = numberFormat(1);
 const F2 = numberFormat(2);

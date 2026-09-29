@@ -27,6 +27,8 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: false,
+    // e2e 用來確認每個頁面分塊自己帶到需要的 CSS（#4：個股頁用了只在工具頁載入的樣式）
+    manifest: true,
     chunkSizeWarningLimit: 400,
   },
   worker: { format: 'es', plugins: () => [configYaml()] },
