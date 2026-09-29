@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectCustomTriggers, collectPresetTriggers, evaluate, exitsTomorrow, settle, trackStats, type SignalsFile, type Strategy } from './tracking';
+import { collectCustomTriggers, collectPresetTriggers, evaluate, exitsTomorrow, settle, trackStats, type SignalPrices, type SignalsFile, type Strategy } from './tracking';
 import { netReturn } from './backtest';
 
 const dates = ['2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24'];
@@ -7,13 +7,16 @@ const file: SignalsFile = {
   dates,
   definition: 'new',
   presets: [{ id: 'chip_concentration', label: '三方同買', triggers: { '2026-09-15': ['2330'], '2026-09-17': ['2317'], '2026-09-23': ['2454'] } }],
+  bench: dates.map((_, i) => 100 + i),
+  names: { 2330: '台積電', 2317: '鴻海', 2454: '聯發科' },
+};
+const pxFile: SignalPrices = {
+  dates,
   prices: {
     '2330': { s: 1, o: [100, 101, 102, 103, 104, 105, 106, 107], c: [100, 101, 102, 103, 104, 105, 106, 107] },
     '2317': { s: 3, o: [50, null, 52, 53, 54, 55], c: [50, 51, 52, 53, 54, 55] },
     '2454': { s: 7, o: [900, 910], c: [905, 915] },
   },
-  bench: dates.map((_, i) => 100 + i),
-  names: { 2330: '台積電', 2317: '鴻海', 2454: '聯發科' },
 };
 const st: Strategy = { id: 's1', presetId: 'chip_concentration', name: '三方同買', conditions: [], horizon: 3, startAfter: '2026-09-15', enabledAt: '2026-09-15T20:00:00Z', active: true };
 
@@ -26,7 +29,7 @@ describe('S3 訊號追蹤', () => {
 
   it('等待進場／持有中／已出場；停牌時進場順延', () => {
     const bench = { dates, values: file.bench };
-    const px = (code: string) => ({ dates: dates.slice(file.prices[code].s), open: file.prices[code].o, close: file.prices[code].c });
+    const px = (code: string) => ({ dates: dates.slice(pxFile.prices[code].s), open: pxFile.prices[code].o, close: pxFile.prices[code].c });
     // 2317：9/17 訊號 → 9/18 停牌（無開盤）→ 9/21 開盤 52 進場；持有 3 日 → 9/24 開盤 55 出場
     const a = evaluate({ key: 'k', strategyId: 's1', code: '2317', signalDate: '2026-09-17', firstSeen: '' }, 3, px('2317'), bench);
     expect(a).toMatchObject({ status: 'closed', entryDate: '2026-09-21', entry: 52, exitDate: '2026-09-24', exit: 55 });
@@ -41,7 +44,7 @@ describe('S3 訊號追蹤', () => {
   });
 
   it('出場後寫回價格；之後直接用紀錄（不受資料檔變動影響）', () => {
-    const px = { dates: dates.slice(3), open: file.prices['2317'].o, close: file.prices['2317'].c };
+    const px = { dates: dates.slice(3), open: pxFile.prices['2317'].o, close: pxFile.prices['2317'].c };
     const p = evaluate({ key: 'k', strategyId: 's1', code: '2317', signalDate: '2026-09-17', firstSeen: '' }, 3, px);
     const saved = settle(p)!;
     expect(saved).toMatchObject({ entry: 52, exit: 55, exitDate: '2026-09-24' });

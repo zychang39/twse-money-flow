@@ -2,8 +2,10 @@
 
 - screen_days.json：全市場最近兩個交易日的所有選股欄位值（前端切到「今日新觸發」時才下載），
   以及週資料（集保大戶）的資料基準日與公布日。新觸發的定義與回測相同（backtest.new_triggers）。
-- signals.json：每個內建策略在最近 N 個交易日的「今日新觸發」（全市場，預先計算），
-  以及觸發過的股票從第一次觸發起的還原開盤／收盤價與加權報酬指數，供紀律頁「訊號追蹤」紙上交易使用。
+- signals.json：每個內建策略在最近 N 個交易日的「今日新觸發」（全市場，預先計算）與加權報酬指數；
+  App 啟動時的追蹤同步與 Telegram 日報只讀這個小檔。
+- signals_px.json：最近 px_days 個交易日內觸發過的股票，從第一次觸發起的還原開盤／收盤價（只有訊號追蹤頁載入）；
+  更早的部位由前端改讀個股檔。
   前端只記錄啟用追蹤之後的觸發（前瞻驗證），見 METHODOLOGY §5.3。
 """
 
@@ -47,8 +49,8 @@ def screen_days(ds: Any, p: Any, mp: Any, sc: dict[str, pd.DataFrame], out: Path
     active = [i for i, _ in enumerate(p.codes) if np.isfinite(close[-20:, i]).any()]
     rows = []
     for i in active:
-        prev = [_r(arrays[f][-2, i]) for f in fields]  # type: ignore[index]
-        last = [_r(arrays[f][-1, i]) for f in fields]  # type: ignore[index]
+        prev = [_r(arrays[f][-2, i], 3) for f in fields]  # type: ignore[index]
+        last = [_r(arrays[f][-1, i], 3) for f in fields]  # type: ignore[index]
         rows.append([p.codes[i], prev, last])
     write_json(
         out / "screen_days.json",
@@ -58,15 +60,17 @@ def screen_days(ds: Any, p: Any, mp: Any, sc: dict[str, pd.DataFrame], out: Path
 
 
 def tracking_signals(
-    ds: Any, p: Any, mp: Any, sc: dict[str, pd.DataFrame], out: Path, days: int = 250
+    ds: Any, p: Any, mp: Any, sc: dict[str, pd.DataFrame], out: Path, days: int = 250, px_days: int = 90
 ) -> dict[str, Any]:
     lookup = field_lookup(mp, sc)
     px = build_prices(ds, p)
     T = len(p.dates)
     s0 = max(0, T - days)
     dates = p.dates[s0:]
+    p0 = max(0, T - px_days)  # 價格檔的起點（絕對索引）
     presets = []
     first_idx: dict[int, int] = {}
+    triggered: set[int] = set()
     for preset in config.load("screener")["presets"]:
         sig = preset_signals(preset, lookup, p)
         base = {"id": preset["id"], "label": preset["label"], "subtitle": preset.get("subtitle", "")}
@@ -77,25 +81,30 @@ def tracking_signals(
         triggers: dict[str, list[str]] = {}
         for t, c in zip(*np.nonzero(new), strict=True):
             triggers.setdefault(dates[int(t)], []).append(p.codes[int(c)])
-            first_idx[int(c)] = min(first_idx.get(int(c), int(t)), int(t))
+            triggered.add(int(c))
+            if s0 + int(t) >= p0:
+                first_idx[int(c)] = min(first_idx.get(int(c), s0 + int(t)), s0 + int(t))
         presets.append({**base, "start": sig["start"], "triggers": {d: sorted(v) for d, v in sorted(triggers.items())}})
-    prices = {}
-    for c, t in sorted(first_idx.items()):
-        o = px.open[s0 + t :, c]
-        cl = px.close[s0 + t :, c]
-        prices[p.codes[c]] = {"s": t, "o": [_r(v, 3) for v in o], "c": [_r(v, 3) for v in cl]}
-    bench = index_series(ds, TAIEX_TR, p.dates).to_numpy()[s0:]
+    bench = index_series(ds, TAIEX_TR, p.dates).to_numpy()
     write_json(
         out / "signals.json",
         {
             "dates": dates,
             "definition": config.thresholds()["backtest"].get("signal_definition", "new"),
             "presets": presets,
-            "prices": prices,
-            "bench": [_r(v, 2) for v in bench],
-            "names": {code: p.names.get(code, code) for code in prices},
+            "bench": [_r(v, 2) for v in bench[s0:]],
+            "names": {p.codes[c]: p.names.get(p.codes[c], p.codes[c]) for c in sorted(triggered)},
         },
     )
+    px_dates = p.dates[p0:]
+    prices = {}
+    for c, t in sorted(first_idx.items()):
+        prices[p.codes[c]] = {
+            "s": t - p0,
+            "o": [_r(v, 3) for v in px.open[t:, c]],
+            "c": [_r(v, 3) for v in px.close[t:, c]],
+        }
+    write_json(out / "signals_px.json", {"dates": px_dates, "prices": prices})
     return {"tracking_codes": len(prices), "tracking_days": len(dates)}
 
 

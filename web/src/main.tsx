@@ -20,6 +20,8 @@ render(<App />, document.getElementById('app')!);
  */
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   const container = navigator.serviceWorker;
+  // 自動套用的時間窗從 App 腳本開始執行起算（載入完成前使用者無法操作；慢速裝置不會因為載入久就錯過）
+  const bootAt = performance.now();
   let interacted = false;
   const mark = () => { interacted = true; getUpdater()?.markInteraction(); };
   window.addEventListener('pointerdown', mark, { capture: true, passive: true });
@@ -33,7 +35,7 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
       isBusy: () => domBusy(),
       reload: () => location.reload(),
       onState: publishState,
-      startedAt: 0, // performance.now() 從頁面載入起算：自動套用的時間窗從啟動開始
+      startedAt: bootAt,
       interacted, // 建立前就點擊過：建立時已有新版在等待也只提示
     });
     setUpdater(updater);

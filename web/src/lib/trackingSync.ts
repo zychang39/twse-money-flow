@@ -8,7 +8,7 @@ import { newTriggerCodes } from './screener';
 import type { Condition } from './config';
 import {
   collectCustomTriggers, collectPresetTriggers, evaluate, seriesFromSignals, settle,
-  type Position, type PriceSeries, type SignalsFile, type Strategy, type TrackedSignal,
+  type Position, type PriceSeries, type SignalPrices, type SignalsFile, type Strategy, type TrackedSignal,
 } from './tracking';
 
 /** 把啟用之後的新觸發寫進 IndexedDB。沒有啟用中的策略就不下載任何資料。回傳新增筆數。 */
@@ -44,14 +44,16 @@ async function seriesFromStock(code: string): Promise<PriceSeries | null> {
 export interface StrategyView { strategy: Strategy; positions: Position[] }
 
 /** 每個策略的部位狀態；出場但還沒寫回的紀錄順便寫回。 */
-export async function loadPositions(strategies: Strategy[], tracked: TrackedSignal[], file: SignalsFile | null): Promise<StrategyView[]> {
-  const cache = new Map<string, Promise<PriceSeries | null>>();
-  const series = (code: string) => {
-    if (!cache.has(code)) {
-      const fromFile = file ? seriesFromSignals(file, code) : null;
-      cache.set(code, fromFile ? Promise.resolve(fromFile) : seriesFromStock(code));
-    }
-    return cache.get(code)!;
+export async function loadPositions(strategies: Strategy[], tracked: TrackedSignal[], file: SignalsFile | null, px: SignalPrices | null): Promise<StrategyView[]> {
+  const fromStock = new Map<string, Promise<PriceSeries | null>>();
+  const stock = (code: string) => {
+    if (!fromStock.has(code)) fromStock.set(code, seriesFromStock(code));
+    return fromStock.get(code)!;
+  };
+  // 近期觸發用 signals_px.json；訊號日早於價格檔（或沒有這檔）時改讀個股檔
+  const series = async (code: string, date: string) => {
+    const s = px ? seriesFromSignals(px, code) : null;
+    return s && s.dates.includes(date) ? s : stock(code);
   };
   const bench = file ? { dates: file.dates, values: file.bench } : undefined;
   const settled: TrackedSignal[] = [];
@@ -61,7 +63,7 @@ export async function loadPositions(strategies: Strategy[], tracked: TrackedSign
     const positions: Position[] = [];
     for (const sig of mine) {
       const done = typeof sig.exit === 'number';
-      const p = evaluate(sig, st.horizon, done ? null : await series(sig.code), bench);
+      const p = evaluate(sig, st.horizon, done ? null : await series(sig.code, sig.signalDate), bench);
       const s = settle(p);
       if (s) settled.push(s);
       positions.push(p);

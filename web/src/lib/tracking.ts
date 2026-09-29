@@ -16,11 +16,15 @@ export interface SignalsFile {
   dates: string[];
   definition: string;
   presets: { id: string; label: string; subtitle?: string; start?: string; status?: string; triggers: Record<string, string[]> }[];
-  /** 觸發過的股票：從第一次觸發（dates 的索引 s）起的還原開盤／收盤 */
-  prices: Record<string, { s: number; o: (number | null)[]; c: (number | null)[] }>;
   /** 加權報酬指數（與 dates 對齊） */
   bench: (number | null)[];
   names: Record<string, string>;
+}
+
+/** signals_px.json：最近約 90 個交易日內觸發過的股票，從第一次觸發（dates 的索引 s）起的還原開盤／收盤。 */
+export interface SignalPrices {
+  dates: string[];
+  prices: Record<string, { s: number; o: (number | null)[]; c: (number | null)[] }>;
 }
 
 export interface Strategy {
@@ -101,7 +105,7 @@ export function collectCustomTriggers(st: Strategy, date: string, codes: Iterabl
 /** 價格序列（還原價），dates 與 open／close 對齊。 */
 export interface PriceSeries { dates: string[]; open: (number | null)[]; close: (number | null)[] }
 
-export function seriesFromSignals(file: SignalsFile, code: string): PriceSeries | null {
+export function seriesFromSignals(file: SignalPrices, code: string): PriceSeries | null {
   const p = file.prices[code];
   if (!p) return null;
   return { dates: file.dates.slice(p.s), open: p.o, close: p.c };

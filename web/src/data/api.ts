@@ -41,6 +41,8 @@ export const loadHealth = () => getJson<Health>('health.json');
 export const loadScreenDays = () => getJson<import('../lib/screener').ScreenDays>('screen_days.json');
 /** S3：內建策略的每日新觸發與價格（訊號追蹤） */
 export const loadSignals = () => getJson<import('../lib/tracking').SignalsFile>('signals.json');
+/** S3：近期觸發股票的還原價（只有訊號追蹤頁載入） */
+export const loadSignalPrices = () => getJson<import('../lib/tracking').SignalPrices>('signals_px.json');
 /** 選配 AI 摘要：meta.ai_summary 為 true 才讀取，避免 404。 */
 export const loadAiSummary = () => loadMeta().then((m) => (m.ai_summary ? getJson<AiSummary>('ai_summary.json') : null));
 

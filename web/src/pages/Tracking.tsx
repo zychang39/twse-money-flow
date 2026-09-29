@@ -8,7 +8,7 @@ import { PageHead, TopBar } from '../components/Chrome';
 import { Loading } from '../components/DataStatus';
 import { Sheet } from '../components/Sheet';
 import { useAsync, useDb } from '../hooks';
-import { loadJson, loadSignals, loadSummary } from '../data/api';
+import { loadJson, loadSignalPrices, loadSignals, loadSummary } from '../data/api';
 import { deleteStrategy, listScreens, listStrategies, listTracked, saveStrategy, uid } from '../db/db';
 import { screenerConfig, type Condition } from '../lib/config';
 import { describeCondition, savedDisplayName, presetScreens } from '../lib/screener';
@@ -150,8 +150,10 @@ export default function Tracking() {
   const [adding, setAdding] = useState(route.query.has('preset') || route.query.has('c'));
   // 進入頁面時同步一次新觸發（App 啟動時也會同步）
   useEffect(() => { syncTracking().then((n) => { if (n) setTick((t) => t + 1); }).catch(() => undefined); }, [strategies?.length]);
-  const file = useAsync(() => (strategies?.some((s) => s.presetId) ? loadSignals().catch(() => null) : Promise.resolve(null)), [strategies?.length]);
-  const views = useAsync(async () => (strategies && tracked && !file.loading ? loadPositions(strategies, await listTracked(), file.data) : null), [strategies, tracked, file.data, file.loading, tick]);
+  const file = useAsync(() => (strategies?.length ? loadSignals().catch(() => null) : Promise.resolve(null)), [strategies?.length]);
+  const px = useAsync(() => (strategies?.some((s) => s.presetId) ? loadSignalPrices().catch(() => null) : Promise.resolve(null)), [strategies?.length]);
+  const views = useAsync(async () => (strategies && tracked && !file.loading && !px.loading ? loadPositions(strategies, await listTracked(), file.data, px.data) : null),
+    [strategies, tracked, file.data, file.loading, px.data, px.loading, tick]);
   const initial = (() => {
     const preset = route.query.get('preset') ?? undefined;
     const c = route.query.get('c');
