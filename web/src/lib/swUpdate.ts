@@ -42,6 +42,8 @@ export interface UpdaterDeps {
   autoWindowMs?: number;
   /** 自動套用時間窗的起點（預設為建立 updater 的時間）。 */
   startedAt?: number;
+  /** 建立之前使用者是否已經操作過（register 完成前就點擊；建立時若已有新版在等待，要據此判斷） */
+  interacted?: boolean;
 }
 
 export const SKIP_WAITING = { type: 'SKIP_WAITING' } as const;
@@ -49,7 +51,7 @@ export const SKIP_WAITING = { type: 'SKIP_WAITING' } as const;
 export function createUpdater(d: UpdaterDeps) {
   const windowMs = d.autoWindowMs ?? 3000;
   let windowStart = d.startedAt ?? d.now();
-  let interacted = false;
+  let interacted = d.interacted ?? false;
   let requested = false;
   let reloading = false;
   let state: UpdateState = 'idle';

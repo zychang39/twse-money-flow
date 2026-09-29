@@ -45,19 +45,23 @@ async function install(page: Page) {
 
 const shellCaches = (page: Page) => page.evaluate(async () => (await caches.keys()).filter((k) => k.startsWith('app-')));
 
-test('自動更新：啟動 3 秒內、尚未操作 → 自動接手並重新載入，不需要點擊', async ({ page }) => {
+test('自動更新：上次使用時已下載好新版（等待中），再次開啟 App 且尚未操作 → 自動接手並重新載入，不需要點擊', async ({ page }) => {
   await install(page);
+  await page.getByRole('heading').first().click(); // 使用中：這一次只會提示
   deploy('b');
+  await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration())!.update(); });
+  await expect.poll(() => page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())?.waiting), { timeout: 10_000 }).toBe(true);
+  await expect(page.getByTestId('update-toast')).toBeVisible();
   let loads = 0;
   page.on('load', () => loads++);
-  await page.reload();
-  await expect.poll(() => loads, { timeout: 10_000 }).toBeGreaterThanOrEqual(2); // 手動 reload ＋ 自動重新載入
+  await page.reload(); // 再次開啟（仍由舊版 service worker 服務）
+  await expect.poll(() => loads, { timeout: 10_000 }).toBeGreaterThanOrEqual(2); // 開啟＋自動重新載入
   await expect.poll(async () => (await shellCaches(page)).some((k) => k.endsWith('b'))).toBe(true);
   await expect.poll(() => page.evaluate(async () => !(await navigator.serviceWorker.getRegistration())?.waiting)).toBe(true);
   await expect(page.getByTestId('update-toast')).toHaveCount(0);
 });
 
-test('更新提示：使用者正在操作時只顯示提示，不重新載入；點擊提示才更新', async ({ page }) => {
+test('更新提示：使用者正在操作時只顯示提示（不遮擋、不重新載入）；「稍後」可關閉，設定頁「立即更新」或點提示才更新', async ({ page }) => {
   await install(page);
   await page.goto(`${base}#/me/settings`);
   await page.waitForTimeout(3200);
@@ -66,13 +70,34 @@ test('更新提示：使用者正在操作時只顯示提示，不重新載入�
   let loads = 0;
   page.on('load', () => loads++);
   await page.getByRole('button', { name: '檢查更新' }).click();
-  await expect(page.getByTestId('update-toast')).toContainText('有新版本，點此更新');
+  const toast = page.getByTestId('update-toast');
+  await expect(toast).toContainText('有新版本，點此更新');
+  // 不遮擋：浮在底部導覽之上
+  const t = (await toast.boundingBox())!;
+  const dock = (await page.locator('.tabbar').boundingBox())!;
+  expect(t.y + t.height).toBeLessThanOrEqual(dock.y);
   await page.waitForTimeout(1000);
   expect(loads).toBe(0);
-  await page.getByTestId('update-toast').getByRole('button', { name: '有新版本，點此更新' }).click();
+  await toast.getByRole('button', { name: '稍後' }).click();
+  await expect(toast).toHaveCount(0);
+  await page.getByRole('button', { name: '立即更新' }).click();
   await expect.poll(() => loads, { timeout: 10_000 }).toBe(1);
   await expect.poll(async () => (await shellCaches(page)).some((k) => k.endsWith('c'))).toBe(true);
   await expect(page.getByTestId('update-toast')).toHaveCount(0);
+});
+
+test('更新提示：點提示本身也會更新', async ({ page }) => {
+  await install(page);
+  await page.getByRole('heading').first().click();
+  deploy('e');
+  await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration())!.update(); });
+  const toast = page.getByTestId('update-toast');
+  await expect(toast).toBeVisible({ timeout: 10_000 });
+  let loads = 0;
+  page.on('load', () => loads++);
+  await toast.getByRole('button', { name: '有新版本，點此更新' }).click();
+  await expect.poll(() => loads, { timeout: 10_000 }).toBe(1);
+  await expect.poll(async () => (await shellCaches(page)).some((k) => k.endsWith('e'))).toBe(true);
 });
 
 test('部署剛完成、CDN 仍回舊的 index.html：新版 service worker 安裝失敗（下次再試），不會把舊頁面存成新版', async ({ page }) => {

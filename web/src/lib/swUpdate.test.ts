@@ -175,3 +175,15 @@ describe('版本字串與 sw.js', () => {
     expect(() => new Function(src)).not.toThrow(); // 語法正確
   });
 });
+
+describe('SW 更新：註冊完成前就操作', () => {
+  it('建立 updater 時已有新版在等待，但使用者在註冊完成前已點擊 → 只提示，不自動重新載入', () => {
+    const reg = new FakeReg();
+    const w = new FakeWorker(); w.state = 'installed'; reg.waiting = w;
+    const container = new FakeContainer();
+    const states: UpdateState[] = [];
+    createUpdater({ reg, container, now: () => 0, isBusy: () => false, reload: () => undefined, onState: (s) => states.push(s), interacted: true });
+    expect(w.sent).toEqual([]);
+    expect(states).toEqual(['available']);
+  });
+});

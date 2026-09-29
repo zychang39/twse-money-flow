@@ -24,7 +24,8 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   const mark = () => { interacted = true; getUpdater()?.markInteraction(); };
   window.addEventListener('pointerdown', mark, { capture: true, passive: true });
   window.addEventListener('keydown', mark, { capture: true, passive: true });
-  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { updateViaCache: 'none' }).then((reg) => {
+  const start = (reg: ServiceWorkerRegistration) => {
+    if (getUpdater()) return;
     const updater = createUpdater({
       reg,
       container,
@@ -33,14 +34,18 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
       reload: () => location.reload(),
       onState: publishState,
       startedAt: 0, // performance.now() 從頁面載入起算：自動套用的時間窗從啟動開始
+      interacted, // 建立前就點擊過：建立時已有新版在等待也只提示
     });
-    if (interacted) updater.markInteraction();
     setUpdater(updater);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') updater.foreground().catch(() => undefined);
     });
     updater.check().catch(() => undefined);
-  }).catch((e) => { console.warn('SW 註冊失敗', e); setUpdater(null); });
+  };
+  // 已安裝過：getRegistration 幾毫秒內就回來（register 有時要等 2–3 秒，會錯過啟動後的自動更新時間窗）
+  container.getRegistration().then((reg) => { if (reg) start(reg); }).catch(() => undefined);
+  container.register(`${import.meta.env.BASE_URL}sw.js`, { updateViaCache: 'none' }).then(start)
+    .catch((e) => { console.warn('SW 註冊失敗', e); if (!getUpdater()) setUpdater(null); });
 } else {
   setUpdater(null);
 }
