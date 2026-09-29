@@ -3,6 +3,7 @@ import scoresYml from '../../../config/scores.yml';
 import thresholdsYml from '../../../config/thresholds.yml';
 import costsYml from '../../../config/costs.yml';
 import screenerYml from '../../../config/screener.yml';
+import strategiesYml from '../../../config/strategies.yml';
 import sourcesYml from '../../../config/sources.yml';
 
 export type Mapping =
@@ -90,3 +91,12 @@ export interface UiConfig {
   };
 }
 export const uiConfig = uiYml as UiConfig;
+
+// ---------- 策略庫（config/strategies.yml；M2） ----------
+export interface StrategyDef { id: string; test: string; label: string; subtitle: string; aliases?: string[] }
+export interface StrategiesConfig { horizon: number; slots: number[]; strategies: StrategyDef[] }
+export const strategiesConfig = strategiesYml as StrategiesConfig;
+/** 訊號追蹤裡策略庫的 presetId 前綴（signals.json 的 lab:{id}） */
+export const LAB_PREFIX = 'lab:';
+export const labStrategy = (presetId: string | null | undefined): StrategyDef | undefined =>
+  presetId?.startsWith(LAB_PREFIX) ? strategiesConfig.strategies.find((s) => s.id === presetId.slice(LAB_PREFIX.length)) : undefined;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screenerConfig } from './config';
+import { screenerConfig, strategiesConfig } from './config';
 import { backtestCustom, canonicalName, presetScreens, savedDisplayName, screenIdentity } from './screener';
 
 // 內建策略命名規則（CLAUDE.md）：主標最多 5 個字、讓人一看就知道條件；不用比喻或術語；副標列出條件。
@@ -14,6 +14,20 @@ describe('內建策略命名規則', () => {
       expect(p.aliases ?? []).not.toContain(p.label);
     });
   }
+  for (const p of strategiesConfig.strategies) {
+    it(`策略庫 ${p.id}：「${p.label}」`, () => {
+      expect([...p.label].length).toBeLessThanOrEqual(5);
+      for (const w of JARGON) expect(p.label).not.toContain(w);
+      expect(p.subtitle.split('・').length).toBeGreaterThanOrEqual(2);
+      expect(p.aliases ?? []).not.toContain(p.label);
+    });
+  }
+  it('策略庫的 id 與主標不重複', () => {
+    const ids = strategiesConfig.strategies.map((s) => s.id);
+    const labels = strategiesConfig.strategies.map((s) => s.label);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
   it('「籌碼集中」改名為「三方同買」，副標是三個條件', () => {
     const p = screenerConfig.presets.find((x) => x.id === 'chip_concentration')!;
     expect(p.label).toBe('三方同買');

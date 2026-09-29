@@ -27,3 +27,11 @@
 .ev-table .ev-empty { text-align: left; color: var(--text-2); font-size: 0.8125rem; white-space: normal; }
 .ev-table tr.ev-chosen th, .ev-table tr.ev-chosen td { font-weight: var(--fw-semibold); }
 .ev-foot { margin-top: var(--s-6); }
+/* 策略庫與槓桿計算 */
+.st-tags { display: inline-flex; flex-direction: column; align-items: flex-end; gap: var(--s-1); flex: none; }
+.st-row { text-decoration: none; }
+.st-h { margin-top: var(--s-8); margin-bottom: var(--s-2); }
+.st-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
+.st-actions .btn { min-height: var(--tap); }
+.st-actions p { flex-basis: 100%; margin: 0; }
+.lv-input { font-variant-numeric: tabular-nums; }

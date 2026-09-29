@@ -202,6 +202,7 @@ def evaluate(ev: EvData, *, only: list[str] | None = None, with_exits: bool = Tr
     end = ev.dates[-1]
     rows, details = [], {}
     today: dict[str, list[str]] = {}
+    keep: dict[str, dict[str, Any]] = {}
     for test in tests:
         if only and test.id not in only:
             continue
@@ -284,6 +285,7 @@ def evaluate(ev: EvData, *, only: list[str] | None = None, with_exits: bool = Tr
             recent = stats.brief(d_all[d_all["t"] >= cut], c)
             recent["since"] = ev.dates[max(cut, 0)]
         main_mask = test.variants["main"][1]
+        keep[test.id] = {"mask": main_mask, "start": start}
         today[test.id] = [ev.codes[i] for i in np.nonzero(main_mask[-1] & uni[-1])[0]]
         row = {
             **base,
@@ -339,15 +341,37 @@ def evaluate(ev: EvData, *, only: list[str] | None = None, with_exits: bool = Tr
         "tests": len(rows),
         "price_start": str(c["price_start"]),
     }
-    return {"meta": meta, "rows": rows, "details": details, "today": {"date": end, "tests": today}}
+    return {
+        "meta": meta,
+        "rows": rows,
+        "details": details,
+        "today": {"date": end, "tests": today},
+        # 策略庫（M2）用的中間結果：不寫入 JSON
+        "_ctx": {"ev": ev, "mk": mk, "uni": uni, "tests": keep, "cfg": c},
+    }
 
 
 def run_and_write(ev: EvData, out: Any = None, doc: Any = None) -> dict[str, Any]:
-    from pipeline.evidence import report
+    from pipeline.derive.export import write_json
+    from pipeline.evidence import report, strategies
 
     res = evaluate(ev)
     rep = report.write(res, out, doc)
+    lib = strategies.build(res)
+    res["strategy_signals"] = lib.pop("_signals")
+    if out is not None:
+        rep["strategies_bytes"] = write_json(out / "strategies.json", lib)
+    rep["strategies"] = sum(1 for s in lib["strategies"] if s.get("enabled"))
     verdicts: dict[str, int] = {}
     for r in res["rows"]:
         verdicts[r["verdict"]] = verdicts.get(r["verdict"], 0) + 1
-    return {**rep, "tests": len(res["rows"]), "verdicts": verdicts, "seconds": res["meta"]["seconds"]}
+    return {
+        **rep,
+        "tests": len(res["rows"]),
+        "verdicts": verdicts,
+        "seconds": res["meta"]["seconds"],
+        "_signals": {
+            "presets": res["strategy_signals"],
+            "labels": {s["id"]: (s["label"], s["subtitle"]) for s in lib["strategies"]},
+        },
+    }

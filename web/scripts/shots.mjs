@@ -9,7 +9,7 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) =>
 const width = Number(args.width ?? 402);
 const height = Number(args.height ?? 874);
 mkdirSync(args.out, { recursive: true });
-const routes = String(args.routes).split(',').map((s) => s.split('='));
+const routes = String(args.routes).split(',').map((s) => [s.slice(0, s.indexOf('=')), s.slice(s.indexOf('=') + 1)]);
 const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 for (const scheme of (args.schemes ?? 'light,dark').split(',')) {
   const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 3, colorScheme: scheme, isMobile: true, hasTouch: true });

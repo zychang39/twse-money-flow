@@ -210,6 +210,12 @@ def build_web(data_dir: Path, out: Path, *, demo: bool = False) -> dict[str, Any
     # v3：衍生計算只用最近一段（約 4.5 年）；更早的收盤另存長歷史檔（stocks/{code}.hist.json）
     full_quotes = history.trim_window(ds)
     report = build_all(ds, out, meta)
+    lab = evidence.pop("_signals", None)
+    from pipeline.derive.signals import merge_strategy_signals
+
+    evidence["lab_signals"] = merge_strategy_signals(
+        out, lab, dict(zip(ds.quotes["code"], ds.quotes["name"], strict=True))
+    )
     report["evidence"] = evidence
     meta.update(report.get("meta", {}))
     codes = sorted(p.stem for p in (out / "stocks").glob("*.json") if not p.stem.endswith(".hist"))

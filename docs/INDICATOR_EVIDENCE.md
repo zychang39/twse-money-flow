@@ -1,6 +1,6 @@
 # 指標效度評估（INDICATOR_EVIDENCE）
 
-> 由 `python -m pipeline evidence` 自動產生（2026-09-30T00:07:12+08:00，資料至 2026-09-24），請勿手改。計算方法見 METHODOLOGY §10；參數與判定規則在 `config/evidence.yml`。僅供研究參考，非投資建議。
+> 由 `python -m pipeline evidence` 自動產生（2026-09-30T00:19:48+08:00，資料至 2026-09-24），請勿手改。計算方法見 METHODOLOGY §10；參數與判定規則在 `config/evidence.yml`。僅供研究參考，非投資建議。
 
 ## 方法摘要與多重檢定警語
 

@@ -81,6 +81,8 @@ def _result(p: Paths, row: np.ndarray, px: np.ndarray | None, planned_locked: np
             "x": np.where(has, row, T),
             "status": status,
             "net": net,
+            "entry": p.entry,
+            "px": price,
             "exc_idx": net - bench,
             "mae": mae,
             "hold": hold,
@@ -225,3 +227,12 @@ def compare(
         if wf:
             table[-1]["walk_forward"] = wf
     return {"rules": table}
+
+
+def run_one(mk: Market, cand: pd.DataFrame, ev: Any, cfg: dict[str, Any], rule: str, param: str) -> pd.DataFrame:
+    """單一出場規則（策略庫用）：與 run_rules 同樣的規則與參數格式。"""
+    if rule == "fixed":
+        x = cfg["exits"]
+        p = Paths(mk, cand["e"].to_numpy(), cand["c"].to_numpy(), int(x["max_days"]), {})
+        return rule_fixed(p, int(param))
+    return run_rules(mk, cand, ev, cfg)[rule][param]

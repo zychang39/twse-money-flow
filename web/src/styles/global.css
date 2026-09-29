@@ -847,3 +847,4 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 .bt-stats { display: flex; flex-wrap: wrap; column-gap: var(--s-3); color: var(--text-2); }
 .bt-stats span { white-space: nowrap; }
 .bt-stats b { font-weight: var(--fw-medium); }
+.st-entry { background: var(--surface-1); border-radius: var(--r-card); margin-top: var(--s-4); min-height: var(--tap); }

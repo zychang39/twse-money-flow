@@ -416,3 +416,61 @@ def test_quintile_month_hand():
     assert quintile.spearman(np.arange(9.0), np.arange(9.0)) is None  # 少於 10 檔不算
     means, rho = quintile.quintile_month(np.arange(20.0), -np.arange(20.0))
     assert rho == pytest.approx(-1.0)
+
+
+# ------------------------------------------------------------------ 策略庫（M2）
+def test_simulate_single_slot_hand():
+    from pipeline.evidence.strategies import curve_stats, simulate
+
+    o = col(100, 100, 104, 105, 107)
+    c = col(100, 102, 106, 108, 108)
+    mk = _market(o, c)
+    trades = pd.DataFrame({"e": [1], "c": [0], "x": [3], "entry": [100.0], "px": [105.0]})
+    eq = simulate(mk, trades, np.ones_like(o), 1, 1)
+    fee, tax = mk.fee, mk.tax
+    shares = 1 / (100 * (1 + fee))
+    assert eq[0] == pytest.approx(shares * 102)  # 第 1 列收盤
+    assert eq[1] == pytest.approx(shares * 106)
+    cash = shares * 105 * (1 - fee - tax)  # 第 3 列開盤出場
+    assert eq[2] == pytest.approx(cash) and eq[3] == pytest.approx(cash)
+    st = curve_stats(np.array([1.0, 1.2, 0.9, 1.1] * 6), ["2025-01-01"] * 24)
+    assert st["mdd"] == pytest.approx(-25.0)  # 1.2 → 0.9
+
+
+def test_simulate_slots_fill_by_value_and_skip_held():
+    from pipeline.evidence.strategies import simulate
+
+    o = np.full((6, 3), 10.0)
+    mk = _market(o, o.copy())
+    # 第 1 列三檔同時進場、只有 2 個空位 → 取前一日成交值較大的兩檔（c=2、c=0）
+    trades = pd.DataFrame(
+        {"e": [1, 1, 1, 2], "c": [0, 1, 2, 0], "x": [4, 4, 4, 5], "entry": [10.0] * 4, "px": [10.0] * 4}
+    )
+    value = np.array([[5.0, 1.0, 9.0]] * 6)
+    eq = simulate(mk, trades, value, 2, 1)
+    # 兩檔各投入一半，價格不變：權益只少買進手續費
+    assert eq[0] == pytest.approx(1 / (1 + mk.fee))
+
+
+def test_health_rules():
+    from pipeline.evidence.strategies import health
+
+    assert health({"mean_excess": 1.0, "recent": {"n": 5, "mean_excess": -1}}, 20)["status"] == "資料累積中"
+    assert health({"mean_excess": 1.0, "recent": {"n": 30, "mean_excess": -0.1}}, 20)["status"] == "近期轉弱"
+    assert health({"mean_excess": 1.0, "recent": {"n": 30, "mean_excess": 0.3}}, 20)["status"] == "近期低於長期"
+    assert health({"mean_excess": 1.0, "recent": {"n": 30, "mean_excess": 0.8}}, 20)["status"] == "與長期一致"
+
+
+def test_best_exit_by_excess_vs_index():
+    from pipeline.evidence.strategies import best_exit
+
+    d = {
+        "exits": {
+            "rules": [
+                {"rule": "fixed", "param": "10", "chosen": True, "n": 100, "exc_idx": -1.0, "mae": -5},
+                {"rule": "ma", "param": "20", "chosen": True, "n": 100, "exc_idx": 0.5, "mae": -4},
+                {"rule": "ma", "param": "60", "chosen": False, "n": 100, "exc_idx": 2.0, "mae": -9},
+            ]
+        }
+    }
+    assert best_exit(d)["param"] == "20"  # 只比較各規則的選定參數
