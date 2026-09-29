@@ -7,7 +7,7 @@ import { BacktestReport, type BacktestResult } from '../components/BacktestRepor
 import { useAsync } from '../hooks';
 import { loadJson } from '../data/api';
 import { useRoute } from '../router';
-import { decodeConditions, describeCondition } from '../lib/screener';
+import { backtestCustom, decodeConditions, describeCondition } from '../lib/screener';
 import { screenerConfig, type Condition } from '../lib/config';
 
 interface Index { presets: { id: string; label: string; signals?: number; status?: string }[]; period: { start: string; end: string } }
@@ -38,11 +38,15 @@ function CustomRun({ conditions, own }: { conditions: Condition[]; own: boolean 
 
 export default function Backtest() {
   const route = useRoute();
-  const custom = decodeConditions(route.query.get('c'));
-  const customName = route.query.get('name') ?? '自訂條件';
+  const decoded = decodeConditions(route.query.get('c'));
+  // #11：網址的條件和內建組合相同 → 直接看該組合（不多一個同名標籤）；同名但條件不同 → 「名稱（已修改）」
+  const presetList = screenerConfig.presets.map((p) => ({ id: p.id, label: p.label, conditions: p.conditions }));
+  const bc = decoded ? backtestCustom(decoded, route.query.get('name'), presetList) : null;
+  const custom = bc && !bc.presetId ? decoded : null;
+  const customName = bc?.name ?? '自訂條件';
   const own = route.query.get('own') === '1';
   const index = useAsync(() => loadJson<Index>('backtests/index.json'), []);
-  const [sel, setSel] = useState<string>(custom ? 'custom' : '');
+  const [sel, setSel] = useState<string>(custom ? 'custom' : route.query.get('preset') ?? bc?.presetId ?? '');
   const presetId = sel && sel !== 'custom' ? sel : !custom ? index.data?.presets.find((p) => !p.status)?.id ?? '' : '';
   const preset = useAsync(() => (presetId ? loadJson<BacktestResult & { conditions: Condition[]; description: string }>(`backtests/${presetId}.json`) : Promise.resolve(null)), [presetId]);
   const showCustom = custom && (sel === 'custom' || sel === '');

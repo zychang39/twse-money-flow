@@ -8,7 +8,7 @@ import { useDb, useRestoredState } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { deleteScreen, listScreens, saveScreen, uid, type SavedScreen } from '../db/db';
 import { screenerConfig, type Condition } from '../lib/config';
-import { describeCondition, encodeConditions, screen } from '../lib/screener';
+import { describeCondition, encodeConditions, screen, screenIdentity } from '../lib/screener';
 import { fmtNum } from '../lib/format';
 import { PAGE_SOURCES } from '../lib/health';
 
@@ -67,6 +67,13 @@ export default function Screener() {
     return conditions.filter((c) => rows.filter((r) => r[c.field] !== null && r[c.field] !== undefined).length < rows.length * 0.2).map((c) => label(c.field));
   }, [summary.data, conditions]);
   const results = useMemo(() => (summary.data ? screen(summary.data.rows as unknown as Record<string, unknown>[], conditions) : []), [summary.data, conditions]);
+  // #11：名稱跟著條件走；改過內建組合就不再沿用它的名稱與選取狀態
+  const presets = screenerConfig.presets.map((p) => ({ id: p.id, label: p.label, conditions: p.conditions }));
+  const id = screenIdentity(conditions, active, presets, saved.map((x) => ({ id: x.id, label: x.name, conditions: x.conditions as Condition[] })));
+  const title = id.name;
+  const backtestHref = id.presetId
+    ? `#/explore/backtest?preset=${id.presetId}`
+    : `#/explore/backtest?c=${encodeConditions(conditions)}&name=${encodeURIComponent(id.name)}${id.savedId ? '&own=1' : ''}`;
 
   function load(id: string, nm: string, cs: Condition[]) {
     setActive(id);
@@ -75,9 +82,10 @@ export default function Screener() {
   }
 
   async function save() {
-    const nm = prompt('條件組合名稱', name) ?? '';
+    const nm = prompt('條件組合名稱', id.presetId || id.name === '自訂條件' ? '' : name) ?? '';
     if (!nm.trim()) return;
-    const existing = saved.find((s) => s.id === active);
+    // 改過內建組合後儲存 → 新的「我的組合」；改過我的組合後儲存 → 覆寫該組合
+    const existing = saved.find((s) => s.id === id.savedId);
     const item: SavedScreen = { id: existing ? existing.id : uid(), name: nm.trim(), conditions, createdAt: new Date().toISOString() };
     await saveScreen(item);
     load(item.id, item.name, conditions);
@@ -85,13 +93,13 @@ export default function Screener() {
 
   return (
     <div class="page">
-      <TopBar back="/explore" actions={<a class="btn small" href={`#/explore/backtest?c=${encodeConditions(conditions)}&name=${encodeURIComponent(name)}${saved.some((s) => s.id === active) ? '&own=1' : ''}`}>一鍵回測</a>} />
-      <PageHead eyebrow="自選股以外，有哪些符合條件的股票？" title={summary.data ? `${name}：${results.length} 檔符合` : '選股'} />
+      <TopBar back="/explore" actions={<a class="btn small" href={backtestHref}>一鍵回測</a>} />
+      <PageHead eyebrow="自選股以外，有哪些符合條件的股票？" title={summary.data ? `${title}：${results.length} 檔符合` : '選股'} />
       <DataStatus date={summary.data?.date} uses={PAGE_SOURCES.screener} />
       <h2 class="section-title">內建組合</h2>
       <div class="chips" role="group" aria-label="內建組合">
         {screenerConfig.presets.map((p) => (
-          <button key={p.id} class="chip" aria-pressed={active === p.id} onClick={() => load(p.id, p.label, p.conditions)} title={p.description}>{p.label}</button>
+          <button key={p.id} class="chip" aria-pressed={id.presetId === p.id} onClick={() => load(p.id, p.label, p.conditions)} title={p.description}>{p.label}</button>
         ))}
       </div>
       {saved.length ? (
@@ -99,12 +107,12 @@ export default function Screener() {
           <h2 class="section-title">我的組合</h2>
           <div class="chips" role="group" aria-label="我的組合">
             {saved.map((s) => (
-              <button key={s.id} class="chip" aria-pressed={active === s.id} onClick={() => load(s.id, s.name, s.conditions as Condition[])}>{s.name}</button>
+              <button key={s.id} class="chip" aria-pressed={id.savedId === s.id && !id.modifiedFrom} onClick={() => load(s.id, s.name, s.conditions as Condition[])}>{s.name}</button>
             ))}
           </div>
         </>
       ) : null}
-      <p class="small muted">{screenerConfig.presets.find((p) => p.id === active)?.description ?? name}</p>
+      <p class="small muted" data-testid="screen-desc">{id.presetId ? screenerConfig.presets.find((p) => p.id === id.presetId)?.description : id.modifiedFrom ? `由「${id.modifiedFrom}」修改；和任何內建組合都不同。` : id.savedId ? name : '自訂條件：和任何內建組合都不同。'}</p>
 
       <h2 class="section-title">條件（全部成立）</h2>
       {conditions.map((c, i) => (
@@ -113,7 +121,7 @@ export default function Screener() {
       <div class="row wrap">
         <button class="btn" onClick={() => setConditions([...conditions, { field: 'composite', op: '>=', value: 60 }])}>新增條件</button>
         <button class="btn" onClick={save}>儲存組合</button>
-        {saved.some((s) => s.id === active) ? <button class="btn danger" onClick={() => deleteScreen(active)}>刪除組合</button> : null}
+        {id.savedId ? <button class="btn danger" onClick={() => deleteScreen(id.savedId!)}>刪除組合</button> : null}
       </div>
 
       <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>結果 {summary.data ? <span class="muted caption">{results.length} 檔</span> : null}</h2>

@@ -175,3 +175,33 @@ test.describe('#10 新增持倉前檢查表', () => {
     await expect(submit).toBeEnabled();
   });
 });
+
+test('#11 選股：刪掉內建組合的條件後改稱「自訂條件」，回測不出現兩個同名標籤', async ({ page }) => {
+  await page.goto('#/explore/screener');
+  const presets = page.getByRole('group', { name: '內建組合' });
+  const first = presets.getByRole('button').first();
+  const presetName = (await first.textContent())!.trim();
+  await first.click();
+  await expect(first).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText(`${presetName}：`);
+  // 內建組合原樣帶到回測：直接看預先計算的全市場結果
+  await expect(page.getByRole('link', { name: '一鍵回測' })).toHaveAttribute('href', /#\/explore\/backtest\?preset=/);
+  // 刪除兩個條件
+  await page.getByRole('button', { name: /^刪除條件/ }).nth(1).click();
+  await page.getByRole('button', { name: /^刪除條件/ }).nth(1).click();
+  await expect(page.getByRole('heading', { level: 1 })).toContainText(/^自訂條件：\d+ 檔符合/);
+  await expect(first).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('screen-desc')).toContainText(`由「${presetName}」修改`);
+  const link = page.getByRole('link', { name: '一鍵回測' });
+  await expect(link).toHaveAttribute('href', /name=%E8%87%AA%E8%A8%82/); // 自訂
+  await link.click();
+  const chips = page.getByRole('group', { name: '回測對象' }).getByRole('button');
+  const labels = (await chips.allTextContents()).map((t) => t.replace(/（.*）$/, ''));
+  expect(new Set(labels).size).toBe(labels.length);
+  await expect(chips.first()).toHaveText('自訂條件');
+  await expect(chips.first()).toHaveAttribute('aria-pressed', 'true');
+  // 舊網址：name 和內建組合同名但條件不同 →「（已修改）」
+  const c = encodeURIComponent(JSON.stringify([{ field: 'trust_streak', op: '>=', value: 3 }]));
+  await page.goto(`#/explore/backtest?c=${c}&name=${encodeURIComponent(presetName)}`);
+  await expect(page.getByRole('group', { name: '回測對象' }).getByRole('button').first()).toHaveText(`${presetName}（已修改）`);
+});
