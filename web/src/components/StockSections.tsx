@@ -23,13 +23,24 @@ function Fact({ k, v, sub, tone }: { k: string; v: string; sub?: string; tone?: 
   );
 }
 
+/** 「高點 613.73（2026/6/22）・接近高點」：還原價，讓使用者核對距離的來源（#2） */
+function high52Sub(f: MomentumFacts): string | undefined {
+  const parts: string[] = [];
+  if (f.high52) {
+    const [y, m, d] = f.high52.date.split('-');
+    parts.push(`高點 ${fmtPrice(f.high52.value)}（${y}/${Number(m)}/${Number(d)}，還原價）`);
+  }
+  if (f.dist52 !== null && f.dist52 > -5) parts.push('接近高點');
+  return parts.length ? parts.join('・') : undefined;
+}
+
 /** 動能：RS 百分位、距 52 週高點、均線排列（20／60／240）、量能相對 20 日均量。 */
 export function MomentumSection({ f }: { f: MomentumFacts }) {
   return (
     <>
       <dl class="sx-facts" data-testid="momentum-facts">
         <Fact k="RS 百分位" v={f.rs === null ? '—' : `${Math.round(f.rs)}`} sub="近 3–12 個月加權報酬在全市場的百分位" />
-        <Fact k="距 52 週高點" v={f.dist52 === null ? '—' : `${F1.format(f.dist52)}%`} sub={f.dist52 !== null && f.dist52 > -5 ? '接近高點' : undefined} />
+        <Fact k="距 52 週高點" v={f.dist52 === null ? '—' : `${F1.format(f.dist52)}%`} sub={high52Sub(f)} />
         <Fact k="量能" v={f.volRatio === null ? '—' : `${F2.format(f.volRatio)} 倍`} sub="當日量 ÷ 20 日均量" />
         <Fact k="均線排列" v={ALIGN_NAME[f.alignment]} sub="20／60／240 日（還原價）" />
       </dl>

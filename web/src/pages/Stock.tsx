@@ -247,7 +247,7 @@ export default function Stock({ code }: { code: string }) {
   const pePct = h ? lastOf((h.series as Record<string, unknown> | undefined)?.pe_percentile) : null;
   const chip = (h?.chip as ChipBlock | null | undefined) ?? null;
   const bb = useMemo(() => (h ? tally(evaluate(h)) : null), [h]);
-  const mom = useMemo(() => momentumFacts(adj, (h?.metrics ?? {}) as Record<string, unknown>), [adj, h]);
+  const mom = useMemo(() => momentumFacts(adj, (h?.metrics ?? {}) as Record<string, unknown>, h?.d ?? []), [adj, h]);
   const rev = useMemo(() => revenueFacts((h?.revenue as RevenueRow[] | undefined) ?? []), [h]);
   const profit = useMemo(() => profitFacts((h?.quarters as QuarterRow[] | undefined) ?? []), [h]);
   const metrics = (h?.metrics ?? {}) as Record<string, unknown>;

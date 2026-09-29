@@ -3,6 +3,7 @@
  * 動能一律用還原收盤；營收用 revenue 表（近 24 個月，年增率）；獲利用 quarters（單季 EPS、毛利率、近四季 ROE）。
  */
 import { numberFormat } from './format';
+import { thresholds } from './config';
 
 type N = number | null;
 const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -24,8 +25,10 @@ export const ALIGN_NAME: Record<Alignment, string> = { bull: '多頭排列', bea
 export interface MomentumFacts {
   close: N;
   rs: N;
-  /** 距 52 週高點 %（≤ 0） */
+  /** 距 52 週高點 %（≤ 0）；pipeline 的 dist_52w_high 優先，缺少時用 high52 計算 */
   dist52: N;
+  /** 52 週高點（還原價）與日期：讓使用者自己核對距離是怎麼來的 */
+  high52: { value: number; date: string } | null;
   ma: { n: number; value: N; above: boolean | null }[];
   alignment: Alignment;
   /** 當日量 ÷ 20 日均量 */
@@ -34,7 +37,31 @@ export interface MomentumFacts {
 
 export const MA_DAYS = [20, 60, 240] as const;
 
-export function momentumFacts(adj: N[], metrics: { rs_percentile?: unknown; dist_52w_high?: unknown; volume_ratio_20?: unknown }): MomentumFacts {
+export const HIGH_52W_DAYS = Number(thresholds.indicators?.high_52w_days ?? 252);
+
+/**
+ * 52 週高點（#2）：一律用還原價——分割、減資、除權息前的價格先乘上還原因子，才和現價比較。
+ * 窗口＝最後一個有收盤的交易日往回 n 個交易日（含），與 pipeline 的 indicators.dist_from_high 相同
+ * （rolling(n)、至少 min(n, 60) 個有效值）。
+ */
+export function high52w(adj: N[], dates: string[], n = HIGH_52W_DAYS): { value: number; date: string; dist: number } | null {
+  let last = adj.length - 1;
+  while (last >= 0 && !ok(adj[last])) last--;
+  if (last < 0) return null;
+  let hi = -1;
+  let count = 0;
+  for (let i = Math.max(0, last - n + 1); i <= last; i++) {
+    const v = adj[i];
+    if (!ok(v)) continue;
+    count++;
+    if (hi < 0 || v >= (adj[hi] as number)) hi = i;
+  }
+  if (count < Math.min(n, 60) || hi < 0) return null;
+  const value = adj[hi] as number;
+  return { value, date: dates[hi] ?? '', dist: ((adj[last] as number) / value - 1) * 100 };
+}
+
+export function momentumFacts(adj: N[], metrics: { rs_percentile?: unknown; dist_52w_high?: unknown; volume_ratio_20?: unknown }, dates: string[] = []): MomentumFacts {
   const vals = adj.filter(ok);
   const close = vals.length ? vals[vals.length - 1] : null;
   const ma = MA_DAYS.map((n) => {
@@ -43,10 +70,12 @@ export function momentumFacts(adj: N[], metrics: { rs_percentile?: unknown; dist
   });
   const [a, b, c] = ma.map((m) => m.value);
   const alignment: Alignment = a === null || b === null || c === null ? 'na' : a > b && b > c ? 'bull' : a < b && b < c ? 'bear' : 'mixed';
+  const hi = dates.length === adj.length ? high52w(adj, dates) : null;
   return {
     close,
     rs: ok(metrics.rs_percentile) ? metrics.rs_percentile : null,
-    dist52: ok(metrics.dist_52w_high) ? metrics.dist_52w_high : null,
+    dist52: ok(metrics.dist_52w_high) ? metrics.dist_52w_high : hi ? hi.dist : null,
+    high52: hi ? { value: hi.value, date: hi.date } : null,
     ma,
     alignment,
     volRatio: ok(metrics.volume_ratio_20) ? metrics.volume_ratio_20 : null,
