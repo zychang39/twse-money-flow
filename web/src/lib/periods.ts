@@ -69,6 +69,10 @@ export interface Window {
    * 10Y、ALL 是週線取樣，視窗裡相鄰兩點相隔一週，不能拿來算日漲跌。
    */
   daily?: { dates: string[]; values: number[] };
+  /**
+   * 視窗實際涵蓋的交易日數與起日（週線取樣前；#9）。沒有提供時視窗本身就是日資料，以 dates 計。
+   */
+  span?: { days: number; since: string };
 }
 
 /**

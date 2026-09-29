@@ -1,7 +1,7 @@
 /**
  * 圖表資料的邊界情況（純函式）：缺漏、只有 1 點、資料少於所選期間。
  * - segments：把序列切成「連續兩點以上」的線段與「孤立點」；孤立點畫成單點標記，不會因為前後缺值而消失。
- * - coverage：所選期間 vs. 可用資料，產生「資料累積中：目前只有 N 週（自 M/D 起）…」說明。
+ * - coverage：所選期間 vs. 可用資料，產生「資料累積中：目前只有 N 週（自 YYYY/M/D 起）…」說明。
  */
 
 type N = number | null | undefined;
@@ -55,16 +55,28 @@ export function coverage(dates: string[], want: number): Coverage {
   return { have, want, since: dates[0] ?? null, short: have < want, single: have < 2 };
 }
 
-function md(iso: string): string {
-  return `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
+/** 「2024/4/11」：資料起日跨年，一律寫年份（#9） */
+function ymd(iso: string): string {
+  return `${iso.slice(0, 4)}/${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
 }
 
 /**
  * 資料不足時的說明（資料足夠時回傳 null）。
- * 例：「資料累積中：目前只有 1 週（自 9/18 起），所選期間超過可用資料；歷史回補中」
+ * 例：「資料累積中：目前只有 1 週（自 2026/9/18 起），所選期間超過可用資料；歷史回補中」
  */
 export function coverageNote(c: Coverage, unit: '週' | '個交易日', backfilling = true): string | null {
   if (!c.short) return null;
   if (!c.have) return `資料累積中：目前還沒有資料${backfilling ? '；歷史回補中' : ''}`;
-  return `資料累積中：目前只有 ${c.have} ${unit}（自 ${md(c.since!)} 起），所選期間超過可用資料${backfilling ? '；歷史回補中' : ''}`;
+  return `資料累積中：目前只有 ${c.have} ${unit}（自 ${ymd(c.since!)} 起），所選期間超過可用資料${backfilling ? '；歷史回補中' : ''}`;
+}
+
+/**
+ * 主角走勢圖的資料不足說明（#9）：數量一律是交易日數（週線取樣的視窗用取樣前的 span），日期帶年份。
+ * 同一檔股票不論選哪個期間，只要資料都不夠，說的是同一個數字。
+ */
+export function windowCoverageNote(win: { dates: string[]; truncated: boolean; span?: { days: number; since: string } }): string | null {
+  if (!win.truncated) return null;
+  const days = win.span?.days ?? win.dates.length;
+  const since = win.span?.since ?? win.dates[0] ?? null;
+  return coverageNote({ have: days, want: Infinity, since, short: true, single: days < 2 }, '個交易日', false);
 }

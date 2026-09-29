@@ -20,7 +20,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/ho
 import { PERIODS, PERIOD_LABEL, change, windowDayChange, type Dir, type Period, type Window } from '../lib/periods';
 import { areaD, extent, lerpPts, nearestIndex, pathD, points, resample, springEase, yOf, type Frame } from '../lib/chartMath';
 import { arrow, fmtNum } from '../lib/format';
-import { coverage, coverageNote } from '../lib/series';
+import { windowCoverageNote } from '../lib/series';
 import { RANGE_BASIS_NAME, RANGE_HOLD_MS, type RangeBasis, rangeReturn, shortDate } from '../lib/rangeReturn';
 
 const N = 160;
@@ -503,7 +503,7 @@ export function HeroChart({
         ) : null}
       </div>
       {caption || win?.truncated ? (
-        <div class="chart-caption" data-testid="hero-coverage">{win?.truncated ? `${coverageNote({ ...coverage(win.dates, Infinity) }, '個交易日', false)}。` : ''}{caption}</div>
+        <div class="chart-caption" data-testid="hero-coverage">{win?.truncated ? `${windowCoverageNote(win)}。` : ''}{caption}</div>
       ) : null}
       <PeriodSelector value={period} onChange={onPeriod} label={periodsLabel ?? '走勢期間'} periods={periods} />
       {onBasis && basis ? (

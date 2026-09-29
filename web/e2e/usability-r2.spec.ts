@@ -113,3 +113,18 @@ test.describe('#8 清單列的說明不截斷', () => {
     });
   }
 });
+
+test('#9 「資料累積中」：5Y、10Y（週線取樣）的交易日數相同，日期帶年份；ALL 不顯示', async ({ page }) => {
+  await page.goto('#/stock/2330');
+  const group = page.getByRole('group', { name: '股價走勢期間' }).first();
+  const notes: string[] = [];
+  for (const p of ['5Y', '10Y']) {
+    await group.getByRole('button', { name: new RegExp(`^${p}`) }).click();
+    const note = page.getByTestId('hero-coverage').first();
+    await expect(note).toContainText(/資料累積中：目前只有 \d+ 個交易日（自 \d{4}\/\d{1,2}\/\d{1,2} 起）/);
+    notes.push((await note.textContent())!.match(/目前只有 (\d+) 個交易日/)![1]);
+  }
+  expect(new Set(notes).size).toBe(1);
+  await group.getByRole('button', { name: /^ALL/ }).click();
+  await expect(page.getByTestId('hero-coverage')).toHaveCount(0);
+});

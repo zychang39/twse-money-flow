@@ -12,10 +12,12 @@ export function heroWindows(d: string[], c: (number | null)[], af: number[], per
   let adj = sliceWindow(d, adjValues, period);
   let raw = sliceWindow(d, c, period);
   if (adj && raw && WEEKLY_PERIODS.includes(period)) {
-    // 兩組用同一組週線取樣點（以還原價的日期為準），切換時點數與日期完全相同
+    // 兩組用同一組週線取樣點（以還原價的日期為準），切換時點數與日期完全相同；
+    // 取樣前記下實際的交易日數（#9：「資料累積中」要寫交易日數，不是週線的點數）
+    const span = { days: adj.dates.length, since: adj.dates[0] };
     const idx = weeklyIndices(adj.dates);
-    adj = { ...adj, dates: pick(adj.dates, idx), values: pick(adj.values, idx) };
-    raw = { ...raw, dates: pick(raw.dates, idx), values: pick(raw.values, idx) };
+    adj = { ...adj, dates: pick(adj.dates, idx), values: pick(adj.values, idx), span };
+    raw = { ...raw, dates: pick(raw.dates, idx), values: pick(raw.values, idx), span };
   }
   return { adj, raw };
 }
