@@ -404,8 +404,8 @@
  "digest_date": "2026-09-30",
  "holders_backfill": {
   "codes": 1990,
-  "done": 14360,
-  "eta": "2026-10-07T17:38+08:00",
+  "done": 14919,
+  "eta": "2026-10-07T14:58+08:00",
   "nodata": {
    "1108": [
     "20251107"
@@ -482,7 +482,8 @@
     "20251017",
     "20251023",
     "20251031",
-    "20251107"
+    "20251107",
+    "20251114"
    ],
    "7855": [
     "20251031"
@@ -495,14 +496,14 @@
    ]
   },
   "oldest_week": "20251003",
-  "per_query_sec": 4.35,
+  "per_query_sec": 4.28,
   "ref": "claude/momentum-strategy-lab-v2",
-  "remaining": 85140,
-  "runtime_hours_left": 102.8,
-  "segments": 25,
+  "remaining": 84581,
+  "runtime_hours_left": 100.6,
+  "segments": 26,
   "started_at": "2026-09-29T23:44+08:00",
   "total": 99500,
-  "updated_at": "2026-10-01T05:40+08:00",
+  "updated_at": "2026-10-01T06:21+08:00",
   "weeks": 51
  },
  "holders_backfill_pending": {
@@ -620,22 +621,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-09-30T04:28:39+08:00",
-   "by_source": {
-    "daily_days": 201
-   },
-   "chained": true,
-   "failed": [
-    "taifex_insti 2023-09-30 TXF：期交所回傳 HTML（查詢失敗或無資料）；MXF：期交所回傳 HTML（查詢失敗或無資料）"
-   ],
-   "ok": 656,
-   "pending": [],
-   "progressed": true,
-   "remaining": 201,
-   "requests": 505,
-   "task": "backfill"
-  },
   {
    "at": "2026-09-30T04:30:34+08:00",
    "by_source": {
@@ -1201,6 +1186,20 @@
    "remaining": 1689,
    "requests": 510,
    "task": "backfill"
+  },
+  {
+   "at": "2026-10-01T07:01:30+08:00",
+   "by_source": {
+    "tdcc_full": 84581
+   },
+   "chained": true,
+   "failed": [],
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "remaining": 84581,
+   "requests": 560,
+   "task": "holders_backfill"
   }
  ],
  "sources": {
@@ -1286,10 +1285,10 @@
   },
   "tdcc_history": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-01T06:20:41+08:00",
-   "last_message": "全市場 1990 檔 × 51 週：本段 549 次查詢；剩餘 85140 次；失敗：7782 20251107：集保個股查詢結果格式不符：找不到資料日期或分級表",
+   "last_attempt": "2026-10-01T07:01:28+08:00",
+   "last_message": "全市場 1990 檔 × 51 週：本段 559 次查詢；剩餘 84581 次",
    "last_status": "ok",
-   "last_success_at": "2026-10-01T06:20:41+08:00",
+   "last_success_at": "2026-10-01T07:01:28+08:00",
    "validation": "ok"
   },
   "tdcc_holders": {
@@ -1826,6 +1825,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-01T06:22:21+08:00",
+ "updated_at": "2026-10-01T07:01:30+08:00",
  "version": 1
 }
