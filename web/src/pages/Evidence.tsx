@@ -10,7 +10,7 @@ import { loadJson } from '../data/api';
 import { LineChart } from '../components/LineChart';
 import {
   type Brief, type EvidenceFile, type EvidenceRow, type Filter, type Hindsight, type WeeklyCoverage, FAMILIES, ciText,
-  counts, coverageLabel, coverageText, filterRows, pctSigned, rowSummary, sortRows, tText, verdictNote, verdictTone,
+  counts, coverageLabel, coverageText, delistText, filterRows, pctSigned, rowSummary, sortRows, tText, verdictNote, verdictTone,
 } from '../lib/evidence';
 import '../styles/evidence.css';
 
@@ -136,6 +136,7 @@ function DetailPanel({ row, horizon }: { row: EvidenceRow; horizon: number }) {
         訊號期間 {row.signal_start ?? '—'}～{row.signal_end ?? '—'}・資料起始 {row.data_start ?? '—'}・{coverageText(row.coverage)}
         {row.param ? `・參數 ${row.param}` : ''}
       </p>
+      {row.delist ? <p class="caption muted">{delistText(row)}</p> : null}
       {row.note && row.coverage && row.coverage.ratio < 0.9 ? <p class="caption risk-text">{row.note}</p> : null}
       {row.hindsight ? <HindsightCard h={row.hindsight} /> : null}
       {d.loading ? <Loading /> : null}

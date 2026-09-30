@@ -517,6 +517,8 @@ def test_coverage_single_definition_matches_counts():
 
     class E:
         dates: typing.ClassVar[list[str]] = ["2026-01-05", "2026-01-06", "2026-01-07"]
+        codes: typing.ClassVar[list[str]] = ["1101", "1102", "1103", "1104"]
+        delist_date: typing.ClassVar[dict[str, str]] = {"1102": "2026-03-01"}
 
     uni = np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 0, 0]], dtype=bool)
     avail = np.array([[1, 0, 0, 0], [1, 1, 0, 0], [0, 1, 1, 0]], dtype=bool)
@@ -530,6 +532,7 @@ def test_coverage_single_definition_matches_counts():
     cov = coverage(t, E(), uni, "2026-01-05", c)  # type: ignore[arg-type]
     assert cov["ratio"] == 0.4 and cov["included"] == 1 and cov["universe"] == 3
     assert cov["ever_included"] == 2 and cov["ever_universe"] == 4
+    assert cov["ever_delisted"] == 1  # 納入的 1101、1102 中，1102 已終止上市
     assert cov["label"] == "樣本範圍受限"
     assert (
         coverage_label(0.49, c) == "樣本範圍受限"
@@ -558,3 +561,92 @@ def test_hindsight_waits_until_full_coverage():
     out = hindsight(np.zeros((1, 1), bool), None, "2026-01-01", {"ratio": 0.62}, {}, cfg())  # type: ignore[arg-type]
     assert out == {"status": "waiting", "coverage": 0.62, "threshold": 0.9}
     assert len(cfg()["hindsight_codes"]) == 31
+
+
+def test_official_delistings_exclude_transfer():
+    from pipeline.evidence.data import official_delistings
+
+    dl = pd.DataFrame(
+        {
+            "code": ["1101", "6446", "2888"],
+            "date": ["2020-01-02", "2024-01-25", "2025-07-24"],
+            "kind": ["delisted", "transfer", "delisted"],
+        }
+    )
+    assert official_delistings(dl) == {"1101": "2020-01-02", "2888": "2025-07-24"}
+
+
+def test_full_delivery_mask_snapshots_and_additions():
+    """快照：9/28 名單有 A、9/30 名單只剩 B → A 標記 9/28–9/29、B 自 9/30 起。
+    歷史新增：C 在 9/22 新增、9/25 終止上市 → 標記 9/22–9/24；D 在 9/22 新增、快照裡沒有、也沒下市 → 假設 2 個交易日。"""
+    from pipeline.evidence.data import full_delivery_mask
+
+    dates = ["2026-09-22", "2026-09-23", "2026-09-24", "2026-09-28", "2026-09-29", "2026-09-30"]
+    codes = ["A", "B", "C", "D"]
+    cmode = pd.DataFrame(
+        {
+            "code": ["A", "B"],
+            "altered": [True, True],
+            "managed": [False, False],
+            "asof": ["2026-09-28", "2026-09-30"],
+            "source": ["twse_cmode", "twse_cmode"],
+        }
+    )
+    add = pd.DataFrame({"code": ["C", "D"], "date": ["2026-09-22", "2026-09-22"]})
+    m, note = full_delivery_mask(cmode, add, {"C": "2026-09-25"}, dates, codes, assume_days=2)
+    assert m[:, 0].tolist() == [False, False, False, True, True, False]
+    assert m[:, 1].tolist() == [False] * 5 + [True]
+    assert m[:, 2].tolist() == [True, True, True, False, False, False]
+    assert m[:, 3].tolist() == [True, True, False, False, False, False]
+    assert note["assumed"] == 1 and note["additions"] == 2
+
+
+def test_delisted_exit_last_close_and_conservative():
+    """下市：進場 100、持有中下市（最後收盤 60）→ 以 60 出場並標示；保守版本淨報酬 −100%。
+    停牌到資料結束但不在官方名單 → halted（同樣以最後收盤出場，不套保守版本）。"""
+    from pipeline.evidence import engine, stats
+
+    T = 8
+    op = np.full((T, 3), 100.0)
+    op[4:, 1] = NaN  # 第 2 檔第 4 列起無法成交（下市）
+    op[4:, 2] = NaN  # 第 3 檔第 4 列起停牌（官方沒有下市）
+    cl = op.copy()
+    cl[3, 1] = 60.0
+    cl[3, 2] = 80.0
+    vol = np.where(np.isfinite(op), 1000.0, 0.0)
+    mk = engine.Market(
+        dates=[f"2026-01-{i + 5:02d}" for i in range(T)],
+        open=op,
+        high=cl.copy(),
+        low=cl.copy(),
+        close=cl,
+        volume=vol,
+        universe=np.ones((T, 3), dtype=bool),
+        bench=np.full(T, 100.0),
+        bench_is_tr=True,
+        regime_up=np.ones(T, dtype=bool),
+        trend_up=np.ones(T, dtype=bool),
+        quarter_end=np.zeros(T, dtype=bool),
+        limit_up_pct=9.5,
+        gap_pct=5,
+        limit_down_pct=-9.5,
+        horizons=[3],
+        official_delisted=np.array([False, True, False]),
+    )
+    df = engine.evaluate(mk, np.array([1, 1, 1]), np.array([0, 1, 2]), 3)
+    assert df["delisted"].tolist() == [False, True, False]
+    assert df["halted"].tolist() == [False, False, True]
+    fee, tax = mk.fee, mk.tax
+    assert df.loc[1, "net"] == pytest.approx(engine.net_return(0.6 - 1, fee, tax))
+    df = engine.annotate(df, mk)
+    c = cfg()
+    d = stats.delist_conservative(df, c)
+    assert d is not None and d["affected"] == 1
+    # 同一進場日 3 筆平均：(0 基準) 超額＝淨報酬；下市那筆改為 −1
+    n0 = engine.net_return(0.0, fee, tax)
+    n2 = engine.net_return(0.8 - 1, fee, tax)
+    # 基準＝同日全市場平均，保守版本只改下市那筆的淨報酬
+    mm = mk.market_mean[3][2]
+    # 同日全市場（進場第 2 列）：0%、−40%（下市最後收盤 60）、−20%（停牌最後收盤 80）三檔扣成本後平均
+    assert mm == pytest.approx((n0 + engine.net_return(-0.4, fee, tax) + n2) / 3)
+    assert d["mean_excess"] == pytest.approx(((n0 - mm) + (-1 - mm) + (n2 - mm)) / 3 * 100, abs=1e-3)

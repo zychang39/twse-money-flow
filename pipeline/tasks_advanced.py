@@ -450,6 +450,31 @@ def run_tdcc_full(
     }
 
 
+# ------------------------------------------------------------------ v3 M1：終止上櫃（依年份）
+def run_tpex_delisted(ctx: RunContext) -> None:
+    """櫃買終止上櫃名單：每年查「全部」與「轉上市」兩次（2015 起約 24 次請求），合併成一份快照，內容變動才存。"""
+    from pipeline.sources import listing
+
+    tmpl = str(config.source("tpex_delisted")["url"])
+    since = int(config.source("tpex_delisted").get("since", 2015))
+    frames = []
+    try:
+        for y in range(since, ctx.today.year + 1):
+            for reason, transfer in (("-1", False), ("2", True)):
+                res = listing.parse_tpex_delisted(_fetch(ctx, tmpl.format(year=y, reason=reason)), transfer=transfer)
+                frames.append(res.df)
+    except SOURCE_ERRORS as exc:
+        ctx.note("tpex_delisted", "failed", message=err_text(exc)[:300])
+        return
+    df = listing.combine_delisted(frames)
+    latest = ctx.store.latest("tpex_delisted")
+    if latest is not None and latest[1].astype(str).reset_index(drop=True).equals(df.astype(str)):
+        ctx.note("tpex_delisted", "ok", rows=len(df), message="內容未變動")
+        return
+    ctx.store.write("tpex_delisted", ctx.today, df)
+    ctx.note("tpex_delisted", "ok", rows=len(df))
+
+
 # ------------------------------------------------------------------ 選配：央行貨幣總計數、法說會
 def run_cbc_money(ctx: RunContext) -> None:
     """央行 M1B／M2（日平均，月資料）：整份 CSV 以最新月份存成一份快照。"""

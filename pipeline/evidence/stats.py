@@ -106,7 +106,48 @@ def summarize(df: pd.DataFrame, cfg: dict[str, Any], horizon: int, col: str = "e
         "locked": int(df["locked"].sum()),
         "lock_loss": pct(float(df["lock_loss"].mean())) if df["lock_loss"].notna().any() else None,
         "delisted": int(df["delisted"].sum()),
+        "halted": int(df["halted"].sum()) if "halted" in df.columns else 0,
+        "dl100": delist_conservative(df, cfg, col),
+        "bench": bench_stats(df, cfg),
     }
+
+
+def bench_stats(df: pd.DataFrame, cfg: dict[str, Any]) -> dict[str, Any]:
+    """v3 M2：同一組事件對四種基準的超額（日曆時間法平均、t）；bootstrap 區間只算等權與 0050。"""
+    from pipeline.evidence.engine import BENCH_COLS, BOOT_BENCH
+
+    st = cfg["stats"]
+    out: dict[str, Any] = {}
+    for key, col in BENCH_COLS.items():
+        if col not in df.columns or not df[col].notna().any():
+            out[key] = None
+            continue
+        cal = calendar_series(df, col).to_numpy()
+        m, _, t = mean_t(cal)
+        item: dict[str, Any] = {"mean_excess": pct(m), "t": None if t is None else round(t, 2), "dates": int(cal.size)}
+        if key in BOOT_BENCH:
+            lo, hi = bootstrap_ci(cal, int(st["bootstrap"]), int(st["seed"]))
+            item["ci"] = [pct(lo), pct(hi)]
+        item["win"] = pct(float((df[col] > 0).mean()))
+        out[key] = item
+    return out
+
+
+def delist_conservative(df: pd.DataFrame, cfg: dict[str, Any], col: str = "exc_mkt") -> dict[str, Any] | None:
+    """v3 M1-2 保守版本：持有期間下市的事件淨報酬視為 −100%（基準報酬不變：超額＝−1 − 基準）。
+
+    沒有下市事件時為 None（與主結果相同）。
+    """
+    if "delisted" not in df.columns or not df["delisted"].any():
+        return None
+    d = df.copy()
+    m = d["delisted"].to_numpy(dtype=bool)
+    neg_bench = d[col] - d["net"]  # 超額＝淨報酬 − 基準 → 超額 − 淨報酬＝−基準
+    d.loc[m, col] = -1.0 + neg_bench[m]
+    d.loc[m, "net"] = -1.0
+    out = brief(d, cfg, col)
+    out["affected"] = int(m.sum())
+    return out
 
 
 def brief(df: pd.DataFrame, cfg: dict[str, Any], col: str = "exc_mkt") -> dict[str, Any]:

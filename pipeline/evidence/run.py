@@ -61,6 +61,10 @@ def coverage(
         "universe": round(float(du[days].mean())) if days.any() else 0,
         "ever_included": int(a.any(axis=0).sum()),
         "ever_universe": int(u.any(axis=0).sum()),
+        # v3 M1-3：期間內曾經納入的股票中，官方已終止上市櫃的檔數
+        "ever_delisted": int(
+            sum(1 for i in np.nonzero(a.any(axis=0))[0] if ev.codes[i] in getattr(ev, "delist_date", {}))
+        ),
         "days": int(days.sum()),
     }
     if c is not None:
@@ -236,10 +240,30 @@ def evaluate_event(test: catalog.Test, r: EventRunner, start: str, end: str) -> 
     return res
 
 
-def evaluate(ev: EvData, *, only: list[str] | None = None, with_exits: bool = True) -> dict[str, Any]:
+def large_cap_flag(v: str, main: dict[str, Any], t_thr: float) -> str | None:
+    """判定為有效或環境依賴（以等權基準），但相對 0050 不顯著（平均 ≤ 0、t 未達門檻或區間含 0）→「未勝過大型股」。"""
+    if v not in (verdict.VALID, verdict.ENV):
+        return None
+    b = (main.get("bench") or {}).get("0050")
+    if not b:
+        return None
+    return None if stats.significant(b, t_thr) else "未勝過大型股"
+
+
+def survivors(ev: EvData) -> np.ndarray:
+    """(C,)：資料最後一個月仍有收盤價的股票（存活者）。只給 M1-3 的「存活者偏差」對照用，不用在正式評估。"""
+    tail = max(0, len(ev.dates) - 21)
+    return np.isfinite(ev.raw_close[tail:]).any(axis=0)
+
+
+def evaluate(
+    ev: EvData, *, only: list[str] | None = None, with_exits: bool = True, survivor_only: bool = False
+) -> dict[str, Any]:
     t0 = time.monotonic()
     c = cfg()
     uni = universe.build(ev, c["universe"])
+    if survivor_only:  # 對照組：只留到最後還在交易的股票（刻意製造存活者偏差，量化下市股票的影響）
+        uni = uni & survivors(ev)[None, :]
     mk = engine.market(ev, uni, c)
     log.info("universe 與市場資料：%.0f 秒", time.monotonic() - t0)
     f = ind.build_features(ev, uni, c["indicators"])
@@ -362,6 +386,17 @@ def evaluate(ev: EvData, *, only: list[str] | None = None, with_exits: bool = Tr
             },
             "param": (res["grid"] or {}).get("chosen"),
             "recent": recent,
+            # v3 M2：四種基準（判定仍以等權為準）；對等權有效但對 0050 不顯著 → 「未勝過大型股」
+            "bench": main.get("bench"),
+            "t_0050": ((main.get("bench") or {}).get("0050") or {}).get("t"),
+            "large_cap": large_cap_flag(dec["verdict"], main, float(c["stats"]["t_threshold"])),
+            # v3 M1：下市——納入股票中已下市的檔數、持有期間下市的事件數（以最後收盤出場）、保守版本（下市視為 −100%）
+            "delist": {
+                "stocks": cov.get("ever_delisted", 0),
+                "events": main.get("delisted", 0),
+                "halted": main.get("halted", 0),
+                "dl100": main.get("dl100"),
+            },
         }
         if comp_rows:
             row["components"] = {
@@ -373,7 +408,16 @@ def evaluate(ev: EvData, *, only: list[str] | None = None, with_exits: bool = Tr
                 }
                 for k, v in comp_rows.items()
             }
-        detail = {**base, **dec, "variants": res["variants"], "grid": res["grid"], "oos": res["oos"]}
+        detail = {
+            **base,
+            **dec,
+            "variants": res["variants"],
+            "grid": res["grid"],
+            "oos": res["oos"],
+            "delist": row["delist"],
+            "bench": row["bench"],
+            "large_cap": row["large_cap"],
+        }
         if with_exits and dec["verdict"] in (verdict.VALID, verdict.ENV) and res["main_frames"] is not None:
             cand = res["main_frames"][int(H)]
             cand = cand[cand["status"] == "ok"]

@@ -9,6 +9,8 @@ universe:
   min_close: 10                 # 訊號日收盤價（未還原）≥ 10 元
   exclude_name_patterns: ["-DR"]   # 存託憑證；ETF、ETN、受益證券以代號排除（只收 4 碼、非 0 開頭的普通股）
   exclude_disposition: true     # 訊號日為處置股（處置期間內）
+  exclude_full_delivery: true   # v3 M1：訊號日為變更交易（全額交割）或管理股票（逐日標記，METHODOLOGY §10.1）
+  full_delivery_assume_days: 120  # 證交所只有「新增」的歷史、沒有恢復普通交易的日期：快照開始前已恢復者假設標記 120 個交易日
 
 # 評估期間：價格類指標自 2022-01-01 起（官方除權息資料自 2020-09 起，RS 需要 252 日還原價回看）；
 # 籌碼、營收等依各資料實際起始日（資料驅動）

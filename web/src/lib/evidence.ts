@@ -40,6 +40,8 @@ export interface EvidenceRow {
   signal_end?: string | null;
   coverage?: Coverage;
   hindsight?: Hindsight;
+  /** v3 M1：納入股票中已下市檔數、持有期間下市／停牌的事件數、下市視為 −100% 的保守版本 */
+  delist?: { stocks?: number; events?: number; halted?: number; dl100?: (Brief & { affected?: number }) | null };
   note?: string;
   param?: string | null;
   h?: Record<string, { n?: number; mean_excess?: number | null; t?: number | null }>;
@@ -162,6 +164,17 @@ export function coverageText(c: Coverage | undefined): string {
   if (!c) return '涵蓋率 —';
   const pct = Math.round(c.ratio * 100);
   return `涵蓋率 ${pct}%（每日平均 ${c.included.toLocaleString('zh-TW')}／${c.universe.toLocaleString('zh-TW')} 檔）`;
+}
+
+/** 「期間內曾納入 1,601 檔，其中已下市 23 檔；持有期間下市 4 筆（最後收盤出場）；保守版本（下市 −100%）+0.52%（t 3.40）」 */
+export function delistText(r: EvidenceRow): string {
+  const d = r.delist;
+  if (!d) return '';
+  const parts = [`期間內曾納入 ${(r.coverage?.ever_included ?? 0).toLocaleString('zh-TW')} 檔，其中已下市 ${(d.stocks ?? 0).toLocaleString('zh-TW')} 檔`];
+  if (d.events) parts.push(`持有期間下市 ${d.events} 筆（以最後可成交日收盤出場）`);
+  if (d.halted) parts.push(`停牌到資料結束 ${d.halted} 筆`);
+  parts.push(d.dl100 ? `保守版本（下市視為 ${MINUS}100%）${pctSigned(d.dl100.mean_excess)}（t ${tText(d.dl100.t)}）` : '沒有持有期間下市的事件');
+  return parts.join('；') + '。';
 }
 
 export function counts(rows: EvidenceRow[]): Record<Verdict, number> {

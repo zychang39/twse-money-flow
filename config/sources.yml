@@ -344,6 +344,43 @@ sources:
     frequency: daily
     url: https://www.tpex.org.tw/www/zh-tw/intraday/stat?date={date_slash}&type=Daily&response=json
     status: verified
+  # ---------- v3 M1：上市櫃狀態（下市、變更交易／全額交割）----------
+  twse_delisted:
+    label: 上市終止上市公司（2001 起全部）
+    market: twse
+    tier: core
+    frequency: snapshot
+    url: https://openapi.twse.com.tw/v1/company/suspendListingCsvAndHtml
+    status: verified
+  tpex_delisted:
+    label: 上櫃終止上櫃公司（依年份；轉上市另列）
+    market: tpex
+    tier: core
+    frequency: snapshot
+    url: https://www.tpex.org.tw/www/zh-tw/company/deListed?date={year}&reason={reason}&response=json
+    since: 2015
+    status: verified
+  twse_cmode:
+    label: 上市變更交易（全額交割）目前名單
+    market: twse
+    tier: core
+    frequency: snapshot
+    url: https://openapi.twse.com.tw/v1/exchangeReport/TWT85U
+    status: verified
+  tpex_cmode:
+    label: 上櫃變更交易、管理股票與停止交易目前名單
+    market: tpex
+    tier: core
+    frequency: snapshot
+    url: https://www.tpex.org.tw/openapi/v1/tpex_cmode
+    status: verified
+  twse_fulldelivery:
+    label: 上市新增之變更交易證券（歷史）
+    market: twse
+    tier: core
+    frequency: range
+    url: https://www.twse.com.tw/rwd/zh/fullDelivery/BFIHBU?startDate={start}&endDate={end}&response=json
+    status: unverified
   twse_short_halt:
     label: 上市停券預告（融券最後回補日）
     market: twse

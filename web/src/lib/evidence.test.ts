@@ -64,3 +64,16 @@ describe('涵蓋率（v3 M0-3）', () => {
     expect(coverageLabel(undefined)).toBeNull();
   });
 });
+
+describe('下市（v3 M1）', () => {
+  it('納入股票中已下市檔數、下市事件與保守版本', async () => {
+    const { delistText } = await import('./evidence');
+    const r = {
+      id: 'x', label: 'x', family: '動能', kind: 'event', verdict: '有效', reasons: [],
+      coverage: { ratio: 0.93, included: 754, universe: 806, ever_included: 1601 },
+      delist: { stocks: 23, events: 4, halted: 1, dl100: { n: 100, mean_excess: 0.52, t: 3.4 } },
+    } as EvidenceRow;
+    expect(delistText(r)).toBe('期間內曾納入 1,601 檔，其中已下市 23 檔；持有期間下市 4 筆（以最後可成交日收盤出場）；停牌到資料結束 1 筆；保守版本（下市視為 −100%）+0.52%（t 3.40）。');
+    expect(delistText({ ...r, delist: { stocks: 0, events: 0, dl100: null } })).toBe('期間內曾納入 1,601 檔，其中已下市 0 檔；沒有持有期間下市的事件。');
+  });
+});

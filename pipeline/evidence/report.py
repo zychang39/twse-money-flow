@@ -39,17 +39,22 @@ def env_text(row: dict[str, Any]) -> str:
 
 def summary_table(rows: list[dict[str, Any]]) -> list[str]:
     out = [
-        "| 指標 | 判定 | 樣本（去重／原始） | 納入股票／universe | 資料起始 | 訊號期間 | t（NW 參考） | 平均超額 %（95% 區間） | 逐年 | 樣本外 | 大盤環境 |",
-        "|---|---|---|---|---|---|---|---|---|---|---|",
+        "| 指標 | 判定 | 樣本（去重／原始） | 涵蓋率（每日平均納入／universe） | 資料起始 | 訊號期間 | t（NW 參考） | 平均超額 %（95% 區間） | 相對 0050 的 t | 逐年 | 樣本外 | 大盤環境 |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
         cov = r.get("coverage") or {}
         n = f"{r.get('n', 0)} 個月" if r.get("kind") == "quintile" else f"{r.get('n', 0)}／{r.get('raw', '—')}"
         t = f(r.get("t"), sign=False) + (f"（{f(r.get('t_nw'), sign=False)}）" if r.get("t_nw") is not None else "")
+        tags = "".join(
+            f"（{x}）" for x in (cov.get("label") if r["verdict"] != "樣本範圍受限" else None, r.get("large_cap")) if x
+        )
         out.append(
-            f"| [{r['label']}](#{r['id']}) | **{r['verdict']}** | {n} | {cov.get('included', '—')}／{cov.get('universe', '—')} | "
+            f"| [{r['label']}](#{r['id']}) | **{r['verdict']}**{tags} | {n} | "
+            f"{f((cov.get('ratio') or 0) * 100, 0, False)}%（{cov.get('included', '—')}／{cov.get('universe', '—')}） | "
             f"{r.get('data_start') or '—'} | {r.get('signal_start') or '—'}～{r.get('signal_end') or '—'} | {t} | "
-            f"{f(r.get('mean_excess'))} {ci(r.get('ci'))} | {years_text(r.get('years') or {})} | {f(r.get('oos'))} | {env_text(r)} |"
+            f"{f(r.get('mean_excess'))} {ci(r.get('ci'))} | {f(r.get('t_0050'), sign=False)} | {years_text(r.get('years') or {})} | "
+            f"{f(r.get('oos'))} | {env_text(r)} |"
         )
     return out
 
@@ -110,10 +115,24 @@ def section(d: dict[str, Any], H: str) -> list[str]:
     out.append(f"- **定義**：{d.get('definition', '')}")
     out.append(f"- **判定**：**{d['verdict']}**" + (f"（{'；'.join(d['reasons'])}）" if d.get("reasons") else ""))
     cov = d.get("coverage") or {}
+    label = cov.get("label")
     out.append(
-        f"- **樣本範圍**：納入 {cov.get('included', '—')} 檔／universe {cov.get('universe', '—')} 檔（逐日平均涵蓋 {f((cov.get('ratio') or 0) * 100, 0, False)}%）；"
+        f"- **樣本範圍**：涵蓋率 {f((cov.get('ratio') or 0) * 100, 0, False)}%（每日平均納入 {cov.get('included', '—')}／{cov.get('universe', '—')} 檔"
+        + (f"；{label}" if label else "")
+        + f"）；期間內曾納入 {cov.get('ever_included', '—')} 檔，其中已終止上市櫃 {cov.get('ever_delisted', 0)} 檔；"
         f"資料起始 {d.get('data_start') or '—'}；訊號期間 {d.get('signal_start') or '—'}～{d.get('signal_end') or '—'}。"
     )
+    dl = d.get("delist") or {}
+    if dl:
+        cons = dl.get("dl100") or {}
+        out.append(
+            f"- **下市**：持有 {H} 日期間下市 {dl.get('events', 0)} 筆（以最後可成交日收盤出場）、停牌到資料結束 {dl.get('halted', 0)} 筆；"
+            + (
+                f"下市視為 −100% 的保守版本：{f(cons.get('mean_excess'))}（t {f(cons.get('t'), sign=False)}）。"
+                if cons
+                else "沒有持有期間下市的事件，保守版本與主結果相同。"
+            )
+        )
     if d.get("note"):
         out.append(f"- **注意**：{d['note']}")
     out.append("")
@@ -149,6 +168,30 @@ def section(d: dict[str, Any], H: str) -> list[str]:
             f"排除跳空 ≥ 5% 的變體（持有 {H} 日）：{brief_cell(hs['no_gap'])}；主結果中跳空 ≥ 5% 的事件 {hs.get('gap_events', 0)} 筆。"
         )
         out.append("")
+    bench = hs.get("bench") or {}
+    if bench:
+        out += [
+            f"#### 四種基準（持有 {H} 日；判定以等權為準）",
+            "",
+            "| 基準 | 平均超額 % | t | 95% 區間 | 超額勝率 % |",
+            "|---|---|---|---|---|",
+        ]
+        for key, name in (
+            ("ew", "(a) 同日等權 universe"),
+            ("tr", "(b) 加權報酬指數"),
+            ("0050", "(c) 0050 買進持有"),
+            ("00631L", "(d) 00631L 買進持有"),
+        ):
+            b = bench.get(key) or {}
+            out.append(
+                f"| {name} | {f(b.get('mean_excess'))} | {f(b.get('t'), sign=False)} | {ci(b.get('ci')) if b.get('ci') else '—'} | "
+                f"{f(b.get('win'), 1, False)} |"
+            )
+        out += [
+            "",
+            "0050、00631L 為還原價（含息、已處理分割）同一段期間的買進持有報酬，不扣成本；00631L 每日再平衡，長期有波動耗損。",
+            "",
+        ]
     out += [f"#### 分組（持有 {H} 日）", ""]
     out += groups_table(hs.get("groups") or {}, d.get("oos"))
     out.append("")
@@ -223,9 +266,9 @@ def method_summary(meta: dict[str, Any]) -> list[str]:
         "即使如此，「有效」只代表在這段期間、這個樣本範圍內的統計證據，不代表未來表現，也不是買賣建議。**",
         "",
         f"- **樣本範圍**：上市＋上櫃普通股；排除 ETF、ETN、存託憑證、受益證券；訊號日為處置股、上市櫃未滿 {c['universe']['min_listed_days']} 個交易日、"
-        f"20 日平均成交值 < {c['universe']['min_avg_value'] / 1e4:,.0f} 萬元、收盤價 < {c['universe']['min_close']} 元者排除。以逐日的全市場行情建立（含之後下市的股票）。"
-        f"universe 共 {meta['universe_stocks']} 檔（{meta.get('price_start')} 起），每日平均 {meta['universe_daily_avg']} 檔。全額交割股沒有逐日歷史名單，由成交值與價格門檻排除絕大多數。",
-        "- **資料生效日**：收盤價、量、三大法人、融資融券在 T 日收盤後；集保股權分散為週六公布 → 下週一開盤進場；月營收在次月 10 日（歷史資料沒有各公司公布日，一律用法定期限）之後第一個交易日開盤進場。",
+        f"20 日平均成交值 < {c['universe']['min_avg_value'] / 1e4:,.0f} 萬元、收盤價 < {c['universe']['min_close']} 元者排除。以逐日的全市場行情建立（含之後下市的股票；下市以兩所終止上市櫃公告為準，轉上市不算）。"
+        f"universe 共 {meta['universe_stocks']} 檔（{meta.get('price_start')} 起），每日平均 {meta['universe_daily_avg']} 檔。變更交易（全額交割）與管理股票逐日排除（證交所歷史新增紀錄＋每日名單快照；櫃買快照開始前沒有歷史，由成交值與價格門檻排除絕大多數）。",
+        "- **資料生效日**：收盤價、量、三大法人、融資融券在 T 日收盤後；集保股權分散為週六公布，訊號日只引用上週以前的資料 → 下週一收盤訊號、週二開盤進場；月營收在次月 10 日（歷史資料沒有各公司公布日，一律用法定期限）之後第一個交易日開盤進場。",
         f"- **進出場**：訊號生效日的下一個交易日開盤進場（還原價）；開盤即漲停（≥ +{c['entry']['limit_up_pct']}%）排除並計入「無法進場」；"
         f"開盤 ≥ +{c['entry']['gap_pct']}% 另列「排除跳空」變體；進場後第 N 個交易日（N＝{'、'.join(str(h) for h in c['horizons'])}）開盤出場，出場日跌停鎖死（最高價 ≤ 前收 {c['entry']['limit_down_pct']}%）或停牌順延到下一個可成交日。"
         "成本：手續費 0.1425% × 0.6 買賣各一次、證交稅 0.3%。同一檔同一指標只計「首次觸發」：持有期間內不重複計入，出場後才可再次觸發。",

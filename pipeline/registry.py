@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from pipeline.core import config
 from pipeline.core.dates import roc_year, slash, ymd
-from pipeline.sources import advanced, mops, tpex, twse
+from pipeline.sources import advanced, listing, mops, tpex, twse
 from pipeline.sources.base import ParseResult
 
 Granularity = Literal["daily", "monthly", "yearly", "snapshot"]
@@ -233,6 +233,18 @@ SPECS: dict[str, Spec] = {
             min_rows=0,
             tier="optional",
         ),
+        # ---- v3 M1 上市櫃狀態：終止上市（2001 起全部）、變更交易（全額交割）目前名單；內容變動才存 → 逐日累積
+        Spec("twse_delisted", "snapshot", listing.parse_twse_delisted, "snapshot", keys=("code", "date"), min_rows=100),
+        Spec("twse_cmode", "snapshot", listing.parse_twse_cmode, "snapshot", min_rows=0),
+        Spec("tpex_cmode", "snapshot", listing.parse_tpex_cmode, "snapshot", min_rows=0),
+        Spec(
+            "twse_fulldelivery",
+            "range",
+            listing.parse_twse_fulldelivery,
+            "monthly",
+            keys=("date", "code"),
+            min_rows=0,
+        ),
         # ---- 年度
         Spec("twse_holidays", "yearly", twse.parse_holidays, "yearly", keys=("date",), min_rows=5),
     ]
@@ -261,6 +273,7 @@ CORE_RANGE = [
     "tpex_attention",
     "twse_disposition",
     "tpex_disposition",
+    "twse_fulldelivery",
 ]
 CORE_SNAPSHOT = [
     "twse_attention_accum",
@@ -271,6 +284,9 @@ CORE_SNAPSHOT = [
     "tpex_company",
     "twse_revenue",
     "tpex_revenue",
+    "twse_delisted",
+    "twse_cmode",
+    "tpex_cmode",
 ]
 ADVANCED_DAILY = ["twse_sbl", "tpex_sbl", "twse_qfii", "tpex_qfii", "twse_daytrade", "tpex_daytrade"]
 ADVANCED_SNAPSHOT = ["twse_short_halt", "tpex_short_halt", "twse_insider", "tpex_insider"]
