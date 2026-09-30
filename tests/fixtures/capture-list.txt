@@ -83,3 +83,5 @@ twse_rwd_BFIHBU.json|https://www.twse.com.tw/rwd/zh/marginTrading/BFIHBU?date=20
 twse_rwd_TWT85U_hist.json|https://www.twse.com.tw/rwd/zh/afterTrading/TWT85U?date=20220601&response=json
 twse_rwd_TWT49U_2016.json|https://www.twse.com.tw/rwd/zh/exRight/TWT49U?startDate=20160101&endDate=20161231&response=json
 twse_rwd_MI_INDEX_0099P_2016.json|https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=20161003&type=0099P&response=json
+twse_rwd_BFIHBU_2024.json|https://www.twse.com.tw/rwd/zh/fullDelivery/BFIHBU?startDate=20240101&endDate=20241231&response=json
+twse_rwd_BFIHBU_2016.json|https://www.twse.com.tw/rwd/zh/fullDelivery/BFIHBU?startDate=20160101&endDate=20161231&response=json
