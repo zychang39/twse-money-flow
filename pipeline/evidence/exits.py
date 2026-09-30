@@ -71,7 +71,12 @@ def _result(p: Paths, row: np.ndarray, px: np.ndarray | None, planned_locked: np
         worst = np.minimum(cm[np.arange(len(hi)), hi], price)
         mae = worst / p.entry - 1
     net = net_return(gross, mk.fee, mk.tax)
-    bench = mk.bench_return(p.e, np.where(has, row, T - 1))
+    xr = np.where(has, row, T - 1)
+    bench = mk.bench_return(p.e, xr)
+    ew = mk.ew_return(p.e, xr)
+    at_close = np.zeros(len(xr), dtype=bool)
+    e0050 = mk.etf_return("0050", p.e, xr, at_close)
+    e631 = mk.etf_return("00631L", p.e, xr, at_close)
     status = np.where(has & np.isfinite(net), "ok", "pending")
     return pd.DataFrame(
         {
@@ -84,6 +89,9 @@ def _result(p: Paths, row: np.ndarray, px: np.ndarray | None, planned_locked: np
             "entry": p.entry,
             "px": price,
             "exc_idx": net - bench,
+            "exc_ew": net - ew,
+            "exc_0050": net - e0050,
+            "exc_00631L": net - e631,
             "mae": mae,
             "hold": hold,
             "locked": planned_locked,
@@ -158,6 +166,10 @@ def run_rules(mk: Market, cand: pd.DataFrame, ev: Any, cfg: dict[str, Any]) -> d
     return out
 
 
+def _mean(d: pd.DataFrame, col: str) -> float | None:
+    return pct(float(d[col].mean())) if col in d.columns and d[col].notna().any() else None
+
+
 def summarize_rule(df: pd.DataFrame) -> dict[str, Any]:
     d = dedupe(df)
     n = len(d)
@@ -166,7 +178,14 @@ def summarize_rule(df: pd.DataFrame) -> dict[str, Any]:
     return {
         "n": n,
         "ev": pct(float(d["net"].mean())),
-        "exc_idx": pct(float(d["exc_idx"].mean())) if d["exc_idx"].notna().any() else None,
+        "exc_idx": _mean(d, "exc_idx"),
+        # v3 M3-4：四種基準的相對報酬（事件平均）；等權以同日等權指數近似（持有天數不固定）
+        "rel": {
+            "ew": _mean(d, "exc_ew"),
+            "tr": _mean(d, "exc_idx"),
+            "0050": _mean(d, "exc_0050"),
+            "00631L": _mean(d, "exc_00631L"),
+        },
         "win": pct(float((d["net"] > 0).mean())),
         "hold": round(float(d["hold"].mean()), 1),
         "mae": pct(float(d["mae"].mean())),
@@ -181,14 +200,27 @@ RULE_LABELS = {
     "trailing": "追蹤停損（最高收盤回落 {p}%）",
     "entry_low": "收盤跌破進場日最低價",
     "exhaust": "動能衰竭（量縮 3 日且漲跌 ≤ ±2%）",
+    "peak": "峰值日固定出場（第 {p} 日）",
 }
 
 
 def compare(
-    mk: Market, cand: pd.DataFrame, ev: Any, cfg: dict[str, Any], windows: list[tuple[str, str]]
+    mk: Market,
+    cand: pd.DataFrame,
+    ev: Any,
+    cfg: dict[str, Any],
+    windows: list[tuple[str, str]],
+    peak: int | None = None,
 ) -> dict[str, Any]:
-    """每種出場的全參數表＋walk-forward 選參數（依訓練期期望值）與驗證期表現。"""
+    """每種出場的全參數表＋walk-forward 選參數（依訓練期期望值）與驗證期表現。
+
+    peak：v3 M3-4「峰值日固定出場」的 N＝訓練期（第一個 walk-forward 訓練窗）累積超額曲線的峰值日，不看全樣本。
+    """
     res = run_rules(mk, cand, ev, cfg)
+    if peak:
+        x = cfg["exits"]
+        p = Paths(mk, cand["e"].to_numpy(), cand["c"].to_numpy(), int(x["max_days"]), {})
+        res["peak"] = {str(int(peak)): rule_fixed(p, int(peak))}
     dates = np.asarray(mk.dates)
     table = []
     for rule, cells in res.items():
@@ -213,7 +245,7 @@ def compare(
                 )
                 chosen = best
         if chosen is None:
-            chosen = next(iter(cells)) if rule != "fixed" else "10"
+            chosen = next(iter(cells)) if rule != "fixed" else str(cfg.get("primary_horizon", 10))
         for k, s in params.items():
             table.append(
                 {
@@ -231,7 +263,7 @@ def compare(
 
 def run_one(mk: Market, cand: pd.DataFrame, ev: Any, cfg: dict[str, Any], rule: str, param: str) -> pd.DataFrame:
     """單一出場規則（策略庫用）：與 run_rules 同樣的規則與參數格式。"""
-    if rule == "fixed":
+    if rule in ("fixed", "peak"):  # 峰值日固定出場＝固定 N 日（N＝訓練期峰值日）
         x = cfg["exits"]
         p = Paths(mk, cand["e"].to_numpy(), cand["c"].to_numpy(), int(x["max_days"]), {})
         return rule_fixed(p, int(param))

@@ -2,7 +2,8 @@
 
 資料生效日（1.2）一律換成「訊號列」：訊號在該列收盤後產生，下一個交易日開盤進場。
 - 收盤價、量、三大法人、融資融券：資料日 T 就是訊號列。
-- 集保股權分散：資料日（週五）次日公布（週六）→ 訊號列＝公布日之前最後一個交易日（週五），進場＝下週一開盤。
+- 集保股權分散：資料日（週五）次日公布（週六）→ v3 M0-2 起訊號列＝下週第一個交易日（通常週一），進場＝週二開盤；
+  訊號日 T 只引用 T 之前一週（含）以前已公布的週，不引用 T 當週（見 whale_usable_from）。
 - 月營收：公布日（取不到則為次月 10 日）→ 訊號列＝公布日（含）之前最後一個交易日，進場＝公布日之後第一個交易日。
 """
 
@@ -24,6 +25,8 @@ log = logging.getLogger(__name__)
 
 TAIEX = "發行量加權股價指數"
 TAIEX_TR = "發行量加權股價報酬指數"
+# v3 M2 基準：0050（買進持有，大型股）、00631L（2 倍槓桿 ETF，每日再平衡）
+BENCH_ETFS = ("0050", "00631L")
 
 
 def cfg() -> dict[str, Any]:
@@ -62,6 +65,12 @@ class EvData:
     whale_chg4: np.ndarray = field(default_factory=lambda: np.zeros((0, 0)))  # 4 週變化（延用）
     revenue: pd.DataFrame = field(default_factory=pd.DataFrame)  # code, ym, revenue, yoy, row
     starts: dict[str, str | None] = field(default_factory=dict)  # 各資料的起始日
+    # v3 M1：官方終止上市櫃日期（不含轉上市）、變更交易（全額交割）逐日標記
+    delist_date: dict[str, str] = field(default_factory=dict)
+    full_delivery: np.ndarray = field(default_factory=lambda: np.zeros((0, 0), dtype=bool))
+    status_note: dict[str, Any] = field(default_factory=dict)
+    # v3 M2：可投資的基準（還原價，含息、已處理分割）：代號 → {"open": (T,), "close": (T,)}
+    etf: dict[str, dict[str, np.ndarray]] = field(default_factory=dict)
 
     @property
     def T(self) -> int:
@@ -105,6 +114,28 @@ def whale_frames(tdcc: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def whale_usable_from(data_date: str) -> str:
+    """v3 M0-2：集保週資料最早可被引用的日子。
+
+    基準日為該週最後一個營業日（通常週五；週五休市時為週四），次日（週六）公布。訊號日 T 只能引用
+    「T 之前最近一個已公布的週」：T 為週一到週五時一律用上週的資料，不得引用 T 當週（即使 T 是週五、
+    當週資料要到週六才公布）。所以最早可用日＝max(下週一, 公布日次日)。
+    """
+    d = date.fromisoformat(data_date[:10])
+    next_monday = d + timedelta(days=7 - d.weekday())
+    return max(next_monday, d + timedelta(days=2)).isoformat()
+
+
+def whale_signal_rows(data_dates: list[str], dates: list[str]) -> np.ndarray:
+    """週資料日 → 第一次可引用的訊號列（最早可用日當天或之後的第一個交易日；在資料之後為 len(dates)）。
+
+    訊號列當天收盤後產生訊號、下一個交易日開盤進場（週資料 → 最早週一收盤訊號、週二開盤進場，
+    與分數系統 §4.5 的「週二進場」一致）。
+    """
+    usable = [whale_usable_from(d) for d in data_dates]
+    return np.searchsorted(np.asarray(dates), np.asarray(usable, dtype=str), side="left")
+
+
 def whale_panels(
     w: pd.DataFrame, dates: list[str], codes: list[str], weeks: int = 4, max_age: int = 7
 ) -> dict[str, np.ndarray]:
@@ -119,8 +150,8 @@ def whale_panels(
     w["chg4"] = w.groupby("code")["w1000"].diff(weeks)
     span = pd.to_datetime(w["date"]).groupby(w["code"]).diff(weeks).dt.days
     w.loc[span > weeks * 7 + 1, "chg4"] = np.nan
-    w["row"] = np.searchsorted(np.asarray(dates), w["published"].to_numpy(dtype=str), side="right") - 1
-    w = w[(w["row"] >= 0) & w["code"].isin(pos)]
+    w["row"] = whale_signal_rows(w["date"].astype(str).tolist(), dates)
+    w = w[(w["row"] >= 0) & (w["row"] < T) & w["code"].isin(pos)]
     for col, arr in (("w1000", pct), ("chg4", chg4)):
         upd = np.full((T, C), np.nan)
         for code, part in w.groupby("code"):
@@ -172,6 +203,78 @@ def disposition_mask(disp: pd.DataFrame, dates: list[str], codes: list[str]) -> 
     return mask
 
 
+def official_delistings(delisted: pd.DataFrame) -> dict[str, str]:
+    """代號 → 官方終止上市／上櫃日期（兩所公告；「轉上市」不是下市，排除）。同一代號多次時取最後一次。"""
+    if delisted.empty:
+        return {}
+    d = delisted[delisted["kind"].astype(str) == "delisted"].dropna(subset=["date"])
+    d = d.assign(code=d["code"].astype(str)).sort_values("date")
+    return {str(c): str(x) for c, x in zip(d["code"], d["date"], strict=True)}
+
+
+def full_delivery_mask(
+    cmode: pd.DataFrame,
+    additions: pd.DataFrame,
+    delist: dict[str, str],
+    dates: list[str],
+    codes: list[str],
+    assume_days: int,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    """(T, C) 變更交易（全額交割）或管理股票的逐日標記。
+
+    1. 目前名單的每日快照（v3 起累積，內容變動才存）：快照日 d_i 的名單適用到下一份快照前一日（該來源）。
+    2. 快照開始前：證交所「新增之變更交易證券」歷史（只有新增日）→ 自新增日起標記，到官方終止上市日；
+       在第一份快照名單內 → 標記到第一份快照；其他（已恢復普通交易，但官方沒有恢復日期的歷史）→ 假設 assume_days 個交易日。
+       櫃買沒有歷史新增紀錄，快照開始前無法標記（限制，寫在 METHODOLOGY §10.1）。
+    """
+    T, C = len(dates), len(codes)
+    mask = np.zeros((T, C), dtype=bool)
+    pos = {c: i for i, c in enumerate(codes)}
+    arr = np.asarray(dates)
+    note: dict[str, Any] = {"snapshots": 0, "additions": 0, "assumed": 0, "first_snapshot": None}
+    first_snap: dict[str, str] = {}
+    if not cmode.empty:
+        cm = cmode.assign(code=cmode["code"].astype(str))
+        flagged = cm[
+            cm.get("altered", False).astype(str).isin(["True", "true", "1"])
+            | cm.get("managed", False).astype(str).isin(["True", "true", "1"])
+        ]
+        for sid, part in cm.groupby("source"):
+            snaps = sorted(part["asof"].unique())
+            first_snap[str(sid)] = snaps[0]
+            for i, asof in enumerate(snaps):
+                hi = snaps[i + 1] if i + 1 < len(snaps) else "9999-12-31"
+                rows = (arr >= asof) & (arr < hi)
+                for code in flagged.loc[(flagged["source"] == sid) & (flagged["asof"] == asof), "code"]:
+                    c = pos.get(code)
+                    if c is not None:
+                        mask[rows, c] = True
+        note["snapshots"] = int(cm["asof"].nunique())
+        note["first_snapshot"] = min(first_snap.values())
+    snap0 = first_snap.get("twse_cmode")
+    in_snap0 = set()
+    if snap0 is not None:
+        cm0 = cmode[(cmode["source"] == "twse_cmode") & (cmode["asof"] == snap0)]
+        in_snap0 = set(cm0["code"].astype(str))
+    if not additions.empty:
+        for code, add in additions[["code", "date"]].astype(str).drop_duplicates().itertuples(index=False):
+            c = pos.get(code)
+            if c is None:
+                continue
+            i0 = int(np.searchsorted(arr, add, side="left"))
+            stop = snap0 or "9999-12-31"
+            if delist.get(code, "") > add:
+                i1 = int(np.searchsorted(arr, min(delist[code], stop), side="left"))
+            elif code in in_snap0:
+                i1 = int(np.searchsorted(arr, stop, side="left"))
+            else:
+                i1 = min(i0 + assume_days, int(np.searchsorted(arr, stop, side="left")))
+                note["assumed"] += 1
+            mask[i0:i1, c] = True
+            note["additions"] += 1
+    return mask, note
+
+
 def load(store: DataStore) -> EvData:
     from pipeline.derive import dataset as dsmod
 
@@ -219,6 +322,22 @@ def from_dataset(ds: Any) -> EvData:
     wp = whale_panels(wf, dates, codes, int(cfg()["indicators"]["whale_weeks"]))
     ev.whale_pct, ev.whale_chg, ev.whale_chg4 = wp["pct"], wp["chg"], wp["chg4"]
     ev.revenue = revenue_table(ds.revenue, dates, codes, int(cfg()["indicators"]["revenue_fallback_day"]))
+    for code in BENCH_ETFS:
+        if code in p.af.columns:
+            f = p.af[code].to_numpy(dtype=float)
+            ev.etf[code] = {
+                "open": p.open[code].to_numpy(dtype=float) * f,
+                "close": p.close[code].to_numpy(dtype=float) * f,
+            }
+    ev.delist_date = official_delistings(ds.table("delisted"))
+    ev.full_delivery, ev.status_note = full_delivery_mask(
+        ds.table("cmode"),
+        ds.table("fulldelivery"),
+        ev.delist_date,
+        dates,
+        codes,
+        int(cfg()["universe"].get("full_delivery_assume_days", 120)),
+    )
     ev.starts = {
         "price": dates[0] if dates else None,
         "insti": _first_date(insti, "trust_net"),

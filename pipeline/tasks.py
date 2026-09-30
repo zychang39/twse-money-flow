@@ -447,6 +447,8 @@ def task_periodic(ctx: RunContext, sources: list[str] | None = None) -> None:
     weekly = not wanted and ctx.today.weekday() in (5, 6)
     if "cbc_money" in wanted or weekly:
         tasks_advanced.run_cbc_money(ctx)
+    if "tpex_delisted" in wanted or weekly:
+        tasks_advanced.run_tpex_delisted(ctx)
     if "investor_conference" in wanted or weekly:
         for m in (month_start(ctx.today), next_month(ctx.today)):
             tasks_advanced.run_conference(ctx, m)

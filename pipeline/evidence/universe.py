@@ -26,8 +26,8 @@ def build(ev: Any, rules: dict[str, Any]) -> np.ndarray:
     """universe[t, c]：訊號日 t 可納入評估。
 
     條件（全部成立）：普通股（載入時已排除 ETF、ETN、存託憑證、受益證券）、上市櫃滿 min_listed_days 個交易日、
-    20 日平均成交值 ≥ min_avg_value、收盤價（未還原）≥ min_close、當天有收盤價、不在處置期間。
-    全額交割股沒有逐日歷史名單，由成交值與價格門檻排除絕大多數（METHODOLOGY §10.1 限制）。
+    20 日平均成交值 ≥ min_avg_value、收盤價（未還原）≥ min_close、當天有收盤價、不在處置期間、
+    不是變更交易（全額交割）或管理股票（v3 M1：逐日標記，見 data.full_delivery_mask）。
     """
     n = int(rules.get("avg_value_days", 20))
     avg_value = rolling_mean(np.nan_to_num(ev.value, nan=0.0), n)
@@ -39,4 +39,7 @@ def build(ev: Any, rules: dict[str, Any]) -> np.ndarray:
     )
     if rules.get("exclude_disposition", True):
         ok &= ~ev.disposition
+    fd = getattr(ev, "full_delivery", None)
+    if rules.get("exclude_full_delivery", True) and fd is not None and fd.shape == ok.shape:
+        ok &= ~fd
     return ok

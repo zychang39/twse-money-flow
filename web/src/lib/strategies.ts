@@ -14,11 +14,11 @@ export interface StrategyItem {
   env: { dim: string; side: string; label: string; today: boolean } | null;
   param?: string | null;
   definition?: string;
-  coverage?: { included: number; universe: number; ratio: number };
+  coverage?: import('./evidence').Coverage;
   data_start?: string | null;
   signal_start?: string | null;
   signal_end?: string | null;
-  h?: Record<string, { n?: number; mean_excess?: number | null; t?: number | null }>;
+  h?: Record<string, { n?: number; mean_excess?: number | null; t?: number | null; bench?: Record<string, { mean_excess: number | null; t: number | null; ci?: [number | null, number | null]; win?: number | null } | null> }>;
   years?: Record<string, number | null>;
   env_stats?: Record<string, { on: number | null; off: number | null }>;
   t?: number | null;
@@ -26,12 +26,57 @@ export interface StrategyItem {
   n?: number;
   note?: string;
   health?: { status: string; recent: number | null; recent_n: number; recent_t: number | null; since: string | null; long: number | null };
-  today?: { code: string; name: string }[];
+  today?: { code: string; name: string; basis?: { label: string; value: number | null; unit: string }[] }[];
+  /** 今日 0 檔的原因（不留白） */
+  today_note?: string | null;
   exit?: { rule: string; param: string; label: string; stats: Partial<ExitRow>; alternatives: ExitRow[] };
   trades?: TradeStats & { n: number; mean_net: number | null; win: number | null; hold: number | null; yearly: Record<string, { n: number; mean_net: number | null; exc_idx: number | null; win: number | null }> };
   portfolio?: Record<string, PortfolioStats & { yearly?: Record<string, number | null>; total?: number | null }>;
-  curve?: { dates: string[]; equity: number[]; bench: number[] };
+  curve?: { dates: string[]; equity: number[]; bench: number[]; etf?: Record<string, (number | null)[]> };
+  /** v3 M2：事件對四種基準的超額（判定仍以等權為準） */
+  bench?: Record<BenchKey, BenchStat | null>;
+  t_0050?: number | null;
+  large_cap?: string | null;
+  delist?: import('./evidence').EvidenceRow['delist'];
+  hindsight?: import('./evidence').Hindsight;
+  /** v3 M2-3：5 檔組合 vs (b)(c)(d) 同期 */
+  compare?: BenchCompare;
 }
+
+import type { BenchKey } from './bench';
+export { BENCH_KEYS, BENCH_LABEL, type BenchKey } from './bench';
+export interface BenchStat { mean_excess: number | null; t: number | null; ci?: [number | null, number | null]; win?: number | null; dates?: number }
+
+export interface Perf {
+  days?: number;
+  ann_return?: number | null;
+  vol_ann?: number | null;
+  sharpe?: number | null;
+  calmar?: number | null;
+  mdd?: number | null;
+  dd_days?: number;
+  total?: number | null;
+  yearly?: Record<string, number | null>;
+}
+
+export interface BenchCompare {
+  period: [string, string] | null;
+  strategy: Perf;
+  tr?: Perf;
+  '0050'?: Perf;
+  '00631L'?: Perf;
+  regression?: { months: number; beta?: number; alpha_ann?: number | null; alpha_t?: number | null; r2?: number | null };
+}
+
+/** 績效指標表的列（策略與各基準同一組指標）。 */
+export const PERF_ROWS: { key: keyof Perf; label: string; kind: 'pct' | 'ratio' | 'days' }[] = [
+  { key: 'ann_return', label: '年化報酬', kind: 'pct' },
+  { key: 'vol_ann', label: '年化波動', kind: 'pct' },
+  { key: 'sharpe', label: 'Sharpe', kind: 'ratio' },
+  { key: 'calmar', label: 'Calmar', kind: 'ratio' },
+  { key: 'mdd', label: '最大回撤', kind: 'pct' },
+  { key: 'dd_days', label: '回撤天數', kind: 'days' },
+];
 
 export interface StrategiesFile {
   date: string;
@@ -59,3 +104,13 @@ export const enabledFirst = (list: StrategyItem[]): { enabled: StrategyItem[]; d
   enabled: list.filter((s) => s.enabled),
   disabled: list.filter((s) => !s.enabled),
 });
+
+/** 觸發依據的數值文字：「投信連買 6 日」「千張大戶週變化 +0.42 百分點」「當日成交值 2,281 百萬元」。 */
+export function basisText(b: { label: string; value: number | null; unit: string }): string {
+  if (b.value === null || b.value === undefined || !Number.isFinite(b.value)) return `${b.label} —`;
+  const signed = b.unit === '百分點' || b.label.includes('變化') || b.label.includes('5 日') && b.unit === '%';
+  const abs = Math.abs(b.value).toLocaleString('zh-TW', { maximumFractionDigits: 2 });
+  const sign = signed ? (b.value > 0 ? '+' : b.value < 0 ? '−' : '') : b.value < 0 ? '−' : '';
+  const unit = b.unit ? (b.unit === '%' ? '%' : ` ${b.unit}`) : '';
+  return `${b.label} ${sign}${abs}${unit}`;
+}

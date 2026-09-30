@@ -42,6 +42,9 @@ BACKFILL_SEGMENT_MINUTES = 40
 QUIET_WINDOW = ((13, 30), (22, 30))
 # 全市場集保回補（M0）：獨立任務與 concurrency group（holders-backfill），進度寫在 manifest[holders_backfill]
 HOLDERS_TASK = "holders_backfill"
+# v3 M0：全市場集保回補分成 2 道平行（依週別分道，見 tasks_advanced.lane_of）；main 的 22:40 接續與停擺重啟送空白 source，
+# 在這裡視為「分派 HOLDERS_LANES 道」
+HOLDERS_LANES = 2
 # resume 排程發現全市場集保回補超過這麼久沒有新的一段（接續失敗、分段被取消），重新觸發
 HOLDERS_STALL_HOURS = 3
 
@@ -115,9 +118,13 @@ def cmd_run(args: argparse.Namespace) -> int:
             tasks.load_calendar(ctx, [ctx.today.year], fetch_missing=False)
             if in_quiet_window(ctx.now, ctx.calendar):
                 # E-05：每日任務時段不開始新的一段；記下待續的參數，由 22:40 的 resume 排程觸發
+                src = args.source or ""
+                if task == HOLDERS_TASK and src.startswith("lane="):
+                    # 平行的每一道延後時都記同一個分派者（lanes=n），22:40 接續時一次觸發全部道次，不會互相覆蓋待續槽
+                    src = f"lanes={src.split('/')[-1]}"
                 ctx.manifest[pending_key] = {
                     "task": task,
-                    "source": args.source or "",
+                    "source": src,
                     "start": start.isoformat(),
                     "end": end.isoformat(),
                     "refresh": refresh,
@@ -132,9 +139,23 @@ def cmd_run(args: argparse.Namespace) -> int:
                 ctx.deadline = time.monotonic() + BACKFILL_SEGMENT_MINUTES * 60
             if task == HOLDERS_TASK:
                 from pipeline import tasks_advanced
+                from pipeline.notify.github import dispatch_workflow
 
-                extra = tasks_advanced.run_tdcc_full(ctx)
+                lane = tasks_advanced.parse_lane(args.source)
+                n = tasks_advanced.parse_lanes(args.source, HOLDERS_LANES)
                 deploy = "false"  # 回補不部署；每日任務下次部署時自動用上新資料
+                if lane is None and n > 1:
+                    # v3 M0：分派者（空白或 lanes=n）只觸發 n 道平行回補，各自一個 concurrency group
+                    ref = os.environ.get("GITHUB_REF_NAME", "main")
+                    sent = [
+                        dispatch_workflow("data.yml", {"task": task, "source": f"lane={k}/{n}"}, ref=ref)
+                        if args.chain
+                        else False
+                        for k in range(n)
+                    ]
+                    extra = {"spawned": n, "chained": all(sent)}
+                    raise _Deferred
+                extra = tasks_advanced.run_tdcc_full(ctx, lane=lane)
             else:
                 extra = tasks.task_backfill(ctx, sources, start, end, refresh=refresh)
                 deploy = "true" if not extra.get("remaining") else "false"

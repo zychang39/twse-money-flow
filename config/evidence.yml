@@ -9,6 +9,8 @@ universe:
   min_close: 10                 # 訊號日收盤價（未還原）≥ 10 元
   exclude_name_patterns: ["-DR"]   # 存託憑證；ETF、ETN、受益證券以代號排除（只收 4 碼、非 0 開頭的普通股）
   exclude_disposition: true     # 訊號日為處置股（處置期間內）
+  exclude_full_delivery: true   # v3 M1：訊號日為變更交易（全額交割）或管理股票（逐日標記，METHODOLOGY §10.1）
+  full_delivery_assume_days: 120  # 證交所只有「新增」的歷史、沒有恢復普通交易的日期：快照開始前已恢復者假設標記 120 個交易日
 
 # 評估期間：價格類指標自 2022-01-01 起（官方除權息資料自 2020-09 起，RS 需要 252 日還原價回看）；
 # 籌碼、營收等依各資料實際起始日（資料驅動）
@@ -19,8 +21,16 @@ entry:
   limit_up_pct: 9.5             # 進場日開盤 ≥ 前一日收盤 +9.5% 視為開盤即漲停（無法進場）
   gap_pct: 5                    # 「排除跳空 ≥ 5%」變體
   limit_down_pct: -9.5          # 出場日最高價 ≤ 前一日收盤 −9.5% 視為跌停鎖死（當天賣不掉）
-horizons: [5, 10, 20]
+horizons: [5, 10, 20, 40, 60]   # v3 M3：加入 40、60 日（出場規則比較也有固定 40、60 日）
+horizons_ref: [120]             # 只做參考、不進判定、不進出場比較
 primary_horizon: 10             # 判定用的持有天數（其餘持有天數一併報告）
+
+# v3 M3 事件時間累積超額曲線（有效、環境依賴的指標與三方同買）
+curve:
+  days: 60                      # 進場後第 1～60 個交易日
+  exhaust_run: 5                # 邊際超額連續 5 日 ≤ 0 的第一天＝alpha 耗盡日
+  per_day_scale: 250            # 每持有日超額年化：超額 ÷ N × 250
+  extra_tests: [combo_three]    # 判定不是有效／環境依賴也要畫的指標
 
 # 1.5 統計
 stats:
@@ -37,7 +47,8 @@ verdict:
   min_events: 100               # 事件型：去重後樣本 ≥ 100
   min_months: 24                # 分組型：≥ 24 個月
   year_pass_ratio: 0.6667       # 逐年至少 2/3 的年份為正
-  coverage_ratio: 0.5           # 納入股票數 < universe 的 50% → 樣本範圍受限
+  coverage_ratio: 0.5           # 涵蓋率 < 50% → 樣本範圍受限（涵蓋率定義見 METHODOLOGY §10.8：Σ每日有資料檔數 ÷ Σ每日 universe 檔數）
+  coverage_full: 0.9            # v3：50–90% 標示「部分涵蓋」；≥ 90% 移除標示，並開始計算「原 31 檔 vs 全市場」
   sensitive_ratio: 0.5          # 相鄰參數格的平均超額報酬正負號相反，或不到選定格的一半 → 參數敏感
   wf_min_events: 30             # walk-forward 選參數時，訓練期樣本 < 30 的格子不選
 
@@ -71,6 +82,10 @@ indicators:
   price_lead_top: 0.9
   combo_rs: 80
   combo_trust_run: 3
+  # v3 M4 三方同買參數格（27 格，walk-forward）：投信連買 n、外資近 5 日累計 ÷ 前 20 日均量門檻、千張大戶週增門檻（百分點）
+  three_trust_runs: [3, 5, 10]
+  three_foreign_thresholds: [0, 0.1, 0.3]
+  three_whale_thresholds: [0.1, 0.3, 0.5]
   revenue_fallback_day: 10      # 月營收生效日：沒有公布日時為次月 10 日
 
 # 1.10 出場規則（對判定為有效或環境依賴的指標）
@@ -84,3 +99,8 @@ exits:
   exhaust_vol: 0.5
   exhaust_move_pct: 2
 recent_days: 60                # 策略健康度：最近 60 個交易日
+
+# v3 M0-4 後見之明偏差：全市場集保回補前，千張大戶歷史只有這 31 檔（2026-09 依當時成交值前 30 名＋範例自選挑選，
+# 由 data 分支 2026-09-29 回補開始前的 tdcc_history 還原）。涵蓋率達 coverage_full 後，大戶週增與三方同買另算「只用這 31 檔」的版本並列。
+hindsight_codes: ["0050", "1303", "2303", "2308", "2317", "2327", "2330", "2344", "2368", "2382", "2383", "2408", "2409", "2454", "3026", "3037", "3042", "3105", "3189", "3324", "3443", "3653", "3665", "4958", "6182", "6213", "6274", "6488", "8046", "8150", "8299"]
+hindsight_tests: [whale_up, combo_three]

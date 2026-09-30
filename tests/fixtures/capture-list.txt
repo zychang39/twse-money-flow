@@ -70,3 +70,18 @@ twse_rwd_holiday_2016.json|https://www.twse.com.tw/rwd/zh/holidaySchedule/holida
 tpex_dailyQuotes_2016.json|https://www.tpex.org.tw/www/zh-tw/afterTrading/dailyQuotes?date=2016/09/28&id=&response=json
 tpex_dailyQuotes_2010.json|https://www.tpex.org.tw/www/zh-tw/afterTrading/dailyQuotes?date=2010/01/04&id=&response=json
 tpex_dailyQuotes_2007.json|https://www.tpex.org.tw/www/zh-tw/afterTrading/dailyQuotes?date=2007/01/02&id=&response=json
+# v3 實驗室 M0／M1／M2（2026-09-30）：舊格式法人與信用、終止上市、變更交易（全額交割）歷史、0050 早期除權息
+twse_rwd_T86_2014.json|https://www.twse.com.tw/rwd/zh/fund/T86?date=20141110&selectType=ALLBUT0999&response=json
+twse_rwd_T86_2015.json|https://www.twse.com.tw/rwd/zh/fund/T86?date=20150105&selectType=ALLBUT0999&response=json
+twse_rwd_T86_2017.json|https://www.twse.com.tw/rwd/zh/fund/T86?date=20171201&selectType=ALLBUT0999&response=json
+twse_rwd_MI_MARGN_2015.json|https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date=20150105&selectType=ALL&response=json
+twse_openapi_suspendListing.json|https://openapi.twse.com.tw/v1/company/suspendListingCsvAndHtml
+twse_suspend_listing_page.html|https://www.twse.com.tw/zh/listed/suspend-listing.html
+twse_rwd_suspendListing.json|https://www.twse.com.tw/rwd/zh/company/suspendListingCsvAndHtml?type=html&lang=zh
+twse_bfihbu_page.html|https://www.twse.com.tw/zh/trading/bfihbu.html
+twse_rwd_BFIHBU.json|https://www.twse.com.tw/rwd/zh/marginTrading/BFIHBU?date=20220601&response=json
+twse_rwd_TWT85U_hist.json|https://www.twse.com.tw/rwd/zh/afterTrading/TWT85U?date=20220601&response=json
+twse_rwd_TWT49U_2016.json|https://www.twse.com.tw/rwd/zh/exRight/TWT49U?startDate=20160101&endDate=20161231&response=json
+twse_rwd_MI_INDEX_0099P_2016.json|https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=20161003&type=0099P&response=json
+twse_rwd_BFIHBU_2024.json|https://www.twse.com.tw/rwd/zh/fullDelivery/BFIHBU?startDate=20240101&endDate=20241231&response=json
+twse_rwd_BFIHBU_2016.json|https://www.twse.com.tw/rwd/zh/fullDelivery/BFIHBU?startDate=20160101&endDate=20161231&response=json

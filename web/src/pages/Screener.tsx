@@ -1,17 +1,21 @@
-import { useMemo } from 'preact/hooks';
+import { useMemo, useState } from 'preact/hooks';
+import { SortMenu } from '../components/SortMenu';
+import { type SortState, loadSort, saveSort, sortItems } from '../lib/sorting';
+import { type EvidenceFile, type EvidenceToday, pctSigned, tText } from '../lib/evidence';
 import { PageHead, TopBar } from '../components/Chrome';
 import { StockMiniRow } from '../components/StockRow';
 import { setListContext } from '../lib/listContext';
 import { navigate } from '../router';
 import { DataStatus, ErrorState, Loading } from '../components/DataStatus';
 import { useAsync, useDb, useRestoredState } from '../hooks';
-import { loadMeta, loadScreenDays } from '../data/api';
+import { loadJson, loadMeta, loadScreenDays } from '../data/api';
 import { useScoredSummary } from '../data/useSummary';
 import { deleteScreen, listScreens, saveScreen, uid, type SavedScreen } from '../db/db';
 import { screenerConfig, type Condition } from '../lib/config';
 import { describeCondition, newTriggerCodes, savedDisplayName, weeklyNote, encodeConditions, presetScreens, screen, screenIdentity } from '../lib/screener';
 import { fmtNum } from '../lib/format';
 import { PAGE_SOURCES } from '../lib/health';
+import '../styles/evidence.css';
 
 const OPS: Condition['op'][] = ['>=', '>', '<=', '<', '==', 'between'];
 const fields = screenerConfig.fields;
@@ -65,6 +69,31 @@ export default function Screener() {
   const [mode, setMode] = useRestoredState<'all' | 'new'>('screener.mode', 'all');
   const days = useAsync(() => (mode === 'new' ? loadScreenDays() : Promise.resolve(null)), [mode]);
   const meta = useAsync(loadMeta, []);
+  // v3 M5-2：內建組合依對應指標的判定分級 → t 排序（不依超額）；排序選單與策略庫、指標效度表相同
+  const ev = useAsync(() => loadJson<EvidenceFile>('evidence.json').catch(() => null), []);
+  const evToday = useAsync(() => loadJson<EvidenceToday>('evidence_today.json').catch(() => null), []);
+  const [presetSort, setPresetSortState] = useState<SortState>(() => loadSort('screener'));
+  const setPresetSort = (x: SortState) => { saveSort('screener', x); setPresetSortState(x); };
+  const presetRows = useMemo(() => {
+    const byId = new Map((ev.data?.rows ?? []).map((r) => [r.id, r]));
+    return sortItems(
+      screenerConfig.presets.map((p) => {
+        const r = p.evidence_test ? byId.get(p.evidence_test) : undefined;
+        const trig = (p.evidence_test && evToday.data?.tests[p.evidence_test]?.t) || {};
+        return {
+          p,
+          label: p.label,
+          verdict: r?.verdict ?? '樣本不足',
+          t: r?.t ?? null,
+          excess: r?.mean_excess ?? null,
+          health: r?.recent?.mean_excess ?? null,
+          today: Object.values(trig).filter((d) => d === evToday.data?.date).length,
+          r,
+        };
+      }),
+      presetSort,
+    );
+  }, [ev.data, evToday.data, presetSort]);
   // 誠實呈現：條件欄位若多數股票還沒有資料（例如集保大戶逐週累積中），結果會偏少，要說清楚
   const sparse = useMemo(() => {
     if (!summary.data) return [];
@@ -114,9 +143,13 @@ export default function Screener() {
         <span class="grow"><span class="body w6">策略庫</span><span class="caption muted" style={{ display: 'block' }}>指標效度評估通過的策略・今日新觸發・槓桿風險計算</span></span>
       </a>
       <h2 class="section-title">內建組合</h2>
-      <div class="chips" role="group" aria-label="內建組合">
-        {screenerConfig.presets.map((p) => (
-          <button key={p.id} class="chip" aria-pressed={id.presetId === p.id} onClick={() => load(p.id, p.label, p.conditions)} title={p.description}>{p.label}</button>
+      <SortMenu id="screener" value={presetSort} onChange={setPresetSort} />
+      <div class="chips" role="group" aria-label="內建組合" data-testid="preset-chips">
+        {presetRows.map(({ p, r }) => (
+          <button key={p.id} class="chip" aria-pressed={id.presetId === p.id} onClick={() => load(p.id, p.label, p.conditions)} title={p.description}
+            aria-label={`${p.label}（${r ? `${r.verdict}，t ${tText(r.t)}，10 日超額 ${pctSigned(r.mean_excess)}` : '沒有指標效度評估'}）`}>
+            <span class="chip-label">{p.label}</span><span class="chip-sub">{r ? r.verdict : '未評估'}</span>
+          </button>
         ))}
       </div>
       {saved.length ? (

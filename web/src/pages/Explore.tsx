@@ -11,7 +11,8 @@ import { useAsync } from '../hooks';
 import { loadIndex, loadJson, loadMarket } from '../data/api';
 import { TAIEX, TAIEX_TR, TPEX } from '../data/types';
 import { envInfo } from '../lib/envState';
-import { screenerConfig } from '../lib/config';
+import type { EvidenceFile, EvidenceToday } from '../lib/evidence';
+import { labStatus } from '../lib/labStatus';
 import { arrow, dirClass, fmtNum, glueNumbers } from '../lib/format';
 import { PAGE_SOURCES } from '../lib/health';
 
@@ -51,6 +52,10 @@ export default function Explore() {
   const market = useAsync(loadMarket, []);
   const index = useAsync(loadIndex, []);
   const disp = useAsync(() => loadJson<{ disposition: unknown[]; watch: { risk: boolean }[] }>('disposition.json'), []);
+  // v3 M5-1：四張功能卡依工作流固定順序（選股 → 策略庫 → 指標效度表 → 回測），副標是即時數字，不依 alpha 排序
+  const ev = useAsync(() => loadJson<EvidenceFile>('evidence.json').catch(() => null), []);
+  const evToday = useAsync(() => loadJson<EvidenceToday>('evidence_today.json').catch(() => null), []);
+  const lab = labStatus(ev.data ?? null, evToday.data ?? null);
   const env = envInfo(market.data?.env?.lights);
   const sectors = market.data?.sectors ?? [];
   const topSector = [...sectors].sort((a, b) => ((b.net_5 as number) ?? 0) - ((a.net_5 as number) ?? 0))[0];
@@ -69,10 +74,10 @@ export default function Explore() {
         <IndexCard name="加權報酬指數" values={index.data?.series[TAIEX_TR]} />
       </div>
       <div class="tile-grid" style={{ marginTop: 'var(--s-6)' }}>
-        <Tile href="#/explore/screener" icon={<IconFilter />} label="選股" status={`${screenerConfig.presets.length} 組內建條件＋自訂`} />
-        <Tile href="#/explore/strategies" icon={<IconLayers />} label="策略庫" status="通過驗證的策略・槓桿風險計算" />
-        <Tile href="#/explore/evidence" icon={<IconShield />} label="指標效度表" status="哪些指標有統計證據" />
-        <Tile href="#/explore/backtest" icon={<IconHistory />} label="回測" status="訊號的歷史統計・可信度" />
+        <Tile href="#/explore/screener" icon={<IconFilter />} label="選股" status={lab ? `今日新觸發 ${lab.today} 檔` : '今日新觸發 —'} />
+        <Tile href="#/explore/strategies" icon={<IconLayers />} label="策略庫" status={lab ? `${lab.strategies} 個策略通過驗證` : '通過驗證的策略'} />
+        <Tile href="#/explore/evidence" icon={<IconShield />} label="指標效度表" status={lab ? `${lab.valid} 項有效・${lab.env} 項環境依賴` : '哪些指標有統計證據'} />
+        <Tile href="#/explore/backtest" icon={<IconHistory />} label="回測" status={lab?.updated ? `資料更新 ${lab.updated}` : '訊號的歷史統計'} />
         <Tile href="#/explore/sectors" icon={<IconGrid />} label="產業資金輪動" status={topSector ? `近 5 日流入最多：${topSector.industry}` : '依法人金額排列'} />
         <Tile href="#/explore/etf" icon={<IconLayers />} label="主動式 ETF" status={market.data?.active_etfs ? `${market.data.active_etfs.length} 檔・持股資料待處理` : '清單'} />
         <Tile href="#/explore/market" icon={<IconThermo />} label="市場溫度" status={`資金環境 ${env.label}・${env.counts || '—'}`} />

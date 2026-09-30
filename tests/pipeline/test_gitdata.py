@@ -12,3 +12,47 @@ def test_merge_manifests_holders_backfill():
     m = merge_manifests(a, b)
     assert m["holders_backfill"]["done"] == 9
     assert m["holders_backfill"]["nodata"] == {"1": ["w1", "w2"], "2": ["w1"]}
+
+
+def test_merge_manifests_holders_lane_state_per_lane():
+    """v3：兩道平行回補交錯推送，各道狀態逐道取較新者。"""
+    from pipeline.gitdata import merge_manifests
+
+    a = {
+        "updated_at": "t2",
+        "holders_backfill": {
+            "updated_at": "2026-10-01T10:00",
+            "lane_state": {
+                "0/2": {"updated_at": "2026-10-01T10:00", "remaining": 5},
+                "1/2": {"updated_at": "2026-10-01T08:00", "remaining": 9},
+            },
+        },
+    }
+    b = {
+        "updated_at": "t1",
+        "holders_backfill": {
+            "updated_at": "2026-10-01T09:00",
+            "lane_state": {"1/2": {"updated_at": "2026-10-01T09:00", "remaining": 7}},
+        },
+    }
+    m = merge_manifests(a, b)
+    assert m["holders_backfill"]["lane_state"]["0/2"]["remaining"] == 5
+    assert m["holders_backfill"]["lane_state"]["1/2"]["remaining"] == 7
+
+
+def test_merge_manifests_pending_slot_keeps_newer_deferral():
+    """兩個回補同時延後：後推送的一方帶著舊的集保待續槽，合併時仍保留 deferred_at 較新的那一個。"""
+    from pipeline.gitdata import merge_manifests
+
+    ours = {
+        "updated_at": "2026-09-30T18:02",
+        "holders_backfill_pending": {"deferred_at": "2026-09-30T14:07+08:00", "ref": "old"},
+        "backfill_pending": {"deferred_at": "2026-09-30T18:02+08:00", "ref": "new"},
+    }
+    theirs = {
+        "updated_at": "2026-09-30T18:01",
+        "holders_backfill_pending": {"deferred_at": "2026-09-30T18:01+08:00", "ref": "new", "source": "lanes=2"},
+    }
+    m = merge_manifests(ours, theirs)
+    assert m["holders_backfill_pending"]["source"] == "lanes=2"
+    assert m["backfill_pending"]["ref"] == "new"

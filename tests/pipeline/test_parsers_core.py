@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 from datetime import date
+from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from pipeline.sources import mops, tpex, twse
@@ -289,3 +291,49 @@ def test_twse_parchange_and_etf_split():
     assert row(sp, "00632R")["kind"] == "反分割"
     empty = tpex.parse_etf_split(sample("tpex_etfSplitRslt.json"))
     assert empty.df.empty
+
+
+def test_tpex_insti_old_layout_2015():
+    """v3 M0-6：2018 年以前櫃買三大法人是 16 欄的舊版面（第一個表格為空 {}、外資不拆外資自營商）。
+
+    穩懋 3105（2015-01-05）：外資 4,783,000＋投信 1,125,000＋自營商 3,620,000＝合計 9,528,000 股；
+    自營商＝自行買賣 7,000＋避險 3,613,000。外資自營商欄位為空值。
+    """
+    from pipeline.sources import tpex
+
+    path = Path(__file__).resolve().parents[1] / "fixtures" / "samples" / "tpex_insti_2015.json"
+    res = tpex.parse_insti(path.read_bytes())
+    assert res.response_date is not None and res.response_date.isoformat() == "2015-01-05"
+    r = res.df.set_index("code").loc["3105"]
+    assert r["foreign_net"] == 4_783_000 and r["trust_net"] == 1_125_000 and r["dealer_net"] == 3_620_000
+    assert r["total_net"] == r["foreign_net"] + r["trust_net"] + r["dealer_net"] == 9_528_000
+    assert r["dealer_self_net"] + r["dealer_hedge_net"] == r["dealer_net"]
+    assert pd.isna(r["foreign_dealer_net"])
+
+
+@pytest.mark.parametrize(
+    ("name", "day", "total", "hedge"),
+    [
+        # 2014-11-10：自營商尚未拆自行買賣／避險 → 空值；外資 28,861,800＋投信 778,000＋自營商 −1,252,000
+        ("twse_rwd_T86_2014.json", "2014-11-10", 28_387_800, None),
+        # 2015-01-05：外資 3,685,335 − 投信 752,000 ＋ 自營商 545,000（自行 −178,000＋避險 723,000）
+        ("twse_rwd_T86_2015.json", "2015-01-05", 3_478_335, 723_000),
+        ("twse_rwd_T86_2017.json", "2017-12-01", -9_985_026, -393_000),
+    ],
+)
+def test_twse_insti_old_layouts(name, day, total, hedge):
+    """v3 M0-6：2017-12-18 以前的 T86 欄名是「外資買進股數」（沒有外資自營商），以別名對應；三大法人合計＝三者相加。"""
+    path = Path(__file__).resolve().parents[1] / "fixtures" / "raw" / name
+    res = twse.parse_insti(path.read_bytes())
+    assert res.response_date is not None and res.response_date.isoformat() == day
+    r = res.df.set_index("code").loc["2330"]
+    assert r["total_net"] == total == r["foreign_net"] + r["trust_net"] + r["dealer_net"]
+    assert pd.isna(r["foreign_dealer_net"])
+    assert pd.isna(r["dealer_hedge_net"]) if hedge is None else r["dealer_hedge_net"] == hedge
+
+
+def test_twse_margin_2015_layout():
+    """v3 M0-6：2015 年的 MI_MARGN 版面與現在相同（台積電 2015-01-05 融資餘額 20,527 張＝前日 20,082＋買 814−賣 369）。"""
+    path = Path(__file__).resolve().parents[1] / "fixtures" / "raw" / "twse_rwd_MI_MARGN_2015.json"
+    r = twse.parse_margin(path.read_bytes()).df.set_index("code").loc["2330"]
+    assert r["margin_balance"] == 20_527 == r["margin_prev"] + r["margin_buy"] - r["margin_sell"] - r["margin_redeem"]

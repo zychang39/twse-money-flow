@@ -109,6 +109,19 @@ def load(store: DataStore) -> Dataset:
     }.items():
         frames = [latest[1] for latest in (store.latest(s) for s in sources) if latest is not None]
         ds.tables[name] = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    # v3 M1：上市櫃狀態。終止上市櫃取最新一份（名單本身就是全部歷史）；變更交易目前名單每一份快照都保留（asof＝快照日）
+    frames = [
+        latest[1] for latest in (store.latest(s) for s in ("twse_delisted", "tpex_delisted")) if latest is not None
+    ]
+    ds.tables["delisted"] = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    snaps = []
+    for sid in ("twse_cmode", "tpex_cmode"):
+        for d in store.dates(sid):
+            snap = store.read(sid, d)
+            if snap is not None:
+                snaps.append(snap.assign(asof=d.isoformat(), source=sid))
+    ds.tables["cmode"] = pd.concat(snaps, ignore_index=True) if snaps else pd.DataFrame()
+    ds.tables["fulldelivery"] = store.read_range("twse_fulldelivery")
     splits = [store.read_range(s) for s in ("twse_parchange", "twse_etfsplit", "tpex_etfsplit", "tpex_etfrevsplit")]
     ds.extra["splits"] = [s for s in splits if not s.empty]
     # 快照：取最新一份

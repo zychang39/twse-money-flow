@@ -2,7 +2,7 @@
  * 版面規範自動驗收（docs/UI_GUIDE.md §12）：402×874（iPhone 18 Pro）、375×667、440×956 三種 viewport，每個頁面檢查
  * 1. 沒有左右滑移（scrollWidth ≤ clientWidth；表格不在水平捲動容器裡）
  * 2. 所有可見文字 ≥ 11px 3. 表格數字 ≥ 13px 4. 數字欄靠右 5. 可點擊元素 ≥ 44 × 44px（計入 ::before 擴大；行內文字連結除外）
- * 指標效度表、策略庫、槓桿計算以真實資料的評估結果（e2e/fixtures，2026-09-24）取代示範資料（示範資料太短，全部樣本不足）。
+ * 指標效度表、策略庫、槓桿計算以真實資料的評估結果（e2e/fixtures，data 分支 2026-09-30 本機重算）取代示範資料（示範資料太短，全部樣本不足）。
  */
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -37,6 +37,8 @@ const PAGES: { name: string; hash: string; prepare?: (page: Page) => Promise<voi
   { name: '指標效度表', hash: '#/explore/evidence', prepare: async (p) => { await p.getByRole('button', { name: /RS 百分位站上 90/ }).click(); await expect(p.getByRole('table', { name: '各持有天數' })).toBeVisible(); } },
   { name: '策略庫', hash: '#/explore/strategies', prepare: async (p) => { await expect(p.getByText('近一年高點').first()).toBeVisible(); } },
   { name: '策略頁', hash: '#/explore/strategies/near_high', prepare: async (p) => { await expect(p.getByRole('heading', { name: '健康度' })).toBeVisible(); await p.getByRole('button', { name: '看其他出場規則' }).click(); } },
+  { name: '策略頁（三方同買：原 31 檔對照卡、今日觸發展開）', hash: '#/explore/strategies/three_buyers', prepare: async (p) => { await expect(p.getByTestId('hindsight-card')).toBeVisible(); const b = p.getByTestId('today-list').getByRole('button').first(); if (await b.count()) await b.click(); } },
+  { name: '指標效度表（排序選單開啟、0050 基準）', hash: '#/explore/evidence', prepare: async (p) => { await p.getByTestId('bench-switch').getByRole('button', { name: '0050' }).click(); await p.getByRole('button', { name: /接近 52 週高點/ }).click(); await expect(p.locator('svg.ac-svg')).toBeVisible(); await p.getByRole('button', { name: '排序', exact: true }).click(); await expect(p.getByRole('menu', { name: '排序方式' })).toBeVisible(); } },
   { name: '槓桿計算', hash: '#/explore/leverage?s=near_high', prepare: async (p) => { await expect(p.getByText('波動目標法倍數')).toBeVisible(); } },
   { name: '個股頁（每日籌碼、區間統計、有效訊號面板）', hash: '#/stock/2330', prepare: async (p) => { await revealAllSections(p); await expect(p.getByTestId('signal-panel')).toBeVisible(); await p.getByRole('group', { name: '明細期間' }).getByRole('button', { name: '60 日' }).click(); } },
   { name: '法人報表', hash: '#/stock/2330/institutional' },

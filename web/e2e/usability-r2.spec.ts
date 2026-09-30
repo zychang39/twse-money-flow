@@ -180,7 +180,7 @@ test('#11 選股：刪掉內建組合的條件後改稱「自訂條件」，回�
   await page.goto('#/explore/screener');
   const presets = page.getByRole('group', { name: '內建組合' });
   const first = presets.getByRole('button').first();
-  const presetName = (await first.textContent())!.trim();
+  const presetName = (await first.locator('.chip-label').textContent())!.trim();
   await first.click();
   await expect(first).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('heading', { level: 1 })).toContainText(`${presetName}：`);

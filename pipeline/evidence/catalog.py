@@ -42,6 +42,10 @@ class Test:
     # 個股頁「有效訊號面板」的「接近觸發」（M3）：near＝固定遮罩；near_fn＝依選定參數產生（參數格指標）
     near: np.ndarray | None = None
     near_fn: Any = None
+    # v3 M4：依選定參數產生的單一條件與兩兩組合（參數格指標）：params → {key: (label, mask)}
+    components_fn: Any = None
+    # v3 M5-5：策略頁「今日新觸發」展開的觸發依據：[(名稱, (T, C) 數值, 單位, 倍數, 小數位)]
+    basis: list[tuple[str, np.ndarray, str, float, int]] = field(default_factory=list)
 
 
 def _grid(dims: dict[str, list[Any]], make: Any) -> list[Cell]:
@@ -377,8 +381,6 @@ def build(ev: Any, f: dict[str, Any], p: dict[str, Any], universe: np.ndarray) -
         rs80 = rs >= float(p["combo_rs"])
         trun = ind.run_length(f["trust"] > 0) >= int(p["combo_trust_run"])
         accel = f["rev_accel_asof"] >= 1
-        f5 = ind.rolling(f["foreign"], 5, "sum") > 0
-        whale_pos = f["whale_chg_asof"] > 0
         value_ok = ev.value >= 2e7
     rs80_ok, t_ok = fin(rs), fin(f["trust"])
     tests.append(
@@ -434,6 +436,44 @@ def build(ev: Any, f: dict[str, Any], p: dict[str, Any], universe: np.ndarray) -
         )
     )
     three_ok = t_ok & fin(f["whale_chg_asof"])
+    # v3 M4：三方同買全參數格（投信連買 n × 外資 5 日累計佔均量門檻 × 大戶週增門檻），walk-forward 選參數；
+    # 選定參數的單一條件與兩兩組合另列（證明第三個條件有增量）
+    run_t = ind.run_length(f["trust"] > 0)
+    f5r = ind.chip_ratio(f["foreign"], avgv, 5)
+    wc_asof = f["whale_chg_asof"]
+
+    def three_parts(n: int, fthr: float, wthr: float) -> dict[str, np.ndarray]:
+        with np.errstate(invalid="ignore"):
+            return {
+                "trust": (run_t >= int(n)) & value_ok,
+                "foreign": (f5r > 0) & (f5r >= float(fthr)) & value_ok,
+                "whale": (wc_asof >= float(wthr)) & value_ok,
+            }
+
+    def three_cell(n: int, fthr: float, wthr: float) -> np.ndarray:
+        p3 = three_parts(n, fthr, wthr)
+        return ind.first_true(p3["trust"] & p3["foreign"] & p3["whale"], three_ok)
+
+    def three_components(prm: dict[str, Any]) -> dict[str, tuple[str, np.ndarray]]:
+        n, fthr, wthr = int(prm["投信連買"]), float(prm["外資門檻"]), float(prm["大戶門檻"])
+        p3 = three_parts(n, fthr, wthr)
+        lab = {
+            "trust": f"投信連買 ≥ {n} 日",
+            "foreign": f"外資 5 日累計 > 0 且 ≥ 均量 {fthr:g}",
+            "whale": f"大戶週增 ≥ {wthr:g} 個百分點",
+        }
+        out: dict[str, tuple[str, np.ndarray]] = {}
+        for k in ("trust", "foreign", "whale"):
+            out[f"only_{k}"] = (f"單一：{lab[k]}", ind.first_true(p3[k], three_ok))
+        for a, b in (("trust", "foreign"), ("trust", "whale"), ("foreign", "whale")):
+            out[f"pair_{a}_{b}"] = (f"兩兩：{lab[a]}＋{lab[b]}", ind.first_true(p3[a] & p3[b], three_ok))
+        return out
+
+    td: dict[str, list[Any]] = {
+        "投信連買": [int(x) for x in p.get("three_trust_runs", [3, 5, 10])],
+        "外資門檻": [float(x) for x in p.get("three_foreign_thresholds", [0, 0.1, 0.3])],
+        "大戶門檻": [float(x) for x in p.get("three_whale_thresholds", [0.1, 0.3, 0.5])],
+    }
     tests.append(
         Test(
             "combo_three",
@@ -442,13 +482,24 @@ def build(ev: Any, f: dict[str, Any], p: dict[str, Any], universe: np.ndarray) -
             "event",
             "whale_chg",
             three_ok,
-            "投信連買 ≥ 3 日、外資近 5 日買超 > 0、千張大戶最新一週增加、當日成交值 ≥ 2,000 萬；事件為首次同時成立日（內建策略「三方同買」）。",
-            variants={"main": ("組合", ind.first_true(trun & f5 & whale_pos & value_ok, three_ok))},
+            "投信連買 ≥ n 日（3、5、10）、外資近 5 日累計淨買超 > 0 且 ÷ 前 20 日均量 ≥ 門檻（0、0.1、0.3）、千張大戶最新一週增加 ≥ 門檻（0.1、0.3、0.5 個百分點）、當日成交值 ≥ 2,000 萬；"
+            "事件為首次同時成立日。27 格 walk-forward 選參數；選定參數的三個單一條件與三組兩兩組合並列（內建策略「三方同買」）。",
+            grid=_grid(td, lambda 投信連買, 外資門檻, 大戶門檻: three_cell(投信連買, 外資門檻, 大戶門檻)),
+            grid_dims=list(td),
             note="樣本範圍受限：千張大戶歷史目前只涵蓋部分股票（全市場回補進行中）。",
+            components_fn=three_components,
         )
     )
 
+    def near_three(prm: dict[str, Any]) -> np.ndarray:
+        """今日接近觸發：選定參數下三個條件成立兩個。"""
+        p3 = three_parts(int(prm["投信連買"]), float(prm["外資門檻"]), float(prm["大戶門檻"]))
+        return (p3["trust"].astype(int) + p3["foreign"].astype(int) + p3["whale"].astype(int)) == 2
+
+    tests[-1].near_fn = near_three
+
     _attach_near(tests, ev, f, p)
+    _attach_basis(tests, ev, f, p)
 
     # 1.6 分組檢定
     for tid, label, data, vals, note in (
@@ -491,6 +542,47 @@ def _cross_strict(x: np.ndarray, level: float) -> np.ndarray:
 
 def asof_chg4(ev: Any) -> np.ndarray:
     return np.asarray(ev.whale_chg4)
+
+
+def _attach_basis(tests: list[Test], ev: Any, f: dict[str, Any], p: dict[str, Any]) -> None:
+    """各指標觸發當天的條件數值（只用於顯示「觸發依據」，事先決定、不影響評估）。"""
+    by = {t.id: t for t in tests}
+    with np.errstate(invalid="ignore", divide="ignore"):
+        run_t = ind.run_length(f["trust"] > 0).astype(float)
+        run_f = ind.run_length(f["foreign"] > 0).astype(float)
+        f5r = ind.chip_ratio(f["foreign"], f["avgv"], 5)
+        t5r = ind.chip_ratio(f["trust"], f["avgv"], 5)
+        px5 = ind.ret(ev.close, 5)
+        mg5 = ev.margin / ind.shift(ev.margin, 5) - 1
+        k_run = ind.run_length(f["K"] >= float(p["kd_high"])).astype(float)
+        lead = ind.cs_percentile(f["ret20"], np.isfinite(f["ret20"]))
+    value = (ev.value, "百萬元", 1e-6, 0)
+    table: dict[str, list[tuple[str, np.ndarray, str, float, int]]] = {
+        "high52": [("收盤 ÷ 52 週高點", f["h52"], "%", 100, 1), ("20 日乖離", f["bias20"], "%", 100, 1)],
+        "rs90": [("RS 百分位", f["rs_pct"], "", 1, 1), ("20 日乖離", f["bias20"], "%", 100, 1)],
+        "bias15": [("20 日乖離", f["bias20"], "%", 100, 1), ("RS 百分位", f["rs_pct"], "", 1, 1)],
+        "margin_up_up": [("股價 5 日", px5, "%", 100, 1), ("融資 5 日", mg5, "%", 100, 1)],
+        "rev_high12": [("最新月營收年增", f["rev_yoy"], "%", 1, 1), ("年增率變化", f["rev_dyoy"], "百分點", 1, 1)],
+        "rev_accel": [("最新月營收年增", f["rev_yoy"], "%", 1, 1), ("年增率變化", f["rev_dyoy"], "百分點", 1, 1)],
+        "lead_up": [("前 20 日漲幅百分位", lead, "", 1, 0), ("最新月營收年增", f["rev_yoy"], "%", 1, 1)],
+        "combo_rs_trust": [("RS 百分位", f["rs_pct"], "", 1, 1), ("投信連買", run_t, "日", 1, 0)],
+        "trust_run": [("投信連買", run_t, "日", 1, 0), ("投信 5 日累計 ÷ 均量", t5r, "", 1, 2)],
+        "foreign_run": [("外資連買", run_f, "日", 1, 0), ("外資 5 日累計 ÷ 均量", f5r, "", 1, 2)],
+        "sync": [("外資 5 日累計 ÷ 均量", f5r, "", 1, 2), ("投信 5 日累計 ÷ 均量", t5r, "", 1, 2)],
+        "kd_run": [("K 值", f["K"], "", 1, 1), ("K ≥ 80 連續", k_run, "日", 1, 0)],
+        "combo_three": [
+            ("投信連買", run_t, "日", 1, 0),
+            ("外資 5 日累計 ÷ 均量", f5r, "", 1, 2),
+            ("千張大戶週變化", f["whale_chg_asof"], "百分點", 1, 2),
+        ],
+        "whale_up": [
+            ("千張大戶週變化", f["whale_chg_asof"], "百分點", 1, 2),
+            ("千張大戶持股比", ev.whale_pct, "%", 1, 2),
+        ],
+    }
+    for tid, items in table.items():
+        if tid in by:
+            by[tid].basis = [*items, ("當日成交值", *value)]
 
 
 def _attach_near(tests: list[Test], ev: Any, f: dict[str, Any], p: dict[str, Any]) -> None:

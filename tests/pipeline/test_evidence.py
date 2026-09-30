@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import typing
 
 import numpy as np
 import pandas as pd
@@ -11,7 +12,7 @@ import pytest
 from pipeline.evidence import engine, quintile, stats, universe, verdict
 from pipeline.evidence import indicators as ind
 from pipeline.evidence.catalog import Cell, neighbors
-from pipeline.evidence.data import cfg, revenue_table, signal_row, whale_frames, whale_panels
+from pipeline.evidence.data import cfg, revenue_table, whale_frames, whale_panels
 from pipeline.evidence.run import windows
 
 NaN = np.nan
@@ -368,23 +369,52 @@ def test_revenue_effective_next_month_10th_entry_after():
     assert t["row"].tolist() == [1, 3]
 
 
-def test_whale_signal_row_friday_entry_monday():
+def _tdcc(weeks: list[str], pcts: list[float]) -> pd.DataFrame:
+    rows = []
+    for w, p in zip(weeks, pcts, strict=True):
+        rows += [{"date": w, "code": "2330", "level": lv, "pct": v} for lv, v in ((12, 1), (13, 1), (14, 1), (15, p))]
+    return pd.DataFrame(rows)
+
+
+def test_whale_usable_from_rules():
+    """v3 M0-2：週資料最早可被引用＝下週一（且至少公布日次日）。"""
+    from pipeline.evidence.data import whale_usable_from
+
+    assert whale_usable_from("2026-09-18") == "2026-09-21"  # 週五資料 → 下週一
+    assert whale_usable_from("2026-09-24") == "2026-09-28"  # 週四資料（週五中秋休市）→ 下週一
+    assert whale_usable_from("2026-02-07") == "2026-02-09"  # 週六補班資料 → 週日公布 → 週一
+
+
+def test_whale_signal_day_monday_uses_last_friday():
+    """T＝週一（9/21）：引用上週五（9/18）的週資料；週變化只出現在 9/21 這一列（進場 9/22 週二開盤）。"""
     dates = ["2026-09-17", "2026-09-18", "2026-09-21", "2026-09-22"]  # 週四、週五、下週一、週二
-    tdcc = pd.DataFrame(
-        {
-            "date": ["2026-09-11"] * 4 + ["2026-09-18"] * 4,
-            "code": "2330",
-            "level": [12, 13, 14, 15] * 2,
-            "pct": [1, 1, 1, 10, 1, 1, 1, 10.4],
-        }
-    )
-    w = whale_frames(tdcc)
+    w = whale_frames(_tdcc(["2026-09-11", "2026-09-18"], [10.0, 10.4]))
     assert w["chg"].iloc[-1] == pytest.approx(0.4)
     assert w["published"].iloc[-1] == "2026-09-19"
     p = whale_panels(w, dates, ["2330"])
-    # 9/18（五）資料、9/19（六）公布 → 訊號列＝9/18，進場＝9/21（一）開盤
-    assert p["chg"][1, 0] == pytest.approx(0.4) and np.isnan(p["chg"][2, 0])
-    assert signal_row(dates, "2026-09-19") == 1
+    assert p["pct"][2, 0] == pytest.approx(10.4)
+    assert p["chg"][2, 0] == pytest.approx(0.4) and np.isnan(p["chg"][1, 0]) and np.isnan(p["chg"][3, 0])
+
+
+def test_whale_signal_day_friday_not_this_week():
+    """T＝週五（9/18）：只能用上週五（9/11）的資料，不得引用 T 當週（9/18 的資料要 9/19 才公布）。"""
+    dates = ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18"]
+    w = whale_frames(_tdcc(["2026-09-04", "2026-09-11", "2026-09-18"], [9.8, 10.0, 10.4]))
+    p = whale_panels(w, dates, ["2330"])
+    assert p["pct"][4, 0] == pytest.approx(10.0)  # 9/18 看到的是 9/11 那週
+    assert p["chg"][0, 0] == pytest.approx(0.2)  # 9/11 那週的週變化在 9/14（週一）
+    assert np.isnan(p["chg"][4, 0])
+
+
+def test_whale_signal_day_after_long_holiday():
+    """連假：9/24（週四）資料（9/25 中秋、9/28 教師節休市）→ 第一個可引用的訊號日是 9/29（週二），進場 9/30；
+    9/24 當天（T＝週四）引用的是 9/18 那週。"""
+    dates = ["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-29", "2026-09-30"]
+    w = whale_frames(_tdcc(["2026-09-18", "2026-09-24"], [10.0, 10.5]))
+    p = whale_panels(w, dates, ["2330"])
+    assert p["pct"][3, 0] == pytest.approx(10.0)
+    assert p["pct"][4, 0] == pytest.approx(10.5) and p["chg"][4, 0] == pytest.approx(0.5)
+    assert np.isnan(p["chg"][3, 0])
 
 
 def test_universe_rules():
@@ -474,3 +504,176 @@ def test_best_exit_by_excess_vs_index():
         }
     }
     assert best_exit(d)["param"] == "20"  # 只比較各規則的選定參數
+
+
+def test_coverage_single_definition_matches_counts():
+    """v3 M0-3：涵蓋率＝Σ每日有資料 ÷ Σ每日 universe；「納入 x／y 檔」＝每日平均，x ÷ y＝涵蓋率。
+
+    3 天、4 檔：universe 每天 4、4、2 檔；universe 內有資料 1、2、1 檔（第 3 天第 2 檔有資料但不在 universe）
+    → 涵蓋率 4 ÷ 10 ＝ 40%；每日平均 1.33 → 1、3.33 → 3（1 ÷ 3 ≈ 33%，四捨五入後的顯示仍以 40% 為準）。
+    曾經納入 2 檔（第 0、1 檔）、曾在 universe 4 檔。
+    """
+    from pipeline.evidence.run import coverage, coverage_label
+
+    class E:
+        dates: typing.ClassVar[list[str]] = ["2026-01-05", "2026-01-06", "2026-01-07"]
+        codes: typing.ClassVar[list[str]] = ["1101", "1102", "1103", "1104"]
+        delist_date: typing.ClassVar[dict[str, str]] = {"1102": "2026-03-01"}
+
+    uni = np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 0, 0]], dtype=bool)
+    avail = np.array([[1, 0, 0, 0], [1, 1, 0, 0], [0, 1, 1, 0]], dtype=bool)
+
+    class Tst:
+        pass
+
+    t = Tst()
+    t.avail = avail  # type: ignore[attr-defined]
+    c = cfg()
+    cov = coverage(t, E(), uni, "2026-01-05", c)  # type: ignore[arg-type]
+    assert cov["ratio"] == 0.4 and cov["included"] == 1 and cov["universe"] == 3
+    assert cov["ever_included"] == 2 and cov["ever_universe"] == 4
+    assert cov["ever_delisted"] == 1  # 納入的 1101、1102 中，1102 已終止上市
+    assert cov["label"] == "樣本範圍受限"
+    assert (
+        coverage_label(0.49, c) == "樣本範圍受限"
+        and coverage_label(0.9, c) is None
+        and coverage_label(0.89, c) == "部分涵蓋"
+    )
+
+
+def test_weekly_coverage_by_iso_week():
+    """每週涵蓋率：1/5–1/7（同一週）Σuniverse 內有資料 4 ÷ Σuniverse 10 ＝ 0.4；1/12（下一週）2 ÷ 4 ＝ 0.5。"""
+    from pipeline.evidence.run import weekly_coverage
+
+    dates = ["2026-01-05", "2026-01-06", "2026-01-07", "2026-01-12"]
+    uni = np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 0, 0], [1, 1, 1, 1]], dtype=bool)
+    avail = np.array([[1, 0, 0, 0], [1, 1, 0, 0], [0, 1, 1, 0], [1, 1, 0, 0]], dtype=bool)
+    w = weekly_coverage(avail, uni, dates, "2026-01-01")
+    assert [x["date"] for x in w] == ["2026-01-07", "2026-01-12"]
+    assert [x["ratio"] for x in w] == [0.4, 0.5]
+    assert w[0]["included"] == 1 and w[0]["universe"] == 3
+
+
+def test_hindsight_waits_until_full_coverage():
+    """涵蓋率未達 90% 不比較「原 31 檔 vs 全市場」。"""
+    from pipeline.evidence.run import hindsight
+
+    out = hindsight(np.zeros((1, 1), bool), None, "2026-01-01", {"ratio": 0.62}, {}, cfg())  # type: ignore[arg-type]
+    assert out == {"status": "waiting", "coverage": 0.62, "threshold": 0.9}
+    assert len(cfg()["hindsight_codes"]) == 31
+
+
+def test_official_delistings_exclude_transfer():
+    from pipeline.evidence.data import official_delistings
+
+    dl = pd.DataFrame(
+        {
+            "code": ["1101", "6446", "2888"],
+            "date": ["2020-01-02", "2024-01-25", "2025-07-24"],
+            "kind": ["delisted", "transfer", "delisted"],
+        }
+    )
+    assert official_delistings(dl) == {"1101": "2020-01-02", "2888": "2025-07-24"}
+
+
+def test_full_delivery_mask_snapshots_and_additions():
+    """快照：9/28 名單有 A、9/30 名單只剩 B → A 標記 9/28–9/29、B 自 9/30 起。
+    歷史新增：C 在 9/22 新增、9/25 終止上市 → 標記 9/22–9/24；D 在 9/22 新增、快照裡沒有、也沒下市 → 假設 2 個交易日。"""
+    from pipeline.evidence.data import full_delivery_mask
+
+    dates = ["2026-09-22", "2026-09-23", "2026-09-24", "2026-09-28", "2026-09-29", "2026-09-30"]
+    codes = ["A", "B", "C", "D"]
+    cmode = pd.DataFrame(
+        {
+            "code": ["A", "B"],
+            "altered": [True, True],
+            "managed": [False, False],
+            "asof": ["2026-09-28", "2026-09-30"],
+            "source": ["twse_cmode", "twse_cmode"],
+        }
+    )
+    add = pd.DataFrame({"code": ["C", "D"], "date": ["2026-09-22", "2026-09-22"]})
+    m, note = full_delivery_mask(cmode, add, {"C": "2026-09-25"}, dates, codes, assume_days=2)
+    assert m[:, 0].tolist() == [False, False, False, True, True, False]
+    assert m[:, 1].tolist() == [False] * 5 + [True]
+    assert m[:, 2].tolist() == [True, True, True, False, False, False]
+    assert m[:, 3].tolist() == [True, True, False, False, False, False]
+    assert note["assumed"] == 1 and note["additions"] == 2
+
+
+def test_delisted_exit_last_close_and_conservative():
+    """下市：進場 100、持有中下市（最後收盤 60）→ 以 60 出場並標示；保守版本淨報酬 −100%。
+    停牌到資料結束但不在官方名單 → halted（同樣以最後收盤出場，不套保守版本）。"""
+    from pipeline.evidence import engine, stats
+
+    T = 8
+    op = np.full((T, 3), 100.0)
+    op[4:, 1] = NaN  # 第 2 檔第 4 列起無法成交（下市）
+    op[4:, 2] = NaN  # 第 3 檔第 4 列起停牌（官方沒有下市）
+    cl = op.copy()
+    cl[3, 1] = 60.0
+    cl[3, 2] = 80.0
+    vol = np.where(np.isfinite(op), 1000.0, 0.0)
+    mk = engine.Market(
+        dates=[f"2026-01-{i + 5:02d}" for i in range(T)],
+        open=op,
+        high=cl.copy(),
+        low=cl.copy(),
+        close=cl,
+        volume=vol,
+        universe=np.ones((T, 3), dtype=bool),
+        bench=np.full(T, 100.0),
+        bench_is_tr=True,
+        regime_up=np.ones(T, dtype=bool),
+        trend_up=np.ones(T, dtype=bool),
+        quarter_end=np.zeros(T, dtype=bool),
+        limit_up_pct=9.5,
+        gap_pct=5,
+        limit_down_pct=-9.5,
+        horizons=[3],
+        official_delisted=np.array([False, True, False]),
+    )
+    df = engine.evaluate(mk, np.array([1, 1, 1]), np.array([0, 1, 2]), 3)
+    assert df["delisted"].tolist() == [False, True, False]
+    assert df["halted"].tolist() == [False, False, True]
+    fee, tax = mk.fee, mk.tax
+    assert df.loc[1, "net"] == pytest.approx(engine.net_return(0.6 - 1, fee, tax))
+    df = engine.annotate(df, mk)
+    c = cfg()
+    d = stats.delist_conservative(df, c)
+    assert d is not None and d["affected"] == 1
+    # 同一進場日 3 筆平均：(0 基準) 超額＝淨報酬；下市那筆改為 −1
+    n0 = engine.net_return(0.0, fee, tax)
+    n2 = engine.net_return(0.8 - 1, fee, tax)
+    # 基準＝同日全市場平均，保守版本只改下市那筆的淨報酬
+    mm = mk.market_mean[3][2]
+    # 同日全市場（進場第 2 列）：0%、−40%（下市最後收盤 60）、−20%（停牌最後收盤 80）三檔扣成本後平均
+    assert mm == pytest.approx((n0 + engine.net_return(-0.4, fee, tax) + n2) / 3)
+    assert d["mean_excess"] == pytest.approx(((n0 - mm) + (-1 - mm) + (n2 - mm)) / 3 * 100, abs=1e-3)
+
+
+def test_verdict_changes_only_after_limited():
+    """v3 M4-2：只有原本「樣本範圍受限」、這次改判的大戶類指標才推播；文字不含買賣字眼。"""
+    from pipeline.evidence.run import verdict_changes
+
+    prev = [
+        {"id": "combo_three", "verdict": "樣本範圍受限"},
+        {"id": "whale_up", "verdict": "樣本範圍受限"},
+        {"id": "rs90", "verdict": "無效"},
+    ]
+    rows = [
+        {
+            "id": "combo_three",
+            "label": "三方同買",
+            "verdict": "無效",
+            "coverage": {"ratio": 0.93},
+            "mean_excess": 0.4,
+            "t": 0.8,
+            "n": 900,
+        },
+        {"id": "whale_up", "label": "千張大戶週增", "verdict": "樣本範圍受限", "coverage": {"ratio": 0.4}},
+        {"id": "rs90", "label": "RS", "verdict": "有效"},
+    ]
+    msgs = verdict_changes(prev, rows)
+    assert len(msgs) == 1 and "三方同買 由「樣本範圍受限」改判為「無效」（涵蓋率 93%" in msgs[0]
+    assert "買進" not in msgs[0] and "賣出" not in msgs[0]

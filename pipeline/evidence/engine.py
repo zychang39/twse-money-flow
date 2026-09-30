@@ -58,6 +58,8 @@ class Market:
     gap_pct: float
     limit_down_pct: float
     horizons: list[int]
+    official_delisted: np.ndarray | None = None  # (C,) v3 M1：官方終止上市櫃（不含轉上市），資料期間內已下市
+    etf: dict[str, dict[str, np.ndarray]] | None = None  # v3 M2：0050、00631L 還原開盤／收盤（買進持有基準）
 
     def __post_init__(self) -> None:
         T, C = self.open.shape
@@ -85,6 +87,13 @@ class Market:
         self.fmin = {h: _fwd_extreme(self.low, h, "min") for h in self.horizons}
         self.fmax = {h: _fwd_extreme(self.high, h, "max") for h in self.horizons}
         self.market_mean = {h: self._market_mean(h) for h in self.horizons}
+        # v3 M3：同日等權 universe 的每日指數（收盤到收盤，前一日在 universe 的股票等權平均），給持有天數不固定的出場規則用
+        with np.errstate(invalid="ignore", divide="ignore"):
+            r = self.close[1:] / self.close[:-1] - 1
+        r = np.where(self.universe[:-1] & np.isfinite(r), r, np.nan)
+        cnt = np.isfinite(r).sum(axis=1)
+        daily = np.where(cnt > 0, np.nansum(r, axis=1) / np.maximum(cnt, 1), 0.0)
+        self.ew_level = np.concatenate([[1.0], np.cumprod(1 + daily)])
 
     # ------------------------------------------------------------------ 出場
     def exits(self, e: np.ndarray, c: np.ndarray, h: int) -> dict[str, np.ndarray]:
@@ -98,17 +107,28 @@ class Market:
         has = act < T
         act_c = np.where(has, act, 0)
         px = np.where(has, self.open[act_c, c], np.nan)
-        # 下市（之後都無法成交）：以最後一個收盤價出場
-        delisted = ok & ~has
+        # 之後都無法成交：以最後一個收盤價出場。官方終止上市櫃者標為下市（delisted）；
+        # 其他（資料結束時仍停牌、官方名單沒有）標為 halted，同樣以最後收盤出場
+        stuck = ok & ~has
+        off = self.official_delisted[c] if self.official_delisted is not None else np.ones(c.size, dtype=bool)
+        delisted = stuck & off
         lr = self.last_close_row[c]
         dl_px = np.where(lr >= 0, self.close[np.maximum(lr, 0), c], np.nan)
-        px = np.where(delisted, dl_px, px)
-        act = np.where(delisted, np.maximum(lr, e), act)
+        px = np.where(stuck, dl_px, px)
+        act = np.where(stuck, np.maximum(lr, e), act)
         locked = ok & self.locked[xi, c]
         nominal = self.open[xi, c]
         with np.errstate(invalid="ignore", divide="ignore"):
             lock_loss = np.where(locked & has, px / nominal - 1, np.nan)
-        return {"row": act, "px": px, "ok": ok, "locked": locked, "lock_loss": lock_loss, "delisted": delisted}
+        return {
+            "row": act,
+            "px": px,
+            "ok": ok,
+            "locked": locked,
+            "lock_loss": lock_loss,
+            "delisted": delisted,
+            "halted": stuck & ~delisted,
+        }
 
     def _market_mean(self, h: int) -> np.ndarray:
         """同一進場日、同一持有期、universe 內全部股票（訊號日 t＝e−1 在 universe、進場日可進場）的平均淨報酬。"""
@@ -127,6 +147,24 @@ class Market:
             if g.size:
                 out[e] = float(np.mean(net_return(g, self.fee, self.tax)))
         return out
+
+    def etf_return(self, code: str, e: np.ndarray, x: np.ndarray, at_close: np.ndarray) -> np.ndarray:
+        """v3 M2：可投資基準（0050、00631L）同一段期間的買進持有報酬（還原價、含息、不扣成本）：
+        進場日開盤 → 出場日開盤（與事件同一個時點）；事件以最後收盤出場（下市、停牌）時用同一天的收盤。"""
+        T = len(self.dates)
+        s = (self.etf or {}).get(code)
+        if s is None:
+            return np.full(e.size, np.nan)
+        xi = np.clip(x, 0, T - 1)
+        p1 = np.where(at_close, s["close"][xi], s["open"][xi])
+        with np.errstate(invalid="ignore", divide="ignore"):
+            return p1 / s["open"][np.clip(e, 0, T - 1)] - 1
+
+    def ew_return(self, e: np.ndarray, x: np.ndarray) -> np.ndarray:
+        """同日等權指數：進場前一日收盤 → 出場前一日收盤（與加權報酬指數同一種近似）。"""
+        b0 = self.ew_level[np.clip(e - 1, 0, None)]
+        b1 = self.ew_level[np.clip(x - 1, 0, None)]
+        return b1 / b0 - 1
 
     def bench_return(self, e: np.ndarray, x: np.ndarray) -> np.ndarray:
         """指數報酬：進場前一日收盤（≈ 進場開盤）到出場前一日收盤（≈ 出場開盤）。"""
@@ -160,8 +198,25 @@ def market(ev: Any, universe: np.ndarray, cfg: dict[str, Any]) -> Market:
         limit_up_pct=float(cfg["entry"]["limit_up_pct"]),
         gap_pct=float(cfg["entry"]["gap_pct"]),
         limit_down_pct=float(cfg["entry"]["limit_down_pct"]),
-        horizons=[int(h) for h in cfg["horizons"]],
+        horizons=[int(h) for h in [*cfg["horizons"], *(cfg.get("horizons_ref") or [])]],
+        official_delisted=official_mask(ev),
+        etf=getattr(ev, "etf", None) or None,
     )
+
+
+# v3 M2 四種基準 → 事件表的超額欄位：(a) 同日等權 universe（主要，判定用）、(b) 加權報酬指數、(c) 0050、(d) 00631L
+BENCH_COLS = {"ew": "exc_mkt", "tr": "exc_idx", "0050": "exc_0050", "00631L": "exc_00631L"}
+BENCH_LABELS = {"ew": "等權", "tr": "加權報酬", "0050": "0050", "00631L": "00631L"}
+BOOT_BENCH = ("ew", "0050")  # bootstrap 區間只對 (a)、(c) 計算
+
+
+def official_mask(ev: Any) -> np.ndarray | None:
+    """(C,)：官方終止上市櫃日期在資料期間內（含最後一日）。沒有名單資料時為 None（沿用 v2：無法成交即視為下市）。"""
+    dd = getattr(ev, "delist_date", None)
+    if not dd:
+        return None
+    end = ev.dates[-1]
+    return np.array([bool(dd.get(c)) and dd[c] <= end for c in ev.codes])
 
 
 def quarter_end_mask(dates: list[str], n: int) -> np.ndarray:
@@ -201,6 +256,9 @@ def evaluate(mk: Market, t: np.ndarray, c: np.ndarray, h: int) -> pd.DataFrame:
     net = net_return(gross, mk.fee, mk.tax)
     bench = mk.bench_return(e_c, ex["row"])
     mkt = mk.market_mean[h][e_c]
+    stuck = ex["delisted"] | ex["halted"]
+    b0050 = mk.etf_return("0050", e_c, ex["row"], stuck)
+    b631 = mk.etf_return("00631L", e_c, ex["row"], stuck)
     df = pd.DataFrame(
         {
             "t": t,
@@ -212,11 +270,14 @@ def evaluate(mk: Market, t: np.ndarray, c: np.ndarray, h: int) -> pd.DataFrame:
             "gross": gross,
             "exc_idx": net - bench,
             "exc_mkt": net - mkt,
+            "exc_0050": net - b0050,
+            "exc_00631L": net - b631,
             "mae": mae,
             "mfe": mfe,
             "locked": ex["locked"],
             "lock_loss": ex["lock_loss"],
             "delisted": ex["delisted"],
+            "halted": ex["halted"],
             "gap": valid_e & mk.gap[e_c, c],
         }
     )

@@ -38,13 +38,43 @@ export interface EvidenceRow {
   data_start?: string | null;
   signal_start?: string | null;
   signal_end?: string | null;
-  coverage?: { included: number; universe: number; ratio: number };
+  coverage?: Coverage;
+  hindsight?: Hindsight;
+  /** v3 M2：四種基準的超額與 t（判定以等權為準）；對 0050 不顯著時標「未勝過大型股」 */
+  bench?: Record<string, { mean_excess: number | null; t: number | null; ci?: [number | null, number | null]; win?: number | null } | null>;
+  t_0050?: number | null;
+  large_cap?: string | null;
+  /** v3 M1：納入股票中已下市檔數、持有期間下市／停牌的事件數、下市視為 −100% 的保守版本 */
+  delist?: { stocks?: number; events?: number; halted?: number; dl100?: (Brief & { affected?: number }) | null };
   note?: string;
   param?: string | null;
-  h?: Record<string, { n?: number; mean_excess?: number | null; t?: number | null }>;
+  h?: Record<string, { n?: number; mean_excess?: number | null; t?: number | null; bench?: Record<string, { mean_excess: number | null; t: number | null; ci?: [number | null, number | null]; win?: number | null } | null> }>;
   recent?: Brief | null;
   components?: Record<string, { label: string; n?: number; mean_excess?: number | null; t?: number | null }>;
 }
+
+/** v3 M0-3 涵蓋率（唯一定義）：Σ每日有資料檔數 ÷ Σ每日 universe 檔數；included／universe 是每日平均檔數，相除即涵蓋率。 */
+export interface Coverage {
+  ratio: number;
+  included: number;
+  universe: number;
+  ever_included?: number;
+  ever_universe?: number;
+  label?: string | null;
+}
+
+/** v3 M0-4 後見之明偏差估計：原 31 檔 vs 全市場（涵蓋率 ≥ 90% 後才計算）。 */
+export interface Hindsight {
+  status: 'waiting' | 'ok';
+  coverage: number;
+  threshold?: number;
+  codes?: number;
+  orig?: Brief & { stocks?: number };
+  full?: { n?: number; mean_excess?: number | null; t?: number | null };
+  bias?: number | null;
+}
+
+export interface WeeklyCoverage { date: string; ratio: number; included: number; universe: number }
 
 export interface EvidenceMeta {
   generated_at?: string;
@@ -56,6 +86,8 @@ export interface EvidenceMeta {
   price_start?: string;
   starts?: Record<string, string | null>;
   config?: { primary_horizon: number; stats: { t_threshold: number } };
+  coverage_weekly?: Record<string, WeeklyCoverage[]>;
+  coverage_rule?: { limited: number; full: number };
   error?: string;
 }
 
@@ -121,6 +153,32 @@ export function verdictNote(r: EvidenceRow): string {
     case '樣本範圍受限': return '資料只涵蓋部分股票，結果不能代表全市場。';
     default: return '';
   }
+}
+
+/** 涵蓋率標示：< 50% 樣本範圍受限、50–90% 部分涵蓋、≥ 90% 不標示（與 pipeline coverage_label 同一規則）。 */
+export function coverageLabel(ratio: number | null | undefined, rule = { limited: 0.5, full: 0.9 }): string | null {
+  if (ratio === null || ratio === undefined || !Number.isFinite(ratio)) return null;
+  if (ratio < rule.limited) return '樣本範圍受限';
+  if (ratio < rule.full) return '部分涵蓋';
+  return null;
+}
+
+/** 「涵蓋率 67%（每日平均 887／1,320 檔）」：百分比與檔數出自同一個定義，一定對得上。 */
+export function coverageText(c: Coverage | undefined): string {
+  if (!c) return '涵蓋率 —';
+  const pct = Math.round(c.ratio * 100);
+  return `涵蓋率 ${pct}%（每日平均 ${c.included.toLocaleString('zh-TW')}／${c.universe.toLocaleString('zh-TW')} 檔）`;
+}
+
+/** 「期間內曾納入 1,601 檔，其中已下市 23 檔；持有期間下市 4 筆（最後收盤出場）；保守版本（下市 −100%）+0.52%（t 3.40）」 */
+export function delistText(r: EvidenceRow): string {
+  const d = r.delist;
+  if (!d) return '';
+  const parts = [`期間內曾納入 ${(r.coverage?.ever_included ?? 0).toLocaleString('zh-TW')} 檔，其中已下市 ${(d.stocks ?? 0).toLocaleString('zh-TW')} 檔`];
+  if (d.events) parts.push(`持有期間下市 ${d.events} 筆（以最後可成交日收盤出場）`);
+  if (d.halted) parts.push(`停牌到資料結束 ${d.halted} 筆`);
+  parts.push(d.dl100 ? `保守版本（下市視為 ${MINUS}100%）${pctSigned(d.dl100.mean_excess)}（t ${tText(d.dl100.t)}）` : '沒有持有期間下市的事件');
+  return parts.join('；') + '。';
 }
 
 export function counts(rows: EvidenceRow[]): Record<Verdict, number> {

@@ -112,6 +112,10 @@ def parse_insti(payload: bytes | str | dict[str, Any]) -> ParseResult:
         return _empty(INSTI_COLS, obj)
     d = _obj_date(obj)
     t = _first_table(obj)
+    if "fields" not in t:  # 2018 年以前：第一個表格是空的 {}，明細在下一個表格
+        t = next((x for x in obj.get("tables", []) if isinstance(x, dict) and x.get("fields")), t)
+    if len(t.get("fields", [])) < len(TPEX_INSTI_FIELDS):
+        return _parse_insti_old(t, d)
     expect_fields(t["fields"], TPEX_INSTI_FIELDS)
     # 欄位群組：外資(不含外資自營) 2–4、外資自營 5–7、外資合計 8–10、投信 11–13、
     #           自營(自行) 14–16、自營(避險) 17–19、自營合計 20–22、三大法人合計 23
@@ -137,6 +141,45 @@ def parse_insti(payload: bytes | str | dict[str, Any]) -> ParseResult:
         "dealer_hedge_sell": 18,
     }
     df = frame_from_fields(t["fields"], t.get("data", []), mapping)
+    df = finalize(df, numeric=INSTI_COLS[3:])
+    df["date"] = d.isoformat() if d else None
+    df = df[df["code"].map(is_security_code)]
+    return ParseResult(df[INSTI_COLS].reset_index(drop=True), response_date=d)
+
+
+def _parse_insti_old(t: dict[str, Any], d: date | None) -> ParseResult:
+    """v3 M0：2018 年以前的舊版面（16 欄，外資不拆外資自營商）：依欄名解析。
+
+    外資及陸資＝當時的外資合計（外資自營商 2017-12-18 起才另列），外資自營商欄位為空值；
+    自營商自行買賣／避險 2014-12-01 起才拆分，更早為空值（選用欄位）。
+    """
+    df = frame_from_fields(
+        t["fields"],
+        t.get("data", []),
+        {
+            "code": "代號",
+            "name": "名稱",
+            "foreign_buy": ("外資及陸資買股數", "外資及陸資買進股數"),
+            "foreign_sell": ("外資及陸資賣股數", "外資及陸資賣出股數"),
+            "foreign_net": ("外資及陸資淨買股數", "外資及陸資買賣超股數"),
+            "trust_buy": ("投信買進股數", "投信買股數"),
+            "trust_sell": ("投信賣股數", "投信賣出股數"),
+            "trust_net": ("投信淨買股數", "投信買賣超股數"),
+            "dealer_net": ("自營淨買股數", "自營商淨買股數"),
+            "dealer_self_buy": "自營商(自行買賣)買股數",
+            "dealer_self_sell": "自營商(自行買賣)賣股數",
+            "dealer_self_net": "自營商(自行買賣)淨買股數",
+            "dealer_hedge_buy": "自營商(避險)買股數",
+            "dealer_hedge_sell": "自營商(避險)賣股數",
+            "dealer_hedge_net": "自營商(避險)淨買股數",
+            "total_net": ("三大法人買賣超股數", "三大法人買賣超股數合計"),
+        },
+        required=["code", "foreign_net", "trust_net", "total_net"],
+        source="tpex_insti",
+    )
+    for name in INSTI_COLS:
+        if name not in df.columns and name != "date":
+            df[name] = None
     df = finalize(df, numeric=INSTI_COLS[3:])
     df["date"] = d.isoformat() if d else None
     df = df[df["code"].map(is_security_code)]

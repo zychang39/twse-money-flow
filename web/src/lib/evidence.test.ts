@@ -51,3 +51,29 @@ describe('有效訊號面板', () => {
     expect(panelItems(rows, today, '1101').every((i) => i.state === 'off')).toBe(true);
   });
 });
+
+describe('涵蓋率（v3 M0-3）', () => {
+  it('百分比與每日平均檔數同一個定義；標示 50%／90% 門檻', async () => {
+    const { coverageText, coverageLabel } = await import('./evidence');
+    // 887 ÷ 1,320 ＝ 67.2% → 67%
+    expect(coverageText({ ratio: 887 / 1320, included: 887, universe: 1320 })).toBe('涵蓋率 67%（每日平均 887／1,320 檔）');
+    expect(coverageLabel(0.09)).toBe('樣本範圍受限');
+    expect(coverageLabel(0.5)).toBe('部分涵蓋');
+    expect(coverageLabel(0.899)).toBe('部分涵蓋');
+    expect(coverageLabel(0.9)).toBeNull();
+    expect(coverageLabel(undefined)).toBeNull();
+  });
+});
+
+describe('下市（v3 M1）', () => {
+  it('納入股票中已下市檔數、下市事件與保守版本', async () => {
+    const { delistText } = await import('./evidence');
+    const r = {
+      id: 'x', label: 'x', family: '動能', kind: 'event', verdict: '有效', reasons: [],
+      coverage: { ratio: 0.93, included: 754, universe: 806, ever_included: 1601 },
+      delist: { stocks: 23, events: 4, halted: 1, dl100: { n: 100, mean_excess: 0.52, t: 3.4 } },
+    } as EvidenceRow;
+    expect(delistText(r)).toBe('期間內曾納入 1,601 檔，其中已下市 23 檔；持有期間下市 4 筆（以最後可成交日收盤出場）；停牌到資料結束 1 筆；保守版本（下市視為 −100%）+0.52%（t 3.40）。');
+    expect(delistText({ ...r, delist: { stocks: 0, events: 0, dl100: null } })).toBe('期間內曾納入 1,601 檔，其中已下市 0 檔；沒有持有期間下市的事件。');
+  });
+});
