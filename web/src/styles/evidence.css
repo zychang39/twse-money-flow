@@ -66,3 +66,7 @@
 .eq-pill[aria-pressed='true'] { color: var(--text-1); border-color: var(--brand); font-weight: var(--fw-semibold); }
 .st-seg { margin: var(--s-2) 0; }
 .st-seg button { flex: 1; min-height: var(--tap); }
+/* v3 M3 累積超額曲線：拖曳讀值（垂直滑動仍可捲動頁面） */
+.ac-svg { display: block; touch-action: pan-y; cursor: crosshair; }
+.ac-svg:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-sm); }
+.ac-read { min-height: 2.5rem; font-variant-numeric: tabular-nums; }

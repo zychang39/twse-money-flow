@@ -650,3 +650,30 @@ def test_delisted_exit_last_close_and_conservative():
     # 同日全市場（進場第 2 列）：0%、−40%（下市最後收盤 60）、−20%（停牌最後收盤 80）三檔扣成本後平均
     assert mm == pytest.approx((n0 + engine.net_return(-0.4, fee, tax) + n2) / 3)
     assert d["mean_excess"] == pytest.approx(((n0 - mm) + (-1 - mm) + (n2 - mm)) / 3 * 100, abs=1e-3)
+
+
+def test_verdict_changes_only_after_limited():
+    """v3 M4-2：只有原本「樣本範圍受限」、這次改判的大戶類指標才推播；文字不含買賣字眼。"""
+    from pipeline.evidence.run import verdict_changes
+
+    prev = [
+        {"id": "combo_three", "verdict": "樣本範圍受限"},
+        {"id": "whale_up", "verdict": "樣本範圍受限"},
+        {"id": "rs90", "verdict": "無效"},
+    ]
+    rows = [
+        {
+            "id": "combo_three",
+            "label": "三方同買",
+            "verdict": "無效",
+            "coverage": {"ratio": 0.93},
+            "mean_excess": 0.4,
+            "t": 0.8,
+            "n": 900,
+        },
+        {"id": "whale_up", "label": "千張大戶週增", "verdict": "樣本範圍受限", "coverage": {"ratio": 0.4}},
+        {"id": "rs90", "label": "RS", "verdict": "有效"},
+    ]
+    msgs = verdict_changes(prev, rows)
+    assert len(msgs) == 1 and "三方同買 由「樣本範圍受限」改判為「無效」（涵蓋率 93%" in msgs[0]
+    assert "買進" not in msgs[0] and "賣出" not in msgs[0]

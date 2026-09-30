@@ -4,7 +4,8 @@
   R_k ＝ 收盤(e+k−1) ÷ 開盤(e) − 1（還原價；停牌、下市後沿用最後收盤；不扣成本，曲線看的是形狀與時間）
 減去同一段期間的基準：
   (a) 同日等權 universe：同一個進場日、訊號日在 universe 且進場日可進場的全部股票，同樣的 R_k 取平均；
-  (c) 0050：還原收盤(e+k−1) ÷ 還原開盤(e) − 1。
+  (b) 加權報酬指數：收盤(e+k−1) ÷ 收盤(e−1) − 1（只有收盤，近似開盤進場）；
+  (c) 0050、(d) 00631L：還原收盤(e+k−1) ÷ 還原開盤(e) − 1。
 日曆時間法：同一進場日的事件先平均，再對日期平均；95% 帶＝日期分層 bootstrap（同一組重抽權重用在每一個 k）。
 峰值日＝平均累積超額最大的 k；alpha 耗盡日＝邊際超額（第 k 日 − 第 k−1 日）連續 5 日 ≤ 0 的第一天。
 """
@@ -62,6 +63,20 @@ def etf_paths(mk: Market, code: str, K: int) -> np.ndarray | None:
             rows = np.arange(T) + k - 1
             ok = rows < T
             out[k - 1, ok] = s["close"][rows[ok]] / s["open"][ok] - 1
+    return out
+
+
+def index_paths(mk: Market, K: int) -> np.ndarray:
+    """加權報酬指數（只有收盤）：進場前一日收盤 → 第 k 日收盤（與事件的開盤進場近似）。"""
+    T = len(mk.dates)
+    out = np.full((K, T), np.nan)
+    b = mk.bench
+    with np.errstate(invalid="ignore", divide="ignore"):
+        for k in range(1, K + 1):
+            rows = np.arange(T) + k - 1
+            ok = (rows < T) & (np.arange(T) >= 1)
+            e = np.arange(T)[ok]
+            out[k - 1, ok] = b[rows[ok]] / b[e - 1] - 1
     return out
 
 
@@ -130,7 +145,12 @@ def curve(mk: Market, events: pd.DataFrame, K: int, reps: int, seed: int, run: i
     c = events["c"].to_numpy(dtype=np.int64)
     R = event_paths(mk, e, c, K)
     out: dict[str, Any] = {"n": len(events), "k": list(range(1, K + 1))}
-    benches: dict[str, np.ndarray | None] = {"ew": market_paths(mk, K), "0050": etf_paths(mk, "0050", K)}
+    benches: dict[str, np.ndarray | None] = {
+        "ew": market_paths(mk, K),
+        "tr": index_paths(mk, K),
+        "0050": etf_paths(mk, "0050", K),
+        "00631L": etf_paths(mk, "00631L", K),
+    }
     for key, B in benches.items():
         if B is None:
             continue

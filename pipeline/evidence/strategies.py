@@ -198,6 +198,28 @@ def bench_compare(eq: np.ndarray, mk: Market, ev: Any, start: int) -> dict[str, 
     return out
 
 
+def basis_values(basis: list[Any], ev: Any, code: str, t: int) -> list[dict[str, Any]]:
+    """v3 M5-5 觸發依據：該股在訊號日的各條件數值（名稱、數值、單位）。"""
+    i = ev.codes.index(code)
+    out = []
+    for label, arr, unit, scale, digits in basis:
+        v = arr[t, i]
+        out.append({"label": label, "value": round(float(v) * scale, digits) if np.isfinite(v) else None, "unit": unit})
+    return out
+
+
+def today_note(item: dict[str, Any], ev: Any, mk: Market, last: int) -> str | None:
+    """今日 0 檔時的原因（不留白）：環境條件不符、資料未更新（最新資料日早於預期交易日）、或沒有股票同時符合。"""
+    if item.get("today"):
+        return None
+    env = item.get("env")
+    if env and not env.get("today"):
+        return f"今日大盤環境不符合（{env.get('label')}），而且今天沒有股票同時符合條件。"
+    if item.get("verdict") == verdict.LIMITED:
+        return "千張大戶資料只涵蓋部分股票（回補中），今天沒有涵蓋到的股票觸發。"
+    return f"{ev.dates[last]} 收盤後沒有股票首次同時符合全部條件（同一檔持續符合不重複計入）。"
+
+
 def health(row: dict[str, Any], min_recent: int) -> dict[str, Any]:
     """近 60 日（已完成）vs 長期的平均超額（相對同日全市場）。"""
     rec = row.get("recent") or {}
@@ -278,7 +300,15 @@ def build(res: dict[str, Any]) -> dict[str, Any]:
         }
         mask = keep["mask"]
         today_codes = [ev.codes[i] for i in np.nonzero(mask[last] & uni[last])[0]]
-        item["today"] = [{"code": code, "name": ev.names.get(code, code)} for code in today_codes]
+        item["today"] = [
+            {
+                "code": code,
+                "name": ev.names.get(code, code),
+                "basis": basis_values(keep.get("basis") or [], ev, code, last),
+            }
+            for code in today_codes
+        ]
+        item["today_note"] = today_note(item, ev, mk, last)
         if enabled:
             signals[s["id"]] = {
                 ev.dates[t]: [ev.codes[i] for i in np.nonzero(mask[t] & uni[t])[0]]

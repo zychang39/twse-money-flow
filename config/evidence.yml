@@ -82,6 +82,10 @@ indicators:
   price_lead_top: 0.9
   combo_rs: 80
   combo_trust_run: 3
+  # v3 M4 三方同買參數格（27 格，walk-forward）：投信連買 n、外資近 5 日累計 ÷ 前 20 日均量門檻、千張大戶週增門檻（百分點）
+  three_trust_runs: [3, 5, 10]
+  three_foreign_thresholds: [0, 0.1, 0.3]
+  three_whale_thresholds: [0.1, 0.3, 0.5]
   revenue_fallback_day: 10      # 月營收生效日：沒有公布日時為次月 10 日
 
 # 1.10 出場規則（對判定為有效或環境依賴的指標）

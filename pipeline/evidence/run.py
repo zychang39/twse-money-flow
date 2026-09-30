@@ -223,6 +223,10 @@ def evaluate_event(test: catalog.Test, r: EventRunner, start: str, end: str) -> 
         if oos_parts:
             oos = {**stats.brief(pd.concat(oos_parts), c), "start": wf[0]["valid"][0], "kind": "walk_forward"}
         test.variants["main"] = (res["variants"]["main"]["label"], chosen.mask)
+        if test.components_fn is not None:  # v3 M4：選定參數的單一條件與兩兩組合
+            comps = test.components_fn(chosen.params)
+            test.variants.update(comps)
+            test.components = list(comps)
     for key, (label, mask) in test.variants.items():
         if key == "main" and test.grid:
             continue
@@ -444,7 +448,7 @@ def evaluate(
             recent = stats.brief(d_all[d_all["t"] >= cut], c)
             recent["since"] = ev.dates[max(cut, 0)]
         main_mask = test.variants["main"][1]
-        keep[test.id] = {"mask": main_mask, "start": start}
+        keep[test.id] = {"mask": main_mask, "start": start, "basis": test.basis}
         # 月營收一個月只觸發一次：近 25 個交易日；其他指標為判定用的持有天數
         today[test.id] = stock_states(test, res, main_mask, ev, uni, 25 if test.data == "revenue" else int(H))
         row = {
@@ -622,12 +626,59 @@ def stock_states(
     return {"t": trig, "near": near_codes}
 
 
+WATCH_TESTS = ("combo_three", "whale_up")  # v3 M4-2：涵蓋率達標後判定會改變的指標
+
+
+def verdict_changes(prev_rows: list[dict[str, Any]], rows: list[dict[str, Any]]) -> list[str]:
+    """v3 M4-2：上一次部署 vs 這一次：原本「樣本範圍受限」、這次改判的指標 → 推播文字（不含買賣字眼）。"""
+    before = {r.get("id"): r for r in prev_rows}
+    msgs = []
+    for r in rows:
+        if r.get("id") not in WATCH_TESTS:
+            continue
+        old = (before.get(r["id"]) or {}).get("verdict")
+        new = r.get("verdict")
+        if old == verdict.LIMITED and new and new != verdict.LIMITED:
+            cov = (r.get("coverage") or {}).get("ratio") or 0
+            msgs.append(
+                f"指標效度：{r['label']} 由「{old}」改判為「{new}」（涵蓋率 {cov * 100:.0f}%；"
+                f"10 日超額 {r.get('mean_excess')}%、t {r.get('t')}、{r.get('n')} 筆）。依規則產生，僅供研究參考，非投資建議。"
+            )
+    return msgs
+
+
+def notify_verdict_changes(rows: list[dict[str, Any]]) -> list[str]:
+    """讀取目前已部署的 evidence.json 比較判定；有改判且設定了 Telegram 才推播。任何錯誤都略過（不影響部署）。"""
+    import os
+
+    from pipeline.notify import telegram
+
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    if not telegram.configured() or "/" not in repo:
+        return []
+    owner, name = repo.split("/", 1)
+    url = f"https://{owner.lower()}.github.io/{name}/data/evidence.json"
+    try:
+        import requests
+
+        prev = requests.get(url, timeout=20).json().get("rows", [])
+    except Exception:  # 沒有上一版或網路失敗：不推播
+        log.info("讀不到已部署的 evidence.json，略過改判推播")
+        return []
+    msgs = verdict_changes(prev, rows)
+    if msgs:
+        telegram.send("\n".join(msgs))
+    return msgs
+
+
 def run_and_write(ev: EvData, out: Any = None, doc: Any = None) -> dict[str, Any]:
     from pipeline.derive.export import write_json
     from pipeline.evidence import report, strategies
 
     res = evaluate(ev)
     rep = report.write(res, out, doc)
+    if out is not None:
+        rep["verdict_changes"] = notify_verdict_changes(res["rows"])
     lib = strategies.build(res)
     res["strategy_signals"] = lib.pop("_signals")
     if out is not None:

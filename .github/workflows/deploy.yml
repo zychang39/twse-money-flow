@@ -51,6 +51,9 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
+          # v3 M4-2：大戶涵蓋率達標、三方同買改判時推播（沒有設定就略過）
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python -m pipeline build-web --data-dir data --out web/public/data
       - uses: actions/upload-artifact@v4
         with:

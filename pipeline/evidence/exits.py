@@ -263,7 +263,7 @@ def compare(
 
 def run_one(mk: Market, cand: pd.DataFrame, ev: Any, cfg: dict[str, Any], rule: str, param: str) -> pd.DataFrame:
     """單一出場規則（策略庫用）：與 run_rules 同樣的規則與參數格式。"""
-    if rule == "fixed":
+    if rule in ("fixed", "peak"):  # 峰值日固定出場＝固定 N 日（N＝訓練期峰值日）
         x = cfg["exits"]
         p = Paths(mk, cand["e"].to_numpy(), cand["c"].to_numpy(), int(x["max_days"]), {})
         return rule_fixed(p, int(param))
