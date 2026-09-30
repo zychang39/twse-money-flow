@@ -126,6 +126,20 @@ export default function Leverage() {
             波動目標法＝min(可承受回撤 ÷ 歷史最大回撤, 可承受回撤 × 檔數 ÷ 單筆最差 1% 不利波動)；半凱利＝0.5 ×（年化平均報酬 − 融資利率）÷ 年化波動²；兩者取小、最多 {d.data.leverage.ceiling} 倍。
             模擬期間 {s.signal_start} 起，大盤以多頭為主。
           </p>
+          {s.compare?.['00631L'] ? (
+            <>
+              <h2 class="section st-h">對照：00631L（2 倍槓桿 ETF）同期</h2>
+              <table class="ev-table" aria-label="00631L 同期表現">
+                <tbody>
+                  <tr><th scope="row">年化報酬</th><td>{pctSigned(s.compare['00631L'].ann_return)}</td></tr>
+                  <tr><th scope="row">年化波動</th><td>{pctSigned(s.compare['00631L'].vol_ann)}</td></tr>
+                  <tr><th scope="row">最大回撤</th><td>{pctSigned(s.compare['00631L'].mdd)}</td></tr>
+                  <tr><th scope="row">回撤天數</th><td>{s.compare['00631L'].dd_days?.toLocaleString('zh-TW') ?? '—'}</td></tr>
+                </tbody>
+              </table>
+              <p class="caption muted">00631L 是追蹤台灣 50 指數單日 2 倍報酬的 ETF，每日再平衡：盤整時有波動耗損，長期報酬不等於指數的 2 倍。它是槓桿情境可以直接買到的替代品，不需要融資、沒有追繳，但同樣會遇到大盤急跌；個股融資另有跌停鎖死、當天賣不掉的風險。</p>
+            </>
+          ) : null}
         </>
       ) : null}
       {d.data && !enabled.length ? <p class="caption">目前沒有通過驗證的策略。</p> : null}

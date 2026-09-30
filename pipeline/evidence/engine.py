@@ -87,6 +87,13 @@ class Market:
         self.fmin = {h: _fwd_extreme(self.low, h, "min") for h in self.horizons}
         self.fmax = {h: _fwd_extreme(self.high, h, "max") for h in self.horizons}
         self.market_mean = {h: self._market_mean(h) for h in self.horizons}
+        # v3 M3：同日等權 universe 的每日指數（收盤到收盤，前一日在 universe 的股票等權平均），給持有天數不固定的出場規則用
+        with np.errstate(invalid="ignore", divide="ignore"):
+            r = self.close[1:] / self.close[:-1] - 1
+        r = np.where(self.universe[:-1] & np.isfinite(r), r, np.nan)
+        cnt = np.isfinite(r).sum(axis=1)
+        daily = np.where(cnt > 0, np.nansum(r, axis=1) / np.maximum(cnt, 1), 0.0)
+        self.ew_level = np.concatenate([[1.0], np.cumprod(1 + daily)])
 
     # ------------------------------------------------------------------ 出場
     def exits(self, e: np.ndarray, c: np.ndarray, h: int) -> dict[str, np.ndarray]:
@@ -153,6 +160,12 @@ class Market:
         with np.errstate(invalid="ignore", divide="ignore"):
             return p1 / s["open"][np.clip(e, 0, T - 1)] - 1
 
+    def ew_return(self, e: np.ndarray, x: np.ndarray) -> np.ndarray:
+        """同日等權指數：進場前一日收盤 → 出場前一日收盤（與加權報酬指數同一種近似）。"""
+        b0 = self.ew_level[np.clip(e - 1, 0, None)]
+        b1 = self.ew_level[np.clip(x - 1, 0, None)]
+        return b1 / b0 - 1
+
     def bench_return(self, e: np.ndarray, x: np.ndarray) -> np.ndarray:
         """指數報酬：進場前一日收盤（≈ 進場開盤）到出場前一日收盤（≈ 出場開盤）。"""
         b0 = self.bench[np.clip(e - 1, 0, None)]
@@ -185,7 +198,7 @@ def market(ev: Any, universe: np.ndarray, cfg: dict[str, Any]) -> Market:
         limit_up_pct=float(cfg["entry"]["limit_up_pct"]),
         gap_pct=float(cfg["entry"]["gap_pct"]),
         limit_down_pct=float(cfg["entry"]["limit_down_pct"]),
-        horizons=[int(h) for h in cfg["horizons"]],
+        horizons=[int(h) for h in [*cfg["horizons"], *(cfg.get("horizons_ref") or [])]],
         official_delisted=official_mask(ev),
         etf=getattr(ev, "etf", None) or None,
     )

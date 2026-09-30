@@ -270,6 +270,11 @@ def build(res: dict[str, Any]) -> dict[str, Any]:
             "n": row.get("n"),
             "note": row.get("note"),
             "health": health(row, int(sc["health"]["min_recent"])),
+            "bench": row.get("bench"),
+            "t_0050": row.get("t_0050"),
+            "large_cap": row.get("large_cap"),
+            "delist": row.get("delist"),
+            "hindsight": row.get("hindsight"),
         }
         mask = keep["mask"]
         today_codes = [ev.codes[i] for i in np.nonzero(mask[last] & uni[last])[0]]

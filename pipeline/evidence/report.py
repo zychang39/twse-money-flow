@@ -8,6 +8,7 @@ from typing import Any
 from pipeline.derive.export import sanitize, write_json
 
 HEAD = "# 指標效度評估（INDICATOR_EVIDENCE）"
+REF = {"120"}  # 只做參考、不進判定的持有天數（config/evidence.yml horizons_ref）
 
 
 def f(v: Any, digits: int = 2, sign: bool = True, unit: str = "") -> str:
@@ -69,8 +70,9 @@ def horizon_table(hs: dict[str, Any]) -> list[str]:
             out.append(f"| {h} 日 | 0 | — | — | — | — | — | — | — | — | — | — | — | — |")
             continue
         ex = s.get("excluded") or {}
+        lab = f"{h} 日（參考）" if h in REF else f"{h} 日"
         out.append(
-            f"| {h} 日 | {s['n']} | {s['dates']} | {f(s['mean_excess'])} | {f(s['t'], sign=False)} | {ci(s['ci'])} | "
+            f"| {lab} | {s['n']} | {s['dates']} | {f(s['mean_excess'])} | {f(s['t'], sign=False)} | {ci(s['ci'])} | "
             f"{f(s.get('mean_exc_idx'))} | {f(s.get('mean_net'))} | {f(s['win'], 1, False)} {ci_plain(s.get('win_ci'))} | "
             f"{f(s.get('median_net'))} | {f(s.get('mae'))} | {f(s.get('mfe'))} | {s.get('locked', 0)} | "
             f"{ex.get('limit_up', 0)}／{ex.get('suspended', 0)} |"
@@ -192,6 +194,47 @@ def section(d: dict[str, Any], H: str) -> list[str]:
             "0050、00631L 為還原價（含息、已處理分割）同一段期間的買進持有報酬，不扣成本；00631L 每日再平衡，長期有波動耗損。",
             "",
         ]
+    pdt = d.get("per_day") or {}
+    if pdt:
+        out += [
+            "#### 每持有日超額（超額 ÷ N × 250，年化；讓不同持有天數可以比較）",
+            "",
+            "| 持有 | 去重樣本 | 平均超額 % | t | 每持有日年化 % |",
+            "|---|---|---|---|---|",
+        ]
+        for k, v in pdt.items():
+            out.append(
+                f"| {k} 日{'（參考）' if v.get('ref') else ''} | {v.get('n', 0)} | {f(v.get('mean_excess'))} | "
+                f"{f(v.get('t'), sign=False)} | {f(v.get('per_day_ann'))} |"
+            )
+        nwf = d.get("n_wf") or {}
+        steps = nwf.get("steps") or []
+        out.append("")
+        if steps:
+            out.append(
+                "持有天數 walk-forward（訓練窗選每持有日年化最高的 N，驗證期報告該 N）："
+                + "；".join(
+                    f"{st['valid'][0]}～{st['valid'][1]} 用 {st['n_days']} 日 → 驗證 {f(st.get('valid_mean_excess'))}（{st.get('valid_n', 0)} 筆）"
+                    for st in steps
+                )
+                + "。持有期越長 beta 暴露與回撤越大，所以比較的是超額（alpha），不是總報酬。"
+            )
+            out.append("")
+    cv = d.get("curve") or {}
+    if cv.get("n"):
+        out += [f"#### 事件時間累積超額（第 1～{len(cv.get('k', []))} 日，{cv['n']} 筆）", ""]
+        for key, name in (("ew", "相對同日等權"), ("0050", "相對 0050")):
+            b = cv.get(key) or {}
+            if not b:
+                continue
+            m = b.get("mean") or []
+            pk, exh = b.get("peak"), b.get("exhaust")
+            pts = "、".join(f"第 {k} 日 {f(m[k - 1])}" for k in (1, 5, 10, 20, 40, 60) if k <= len(m))
+            out.append(
+                f"- {name}：{pts}；峰值第 {pk or '—'} 日（{f(m[pk - 1]) if pk else '—'}）；"
+                f"alpha 耗盡日（邊際超額連續 5 日 ≤ 0 的第一天）第 {exh or '—'} 日。"
+            )
+        out.append("")
     out += [f"#### 分組（持有 {H} 日）", ""]
     out += groups_table(hs.get("groups") or {}, d.get("oos"))
     out.append("")
@@ -243,15 +286,27 @@ def section(d: dict[str, Any], H: str) -> list[str]:
         out += [
             "#### 出場規則比較（同樣的進場，去重）",
             "",
-            "| 出場 | 選定 | 樣本 | 期望值 %（扣成本） | 相對指數 % | 勝率 % | 平均持有日 | MAE % | 跌停鎖死 |",
-            "|---|---|---|---|---|---|---|---|---|",
+            "| 出場 | 選定 | 樣本 | 期望值 %（扣成本） | 相對等權 % | 相對加權報酬 % | 相對 0050 % | 相對 00631L % | 勝率 % | 平均持有日 | MAE % | 跌停鎖死 |",
+            "|---|---|---|---|---|---|---|---|---|---|---|---|",
         ]
         for r in ex["rules"]:
+            rel = r.get("rel") or {}
             out.append(
-                f"| {r['label']} | {'✓' if r.get('chosen') else ''} | {r.get('n', 0)} | {f(r.get('ev'))} | {f(r.get('exc_idx'))} | "
+                f"| {r['label']} | {'✓' if r.get('chosen') else ''} | {r.get('n', 0)} | {f(r.get('ev'))} | {f(rel.get('ew'))} | "
+                f"{f(r.get('exc_idx'))} | {f(rel.get('0050'))} | {f(rel.get('00631L'))} | "
                 f"{f(r.get('win'), 1, False)} | {f(r.get('hold'), 1, False)} | {f(r.get('mae'))} | {r.get('locked', 0)} |"
             )
-        out.append("")
+        pk = ex.get("peak_train")
+        out += [
+            "",
+            "相對等權：持有天數不固定，以同日等權 universe 的每日指數（前一日收盤到出場前一日收盤）近似。"
+            + (
+                f"峰值日固定出場的 N＝第一個訓練窗（{pk['train'][0]}～{pk['train'][1]}）累積超額曲線的峰值日 {pk['day']}，不看全樣本。"
+                if pk
+                else ""
+            ),
+            "",
+        ]
     return out
 
 

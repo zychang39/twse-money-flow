@@ -40,6 +40,10 @@ export interface EvidenceRow {
   signal_end?: string | null;
   coverage?: Coverage;
   hindsight?: Hindsight;
+  /** v3 M2：四種基準的超額與 t（判定以等權為準）；對 0050 不顯著時標「未勝過大型股」 */
+  bench?: Record<string, { mean_excess: number | null; t: number | null; ci?: [number | null, number | null]; win?: number | null } | null>;
+  t_0050?: number | null;
+  large_cap?: string | null;
   /** v3 M1：納入股票中已下市檔數、持有期間下市／停牌的事件數、下市視為 −100% 的保守版本 */
   delist?: { stocks?: number; events?: number; halted?: number; dl100?: (Brief & { affected?: number }) | null };
   note?: string;

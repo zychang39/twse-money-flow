@@ -87,7 +87,7 @@ def date_matrix(e: np.ndarray, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 def boot_band(D: np.ndarray, reps: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
     """日期分層 bootstrap 的 2.5／97.5 百分位（每個 k 用同一組重抽權重；空值不計入分母）。"""
     n = D.shape[0]
-    if n < 2:
+    if n < 2 or reps < 2:
         nanv = np.full(D.shape[1], np.nan)
         return nanv, nanv
     rng = np.random.default_rng(seed)
@@ -122,7 +122,7 @@ def exhaustion_day(mean: np.ndarray, run: int = 5) -> int | None:
     return None
 
 
-def curve(mk: Market, events: pd.DataFrame, K: int, reps: int, seed: int) -> dict[str, Any]:
+def curve(mk: Market, events: pd.DataFrame, K: int, reps: int, seed: int, run: int = 5) -> dict[str, Any]:
     """一組（已去重、可進場）事件的累積超額曲線：等權與 0050 各一條，附 95% 帶、峰值日與 alpha 耗盡日。"""
     if events.empty:
         return {"n": 0}
@@ -145,7 +145,7 @@ def curve(mk: Market, events: pd.DataFrame, K: int, reps: int, seed: int) -> dic
             "hi": [_r(v) for v in hi],
             "dates": [int(v) for v in np.isfinite(D).sum(axis=0)],
             "peak": peak_day(mean),
-            "exhaust": exhaustion_day(mean),
+            "exhaust": exhaustion_day(mean, run),
         }
     return out
 

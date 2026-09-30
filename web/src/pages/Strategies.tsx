@@ -10,8 +10,12 @@ import { useAsync, useDb } from '../hooks';
 import { loadJson } from '../data/api';
 import { addWatchMany, listStrategies, saveStrategy, uid } from '../db/db';
 import { LAB_PREFIX } from '../lib/config';
+import { EquityChart } from '../components/EquityChart';
 import { coverageText, pctSigned, tText } from '../lib/evidence';
-import { type StrategiesFile, type StrategyItem, enabledFirst, envLine, groupName, healthTone } from '../lib/strategies';
+import {
+  type BenchCompare, type Perf, type StrategiesFile, type StrategyItem, BENCH_KEYS, BENCH_LABEL, PERF_ROWS, enabledFirst,
+  envLine, groupName, healthTone,
+} from '../lib/strategies';
 import '../styles/evidence.css';
 
 export const loadStrategies = () => loadJson<StrategiesFile>('strategies.json');
@@ -89,9 +93,41 @@ function Actions({ s, date, horizon }: { s: StrategyItem; date: string; horizon:
   );
 }
 
+function perfText(p: Perf | undefined, key: keyof Perf, kind: 'pct' | 'ratio' | 'days'): string {
+  const v = p?.[key];
+  if (v === null || v === undefined || typeof v === 'object') return '—';
+  if (kind === 'pct') return pctSigned(v, 1);
+  if (kind === 'days') return `${v.toLocaleString('zh-TW')}`;
+  return tText(v);
+}
+
+/** v3 M2-3：5 檔組合與 (b)(c)(d) 同期的績效指標，以及月報酬對加權報酬指數的迴歸。 */
+function CompareTable({ c }: { c: BenchCompare }) {
+  const cols: [string, Perf | undefined][] = [['組合', c.strategy], ['加權報酬', c.tr], ['0050', c['0050']], ['00631L', c['00631L']]];
+  const r = c.regression;
+  return (
+    <>
+      <h2 class="section st-h">與基準同期比較</h2>
+      <table class="ev-table" aria-label="策略與基準的績效指標">
+        <thead><tr><th scope="col">指標</th>{cols.map(([k]) => <th key={k} scope="col">{k}</th>)}</tr></thead>
+        <tbody>
+          {PERF_ROWS.map((row) => (
+            <tr key={row.key}><th scope="row">{row.label}</th>{cols.map(([k, p]) => <td key={k}>{perfText(p, row.key, row.kind)}</td>)}</tr>
+          ))}
+        </tbody>
+      </table>
+      <p class="caption muted">
+        {c.period ? `${c.period[0]}～${c.period[1]}。` : ''}月報酬對加權報酬指數迴歸：β {r?.beta?.toFixed(2) ?? '—'}、年化 α {pctSigned(r?.alpha_ann, 1)}（t {tText(r?.alpha_t)}）、R² {r?.r2?.toFixed(2) ?? '—'}（{r?.months ?? 0} 個月）。Sharpe 以無風險利率 0 計；回撤天數＝最長的回撤持續交易日數。
+      </p>
+    </>
+  );
+}
+
 function Detail({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
   const [showAlt, setShowAlt] = useState(false);
+  const [yearView, setYearView] = useState<'strategy' | 'bench'>('strategy');
   const p5 = s.portfolio?.['5'];
+  const cmp = s.compare;
   const years = Object.keys({ ...(s.years ?? {}), ...(p5?.yearly ?? {}) }).sort();
   return (
     <>
@@ -128,15 +164,63 @@ function Detail({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
       <p class="caption muted">超額＝相對同日全市場（扣成本），同一檔只計首次觸發。</p>
 
       <h2 class="section st-h">逐年報酬</h2>
-      <table class="ev-table" aria-label="逐年報酬">
-        <thead><tr><th scope="col">年份</th><th scope="col">5 檔組合</th><th scope="col">訊號超額</th><th scope="col">筆數</th></tr></thead>
-        <tbody>
-          {years.map((y) => (
-            <tr key={y}><th scope="row">{y}</th><td>{pctSigned(p5?.yearly?.[y])}</td><td>{pctSigned(s.years?.[y])}</td><td>{(s.trades?.yearly?.[y]?.n ?? 0).toLocaleString('zh-TW')}</td></tr>
-          ))}
-        </tbody>
-      </table>
-      <p class="caption muted">5 檔組合：同時最多持有 5 檔、每檔 1/5 權益、依下方出場規則，扣成本；最大回撤 {pctSigned(p5?.mdd)}、年化 {pctSigned(p5?.ann_return)}。</p>
+      <div class="segmented st-seg" role="group" aria-label="逐年報酬的欄位">
+        <button aria-pressed={yearView === 'strategy'} onClick={() => setYearView('strategy')}>策略</button>
+        <button aria-pressed={yearView === 'bench'} onClick={() => setYearView('bench')}>對照基準</button>
+      </div>
+      {yearView === 'strategy' ? (
+        <table class="ev-table" aria-label="逐年報酬">
+          <thead><tr><th scope="col">年份</th><th scope="col">5 檔組合</th><th scope="col">訊號超額</th><th scope="col">筆數</th></tr></thead>
+          <tbody>
+            {years.map((y) => (
+              <tr key={y}><th scope="row">{y}</th><td>{pctSigned(p5?.yearly?.[y])}</td><td>{pctSigned(s.years?.[y])}</td><td>{(s.trades?.yearly?.[y]?.n ?? 0).toLocaleString('zh-TW')}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <table class="ev-table" aria-label="逐年報酬與基準">
+          <thead><tr><th scope="col">年份</th><th scope="col">5 檔組合</th><th scope="col">加權報酬</th><th scope="col">0050</th><th scope="col">00631L</th></tr></thead>
+          <tbody>
+            {years.map((y) => (
+              <tr key={y}><th scope="row">{y}</th><td>{pctSigned(p5?.yearly?.[y], 1)}</td><td>{pctSigned(cmp?.tr?.yearly?.[y], 1)}</td><td>{pctSigned(cmp?.['0050']?.yearly?.[y], 1)}</td><td>{pctSigned(cmp?.['00631L']?.yearly?.[y], 1)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p class="caption muted">5 檔組合：同時最多持有 5 檔、每檔 1/5 權益、依下方出場規則，扣成本。基準為同期買進持有（還原價、含息，不扣成本）；首尾年份不是完整年度。</p>
+
+      {s.curve?.dates?.length ? (
+        <>
+          <h2 class="section st-h">權益曲線（每週，期初＝1）</h2>
+          <EquityChart
+            dates={s.curve.dates}
+            series={[
+              { key: 'strategy', label: '5 檔組合', values: s.curve.equity },
+              { key: '0050', label: '0050', values: s.curve.etf?.['0050'] ?? [] },
+              { key: 'tr', label: '加權報酬', values: s.curve.bench },
+              { key: '00631L', label: '00631L', values: s.curve.etf?.['00631L'] ?? [] },
+            ]}
+          />
+        </>
+      ) : null}
+
+      {cmp ? <CompareTable c={cmp} /> : null}
+
+      {s.bench ? (
+        <>
+          <h2 class="section st-h">訊號對四種基準（{data.horizon} 日）</h2>
+          <table class="ev-table" aria-label="訊號相對四種基準的超額">
+            <thead><tr><th scope="col">基準</th><th scope="col">超額</th><th scope="col">t</th><th scope="col">超額勝率</th></tr></thead>
+            <tbody>
+              {BENCH_KEYS.map((k) => {
+                const b = s.bench?.[k];
+                return <tr key={k}><th scope="row">{BENCH_LABEL[k]}</th><td>{pctSigned(b?.mean_excess)}</td><td>{tText(b?.t)}</td><td>{b?.win === null || b?.win === undefined ? '—' : `${b.win.toFixed(1)}%`}</td></tr>;
+              })}
+            </tbody>
+          </table>
+          <p class="caption muted">判定以等權為準。{s.large_cap ? `相對 0050 不顯著（t ${tText(s.t_0050)}）：${s.large_cap}。` : ''}00631L 為 2 倍槓桿 ETF（每日再平衡，長期有波動耗損），用來對照任何槓桿情境。</p>
+        </>
+      ) : null}
 
       <h2 class="section st-h">出場規則</h2>
       <div class="card">

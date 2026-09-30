@@ -30,8 +30,52 @@ export interface StrategyItem {
   exit?: { rule: string; param: string; label: string; stats: Partial<ExitRow>; alternatives: ExitRow[] };
   trades?: TradeStats & { n: number; mean_net: number | null; win: number | null; hold: number | null; yearly: Record<string, { n: number; mean_net: number | null; exc_idx: number | null; win: number | null }> };
   portfolio?: Record<string, PortfolioStats & { yearly?: Record<string, number | null>; total?: number | null }>;
-  curve?: { dates: string[]; equity: number[]; bench: number[] };
+  curve?: { dates: string[]; equity: number[]; bench: number[]; etf?: Record<string, (number | null)[]> };
+  /** v3 M2：事件對四種基準的超額（判定仍以等權為準） */
+  bench?: Record<BenchKey, BenchStat | null>;
+  t_0050?: number | null;
+  large_cap?: string | null;
+  delist?: import('./evidence').EvidenceRow['delist'];
+  hindsight?: import('./evidence').Hindsight;
+  /** v3 M2-3：5 檔組合 vs (b)(c)(d) 同期 */
+  compare?: BenchCompare;
 }
+
+export type BenchKey = 'ew' | 'tr' | '0050' | '00631L';
+export const BENCH_KEYS: BenchKey[] = ['ew', 'tr', '0050', '00631L'];
+export const BENCH_LABEL: Record<BenchKey, string> = { ew: '等權', tr: '加權報酬', '0050': '0050', '00631L': '00631L' };
+export interface BenchStat { mean_excess: number | null; t: number | null; ci?: [number | null, number | null]; win?: number | null; dates?: number }
+
+export interface Perf {
+  days?: number;
+  ann_return?: number | null;
+  vol_ann?: number | null;
+  sharpe?: number | null;
+  calmar?: number | null;
+  mdd?: number | null;
+  dd_days?: number;
+  total?: number | null;
+  yearly?: Record<string, number | null>;
+}
+
+export interface BenchCompare {
+  period: [string, string] | null;
+  strategy: Perf;
+  tr?: Perf;
+  '0050'?: Perf;
+  '00631L'?: Perf;
+  regression?: { months: number; beta?: number; alpha_ann?: number | null; alpha_t?: number | null; r2?: number | null };
+}
+
+/** 績效指標表的列（策略與各基準同一組指標）。 */
+export const PERF_ROWS: { key: keyof Perf; label: string; kind: 'pct' | 'ratio' | 'days' }[] = [
+  { key: 'ann_return', label: '年化報酬', kind: 'pct' },
+  { key: 'vol_ann', label: '年化波動', kind: 'pct' },
+  { key: 'sharpe', label: 'Sharpe', kind: 'ratio' },
+  { key: 'calmar', label: 'Calmar', kind: 'ratio' },
+  { key: 'mdd', label: '最大回撤', kind: 'pct' },
+  { key: 'dd_days', label: '回撤天數', kind: 'days' },
+];
 
 export interface StrategiesFile {
   date: string;

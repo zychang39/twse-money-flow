@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from pipeline.core.dates import TPE
-from pipeline.evidence import catalog, engine, exits, quintile, stats, universe, verdict
+from pipeline.evidence import catalog, curve, engine, exits, quintile, stats, universe, verdict
 from pipeline.evidence import indicators as ind
 from pipeline.evidence.data import EvData, cfg
 
@@ -116,19 +116,24 @@ class EventRunner:
         self.ev, self.mk, self.uni, self.c = ev, mk, uni, c
         self.dates = np.asarray(ev.dates)
 
-    def frames(self, mask: np.ndarray, start: str) -> dict[int, pd.DataFrame]:
+    def frames(self, mask: np.ndarray, start: str, horizons: list[int] | None = None) -> dict[int, pd.DataFrame]:
+        """各持有期的事件表；horizons 省略＝全部（含只供參考的 120 日）。參數格與變體只算判定用的持有期（v3 M3 效能）。"""
         m = mask & (self.dates >= start)[:, None]
         t, cc = engine.events_from_mask(m, self.uni)
-        return {h: engine.annotate(engine.evaluate(self.mk, t, cc, h), self.mk) for h in self.mk.horizons}
+        hs = horizons or self.mk.horizons
+        return {h: engine.annotate(engine.evaluate(self.mk, t, cc, h), self.mk) for h in hs}
 
-    def result(self, frames: dict[int, pd.DataFrame], oos_start: str | None) -> dict[str, Any]:
-        """一組訊號：原始觸發次數、各持有期的去重統計與分組。"""
+    def result(self, frames: dict[int, pd.DataFrame], oos_start: str | None, light: bool = False) -> dict[str, Any]:
+        """一組訊號：原始觸發次數、各持有期的去重統計與分組（light：參數格只要主統計，不算分組）。"""
         out: dict[str, Any] = {"raw": 0, "horizons": {}}
         for h, df in frames.items():
             out["raw"] = len(df)
             status = df["status"].value_counts().to_dict()
             d = engine.dedupe(df)
             s = stats.summarize(d, self.c, h)
+            if light:
+                out["horizons"][str(h)] = s
+                continue
             s["groups"] = stats.groups(d, self.c, oos_start)
             nogap = engine.dedupe(df[~df["gap"]])
             s["no_gap"] = stats.brief(nogap, self.c)
@@ -154,8 +159,8 @@ def evaluate_event(test: catalog.Test, r: EventRunner, start: str, end: str) -> 
     if test.grid:
         dims = {k: sorted({cell.params[k] for cell in test.grid}) for k in test.grid_dims}
         wins = windows(start, end)
-        cell_frames = {cell.key: r.frames(cell.mask, start) for cell in test.grid}
-        cell_res = {k: r.result(fr, oos_default) for k, fr in cell_frames.items()}
+        cell_frames = {cell.key: r.frames(cell.mask, start, [int(H)]) for cell in test.grid}
+        cell_res = {k: r.result(fr, oos_default, light=True) for k, fr in cell_frames.items()}
         table = []
         for cell in test.grid:
             s = cell_res[cell.key]["horizons"][H]
@@ -213,15 +218,15 @@ def evaluate_event(test: catalog.Test, r: EventRunner, start: str, end: str) -> 
             "sensitive": sensitive,
             "note": default_note,
         }
-        main_frames = cell_frames[chosen.key]
-        res["variants"]["main"] = {"label": f"選定參數 {chosen.key}", **cell_res[chosen.key]}
+        main_frames = r.frames(chosen.mask, start)  # 選定格：全部持有期與分組
+        res["variants"]["main"] = {"label": f"選定參數 {chosen.key}", **r.result(main_frames, oos_default)}
         if oos_parts:
             oos = {**stats.brief(pd.concat(oos_parts), c), "start": wf[0]["valid"][0], "kind": "walk_forward"}
         test.variants["main"] = (res["variants"]["main"]["label"], chosen.mask)
     for key, (label, mask) in test.variants.items():
         if key == "main" and test.grid:
             continue
-        fr = r.frames(mask, start)
+        fr = r.frames(mask, start, None if key == "main" else [int(H)])
         vres = {"label": label, **r.result(fr, oos_default)}
         if test.breakout_level is not None:
             fb = fr[int(H)]
@@ -238,6 +243,83 @@ def evaluate_event(test: catalog.Test, r: EventRunner, start: str, end: str) -> 
     res["main_frames"] = main_frames
     res["sensitive"] = sensitive
     return res
+
+
+def per_day_table(hs: dict[str, Any], c: dict[str, Any]) -> dict[str, Any]:
+    """v3 M3-3 每持有日超額：超額 ÷ N × 250（年化），附去重樣本數與 t；120 日標為參考。"""
+    scale = float((c.get("curve") or {}).get("per_day_scale", 250))
+    ref = {int(x) for x in c.get("horizons_ref") or []}
+    out = {}
+    for k, s in hs.items():
+        m = s.get("mean_excess")
+        out[k] = {
+            "n": s.get("n", 0),
+            "mean_excess": m,
+            "t": s.get("t"),
+            "per_day_ann": None if m is None else round(m / int(k) * scale, 2),
+            "ref": int(k) in ref,
+        }
+    return out
+
+
+def choose_n(frames: dict[int, pd.DataFrame], wins: list[tuple[str, str]], c: dict[str, Any]) -> dict[str, Any]:
+    """v3 M3-3：持有天數 N 以 walk-forward 選擇（訓練窗內「每持有日年化超額」最高者，樣本 ≥ wf_min_events），
+    驗證期報告選定 N 的表現；不挑全樣本的最大值。120 日（參考）不參與。"""
+    scale = float((c.get("curve") or {}).get("per_day_scale", 250))
+    cand = [int(h) for h in c["horizons"]]
+    steps = []
+    for i in range(1, len(wins)):
+        lo, hi = wins[0][0], wins[i - 1][1]
+        best, best_v = None, None
+        for n in cand:
+            if n not in frames:
+                continue
+            d = engine.dedupe(frames[n])
+            d = d[(d["date"] >= lo) & (d["date"] < hi)]
+            if len(d) < int(c["verdict"]["wf_min_events"]):
+                continue
+            m = stats.mean_t(stats.calendar_series(d).to_numpy())[0]
+            if m is None:
+                continue
+            v = m / n * scale
+            if best_v is None or v > best_v:
+                best, best_v = n, v
+        if best is None:
+            continue
+        d = engine.dedupe(frames[best])
+        vd = d[(d["date"] >= wins[i][0]) & (d["date"] < wins[i][1])]
+        b = stats.brief(vd, c)
+        steps.append(
+            {
+                "train": [lo, hi],
+                "valid": list(wins[i]),
+                "n_days": best,
+                "train_per_day_ann": stats.pct(best_v),
+                "valid_mean_excess": b.get("mean_excess"),
+                "valid_per_day_ann": None
+                if b.get("mean_excess") is None
+                else round(b["mean_excess"] / best * scale, 2),
+                "valid_n": b.get("n", 0),
+            }
+        )
+    return {"steps": steps, "chosen": steps[-1]["n_days"] if steps else None}
+
+
+def curve_summary(cv: dict[str, Any]) -> dict[str, Any]:
+    """總表用：等權與 0050 的峰值日、alpha 耗盡日與峰值累積超額。"""
+    out: dict[str, Any] = {"n": cv.get("n", 0)}
+    for key in ("ew", "0050"):
+        b = cv.get(key) or {}
+        if not b:
+            continue
+        pk = b.get("peak")
+        out[key] = {
+            "peak": pk,
+            "exhaust": b.get("exhaust"),
+            "peak_value": b["mean"][pk - 1] if pk else None,
+            "at10": b["mean"][9] if len(b.get("mean", [])) >= 10 else None,
+        }
+    return out
 
 
 def large_cap_flag(v: str, main: dict[str, Any], t_thr: float) -> str | None:
@@ -418,10 +500,37 @@ def evaluate(
             "bench": row["bench"],
             "large_cap": row["large_cap"],
         }
-        if with_exits and dec["verdict"] in (verdict.VALID, verdict.ENV) and res["main_frames"] is not None:
-            cand = res["main_frames"][int(H)]
+        # v3 M3-3：每持有日超額（年化）與 walk-forward 選 N
+        mf = res["main_frames"]
+        row["per_day"] = per_day_table(res["variants"]["main"]["horizons"], c)
+        if mf is not None:
+            row["n_wf"] = choose_n(mf, windows(start, end), c)
+        detail["per_day"], detail["n_wf"] = row["per_day"], row.get("n_wf")
+        usable = dec["verdict"] in (verdict.VALID, verdict.ENV)
+        peak_train = None
+        if mf is not None and (usable or test.id in set((c.get("curve") or {}).get("extra_tests") or [])):
+            cc = c.get("curve") or {}
+            ded = engine.dedupe(mf[int(H)])
+            detail["curve"] = curve.curve(
+                mk,
+                ded,
+                int(cc.get("days", 60)),
+                int(c["stats"]["bootstrap"]),
+                int(c["stats"]["seed"]),
+                int(cc.get("exhaust_run", 5)),
+            )
+            row["curve"] = curve_summary(detail["curve"])
+            # 峰值日固定出場：只用第一個 walk-forward 訓練窗的事件找峰值（不看全樣本）
+            w0 = windows(start, end)[0]
+            train = ded[ded["date"] < w0[1]] if len(windows(start, end)) > 1 else ded.iloc[: max(1, len(ded) * 2 // 3)]
+            tc = curve.curve(mk, train, int(cc.get("days", 60)), 0, 0, int(cc.get("exhaust_run", 5)))
+            peak_train = (tc.get("ew") or {}).get("peak")
+        if with_exits and usable and mf is not None:
+            cand = mf[int(H)]
             cand = cand[cand["status"] == "ok"]
-            detail["exits"] = exits.compare(mk, cand, ev, c, windows(start, end))
+            detail["exits"] = exits.compare(mk, cand, ev, c, windows(start, end), peak=peak_train)
+            if peak_train:
+                detail["exits"]["peak_train"] = {"day": peak_train, "train": list(windows(start, end)[0])}
         if test.id in set(c.get("hindsight_tests") or []):
             row["hindsight"] = hindsight(main_mask, r, start, cov, row, c)
             detail["hindsight"] = row["hindsight"]

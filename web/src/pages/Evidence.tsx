@@ -46,6 +46,7 @@ function VerdictTag({ row }: { row: EvidenceRow }) {
     <span class="ev-tags">
       <span class={`tag ev-verdict ${tone === 'risk' ? 'risk' : tone === 'strong' ? 'strong' : ''}`}>{row.verdict}</span>
       {cov ? <span class="tag ev-verdict risk">{cov}</span> : null}
+      {row.large_cap ? <span class="tag ev-verdict">{row.large_cap}</span> : null}
     </span>
   );
 }

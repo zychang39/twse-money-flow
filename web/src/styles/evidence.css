@@ -56,3 +56,13 @@
 .bt-name { display: flex; align-items: center; min-height: var(--tap); min-width: var(--tap); }
 .bt-sub { display: block; font-size: 0.8125rem; line-height: 1.125rem; color: var(--text-2); }
 .bt-summary { display: flex; align-items: center; min-height: var(--tap); cursor: pointer; }
+/* v3 M2 權益曲線：可切換的線（觸控區 44px） */
+.eq-legend { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-2); }
+.eq-pill {
+  display: inline-flex; align-items: center; gap: var(--s-1); min-height: var(--tap); padding: 0 var(--s-3);
+  border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--surface-1); color: var(--text-2);
+  font: inherit; font-size: var(--fs-caption); font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.eq-pill[aria-pressed='true'] { color: var(--text-1); border-color: var(--brand); font-weight: var(--fw-semibold); }
+.st-seg { margin: var(--s-2) 0; }
+.st-seg button { flex: 1; min-height: var(--tap); }
