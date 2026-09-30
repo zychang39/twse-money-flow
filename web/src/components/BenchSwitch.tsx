@@ -17,13 +17,15 @@ export function useBenchState(): [BenchKey, (k: BenchKey) => void] {
 
 export function BenchSwitch({ value, onChange, note }: { value: BenchKey; onChange: (k: BenchKey) => void; note?: string }) {
   return (
-    <div class="bench-bar glass" data-testid="bench-switch">
-      <div class="segmented bench-seg" role="group" aria-label="超額報酬的比較基準">
-        {BENCH_KEYS.map((k) => (
-          <button key={k} type="button" aria-pressed={value === k} onClick={() => { if (k !== value) onChange(k); }}>{BENCH_LABEL[k]}</button>
-        ))}
+    <>
+      <div class="bench-bar glass" data-testid="bench-switch">
+        <div class="segmented bench-seg" role="group" aria-label="超額報酬的比較基準">
+          {BENCH_KEYS.map((k) => (
+            <button key={k} type="button" aria-pressed={value === k} onClick={() => { if (k !== value) onChange(k); }}>{BENCH_LABEL[k]}</button>
+          ))}
+        </div>
       </div>
       {note ? <p class="caption muted bench-note">{note}</p> : null}
-    </div>
+    </>
   );
 }

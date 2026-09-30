@@ -77,9 +77,9 @@ export function AlphaCurve({ line, label, n }: { line: CurveLine; label: string;
       >
         {band ? <path d={band} fill="var(--surface-2)" stroke="none" /> : null}
         <line x1={padL} x2={W - padR} y1={sy(0)} y2={sy(0)} stroke="var(--line)" stroke-width="1" />
-        <text x={0} y={sy(hi) + 4} font-size="11" fill="var(--text-2)">{pctSigned(hi, 1)}</text>
+        {sy(0) - sy(hi) > 14 ? <text x={0} y={sy(hi) + 4} font-size="11" fill="var(--text-2)">{pctSigned(hi, 1)}</text> : null}
         <text x={0} y={sy(0) + 4} font-size="11" fill="var(--text-2)">0%</text>
-        {lo < 0 ? <text x={0} y={sy(lo)} font-size="11" fill="var(--text-2)">{pctSigned(lo, 1)}</text> : null}
+        {lo < 0 && sy(lo) - sy(0) > 14 ? <text x={0} y={sy(lo)} font-size="11" fill="var(--text-2)">{pctSigned(lo, 1)}</text> : null}
         <path d={path(line.mean)} fill="none" stroke="var(--text-1)" stroke-width="2" stroke-linejoin="round" />
         {mark(line.peak, 'peak')}
         {mark(line.exhaust, 'exhaust')}

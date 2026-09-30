@@ -67,14 +67,14 @@
 .st-seg { margin: var(--s-2) 0; }
 .st-seg button { flex: 1; min-height: var(--tap); }
 /* v3 M3 累積超額曲線：拖曳讀值（垂直滑動仍可捲動頁面） */
-.ac-svg { display: block; touch-action: pan-y; cursor: crosshair; }
+.ac-svg { display: block; touch-action: pan-y; cursor: crosshair; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .ac-svg:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-sm); }
 .ac-read { min-height: 2.5rem; font-variant-numeric: tabular-nums; }
 /* v3 M5-3 基準分段控制（浮動控制層＝玻璃；sticky 在頁面頂端，表頭改黏在它下方） */
 .bench-bar { position: sticky; top: var(--safe-top); z-index: 4; margin: var(--s-3) calc(-1 * var(--s-2)) 0; padding: var(--s-1) var(--s-2); border-radius: var(--r-md, 12px); }
 .bench-seg button { flex: 1; min-height: var(--tap); }
-.bench-note { margin: var(--s-1) var(--s-1) 0; }
-.has-bench .ev-table thead th { top: calc(var(--safe-top) + var(--tap) + var(--s-3)); }
+.bench-note { margin: var(--s-2) 0 0; }
+.has-bench .ev-table thead th { top: calc(var(--safe-top) + var(--tap) + var(--s-4)); }
 /* v3 M5-2 排序 */
 .sort-head { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); margin-top: var(--s-4); }
 .sort-now { margin: 0; font-variant-numeric: tabular-nums; }
@@ -96,3 +96,4 @@
 .st-trig .btn.small { align-self: flex-start; min-height: var(--tap); }
 /* v3 M5-2 選股內建組合：判定分級小字 */
 .chip-sub { margin-left: var(--s-1); font-size: var(--fs-micro); font-weight: var(--fw-regular); }
+.ev-table td.ev-ci { font-size: 0.8125rem; white-space: normal; }

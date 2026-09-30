@@ -240,6 +240,7 @@ function Detail({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
       <h2 class="section st-h">累積超額曲線（相對{BENCH_LABEL[bench]}）</h2>
       {curveLine ? <><AlphaCurve line={curveLine} label={`相對${BENCH_LABEL[bench]}`} n={curve.data?.curve?.n} /><p class="caption">{curveSummary(curveLine)}</p></> : <p class="caption muted">{curve.loading ? '載入中…' : '曲線資料累積中。'}</p>}
 
+      {p5 ? <>
       <h2 class="section st-h">逐年報酬</h2>
       <div class="segmented st-seg" role="group" aria-label="逐年報酬的欄位">
         <button aria-pressed={yearView === 'strategy'} onClick={() => setYearView('strategy')}>策略</button>
@@ -265,6 +266,7 @@ function Detail({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
         </table>
       )}
       <p class="caption muted">5 檔組合：同時最多持有 5 檔、每檔 1/5 權益、依下方出場規則，扣成本。基準為同期買進持有（還原價、含息，不扣成本）；首尾年份不是完整年度。</p>
+      </> : <p class="caption muted st-h">未通過驗證的策略不做 5 檔組合模擬（沒有逐年報酬與權益曲線）。</p>}
 
       {s.curve?.dates?.length ? (
         <>

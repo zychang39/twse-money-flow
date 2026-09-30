@@ -197,6 +197,21 @@ function DetailPanel({ row, horizon, bench }: { row: EvidenceRow; horizon: numbe
             {d.data?.n_wf?.chosen ? ` walk-forward 選定持有 ${d.data.n_wf.chosen} 日（訓練窗選每持有日最高者）。` : ''}
           </p>
           <p class="caption muted">{horizon} 日：95% 區間 {ciText(benchPick(h, h?.bench, bench).ci ?? (nonEw ? undefined : h?.ci))}（bootstrap 只算等權與 0050）、最大不利波動平均 {pctSigned(h?.mae)}、跌停鎖死 {h?.locked ?? 0} 次。</p>
+          {h?.bench ? (
+            <>
+              <h4 class="ev-h">四種基準（{horizon} 日）</h4>
+              <table class="ev-table" aria-label="相對四種基準的超額">
+                <thead><tr><th scope="col">基準</th><th scope="col">超額</th><th scope="col">t</th><th scope="col">95% 區間</th></tr></thead>
+                <tbody>
+                  {(['ew', 'tr', '0050', '00631L'] as BenchKey[]).map((k) => {
+                    const b = benchPick(h, h.bench, k);
+                    return <tr key={k} class={k === bench ? 'ev-chosen' : ''}><th scope="row">{BENCH_LABEL[k]}</th><td>{pctSigned(b.mean_excess)}</td><td>{tText(b.t)}</td><td class="ev-ci">{b.ci ? ciText(b.ci) : '—'}</td></tr>;
+                  })}
+                </tbody>
+              </table>
+              <p class="caption muted">判定以等權為準；bootstrap 區間只算等權與 0050。{row.large_cap ? `相對 0050 不顯著：${row.large_cap}。` : ''}</p>
+            </>
+          ) : null}
           <h4 class="ev-h">累積超額曲線（進場後第 1～60 日，相對{BENCH_LABEL[bench]}）</h4>
           {line ? <AlphaCurve line={line} label={`相對${BENCH_LABEL[bench]}`} n={d.data?.curve?.n} /> : <p class="caption muted">{d.data?.curve ? '這個基準沒有曲線資料。' : '只有判定為有效、環境依賴的指標與三方同買才計算累積超額曲線。'}</p>}
           {line ? <p class="caption">{curveSummary(line)}</p> : null}
