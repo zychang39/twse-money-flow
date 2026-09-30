@@ -38,3 +38,21 @@ def test_merge_manifests_holders_lane_state_per_lane():
     m = merge_manifests(a, b)
     assert m["holders_backfill"]["lane_state"]["0/2"]["remaining"] == 5
     assert m["holders_backfill"]["lane_state"]["1/2"]["remaining"] == 7
+
+
+def test_merge_manifests_pending_slot_keeps_newer_deferral():
+    """兩個回補同時延後：後推送的一方帶著舊的集保待續槽，合併時仍保留 deferred_at 較新的那一個。"""
+    from pipeline.gitdata import merge_manifests
+
+    ours = {
+        "updated_at": "2026-09-30T18:02",
+        "holders_backfill_pending": {"deferred_at": "2026-09-30T14:07+08:00", "ref": "old"},
+        "backfill_pending": {"deferred_at": "2026-09-30T18:02+08:00", "ref": "new"},
+    }
+    theirs = {
+        "updated_at": "2026-09-30T18:01",
+        "holders_backfill_pending": {"deferred_at": "2026-09-30T18:01+08:00", "ref": "new", "source": "lanes=2"},
+    }
+    m = merge_manifests(ours, theirs)
+    assert m["holders_backfill_pending"]["source"] == "lanes=2"
+    assert m["backfill_pending"]["ref"] == "new"

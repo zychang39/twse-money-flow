@@ -172,6 +172,8 @@
 - 進度寫在 manifest `holders_backfill`：`total`、`done`、`remaining`、`per_query_sec`、`runtime_hours_left`、`eta`、`segments`。
 - **預估總時程**：約 98,000 次 × 4.6 秒 ≈ 125 小時實際執行；扣掉交易日 13:30–22:30 的暫停（每週可用 123／168 小時）與分段銜接損耗（×0.9）≈ **190 小時，約 8 天**（2026-09-30 開始，預估 10/8 前後完成）。
 - 資料補齊前，用到千張大戶的計算標示「樣本範圍受限」；「受限」依實際涵蓋率判斷（任一欄位的股票數 < 同期有價格股票數的 50%），補齊後每日 pipeline 重算時自動移除標示。
+- **v3（2026-09-30）改為兩道平行**：`task=holders_backfill, source=lanes=2`（分派者）→ `lane=0/2`、`lane=1/2` 兩道，依 ISO 週序號分道（同一週只由同一道寫入），各自的 concurrency group；延後時待續槽記 `lanes=2`，main 的 22:40 接續一次觸發兩道。manifest `holders_backfill.lane_state` 記各道剩餘量，`runtime_hours_left` 已除以道數。進度（2026-09-30 13:26）：12,972／99,500 次（13%）、21 段、每次 4.39 秒；兩道的預估完成約 10/4（DECISIONS #166）。
+- **每週新資料**：data.yml 週六 10:00（`0 2 * * 6`）的 periodic 任務在週六、日抓開放資料 1-5（`run_tdcc`），全市場每週一份持續累積；最近一次成功為 2026-09-24 那週（manifest `sources.tdcc_holders`）。
 
 ### 研究報告與法人分析
 - **券商（賣方）研究報告、目標價**：由各券商發布給自己的客戶，多數需要付費或開戶；證交所、櫃買中心、公開資訊觀測站都沒有彙整，也沒有免費的開放資料或 API。新聞網站轉述的目標價屬於媒體著作，擷取或轉載有著作權疑慮。因此**不擷取**，個股頁只提供連結並標示「第三方」：Google 新聞搜尋（目標價、研究報告）、鉅亨網個股頁、Yahoo 股市個股新聞。
@@ -188,6 +190,18 @@
 | fred_dtwexbgs | FRED 美元指數 | `fred.stlouisfed.org/graph/fredgraph.csv?id=DTWEXBGS` | ⛔ Actions 實測連線失敗，依規則不加入 |
 | investor_conference | 法說會日期 | `mopsov.twse.com.tw/mops/web/ajax_t100sb02_1?…&TYPEK={sii\|otc}&year={民國年}&month={MM}`（GET） | ✅ Actions 實測（DECISIONS #26） |
 | intraday | 盤中即時報價（盤中到價提醒用，每 15 分鐘一次批次請求） | `mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_2330.tw\|otc_6488.tw&json=1&delay=0` | ✅ Actions 可用（`pipeline/alerts.py`） |
+
+## 法人、信用的舊版面（v3 實驗室 M0-6，2026-09-30 Actions 實測）
+
+| 來源 | 期間 | 版面差異 | 處理 |
+|---|---|---|---|
+| 上市三大法人 T86 | 2017-12-18 以前 | 欄名「外資買進股數／賣出／買賣超」，沒有外資自營商欄 | 別名對應到 `foreign_*`；`foreign_dealer_*` 為空值（當時沒有這個身分別） |
+| 上市三大法人 T86 | 2014-12-01 以前 | 自營商不拆自行買賣／避險（只有自營商買進、賣出、買賣超） | 自行買賣／避險欄為空值；自營商避險急增指標自 2014-12 起才有資料 |
+| 上櫃三大法人 dailyTrade | 2018 年以前 | 第一個表格是空的 `{}`，明細在第二個表格；16 欄（外資及陸資不拆外資自營商） | `tpex._parse_insti_old` 依欄名解析 |
+| 上市融資融券 MI_MARGN | 2015 | 與現在相同 | — |
+
+- 樣本：`tests/fixtures/raw/twse_rwd_T86_{2014,2015,2017}.json`、`twse_rwd_MI_MARGN_2015.json`（Actions 擷取）、`tests/fixtures/samples/tpex_insti_2015.json`（本環境擷取後裁切）。
+- 回補：2026-09-30 觸發 `task=backfill, source=twse_insti,tpex_insti,twse_margin,tpex_margin,twse_disposition,tpex_disposition, start=2015-01-01, end=2023-09-06`（由近到遠、已存在略過、每段 40 分鐘自動接續）。約 2,100 個交易日 × 4 個每日來源 ≈ 8,400 次請求 ≈ 10 小時實際執行（扣暫停時段約 2 天）。
 
 ## 歷史長度與資料量（v3 M5）
 

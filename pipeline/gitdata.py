@@ -45,7 +45,8 @@ def merge_manifests(ours: dict[str, Any], theirs: dict[str, Any]) -> dict[str, A
     - 各來源：取 last_attempt 較新的一方；last_success／rows 取兩邊較新的成功日
     - closed_days、backfilled：聯集；coverage：起日取早、迄日取晚；runs：依時間合併（保留 40 筆）
     - holders_backfill（全市場集保回補進度）：取 updated_at 較新的一段，nodata 聯集，lane_state 逐道取較新
-    - 其他欄位（last_target_date、digest_date、backfill_pending…）：取 updated_at 較新的一方
+    - 待續槽（*_pending）：兩邊都有時取 deferred_at 較新者
+    - 其他欄位（last_target_date、digest_date…）：取 updated_at 較新的一方
     """
     newer_ours = str(ours.get("updated_at") or "") >= str(theirs.get("updated_at") or "")
     out: dict[str, Any] = {**(theirs if newer_ours else ours), **(ours if newer_ours else theirs)}
@@ -101,6 +102,12 @@ def merge_manifests(ours: dict[str, Any], theirs: dict[str, Any]) -> dict[str, A
         if lanes:
             best["lane_state"] = dict(sorted(lanes.items()))
         out["holders_backfill"] = best
+    # v3：待續槽（backfill_pending、holders_backfill_pending）兩邊都有時取 deferred_at 較新者。
+    # 兩個回補同時延後、先後推送時，後推的一方手上是舊的另一個槽，不能用整份 manifest 的新舊蓋掉（2026-09-30 實際發生）
+    for key in {k for k in (*ours, *theirs) if k.endswith("_pending")}:
+        a, b = ours.get(key), theirs.get(key)
+        if isinstance(a, dict) and isinstance(b, dict):
+            out[key] = a if str(a.get("deferred_at") or "") >= str(b.get("deferred_at") or "") else b
     runs = {(r.get("task"), r.get("at")): r for r in [*theirs.get("runs", []), *ours.get("runs", [])]}
     out["runs"] = sorted(runs.values(), key=lambda r: str(r.get("at") or ""))[-40:]
     return out
