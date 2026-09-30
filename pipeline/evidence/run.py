@@ -467,7 +467,7 @@ def evaluate(
                 k: {s: g[k][s].get("mean_excess") for s in ("on", "off")} for k in ("regime", "trend", "quarter_end")
             },
             "h": {
-                h: {k: v.get(k) for k in ("n", "mean_excess", "t")}
+                h: {k: v.get(k) for k in ("n", "mean_excess", "t", "bench")}
                 for h, v in res["variants"]["main"]["horizons"].items()
             },
             "param": (res["grid"] or {}).get("chosen"),

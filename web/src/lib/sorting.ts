@@ -49,7 +49,7 @@ export function sortItems<T extends Sortable>(items: T[], s: SortState): T[] {
   const sign = s.dir === 'desc' ? -1 : 1;
   const byName = (a: T, b: T) => a.label.localeCompare(b.label, 'zh-Hant');
   return [...items].sort((a, b) => {
-    let d = 0;
+    let d: number;
     if (s.key === 'verdict') {
       // 由高到低＝有效在前；同級內 t 由高到低（方向反轉時整體倒過來）
       d = (verdictTier(a.verdict) - verdictTier(b.verdict)) * -sign;

@@ -65,7 +65,7 @@ export function AlphaCurve({ line, label, n }: { line: CurveLine; label: string;
         viewBox={`0 0 ${W} ${H}`}
         width="100%"
         role="img"
-        tabIndex={0}
+        tabindex={0}
         aria-label={`${label}累積超額曲線：第 10 日 ${pctSigned(line.mean[9] ?? null)}、峰值第 ${line.peak ?? '—'} 日、alpha 耗盡第 ${line.exhaust ?? '—'} 日。可用方向鍵讀值。`}
         onPointerDown={(e) => { (e.currentTarget as Element).setPointerCapture?.(e.pointerId); at(e.clientX); }}
         onPointerMove={(e) => { if (e.pointerType === 'mouse' || e.buttons) at(e.clientX); }}

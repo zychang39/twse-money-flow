@@ -18,7 +18,7 @@ export interface StrategyItem {
   data_start?: string | null;
   signal_start?: string | null;
   signal_end?: string | null;
-  h?: Record<string, { n?: number; mean_excess?: number | null; t?: number | null }>;
+  h?: Record<string, { n?: number; mean_excess?: number | null; t?: number | null; bench?: Record<string, { mean_excess: number | null; t: number | null; ci?: [number | null, number | null]; win?: number | null } | null> }>;
   years?: Record<string, number | null>;
   env_stats?: Record<string, { on: number | null; off: number | null }>;
   t?: number | null;
@@ -26,7 +26,9 @@ export interface StrategyItem {
   n?: number;
   note?: string;
   health?: { status: string; recent: number | null; recent_n: number; recent_t: number | null; since: string | null; long: number | null };
-  today?: { code: string; name: string }[];
+  today?: { code: string; name: string; basis?: { label: string; value: number | null; unit: string }[] }[];
+  /** 今日 0 檔的原因（不留白） */
+  today_note?: string | null;
   exit?: { rule: string; param: string; label: string; stats: Partial<ExitRow>; alternatives: ExitRow[] };
   trades?: TradeStats & { n: number; mean_net: number | null; win: number | null; hold: number | null; yearly: Record<string, { n: number; mean_net: number | null; exc_idx: number | null; win: number | null }> };
   portfolio?: Record<string, PortfolioStats & { yearly?: Record<string, number | null>; total?: number | null }>;
@@ -41,9 +43,8 @@ export interface StrategyItem {
   compare?: BenchCompare;
 }
 
-export type BenchKey = 'ew' | 'tr' | '0050' | '00631L';
-export const BENCH_KEYS: BenchKey[] = ['ew', 'tr', '0050', '00631L'];
-export const BENCH_LABEL: Record<BenchKey, string> = { ew: '等權', tr: '加權報酬', '0050': '0050', '00631L': '00631L' };
+import type { BenchKey } from './bench';
+export { BENCH_KEYS, BENCH_LABEL, type BenchKey } from './bench';
 export interface BenchStat { mean_excess: number | null; t: number | null; ci?: [number | null, number | null]; win?: number | null; dates?: number }
 
 export interface Perf {
@@ -103,3 +104,13 @@ export const enabledFirst = (list: StrategyItem[]): { enabled: StrategyItem[]; d
   enabled: list.filter((s) => s.enabled),
   disabled: list.filter((s) => !s.enabled),
 });
+
+/** 觸發依據的數值文字：「投信連買 6 日」「千張大戶週變化 +0.42 百分點」「當日成交值 2,281 百萬元」。 */
+export function basisText(b: { label: string; value: number | null; unit: string }): string {
+  if (b.value === null || b.value === undefined || !Number.isFinite(b.value)) return `${b.label} —`;
+  const signed = b.unit === '百分點' || b.label.includes('變化') || b.label.includes('5 日') && b.unit === '%';
+  const abs = Math.abs(b.value).toLocaleString('zh-TW', { maximumFractionDigits: 2 });
+  const sign = signed ? (b.value > 0 ? '+' : b.value < 0 ? '−' : '') : b.value < 0 ? '−' : '';
+  const unit = b.unit ? (b.unit === '%' ? '%' : ` ${b.unit}`) : '';
+  return `${b.label} ${sign}${abs}${unit}`;
+}

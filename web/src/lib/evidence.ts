@@ -48,7 +48,7 @@ export interface EvidenceRow {
   delist?: { stocks?: number; events?: number; halted?: number; dl100?: (Brief & { affected?: number }) | null };
   note?: string;
   param?: string | null;
-  h?: Record<string, { n?: number; mean_excess?: number | null; t?: number | null }>;
+  h?: Record<string, { n?: number; mean_excess?: number | null; t?: number | null; bench?: Record<string, { mean_excess: number | null; t: number | null; ci?: [number | null, number | null]; win?: number | null } | null> }>;
   recent?: Brief | null;
   components?: Record<string, { label: string; n?: number; mean_excess?: number | null; t?: number | null }>;
 }

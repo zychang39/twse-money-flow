@@ -42,6 +42,7 @@ fields:
 # id 是內部識別（回測檔名、追蹤紀錄），不改。
 presets:
   - id: chip_concentration
+    evidence_test: combo_three   # v3 M5-2：預設排序依這個指標的判定分級與 t（指標效度表）
     label: 三方同買
     subtitle: 投信連買・外資買超・大戶增加
     aliases: [籌碼集中, 籌碼共振]
@@ -52,6 +53,7 @@ presets:
       - { field: whale_change, op: ">", value: 0 }
       - { field: value_million, op: ">=", value: 20 }
   - id: revenue_acceleration
+    evidence_test: rev_accel   # v3 M5-2：預設排序依這個指標的判定分級與 t（指標效度表）
     label: 營收創新高
     subtitle: 近 3 月年增 ≥ 20%・年增擴大・創 12 個月新高
     aliases: [營收加速]
@@ -62,6 +64,7 @@ presets:
       - { field: revenue_high_ratio, op: ">=", value: 100 }
       - { field: value_million, op: ">=", value: 20 }
   - id: strong_breakout
+    evidence_test: high52   # v3 M5-2：預設排序依這個指標的判定分級與 t（指標效度表）
     label: 近高點放量
     subtitle: RS ≥ 80・距 52 週高點 3% 內・量 1.5 倍
     aliases: [強勢突破]
@@ -72,6 +75,7 @@ presets:
       - { field: volume_ratio_20, op: ">=", value: 1.5 }
       - { field: value_million, op: ">=", value: 50 }
   - id: value_income
+    evidence_test: null   # v3 M5-2：預設排序依這個指標的判定分級與 t（指標效度表）
     label: 低本益高息
     subtitle: 本益比、淨值比在自身低檔・殖利率 ≥ 5%
     aliases: [低估高息]
