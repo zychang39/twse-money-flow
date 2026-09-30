@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 from datetime import date, timedelta
 from typing import Any
@@ -285,14 +286,16 @@ def tdcc_full_codes(ctx: RunContext, days: int = 370) -> list[str]:
     return sorted(value, key=lambda c: (-value[c], c))
 
 
-def full_progress(state: dict[str, Any], total: int, remaining: int, per_query: float, now: Any) -> dict[str, Any]:
+def full_progress(
+    state: dict[str, Any], total: int, remaining: int, per_query: float, now: Any, lanes: int = 1
+) -> dict[str, Any]:
     """回補進度與預估完成時間（寫入 manifest[holders_backfill]）。
 
-    預估：剩餘查詢 × 每次實測秒數 ÷ 可用比例。可用比例＝(一週 168 小時 − 5 個交易日 × 9 小時的暫停時段) ÷ 168
+    預估：剩餘查詢 × 每次實測秒數 ÷ 道數 ÷ 可用比例。可用比例＝(一週 168 小時 − 5 個交易日 × 9 小時的暫停時段) ÷ 168
     × 分段銜接損耗 0.9 ≈ 0.66（交易日 13:30–22:30 不開始新的一段）。
     """
     avail = (168 - 5 * 9) / 168 * 0.9
-    hours = remaining * per_query / 3600
+    hours = remaining * per_query / 3600 / max(1, lanes)
     eta = now + timedelta(hours=hours / avail) if remaining else now
     return {
         **state,
@@ -306,13 +309,42 @@ def full_progress(state: dict[str, Any], total: int, remaining: int, per_query: 
     }
 
 
-def run_tdcc_full(ctx: RunContext, codes: list[str] | None = None) -> dict[str, Any]:
+def parse_lane(source: str | None) -> tuple[int, int] | None:
+    """holders_backfill 的 source 輸入：「lane=k/n」→ (k, n)；其他（空白、「lanes=n」）→ None（由分派者處理）。"""
+    m = re.fullmatch(r"\s*lane=(\d+)/(\d+)\s*", source or "")
+    if not m:
+        return None
+    k, n = int(m.group(1)), int(m.group(2))
+    return (k, n) if 0 <= k < n else None
+
+
+def parse_lanes(source: str | None, default: int) -> int:
+    """分派者的 source：「lanes=n」→ n；空白 → default（main 的 22:40 接續與停擺重啟都送空白）。"""
+    m = re.fullmatch(r"\s*lanes=(\d+)\s*", source or "")
+    return max(1, int(m.group(1))) if m else default
+
+
+def lane_of(week: str, n: int) -> int:
+    """週別（資料日 YYYYMMDD）→ 平行回補的道次。依 ISO 週（週一起算）的序號取餘數，不依清單位置：
+
+    官方每週六新增一週、刪掉最舊一週，清單位置會變，但同一週永遠在同一道；資料日是週四（週五休市）或週六補班也不變。
+    同一週的檔案只由同一道寫入（raw/tdcc_history/{週}.csv.gz），兩道同時推送不會互相覆蓋。
+    """
+    d = date(int(week[:4]), int(week[4:6]), int(week[6:8]))
+    return ((d.toordinal() - 1) // 7) % n
+
+
+def run_tdcc_full(
+    ctx: RunContext, codes: list[str] | None = None, lane: tuple[int, int] | None = None
+) -> dict[str, Any]:
     """集保「股權分散表查詢」全市場回補過去一年（M0）：逐週（由舊到新）× 逐檔。
 
     - 官方只保存約 51 週，最舊的週最先消失 → 由最舊的週開始查。
     - 已有的週別（開放資料整週全部股票）與已補的（週, 代號）略過；查無資料的（週, 代號）記在 manifest，不再重查。
     - 禮貌爬取：PoliteClient（3–5 秒間隔＋抖動、退避、斷路器）；時間預算由 ctx.deadline 控制（每段 40 分鐘）。
     - 進度與預估完成時間寫入 manifest[holders_backfill]。
+    - lane＝(k, n)：v3 起分成 n 道平行（各自的 concurrency group），這一道只查 lane_of(週, n) == k 的週；
+      進度（total／remaining）仍以全部週別計算，預估時間除以道數。
     """
     url = str(config.source("tdcc_history")["url"])
     headers = {"Referer": url, "Origin": "https://www.tdcc.com.tw"}
@@ -326,14 +358,15 @@ def run_tdcc_full(ctx: RunContext, codes: list[str] | None = None) -> dict[str, 
         return {"remaining": int(state.get("remaining") or 1), "progressed": False}
     have_weeks, have_pairs = _tdcc_have(ctx)
     skip = {(w, c) for c, ws in nodata.items() for w in ws}
-    todo = [
+    all_todo = [
         (w, c)
         for w in sorted(weeks)
         if w not in have_weeks
         for c in codes
         if (w, c) not in have_pairs and (w, c) not in skip
     ]
-    total = len(have_pairs & {(w, c) for w in weeks for c in codes}) + len(skip) + len(todo)
+    todo = [(w, c) for w, c in all_todo if lane is None or lane_of(w, lane[1]) == lane[0]]
+    total = len(have_pairs & {(w, c) for w in weeks for c in codes}) + len(skip) + len(all_todo)
     done = rows = 0
     failed: list[str] = []
     frames: list[pd.DataFrame] = []
@@ -383,7 +416,9 @@ def run_tdcc_full(ctx: RunContext, codes: list[str] | None = None) -> dict[str, 
     elapsed = time.monotonic() - t0
     asked = ctx.client.request_count - started
     per_query = elapsed / asked if asked else float(state.get("per_query_sec") or 4.6)
-    remaining = len(todo) - done + len(failed)  # 失敗的（週, 代號）下一段重查
+    remaining = len(todo) - done + len(failed)  # 失敗的（週, 代號）下一段重查（這一道）
+    remaining_all = len(all_todo) - done + len(failed)
+    lanes = lane[1] if lane else 1
     state["nodata"] = nodata
     state.setdefault("started_at", ctx.now.isoformat(timespec="minutes"))
     state["weeks"] = len(weeks)
@@ -391,10 +426,21 @@ def run_tdcc_full(ctx: RunContext, codes: list[str] | None = None) -> dict[str, 
     state["oldest_week"] = min(weeks)
     state["segments"] = int(state.get("segments") or 0) + 1
     state["ref"] = os.environ.get("GITHUB_REF_NAME", state.get("ref") or "main")
-    ctx.manifest[FULL_KEY] = full_progress(state, total, max(0, remaining), per_query, ctx.now)
+    state["lanes"] = lanes
+    if lane:
+        info = dict(state.get("lane_state") or {})
+        info[f"{lane[0]}/{lane[1]}"] = {
+            "remaining": max(0, remaining),
+            "per_query_sec": round(per_query, 2),
+            "updated_at": ctx.now.isoformat(timespec="minutes"),
+        }
+        state["lane_state"] = info
+    ctx.manifest[FULL_KEY] = full_progress(state, total, max(0, remaining_all), per_query, ctx.now, lanes)
     status = "ok" if rows or not failed else "failed"
-    message = f"全市場 {len(codes)} 檔 × {len(weeks)} 週：本段 {done} 次查詢；剩餘 {max(0, remaining)} 次" + (
-        f"；失敗：{'；'.join(failed[:3])}" if failed else ""
+    tag = f"（第 {lane[0] + 1}／{lane[1]} 道）" if lane else ""
+    message = (
+        f"全市場 {len(codes)} 檔 × {len(weeks)} 週{tag}：本段 {done} 次查詢；這一道剩餘 {max(0, remaining)} 次、全部剩餘 {max(0, remaining_all)} 次"
+        + (f"；失敗：{'；'.join(failed[:3])}" if failed else "")
     )
     ctx.note("tdcc_history", status, rows=rows, message=message[:300])
     return {

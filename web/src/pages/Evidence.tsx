@@ -7,9 +7,10 @@ import { PageHead, TopBar } from '../components/Chrome';
 import { ErrorState, Loading } from '../components/DataStatus';
 import { useAsync } from '../hooks';
 import { loadJson } from '../data/api';
+import { LineChart } from '../components/LineChart';
 import {
-  type Brief, type EvidenceFile, type EvidenceRow, type Filter, FAMILIES, ciText, counts, filterRows, pctSigned,
-  rowSummary, sortRows, tText, verdictNote, verdictTone,
+  type Brief, type EvidenceFile, type EvidenceRow, type Filter, type Hindsight, type WeeklyCoverage, FAMILIES, ciText,
+  counts, coverageLabel, coverageText, filterRows, pctSigned, rowSummary, sortRows, tText, verdictNote, verdictTone,
 } from '../lib/evidence';
 import '../styles/evidence.css';
 
@@ -40,7 +41,56 @@ interface Detail {
 
 function VerdictTag({ row }: { row: EvidenceRow }) {
   const tone = verdictTone(row.verdict);
-  return <span class={`tag ev-verdict ${tone === 'risk' ? 'risk' : tone === 'strong' ? 'strong' : ''}`}>{row.verdict}</span>;
+  const cov = row.verdict === '樣本範圍受限' ? null : coverageLabel(row.coverage?.ratio);
+  return (
+    <span class="ev-tags">
+      <span class={`tag ev-verdict ${tone === 'risk' ? 'risk' : tone === 'strong' ? 'strong' : ''}`}>{row.verdict}</span>
+      {cov ? <span class="tag ev-verdict risk">{cov}</span> : null}
+    </span>
+  );
+}
+
+/** v3 M0-4：原 31 檔 vs 全市場（涵蓋率 ≥ 90% 後才比較）。 */
+function HindsightCard({ h }: { h: Hindsight }) {
+  if (h.status === 'waiting') {
+    return <p class="caption muted">原 31 檔 vs 全市場：涵蓋率 {Math.round(h.coverage * 100)}%，達 {Math.round((h.threshold ?? 0.9) * 100)}% 後自動計算「選樣偏差估計」。</p>;
+  }
+  return (
+    <>
+      <h4 class="ev-h">原 31 檔 vs 全市場</h4>
+      <table class="ev-table" aria-label="原 31 檔與全市場比較">
+        <thead><tr><th scope="col">樣本</th><th scope="col">超額</th><th scope="col">t</th><th scope="col">樣本</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">原 31 檔</th><td>{pctSigned(h.orig?.mean_excess)}</td><td>{tText(h.orig?.t)}</td><td>{(h.orig?.n ?? 0).toLocaleString('zh-TW')}</td></tr>
+          <tr><th scope="row">全市場</th><td>{pctSigned(h.full?.mean_excess)}</td><td>{tText(h.full?.t)}</td><td>{(h.full?.n ?? 0).toLocaleString('zh-TW')}</td></tr>
+          <tr class="ev-chosen"><th scope="row">選樣偏差估計</th><td>{pctSigned(h.bias)}</td><td>—</td><td>—</td></tr>
+        </tbody>
+      </table>
+      <p class="caption muted">選樣偏差估計＝原 31 檔 − 全市場（10 日超額）。原 31 檔是 2026-09 依當時成交值挑選的熱門股，有後見之明偏差。</p>
+    </>
+  );
+}
+
+/** v3 M0-3：千張大戶資料的每週涵蓋率（universe 內有資料的比例）。 */
+export function CoverageChart({ weeks }: { weeks: WeeklyCoverage[] }) {
+  if (!weeks.length) return null;
+  const last = weeks[weeks.length - 1];
+  return (
+    <div class="card ev-cov">
+      <h2 class="section">千張大戶資料涵蓋率（每週）</h2>
+      <p class="caption muted">最新一週 {Math.round(last.ratio * 100)}%（每日平均 {last.included.toLocaleString('zh-TW')}／{last.universe.toLocaleString('zh-TW')} 檔）。低於 50% 標示「樣本範圍受限」、50–90% 標示「部分涵蓋」。</p>
+      <LineChart
+        ariaLabel={`千張大戶資料每週涵蓋率，最新 ${Math.round(last.ratio * 100)}%`}
+        dates={weeks.map((w) => w.date)}
+        format={(v) => `${v.toFixed(0)}%`}
+        lines={[
+          { label: '涵蓋率', values: weeks.map((w) => w.ratio * 100) },
+          { label: '90%', values: weeks.map(() => 90), tone: 'tertiary', dash: '4 3' },
+          { label: '50%', values: weeks.map(() => 50), tone: 'tertiary', dash: '1 3' },
+        ]}
+      />
+    </div>
+  );
 }
 
 function BriefCells({ b }: { b: Brief | undefined }) {
@@ -83,10 +133,11 @@ function DetailPanel({ row, horizon }: { row: EvidenceRow; horizon: number }) {
       <p class="caption">{row.definition}</p>
       <p class="caption"><b>{row.verdict}</b>：{verdictNote(row)}{row.reasons?.length ? `（${row.reasons.join('；')}）` : ''}</p>
       <p class="caption muted">
-        訊號期間 {row.signal_start ?? '—'}～{row.signal_end ?? '—'}・資料起始 {row.data_start ?? '—'}・納入 {row.coverage?.included ?? '—'}／{row.coverage?.universe ?? '—'} 檔
+        訊號期間 {row.signal_start ?? '—'}～{row.signal_end ?? '—'}・資料起始 {row.data_start ?? '—'}・{coverageText(row.coverage)}
         {row.param ? `・參數 ${row.param}` : ''}
       </p>
-      {row.note ? <p class="caption risk-text">{row.note}</p> : null}
+      {row.note && row.coverage && row.coverage.ratio < 0.9 ? <p class="caption risk-text">{row.note}</p> : null}
+      {row.hindsight ? <HindsightCard h={row.hindsight} /> : null}
       {d.loading ? <Loading /> : null}
       {d.error ? <ErrorState error={d.error} /> : null}
       {row.kind === 'quintile' && d.data?.quintile ? (
@@ -205,6 +256,7 @@ export default function Evidence() {
               並要求逐年多數為正、樣本外為正、參數不敏感。評估期間大盤有 {Math.round((d.data.meta.regime_share ?? 0) * 100)}% 的交易日在年線上（以多頭為主），籌碼類資料自 {d.data.meta.starts?.insti ?? '—'} 起。
             </p>
           </div>
+          {d.data.meta.coverage_weekly?.whale?.length ? <CoverageChart weeks={d.data.meta.coverage_weekly.whale} /> : null}
           <div class="segmented ev-filter" role="group" aria-label="篩選">
             {([['all', `全部 ${rows.length}`], ['usable', `可用 ${c['有效'] + c['環境依賴']}`], ['other', `其他 ${rows.length - c['有效'] - c['環境依賴']}`]] as [Filter, string][]).map(([k, label]) => (
               <button key={k} aria-pressed={filter === k} onClick={() => setFilter(k)}>{label}</button>

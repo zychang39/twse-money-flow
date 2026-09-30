@@ -378,3 +378,71 @@ def test_probe_day_records_first_seen_time():
     assert all(s != "twse_margin" for s, _ in asked)
     assert sum(1 for s, _ in asked if s == "twse_quotes") == 11  # 13:30–14:20 每 5 分鐘
     assert ctx.manifest["publish_probe"]["2026-09-30"]["twse_quotes"] == "14:20"
+
+
+def _holders_args(tmp_path, source):
+    import argparse
+
+    return argparse.Namespace(
+        task="holders_backfill",
+        schedule="",
+        source=source,
+        start="",
+        end="",
+        refresh="",
+        data_dir=str(tmp_path),
+        max_minutes=40,
+        chain=True,
+    )
+
+
+def test_holders_backfill_spawns_lanes_outside_quiet_window(tmp_path, monkeypatch):
+    """v3 M0：空白 source（main 的接續、停擺重啟）→ 分派者觸發 lane=0/2、lane=1/2 兩道，自己不查詢。"""
+    from pipeline import cli
+
+    monkeypatch.setattr("pipeline.cli.now_tpe", lambda: datetime(2026, 9, 29, 23, 0, tzinfo=TPE))
+    called: list[tuple[str, dict, str]] = []
+    monkeypatch.setattr(
+        "pipeline.notify.github.dispatch_workflow",
+        lambda wf, inputs, ref="main": called.append((wf, inputs, ref)) or True,
+    )
+    monkeypatch.setattr("pipeline.tasks_advanced.run_tdcc_full", lambda *a, **k: pytest.fail("分派者不查詢"))
+    monkeypatch.setenv("GITHUB_REF_NAME", "feat/x")
+    assert cli.cmd_run(_holders_args(tmp_path, "")) == 0
+    assert [c[1]["source"] for c in called] == ["lane=0/2", "lane=1/2"]
+    assert all(c[2] == "feat/x" and c[1]["task"] == "holders_backfill" for c in called)
+
+
+def test_holders_backfill_lane_runs_its_lane_and_defers_as_spawner(tmp_path, monkeypatch):
+    """每一道只跑自己的週；在交易日 13:30–22:30 延後時，待續槽記「lanes=2」，22:40 接續一次觸發兩道。"""
+    import pandas as pd
+
+    from pipeline import cli
+    from pipeline.core.store import DataStore
+    from pipeline.derive.demo import DEMO_HOLIDAYS_2026
+
+    seen: list[object] = []
+    monkeypatch.setattr(
+        "pipeline.tasks_advanced.run_tdcc_full",
+        lambda ctx, **k: seen.append(k.get("lane")) or {"remaining": 0, "progressed": True},
+    )
+    monkeypatch.setattr("pipeline.notify.github.dispatch_workflow", lambda *a, **k: True)
+    monkeypatch.setattr("pipeline.cli.now_tpe", lambda: datetime(2026, 9, 29, 23, 0, tzinfo=TPE))
+    assert cli.cmd_run(_holders_args(tmp_path, "lane=1/2")) == 0
+    assert seen == [(1, 2)]
+    store = DataStore(tmp_path)
+    store.write(
+        "twse_holidays",
+        datetime(2026, 1, 1).date(),
+        pd.DataFrame([{"date": d, "name": n, "description": ""} for d, n in DEMO_HOLIDAYS_2026]),
+    )
+    monkeypatch.setattr("pipeline.cli.now_tpe", lambda: datetime(2026, 9, 29, 14, 0, tzinfo=TPE))
+    assert cli.cmd_run(_holders_args(tmp_path, "lane=0/2")) == 0
+    assert seen == [(1, 2)]
+    assert store.load_manifest()["holders_backfill_pending"]["source"] == "lanes=2"
+
+
+def test_data_yml_holders_lanes_have_own_groups():
+    """兩道各自一個 concurrency group（holders-backfill-lane=0/2…），不互相排隊。"""
+    text = (Path(__file__).resolve().parents[2] / ".github/workflows/data.yml").read_text(encoding="utf-8")
+    assert "format('holders-backfill-{0}', inputs.source)" in text

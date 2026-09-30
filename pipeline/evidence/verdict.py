@@ -41,6 +41,7 @@ def decide(
     coverage: float,
     envs: dict[str, Any] | None,
     cfg: dict[str, Any],
+    counts: tuple[int, int] | None = None,
 ) -> dict[str, Any]:
     """回傳 {verdict, reasons, env}。kind：event（樣本＝去重後事件數）或 quintile（樣本＝月數）。"""
     v = cfg["verdict"]
@@ -50,7 +51,9 @@ def decide(
         return {
             "verdict": LIMITED,
             "reasons": [
-                f"納入股票數只有 universe 的 {coverage * 100:.0f}%（< {float(v['coverage_ratio']) * 100:.0f}%）"
+                f"涵蓋率 {coverage * 100:.0f}%"
+                + (f"（每日平均納入 {counts[0]:,}／{counts[1]:,} 檔）" if counts else "")
+                + f"，< {float(v['coverage_ratio']) * 100:.0f}%"
             ],
             "env": None,
         }

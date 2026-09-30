@@ -51,3 +51,16 @@ describe('有效訊號面板', () => {
     expect(panelItems(rows, today, '1101').every((i) => i.state === 'off')).toBe(true);
   });
 });
+
+describe('涵蓋率（v3 M0-3）', () => {
+  it('百分比與每日平均檔數同一個定義；標示 50%／90% 門檻', async () => {
+    const { coverageText, coverageLabel } = await import('./evidence');
+    // 887 ÷ 1,320 ＝ 67.2% → 67%
+    expect(coverageText({ ratio: 887 / 1320, included: 887, universe: 1320 })).toBe('涵蓋率 67%（每日平均 887／1,320 檔）');
+    expect(coverageLabel(0.09)).toBe('樣本範圍受限');
+    expect(coverageLabel(0.5)).toBe('部分涵蓋');
+    expect(coverageLabel(0.899)).toBe('部分涵蓋');
+    expect(coverageLabel(0.9)).toBeNull();
+    expect(coverageLabel(undefined)).toBeNull();
+  });
+});

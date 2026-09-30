@@ -2,7 +2,8 @@
 
 資料生效日（1.2）一律換成「訊號列」：訊號在該列收盤後產生，下一個交易日開盤進場。
 - 收盤價、量、三大法人、融資融券：資料日 T 就是訊號列。
-- 集保股權分散：資料日（週五）次日公布（週六）→ 訊號列＝公布日之前最後一個交易日（週五），進場＝下週一開盤。
+- 集保股權分散：資料日（週五）次日公布（週六）→ v3 M0-2 起訊號列＝下週第一個交易日（通常週一），進場＝週二開盤；
+  訊號日 T 只引用 T 之前一週（含）以前已公布的週，不引用 T 當週（見 whale_usable_from）。
 - 月營收：公布日（取不到則為次月 10 日）→ 訊號列＝公布日（含）之前最後一個交易日，進場＝公布日之後第一個交易日。
 """
 
@@ -105,6 +106,28 @@ def whale_frames(tdcc: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def whale_usable_from(data_date: str) -> str:
+    """v3 M0-2：集保週資料最早可被引用的日子。
+
+    基準日為該週最後一個營業日（通常週五；週五休市時為週四），次日（週六）公布。訊號日 T 只能引用
+    「T 之前最近一個已公布的週」：T 為週一到週五時一律用上週的資料，不得引用 T 當週（即使 T 是週五、
+    當週資料要到週六才公布）。所以最早可用日＝max(下週一, 公布日次日)。
+    """
+    d = date.fromisoformat(data_date[:10])
+    next_monday = d + timedelta(days=7 - d.weekday())
+    return max(next_monday, d + timedelta(days=2)).isoformat()
+
+
+def whale_signal_rows(data_dates: list[str], dates: list[str]) -> np.ndarray:
+    """週資料日 → 第一次可引用的訊號列（最早可用日當天或之後的第一個交易日；在資料之後為 len(dates)）。
+
+    訊號列當天收盤後產生訊號、下一個交易日開盤進場（週資料 → 最早週一收盤訊號、週二開盤進場，
+    與分數系統 §4.5 的「週二進場」一致）。
+    """
+    usable = [whale_usable_from(d) for d in data_dates]
+    return np.searchsorted(np.asarray(dates), np.asarray(usable, dtype=str), side="left")
+
+
 def whale_panels(
     w: pd.DataFrame, dates: list[str], codes: list[str], weeks: int = 4, max_age: int = 7
 ) -> dict[str, np.ndarray]:
@@ -119,8 +142,8 @@ def whale_panels(
     w["chg4"] = w.groupby("code")["w1000"].diff(weeks)
     span = pd.to_datetime(w["date"]).groupby(w["code"]).diff(weeks).dt.days
     w.loc[span > weeks * 7 + 1, "chg4"] = np.nan
-    w["row"] = np.searchsorted(np.asarray(dates), w["published"].to_numpy(dtype=str), side="right") - 1
-    w = w[(w["row"] >= 0) & w["code"].isin(pos)]
+    w["row"] = whale_signal_rows(w["date"].astype(str).tolist(), dates)
+    w = w[(w["row"] >= 0) & (w["row"] < T) & w["code"].isin(pos)]
     for col, arr in (("w1000", pct), ("chg4", chg4)):
         upd = np.full((T, C), np.nan)
         for code, part in w.groupby("code"):

@@ -384,3 +384,47 @@ def test_tdcc_full_codes_common_stocks_by_value(tmp_path):
     from pipeline import tasks_advanced
 
     assert tasks_advanced.tdcc_full_codes(ctx) == ["2330", "6488", "1101"]
+
+
+def test_tdcc_lane_of_stable_by_iso_week():
+    """v3 M0：平行回補依 ISO 週分道；同一週的週四（週五休市）與週五在同一道，相鄰兩週在不同道。"""
+    from pipeline.tasks_advanced import lane_of, parse_lane, parse_lanes
+
+    # 2026-09-18（週五）與 2026-09-24（週四，9/25 中秋休市）是相鄰兩週
+    assert lane_of("20260918", 2) != lane_of("20260924", 2)
+    # 同一週的週四與週五同一道
+    assert lane_of("20260917", 2) == lane_of("20260918", 2)
+    # 2026-09-14 是週一：序號 (739873 − 1) // 7 = 105696，偶數 → 第 0 道
+    assert date(2026, 9, 14).toordinal() == 739873 and lane_of("20260918", 2) == 0
+    assert parse_lane("lane=1/2") == (1, 2) and parse_lane("lane=2/2") is None and parse_lane("") is None
+    assert parse_lanes("", 2) == 2 and parse_lanes("lanes=3", 2) == 3 and parse_lanes("lane=0/2", 2) == 2
+
+
+def test_tdcc_full_lane_only_own_weeks_progress_counts_all(tmp_path, monkeypatch):
+    """第 k 道只查 lane_of(週) == k 的週；manifest 的 total／remaining 仍以全部週別計算，預估時間除以道數。"""
+    ctx = make_ctx(tmp_path, {})
+    client = TdccClient()
+    ctx.client = client  # type: ignore[assignment]
+    from pipeline import tasks_advanced
+
+    weeks = ["20260918", "20260911", "20260904"]  # 第 0、1、0 道
+    monkeypatch.setattr(tasks_advanced.advanced, "parse_tdcc_form", lambda html: ("tok", weeks))
+    res = tasks_advanced.run_tdcc_full(ctx, ["3406"], lane=(1, 2))
+    assert [(p["scaDate"], p["stockNo"]) for p in client.posts] == [("20260911", "3406")]
+    assert res["remaining"] == 0
+    prog = ctx.manifest["holders_backfill"]
+    assert prog["total"] == 3 and prog["remaining"] == 2 and prog["lanes"] == 2
+    assert prog["lane_state"]["1/2"]["remaining"] == 0
+
+
+def test_tdcc_full_progress_eta_lanes():
+    """兩道平行：剩餘時間減半（3,600 × 5 秒 ÷ 2 ＝ 2.5 小時）。"""
+    from datetime import datetime
+
+    from pipeline.tasks_advanced import full_progress
+
+    now = datetime(2026, 9, 30, 0, 0, tzinfo=TPE)
+    p = full_progress({}, total=10_000, remaining=3_600, per_query=5.0, now=now, lanes=2)
+    assert p["runtime_hours_left"] == 2.5
+    # 2.5 ÷ 0.658929 ≈ 3.794 小時 → 03:47
+    assert p["eta"] == "2026-09-30T03:47+08:00"

@@ -29,17 +29,65 @@ def period_start(test: catalog.Test, ev: EvData, uni: np.ndarray, c: dict[str, A
     return first
 
 
-def coverage(test: catalog.Test, ev: EvData, uni: np.ndarray, start: str) -> dict[str, Any]:
-    """納入股票數（universe 內、指標可計算）與 universe 股票數；比例＝逐日（可計算 ÷ universe）的平均。"""
+def coverage_label(ratio: float, c: dict[str, Any]) -> str | None:
+    """涵蓋率標示：< 50% 樣本範圍受限；50–90% 部分涵蓋；≥ 90% 不標示。"""
+    v = c["verdict"]
+    if ratio < float(v["coverage_ratio"]):
+        return "樣本範圍受限"
+    if ratio < float(v.get("coverage_full", 0.9)):
+        return "部分涵蓋"
+    return None
+
+
+def coverage(
+    test: catalog.Test, ev: EvData, uni: np.ndarray, start: str, c: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """v3 M0-3 涵蓋率（唯一定義）：每個訊號日「universe 內指標可計算的股票數 ÷ 該日 universe 股票數」，
+    以訊號日加權平均＝Σ每日可計算檔數 ÷ Σ每日 universe 檔數（每一天的權重＝當天 universe 檔數，也就是
+    所有（訊號日, 股票）組合中有資料的比例）。
+
+    畫面上的「納入 x／y 檔」＝每日平均可計算檔數／每日平均 universe 檔數，x ÷ y 就是涵蓋率，兩者一定對得上。
+    另列期間內「曾經」納入與 universe 的不重複檔數（ever_*），只用來統計下市股票，不與涵蓋率並列。
+    """
     rows = np.asarray(ev.dates) >= start
     u = uni[rows]
     a = u & test.avail[rows]
-    daily = a.sum(axis=1) / np.maximum(u.sum(axis=1), 1)
-    return {
-        "included": int(a.any(axis=0).sum()),
-        "universe": int(u.any(axis=0).sum()),
-        "ratio": round(float(daily[u.sum(axis=1) > 0].mean()) if u.any() else 0.0, 4),
+    du, da = u.sum(axis=1), a.sum(axis=1)
+    days = du > 0
+    ratio = float(da[days].sum() / du[days].sum()) if days.any() else 0.0
+    out: dict[str, Any] = {
+        "ratio": round(ratio, 4),
+        "included": round(float(da[days].mean())) if days.any() else 0,
+        "universe": round(float(du[days].mean())) if days.any() else 0,
+        "ever_included": int(a.any(axis=0).sum()),
+        "ever_universe": int(u.any(axis=0).sum()),
+        "days": int(days.sum()),
     }
+    if c is not None:
+        out["label"] = coverage_label(ratio, c)
+    return out
+
+
+def weekly_coverage(avail: np.ndarray, uni: np.ndarray, dates: list[str], start: str | None) -> list[dict[str, Any]]:
+    """每週涵蓋率（指標頁折線圖）：同一 ISO 週內 Σ可計算 ÷ Σuniverse，日期標在該週最後一個交易日。"""
+    if start is None:
+        return []
+    d = pd.to_datetime(pd.Series(dates))
+    keep = (np.asarray(dates) >= start) & (uni.sum(axis=1) > 0)
+    a = (avail & uni).sum(axis=1)
+    u = uni.sum(axis=1)
+    df = pd.DataFrame({"date": np.asarray(dates), "a": a, "u": u, "wk": d.dt.to_period("W-SUN").astype(str)})[keep]
+    out = []
+    for _, g in df.groupby("wk", sort=True):
+        out.append(
+            {
+                "date": str(g["date"].iloc[-1]),
+                "ratio": round(float(g["a"].sum() / g["u"].sum()), 4),
+                "included": round(float(g["a"].mean())),
+                "universe": round(float(g["u"].mean())),
+            }
+        )
+    return out
 
 
 def windows(start: str, end: str) -> list[tuple[str, str]]:
@@ -203,6 +251,7 @@ def evaluate(ev: EvData, *, only: list[str] | None = None, with_exits: bool = Tr
     rows, details = [], {}
     today: dict[str, Any] = {}
     keep: dict[str, dict[str, Any]] = {}
+    weekly: dict[str, list[dict[str, Any]]] = {}
     for test in tests:
         if only and test.id not in only:
             continue
@@ -220,7 +269,9 @@ def evaluate(ev: EvData, *, only: list[str] | None = None, with_exits: bool = Tr
                 }
             )
             continue
-        cov = coverage(test, ev, uni, start)
+        cov = coverage(test, ev, uni, start, c)
+        if test.data == "whale_chg" and "whale" not in weekly and test.kind == "event":
+            weekly["whale"] = weekly_coverage(test.avail, uni, ev.dates, start)
         base: dict[str, Any] = {
             "id": test.id,
             "label": test.label,
@@ -246,6 +297,7 @@ def evaluate(ev: EvData, *, only: list[str] | None = None, with_exits: bool = Tr
                 coverage=cov["ratio"],
                 envs=None,
                 cfg=c,
+                counts=(cov["included"], cov["universe"]),
             )
             qrow: dict[str, Any] = {
                 **base,
@@ -274,6 +326,7 @@ def evaluate(ev: EvData, *, only: list[str] | None = None, with_exits: bool = Tr
             coverage=cov["ratio"],
             envs={k: g[k] for k in ("regime", "trend", "quarter_end")},
             cfg=c,
+            counts=(cov["included"], cov["universe"]),
         )
         comp_rows = {k: v for k, v in res["variants"].items() if k in test.components}
         # 近期表現（策略健康度用）：最近 recent_days 個交易日內已完成的訊號 vs 全期間
@@ -325,11 +378,19 @@ def evaluate(ev: EvData, *, only: list[str] | None = None, with_exits: bool = Tr
             cand = res["main_frames"][int(H)]
             cand = cand[cand["status"] == "ok"]
             detail["exits"] = exits.compare(mk, cand, ev, c, windows(start, end))
+        if test.id in set(c.get("hindsight_tests") or []):
+            row["hindsight"] = hindsight(main_mask, r, start, cov, row, c)
+            detail["hindsight"] = row["hindsight"]
         rows.append(row)
         details[test.id] = detail
         log.info("%s：%s n=%s t=%s（%.0f 秒）", test.id, dec["verdict"], row["n"], row["t"], time.monotonic() - t0)
     uni_rows = np.asarray(ev.dates) >= str(c["price_start"])
     meta = {
+        "coverage_weekly": weekly,
+        "coverage_rule": {
+            "limited": float(c["verdict"]["coverage_ratio"]),
+            "full": float(c["verdict"].get("coverage_full", 0.9)),
+        },
         "generated_at": datetime.now(TPE).isoformat(timespec="seconds"),
         "data_end": end,
         "starts": ev.starts,
@@ -357,6 +418,34 @@ def evaluate(ev: EvData, *, only: list[str] | None = None, with_exits: bool = Tr
         },
         # 策略庫（M2）用的中間結果：不寫入 JSON
         "_ctx": {"ev": ev, "mk": mk, "uni": uni, "tests": keep, "cfg": c},
+    }
+
+
+def hindsight(
+    mask: np.ndarray, r: EventRunner, start: str, cov: dict[str, Any], row: dict[str, Any], c: dict[str, Any]
+) -> dict[str, Any]:
+    """v3 M0-4 後見之明偏差估計：同一個訊號定義，只用「原 31 檔」vs 全市場，差額＝原 31 檔 − 全市場。
+
+    涵蓋率未達 coverage_full（90%）前不比較（全市場版本本身還不完整），回傳 waiting。
+    """
+    full_at = float(c["verdict"].get("coverage_full", 0.9))
+    if cov["ratio"] < full_at:
+        return {"status": "waiting", "coverage": cov["ratio"], "threshold": full_at}
+    H = int(c["primary_horizon"])
+    keep_cols = np.isin(np.asarray(r.ev.codes), [str(x) for x in c.get("hindsight_codes") or []])
+    fr = r.frames(mask & keep_cols[None, :], start)
+    d = engine.dedupe(fr[H])
+    orig = stats.brief(d, c)
+    orig["stocks"] = int(d["c"].nunique()) if len(d) else 0
+    full = {k: row.get(k) for k in ("n", "mean_excess", "t", "ci")}
+    om, fm = orig.get("mean_excess"), full.get("mean_excess")
+    return {
+        "status": "ok",
+        "coverage": cov["ratio"],
+        "codes": int(keep_cols.sum()),
+        "orig": orig,
+        "full": full,
+        "bias": None if om is None or fm is None else round(om - fm, 3),
     }
 
 

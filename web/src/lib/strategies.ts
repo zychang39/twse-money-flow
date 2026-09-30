@@ -14,7 +14,7 @@ export interface StrategyItem {
   env: { dim: string; side: string; label: string; today: boolean } | null;
   param?: string | null;
   definition?: string;
-  coverage?: { included: number; universe: number; ratio: number };
+  coverage?: import('./evidence').Coverage;
   data_start?: string | null;
   signal_start?: string | null;
   signal_end?: string | null;

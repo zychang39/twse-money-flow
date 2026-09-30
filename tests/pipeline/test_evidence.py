@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import typing
 
 import numpy as np
 import pandas as pd
@@ -11,7 +12,7 @@ import pytest
 from pipeline.evidence import engine, quintile, stats, universe, verdict
 from pipeline.evidence import indicators as ind
 from pipeline.evidence.catalog import Cell, neighbors
-from pipeline.evidence.data import cfg, revenue_table, signal_row, whale_frames, whale_panels
+from pipeline.evidence.data import cfg, revenue_table, whale_frames, whale_panels
 from pipeline.evidence.run import windows
 
 NaN = np.nan
@@ -368,23 +369,52 @@ def test_revenue_effective_next_month_10th_entry_after():
     assert t["row"].tolist() == [1, 3]
 
 
-def test_whale_signal_row_friday_entry_monday():
+def _tdcc(weeks: list[str], pcts: list[float]) -> pd.DataFrame:
+    rows = []
+    for w, p in zip(weeks, pcts, strict=True):
+        rows += [{"date": w, "code": "2330", "level": lv, "pct": v} for lv, v in ((12, 1), (13, 1), (14, 1), (15, p))]
+    return pd.DataFrame(rows)
+
+
+def test_whale_usable_from_rules():
+    """v3 M0-2：週資料最早可被引用＝下週一（且至少公布日次日）。"""
+    from pipeline.evidence.data import whale_usable_from
+
+    assert whale_usable_from("2026-09-18") == "2026-09-21"  # 週五資料 → 下週一
+    assert whale_usable_from("2026-09-24") == "2026-09-28"  # 週四資料（週五中秋休市）→ 下週一
+    assert whale_usable_from("2026-02-07") == "2026-02-09"  # 週六補班資料 → 週日公布 → 週一
+
+
+def test_whale_signal_day_monday_uses_last_friday():
+    """T＝週一（9/21）：引用上週五（9/18）的週資料；週變化只出現在 9/21 這一列（進場 9/22 週二開盤）。"""
     dates = ["2026-09-17", "2026-09-18", "2026-09-21", "2026-09-22"]  # 週四、週五、下週一、週二
-    tdcc = pd.DataFrame(
-        {
-            "date": ["2026-09-11"] * 4 + ["2026-09-18"] * 4,
-            "code": "2330",
-            "level": [12, 13, 14, 15] * 2,
-            "pct": [1, 1, 1, 10, 1, 1, 1, 10.4],
-        }
-    )
-    w = whale_frames(tdcc)
+    w = whale_frames(_tdcc(["2026-09-11", "2026-09-18"], [10.0, 10.4]))
     assert w["chg"].iloc[-1] == pytest.approx(0.4)
     assert w["published"].iloc[-1] == "2026-09-19"
     p = whale_panels(w, dates, ["2330"])
-    # 9/18（五）資料、9/19（六）公布 → 訊號列＝9/18，進場＝9/21（一）開盤
-    assert p["chg"][1, 0] == pytest.approx(0.4) and np.isnan(p["chg"][2, 0])
-    assert signal_row(dates, "2026-09-19") == 1
+    assert p["pct"][2, 0] == pytest.approx(10.4)
+    assert p["chg"][2, 0] == pytest.approx(0.4) and np.isnan(p["chg"][1, 0]) and np.isnan(p["chg"][3, 0])
+
+
+def test_whale_signal_day_friday_not_this_week():
+    """T＝週五（9/18）：只能用上週五（9/11）的資料，不得引用 T 當週（9/18 的資料要 9/19 才公布）。"""
+    dates = ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18"]
+    w = whale_frames(_tdcc(["2026-09-04", "2026-09-11", "2026-09-18"], [9.8, 10.0, 10.4]))
+    p = whale_panels(w, dates, ["2330"])
+    assert p["pct"][4, 0] == pytest.approx(10.0)  # 9/18 看到的是 9/11 那週
+    assert p["chg"][0, 0] == pytest.approx(0.2)  # 9/11 那週的週變化在 9/14（週一）
+    assert np.isnan(p["chg"][4, 0])
+
+
+def test_whale_signal_day_after_long_holiday():
+    """連假：9/24（週四）資料（9/25 中秋、9/28 教師節休市）→ 第一個可引用的訊號日是 9/29（週二），進場 9/30；
+    9/24 當天（T＝週四）引用的是 9/18 那週。"""
+    dates = ["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-29", "2026-09-30"]
+    w = whale_frames(_tdcc(["2026-09-18", "2026-09-24"], [10.0, 10.5]))
+    p = whale_panels(w, dates, ["2330"])
+    assert p["pct"][3, 0] == pytest.approx(10.0)
+    assert p["pct"][4, 0] == pytest.approx(10.5) and p["chg"][4, 0] == pytest.approx(0.5)
+    assert np.isnan(p["chg"][3, 0])
 
 
 def test_universe_rules():
@@ -474,3 +504,57 @@ def test_best_exit_by_excess_vs_index():
         }
     }
     assert best_exit(d)["param"] == "20"  # 只比較各規則的選定參數
+
+
+def test_coverage_single_definition_matches_counts():
+    """v3 M0-3：涵蓋率＝Σ每日有資料 ÷ Σ每日 universe；「納入 x／y 檔」＝每日平均，x ÷ y＝涵蓋率。
+
+    3 天、4 檔：universe 每天 4、4、2 檔；universe 內有資料 1、2、1 檔（第 3 天第 2 檔有資料但不在 universe）
+    → 涵蓋率 4 ÷ 10 ＝ 40%；每日平均 1.33 → 1、3.33 → 3（1 ÷ 3 ≈ 33%，四捨五入後的顯示仍以 40% 為準）。
+    曾經納入 2 檔（第 0、1 檔）、曾在 universe 4 檔。
+    """
+    from pipeline.evidence.run import coverage, coverage_label
+
+    class E:
+        dates: typing.ClassVar[list[str]] = ["2026-01-05", "2026-01-06", "2026-01-07"]
+
+    uni = np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 0, 0]], dtype=bool)
+    avail = np.array([[1, 0, 0, 0], [1, 1, 0, 0], [0, 1, 1, 0]], dtype=bool)
+
+    class Tst:
+        pass
+
+    t = Tst()
+    t.avail = avail  # type: ignore[attr-defined]
+    c = cfg()
+    cov = coverage(t, E(), uni, "2026-01-05", c)  # type: ignore[arg-type]
+    assert cov["ratio"] == 0.4 and cov["included"] == 1 and cov["universe"] == 3
+    assert cov["ever_included"] == 2 and cov["ever_universe"] == 4
+    assert cov["label"] == "樣本範圍受限"
+    assert (
+        coverage_label(0.49, c) == "樣本範圍受限"
+        and coverage_label(0.9, c) is None
+        and coverage_label(0.89, c) == "部分涵蓋"
+    )
+
+
+def test_weekly_coverage_by_iso_week():
+    """每週涵蓋率：1/5–1/7（同一週）Σuniverse 內有資料 4 ÷ Σuniverse 10 ＝ 0.4；1/12（下一週）2 ÷ 4 ＝ 0.5。"""
+    from pipeline.evidence.run import weekly_coverage
+
+    dates = ["2026-01-05", "2026-01-06", "2026-01-07", "2026-01-12"]
+    uni = np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 0, 0], [1, 1, 1, 1]], dtype=bool)
+    avail = np.array([[1, 0, 0, 0], [1, 1, 0, 0], [0, 1, 1, 0], [1, 1, 0, 0]], dtype=bool)
+    w = weekly_coverage(avail, uni, dates, "2026-01-01")
+    assert [x["date"] for x in w] == ["2026-01-07", "2026-01-12"]
+    assert [x["ratio"] for x in w] == [0.4, 0.5]
+    assert w[0]["included"] == 1 and w[0]["universe"] == 3
+
+
+def test_hindsight_waits_until_full_coverage():
+    """涵蓋率未達 90% 不比較「原 31 檔 vs 全市場」。"""
+    from pipeline.evidence.run import hindsight
+
+    out = hindsight(np.zeros((1, 1), bool), None, "2026-01-01", {"ratio": 0.62}, {}, cfg())  # type: ignore[arg-type]
+    assert out == {"status": "waiting", "coverage": 0.62, "threshold": 0.9}
+    assert len(cfg()["hindsight_codes"]) == 31

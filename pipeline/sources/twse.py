@@ -152,9 +152,10 @@ def parse_insti(payload: bytes | str | dict[str, Any]) -> ParseResult:
         {
             "code": "證券代號",
             "name": "證券名稱",
-            "foreign_buy": "外陸資買進股數(不含外資自營商)",
-            "foreign_sell": "外陸資賣出股數(不含外資自營商)",
-            "foreign_net": "外陸資買賣超股數(不含外資自營商)",
+            # 2017-12-18 以前沒有外資自營商，欄名為「外資買進股數」等（Actions 實測 2014-11-10、2015-01-05、2017-12-01）
+            "foreign_buy": ("外陸資買進股數(不含外資自營商)", "外資買進股數"),
+            "foreign_sell": ("外陸資賣出股數(不含外資自營商)", "外資賣出股數"),
+            "foreign_net": ("外陸資買賣超股數(不含外資自營商)", "外資買賣超股數"),
             "foreign_dealer_net": "外資自營商買賣超股數",
             "trust_buy": "投信買進股數",
             "trust_sell": "投信賣出股數",

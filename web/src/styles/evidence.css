@@ -13,6 +13,8 @@
 .ev-label { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); }
 .ev-sub { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); font-variant-numeric: tabular-nums; }
 .ev-verdict { flex: none; }
+.ev-tags { display: inline-flex; flex-direction: column; align-items: flex-end; gap: var(--s-1); flex: none; }
+.ev-cov { margin-top: var(--s-4); }
 .ev-verdict.strong { background: var(--surface-2); color: var(--text-1); }
 .ev-detail { padding: 0 var(--s-4) var(--s-4); display: flex; flex-direction: column; gap: var(--s-2); }
 .ev-detail p { margin: 0; }

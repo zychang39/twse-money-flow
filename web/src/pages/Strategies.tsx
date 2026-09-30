@@ -10,7 +10,7 @@ import { useAsync, useDb } from '../hooks';
 import { loadJson } from '../data/api';
 import { addWatchMany, listStrategies, saveStrategy, uid } from '../db/db';
 import { LAB_PREFIX } from '../lib/config';
-import { pctSigned, tText } from '../lib/evidence';
+import { coverageText, pctSigned, tText } from '../lib/evidence';
 import { type StrategiesFile, type StrategyItem, enabledFirst, envLine, groupName, healthTone } from '../lib/strategies';
 import '../styles/evidence.css';
 
@@ -161,7 +161,7 @@ function Detail({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
       <table class="ev-table" aria-label="樣本範圍">
         <tbody>
           <tr><th scope="row">判定</th><td>{s.verdict}（t {tText(s.t)}）</td></tr>
-          <tr><th scope="row">納入股票</th><td>{s.coverage?.included?.toLocaleString('zh-TW') ?? '—'}／{s.coverage?.universe?.toLocaleString('zh-TW') ?? '—'} 檔</td></tr>
+          <tr><th scope="row">涵蓋率</th><td>{coverageText(s.coverage)}</td></tr>
           <tr><th scope="row">資料起始</th><td>{s.data_start ?? '—'}</td></tr>
           <tr><th scope="row">訊號期間</th><td>{s.signal_start ?? '—'} 起</td></tr>
           <tr><th scope="row">去重樣本</th><td>{(s.n ?? 0).toLocaleString('zh-TW')} 筆</td></tr>
