@@ -40,3 +40,9 @@ def test_cmode_snapshots():
     o = listing.parse_tpex_cmode((FIX / "samples" / "tpex_cmode.json").read_bytes()).df
     assert len(o) == 22 and bool(o.set_index("code").loc["2067", "altered"])
     assert isinstance(o, pd.DataFrame) and set(o["market"]) == {"tpex"}
+
+
+def test_twse_fulldelivery_empty_year_query():
+    """BFIHBU 整年查詢（2024）回傳空表：欄位可辨識、沒有資料（只列當天臨時新增，不是歷史）。"""
+    res = listing.parse_twse_fulldelivery((FIX / "raw" / "twse_rwd_BFIHBU_2024.json").read_bytes())
+    assert res.df.empty and list(res.df.columns) == listing.FULL_DELIVERY_COLS

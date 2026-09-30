@@ -380,7 +380,7 @@ sources:
     tier: core
     frequency: range
     url: https://www.twse.com.tw/rwd/zh/fullDelivery/BFIHBU?startDate={start}&endDate={end}&response=json
-    status: unverified
+    status: verified            # Actions 實測 2016、2024 整年查詢回傳空表（只列當天臨時新增，不是歷史）
   twse_short_halt:
     label: 上市停券預告（融券最後回補日）
     market: twse

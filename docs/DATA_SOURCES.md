@@ -191,6 +191,19 @@
 | investor_conference | 法說會日期 | `mopsov.twse.com.tw/mops/web/ajax_t100sb02_1?…&TYPEK={sii\|otc}&year={民國年}&month={MM}`（GET） | ✅ Actions 實測（DECISIONS #26） |
 | intraday | 盤中即時報價（盤中到價提醒用，每 15 分鐘一次批次請求） | `mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_2330.tw\|otc_6488.tw&json=1&delay=0` | ✅ Actions 可用（`pipeline/alerts.py`） |
 
+## 上市櫃狀態：下市與變更交易（v3 實驗室 M1，2026-09-30）
+
+| id | 名稱 | 端點 | 內容 | 更新 | 狀態 |
+|---|---|---|---|---|---|
+| twse_delisted | 上市終止上市公司 | `openapi.twse.com.tw/v1/company/suspendListingCsvAndHtml` | 2001 年起全部（265 筆）：終止日期、公司、代號 | 每日快照（內容變動才存） | ✅ Actions 實測 |
+| tpex_delisted | 上櫃終止上櫃公司 | `www.tpex.org.tw/www/zh-tw/company/deListed?date={西元年}&reason={-1 全部｜2 轉上市}&response=json` | 依年份（2015 起），欄位：股票代號、公司名稱、終止上櫃日期（民國 115-09-03）、原因；「轉上市」標為 transfer，不算下市 | 週六、日（periodic，約 24 次請求） | ✅ 本環境實測 |
+| twse_cmode | 上市變更交易（全額交割）目前名單 | `openapi.twse.com.tw/v1/exchangeReport/TWT85U` | 代號、名稱、分盤集合競價 | 每日快照 | ✅ |
+| tpex_cmode | 上櫃變更交易、管理股票與停止交易 | `www.tpex.org.tw/openapi/v1/tpex_cmode` | 變更交易、分盤、管理股票、停止交易（Ｙ） | 每日快照 | ✅ 本環境實測 |
+| twse_fulldelivery | 上市新增之變更交易證券 | `…/rwd/zh/fullDelivery/BFIHBU?startDate=…&endDate=…&response=json` | 只列當天臨時新增（2016、2024 整年查詢皆為空表） | 每日（近 10 天） | ✅（不是歷史） |
+
+- **沒有歷史名單**：兩所都查不到全額交割的逐日歷史（櫃買 `trading/cmode` 與證交所 BFIHBU 都只列當天臨時新增；櫃買每日行情的「管理股票」表格實測 2022-06-01 為空）。目前名單自 2026-09-30 起每日快照累積；更早的期間由 universe 的成交值（≥ 2,000 萬元）與股價（≥ 10 元）門檻排除（DECISIONS #173）。
+- 樣本：`tests/fixtures/raw/twse_openapi_suspendListing.json`、`twse_openapi_TWT85U.json`、`twse_rwd_BFIHBU_{2016,2024}.json`（Actions）、`tests/fixtures/samples/tpex_delisted_2024*.json`、`tpex_cmode.json`（本環境）。
+
 ## 法人、信用的舊版面（v3 實驗室 M0-6，2026-09-30 Actions 實測）
 
 | 來源 | 期間 | 版面差異 | 處理 |

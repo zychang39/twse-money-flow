@@ -3,7 +3,8 @@
 - 證交所終止上市：OpenAPI `company/suspendListingCsvAndHtml`（2001 年起全部，欄位 DelistingDate／Company／Code）。
 - 櫃買終止上櫃：`www/zh-tw/company/deListed?date=YYYY&reason=…`（依年份；reason=-1 全部、2 轉上市）。
   「轉上市」不是下市（同一代號改在證交所交易），標為 kind="transfer"。
-- 證交所變更交易（全額交割）：OpenAPI `exchangeReport/TWT85U`（目前名單）；歷史新增：`rwd/zh/fullDelivery/BFIHBU`（區間）。
+- 證交所變更交易（全額交割）：OpenAPI `exchangeReport/TWT85U`（目前名單）；`rwd/zh/fullDelivery/BFIHBU`（新增之變更交易證券：
+  Actions 實測整年查詢為空表，只列當天臨時新增，不是歷史）。
 - 櫃買變更交易、管理股票：OpenAPI `tpex_cmode`（目前名單）。
 目前名單以「內容變動才存」的快照每日累積，之後就有逐日的進出紀錄（METHODOLOGY §10.1）。
 """
