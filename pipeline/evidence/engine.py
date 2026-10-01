@@ -307,6 +307,25 @@ def evaluate(mk: Market, t: np.ndarray, c: np.ndarray, h: int) -> pd.DataFrame:
     return df
 
 
+def first_triggers(mask: np.ndarray, universe: np.ndarray, h: int) -> np.ndarray:
+    """(T, C) 訊號 → 只留「首次觸發」（審查修正 2026-10-01，策略頁今日新觸發與訊號追蹤用）。
+
+    與 dedupe 同一條規則的近似：同一檔觸發後名目持有 h 日（訊號列 t → 進場 t+1 → 出場 t+1+h），出場列（含）之後的
+    訊號才再計入；資料最後幾天（還沒出場）也套用同一條規則，所以今日清單不會列出持有中再次觸發的股票。
+    不看實際可否進場（漲停、停牌）與鎖死順延，所以與 dedupe 的結果在少數事件上可能不同。
+    """
+    m = mask & universe
+    out = np.zeros_like(m, dtype=bool)
+    T = m.shape[0]
+    for c in np.nonzero(m.any(axis=0))[0]:
+        busy = -1
+        for t in np.nonzero(m[:, c])[0]:
+            if t >= busy:
+                out[t, c] = True
+                busy = min(t + 1 + h, T)
+    return out
+
+
 def dedupe(df: pd.DataFrame) -> pd.DataFrame:
     """首次觸發：同一檔在持有期間內（到出場日之前）的訊號略過；出場日（含）之後的訊號才再計入。
 

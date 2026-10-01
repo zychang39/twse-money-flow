@@ -298,8 +298,10 @@ def build(res: dict[str, Any]) -> dict[str, Any]:
             "delist": row.get("delist"),
             "hindsight": row.get("hindsight"),
         }
-        mask = keep["mask"]
-        today_codes = [ev.codes[i] for i in np.nonzero(mask[last] & uni[last])[0]]
+        # 審查修正 2026-10-01：今日新觸發與訊號追蹤改用「首次觸發」（與回測的去重規則一致）；
+        # 舊版列出所有當日成立的事件，持有期間內再次觸發的股票也會被列出與追蹤
+        mask = engine.first_triggers(keep["mask"], uni, H)
+        today_codes = [ev.codes[i] for i in np.nonzero(mask[last])[0]]
         item["today"] = [
             {
                 "code": code,
@@ -311,9 +313,9 @@ def build(res: dict[str, Any]) -> dict[str, Any]:
         item["today_note"] = today_note(item, ev, mk, last)
         if enabled:
             signals[s["id"]] = {
-                ev.dates[t]: [ev.codes[i] for i in np.nonzero(mask[t] & uni[t])[0]]
+                ev.dates[t]: [ev.codes[i] for i in np.nonzero(mask[t])[0]]
                 for t in range(max(0, T - 250), T)
-                if (mask[t] & uni[t]).any()
+                if mask[t].any()
             }
             item.update(_portfolio(ev, mk, uni, c, sc, keep, details.get(s["test"]) or {}, H))
         out.append(item)
