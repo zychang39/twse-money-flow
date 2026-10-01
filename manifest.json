@@ -1,6 +1,6 @@
 {
  "backfill_pending": {
-  "deferred_at": "2026-09-30T18:02+08:00",
+  "deferred_at": "2026-10-01T13:54+08:00",
   "end": "2023-09-06",
   "ref": "feat/momentum-lab-v3",
   "refresh": false,
@@ -684,15 +684,6 @@
  },
  "runs": [
   {
-   "at": "2026-09-30T14:07:20+08:00",
-   "deferred": true,
-   "failed": [],
-   "ok": 0,
-   "pending": [],
-   "requests": 0,
-   "task": "holders_backfill"
-  },
-  {
    "at": "2026-09-30T16:19:05+08:00",
    "chained": true,
    "failed": [],
@@ -1236,6 +1227,15 @@
    "progressed": true,
    "remaining": 485,
    "requests": 426,
+   "task": "backfill"
+  },
+  {
+   "at": "2026-10-01T13:54:40+08:00",
+   "deferred": true,
+   "failed": [],
+   "ok": 0,
+   "pending": [],
+   "requests": 0,
    "task": "backfill"
   }
  ],
@@ -1862,6 +1862,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-01T13:53:51+08:00",
+ "updated_at": "2026-10-01T13:54:40+08:00",
  "version": 1
 }
