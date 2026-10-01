@@ -651,37 +651,6 @@
  },
  "runs": [
   {
-   "at": "2026-09-30T07:27:16+08:00",
-   "by_source": {},
-   "failed": [
-    "taifex_insti 2023-09-30 TXF：期交所回傳 HTML（查詢失敗或無資料）；MXF：期交所回傳 HTML（查詢失敗或無資料）",
-    "twse_insti 2023-09-06 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/fund/T86?date=20230906&selectType=ALLBUT0999&response=json",
-    "twse_sbl 2023-09-06 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/marginTrading/TWT93U?date=20230906&response=json",
-    "twse_daytrade 2023-09-06 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/dayTrading/TWTB4U?date=20230906&selectType=All&response=json",
-    "twse_insti 2023-09-05 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/fund/T86?date=20230905&selectType=ALLBUT0999&response=json",
-    "twse_sbl 2023-09-05 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/marginTrading/TWT93U?date=20230905&response=json",
-    "twse_daytrade 2023-09-05 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/dayTrading/TWTB4U?date=20230905&selectType=All&response=json",
-    "twse_insti 2023-09-04 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/fund/T86?date=20230904&selectType=ALLBUT0999&response=json",
-    "twse_sbl 2023-09-04 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/marginTrading/TWT93U?date=20230904&response=json",
-    "twse_daytrade 2023-09-04 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/dayTrading/TWTB4U?date=20230904&selectType=All&response=json",
-    "twse_insti 2023-09-01 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/fund/T86?date=20230901&selectType=ALLBUT0999&response=json",
-    "twse_margin 2023-09-01 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date=20230901&selectType=ALL&response=json",
-    "twse_valuation 2023-09-01 斷路器開啟：www.twse.com.tw 連續失敗 5 次",
-    "twse_sbl 2023-09-01 斷路器開啟：www.twse.com.tw 連續失敗 5 次",
-    "twse_qfii 2023-09-01 斷路器開啟：www.twse.com.tw 連續失敗 5 次",
-    "twse_daytrade 2023-09-01 斷路器開啟：www.twse.com.tw 連續失敗 5 次"
-   ],
-   "format_warnings": [
-    "tpex_valuation"
-   ],
-   "ok": 52,
-   "pending": [],
-   "progressed": true,
-   "remaining": 0,
-   "requests": 74,
-   "task": "backfill"
-  },
-  {
    "at": "2026-09-30T07:58:11+08:00",
    "by_source": {
     "tdcc_full": 91420
@@ -1213,6 +1182,20 @@
    "remaining": 81871,
    "requests": 529,
    "task": "holders_backfill"
+  },
+  {
+   "at": "2026-10-01T10:27:54+08:00",
+   "by_source": {
+    "daily_days": 1022
+   },
+   "chained": true,
+   "failed": [],
+   "ok": 642,
+   "pending": [],
+   "progressed": true,
+   "remaining": 1022,
+   "requests": 435,
+   "task": "backfill"
   }
  ],
  "sources": {
@@ -1456,31 +1439,31 @@
   },
   "tpex_insti": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-01T09:46:40+08:00",
+   "last_attempt": "2026-10-01T10:27:43+08:00",
    "last_message": null,
    "last_status": "ok",
    "last_success": "2026-09-30",
-   "last_success_at": "2026-10-01T09:46:40+08:00",
+   "last_success_at": "2026-10-01T10:27:43+08:00",
    "rows": 910,
    "validation": "ok"
   },
   "tpex_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-01T09:46:53+08:00",
+   "last_attempt": "2026-10-01T10:27:52+08:00",
    "last_message": null,
    "last_status": "ok",
    "last_success": "2026-09-30",
-   "last_success_at": "2026-10-01T09:46:53+08:00",
+   "last_success_at": "2026-10-01T10:27:52+08:00",
    "rows": 919,
    "validation": "ok"
   },
   "tpex_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-01T09:46:53+08:00",
+   "last_attempt": "2026-10-01T10:27:52+08:00",
    "last_message": null,
    "last_status": "ok",
    "last_success": "2026-09-30",
-   "last_success_at": "2026-10-01T09:46:53+08:00",
+   "last_success_at": "2026-10-01T10:27:52+08:00",
    "rows": 2,
    "validation": "ok"
   },
@@ -1711,31 +1694,31 @@
   },
   "twse_insti": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-01T09:46:32+08:00",
+   "last_attempt": "2026-10-01T10:27:39+08:00",
    "last_message": null,
    "last_status": "ok",
    "last_success": "2026-09-30",
-   "last_success_at": "2026-10-01T09:46:32+08:00",
+   "last_success_at": "2026-10-01T10:27:39+08:00",
    "rows": 1326,
    "validation": "ok"
   },
   "twse_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-01T09:46:45+08:00",
+   "last_attempt": "2026-10-01T10:27:48+08:00",
    "last_message": null,
    "last_status": "ok",
    "last_success": "2026-09-30",
-   "last_success_at": "2026-10-01T09:46:45+08:00",
+   "last_success_at": "2026-10-01T10:27:48+08:00",
    "rows": 1293,
    "validation": "ok"
   },
   "twse_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-01T09:46:45+08:00",
+   "last_attempt": "2026-10-01T10:27:48+08:00",
    "last_message": null,
    "last_status": "ok",
    "last_success": "2026-09-30",
-   "last_success_at": "2026-10-01T09:46:45+08:00",
+   "last_success_at": "2026-10-01T10:27:48+08:00",
    "rows": 3,
    "validation": "ok"
   },
@@ -1838,6 +1821,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-01T10:25:34+08:00",
+ "updated_at": "2026-10-01T10:27:54+08:00",
  "version": 1
 }
