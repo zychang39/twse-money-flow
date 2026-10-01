@@ -301,7 +301,10 @@ def best_existing(ctx: dict[str, Any], mk: engine.Market, hold: int, seg: tuple[
     """修正後現有訊號在同一段、同一持有天數的最佳平均超額（事件型、universe 內、去重）。"""
     uni, c = ctx["uni"], ctx["cfg"]
     best: dict[str, Any] = {"id": None, "mean_excess": None}
+    verdicts = {row["id"]: row.get("verdict") for row in ctx.get("rows", [])}
     for tid, keep in ctx["tests"].items():
+        if verdicts.get(tid) in (verdict.LIMITED, verdict.FEW):  # 樣本範圍受限、樣本不足的指標不當比較基準
+            continue
         d = events(mk, keep["mask"], uni, str(keep["start"]), hold)
         d = d[(d["date"] >= seg[0]) & (d["date"] < seg[1])]
         if len(d) < 30:
@@ -384,7 +387,7 @@ def build(res: dict[str, Any], f: dict[str, Any] | None = None, *, with_test: bo
             continue
         hold = int(r["hold"])
         segs = segments(r["signal_start"], r["signal_end"], sw["split"])
-        best = best_existing(ctx, mk, hold, segs["test"]) if with_test else {}
+        best = best_existing({**ctx, "rows": res["rows"]}, mk, hold, segs["test"]) if with_test else {}
         g: dict[str, Any] = (
             gates(r, sw, best) if with_test else {"checks": {}, "labels": {}, "passed": False, "best_existing": {}}
         )

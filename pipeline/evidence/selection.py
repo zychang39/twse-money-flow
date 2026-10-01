@@ -93,6 +93,8 @@ def annotate(lib: dict[str, Any], res: dict[str, Any], *, max_slots: int = MAX_S
             reasons.append(f"樣本外 {oos}% < 樣本內 {ins}% 的 50%")
         if s.get("verdict") == verdict.ENV and not s.get("env"):
             reasons.append("環境依賴但沒有適用環境的判定規則")
+        if not s.get("enabled"):
+            reasons.append("未上架（判定、上線門檻或註冊旗標未通過），不進有效清單")
         status[sid] = reasons
     # 2. 去重（只在存活者之間）
     alive = [sid for sid, rs in status.items() if not rs]
