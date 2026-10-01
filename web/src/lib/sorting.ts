@@ -1,6 +1,6 @@
 /**
  * v3 M5-2 列表排序（策略庫、指標效度表、選股內建條件共用）。
- * 預設：判定分級（有效 → 環境依賴 → 不穩定 → 樣本不足／受限 → 無效）→ 同級內依日曆時間法 t 值由高到低。
+ * 預設：判定分級（有效 → 環境依賴 → 不穩定 → 樣本不足／受限 → 無效）→ 同級內先依有效性排名（2026-10-01 精簡清單，有值時）、再依日曆時間法 t 值由高到低。
  * 不預設依超額報酬排序（超額大的常是樣本少、t 低的指標）。選擇存 localStorage（每個列表各自一個鍵）。
  */
 
@@ -15,6 +15,8 @@ export interface Sortable {
   excess?: number | null;
   health?: number | null;
   today?: number | null;
+  /** 2026-10-01 精簡清單的有效性排名（1 最前）；有值時預設排序同級內先依排名 */
+  rank?: number | null;
 }
 
 export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
@@ -53,6 +55,7 @@ export function sortItems<T extends Sortable>(items: T[], s: SortState): T[] {
     if (s.key === 'verdict') {
       // 由高到低＝有效在前；同級內 t 由高到低（方向反轉時整體倒過來）
       d = (verdictTier(a.verdict) - verdictTier(b.verdict)) * -sign;
+      if (!d && (a.rank != null || b.rank != null)) d = (num(a.rank, 'asc') - num(b.rank, 'asc')) * -sign;
       if (!d) d = (num(b.t, 'desc') - num(a.t, 'desc')) * -sign;
     } else if (s.key === 'name') {
       d = byName(a, b) * (s.dir === 'asc' ? 1 : -1);

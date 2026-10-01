@@ -681,6 +681,10 @@ def run_and_write(ev: EvData, out: Any = None, doc: Any = None) -> dict[str, Any
         rep["verdict_changes"] = notify_verdict_changes(res["rows"])
     lib = strategies.build(res)
     res["strategy_signals"] = lib.pop("_signals")
+    # 2026-10-01 精簡清單（新檔案 selection.py）：校正後 t、每月觸發、處置與排名寫進 strategies.json
+    from pipeline.evidence import selection
+
+    selection.annotate(lib, res)
     if out is not None:
         rep["strategies_bytes"] = write_json(out / "strategies.json", lib)
     rep["strategies"] = sum(1 for s in lib["strategies"] if s.get("enabled"))

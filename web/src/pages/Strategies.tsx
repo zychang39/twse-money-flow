@@ -53,7 +53,7 @@ function sortRows(list: StrategyItem[], sort: SortState, bench: BenchKey) {
     list.map((s) => {
       const h = s.h?.['10'];
       const b = benchPick(h ?? { mean_excess: s.mean_excess, t: s.t }, h?.bench, bench);
-      return { s, label: s.label, verdict: s.verdict, t: b.t ?? null, excess: b.mean_excess ?? null, health: s.health?.recent ?? null, today: s.today?.length ?? 0 };
+      return { s, label: s.label, verdict: s.verdict, t: b.t ?? null, excess: b.mean_excess ?? null, health: s.health?.recent ?? null, today: s.today?.length ?? 0, rank: s.rank ?? null };
     }),
     sort,
   ).map((x) => x.s);
@@ -78,6 +78,7 @@ function StrategyList({ data }: { data: StrategiesFile }) {
               <span class="ev-sub">{s.subtitle}</span>
               <span class="ev-sub">{listLine(s, bench)}</span>
               <span class="ev-sub">{envLine(s)}・今日新觸發 {s.today?.length ?? 0} 檔</span>
+              {s.rank ? <span class="ev-sub">有效性排名 {s.rank}・校正後 t {tText(s.t_corr)}・每月 {s.per_month ?? '—'} 檔</span> : null}
             </span>
             <Tags s={s} />
           </a>

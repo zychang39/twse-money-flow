@@ -265,6 +265,10 @@ def build(res: dict[str, Any]) -> dict[str, Any]:
             continue
         v = row["verdict"]
         enabled = v in (verdict.VALID, verdict.ENV)
+        # 審查精簡 2026-10-01：註冊清單的啟用旗標（config/strategies.yml enabled: false ＋ disabled_reason）；
+        # 不刪程式碼，改回 true 即還原
+        registered = bool(s.get("enabled", True))
+        enabled = enabled and registered
         env = None
         if v == verdict.ENV and isinstance(row.get("reasons"), list):
             env_info = (details.get(s["test"]) or {}).get("env")
@@ -275,7 +279,9 @@ def build(res: dict[str, Any]) -> dict[str, Any]:
             **base,
             "verdict": v,
             "enabled": enabled,
-            "reasons": row.get("reasons", []),
+            "registered": registered,
+            "reasons": ([f"註冊清單停用：{s.get('disabled_reason', '')}".rstrip("：")] if not registered else [])
+            + list(row.get("reasons", [])),
             "env": env,
             "param": row.get("param"),
             "definition": row.get("definition"),

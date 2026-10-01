@@ -41,6 +41,26 @@ export interface StrategyItem {
   hindsight?: import('./evidence').Hindsight;
   /** v3 M2-3：5 檔組合 vs (b)(c)(d) 同期 */
   compare?: BenchCompare;
+  /** 2026-10-01 精簡清單：有效性排名（1 最前）、校正後 t、每月觸發數、精簡規則的處置理由；波段策略另有 swing 區塊 */
+  rank?: number | null;
+  t_corr?: number | null;
+  per_month?: number | null;
+  selection?: { score?: number | null; reasons?: string[]; status?: string } | null;
+  registered?: boolean;
+  kind?: 'swing' | string;
+  swing?: SwingBlock;
+}
+
+export interface SwingSegment { period: [string, string]; n?: number; per_month?: number; mean_excess?: number | null; t?: number | null; t_corr?: number | null; win?: number | null }
+export interface SwingBlock {
+  hold: number;
+  params: Record<string, number>;
+  segments: Partial<Record<'dev' | 'val' | 'test', SwingSegment>>;
+  gates: { checks: Record<string, boolean>; labels: Record<string, string>; passed: boolean; best_existing?: { id?: string | null; mean_excess?: number | null } };
+  perturb?: { param: string; mult: number; value?: number; mean_excess?: number | null; n?: number }[] | null;
+  dist?: { win?: number | null; avg_win?: number | null; avg_loss?: number | null; payoff?: number | null; loss_streak?: { max: number; p50: number; p90: number }; mae_p50?: number | null; mae_p90?: number | null };
+  portfolio?: Perf & { dd_dist?: { episodes: number; p50: number | null; p90: number | null; worst: number | null }; turnover?: number; trades_per_year?: number };
+  full?: { n?: number; mean_excess?: number | null; t?: number | null; t_corr?: number | null; per_month?: number };
 }
 
 import type { BenchKey } from './bench';
