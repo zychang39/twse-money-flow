@@ -45,19 +45,19 @@ strategies:
     subtitle: 5 日股價上漲 3% 以上・融資餘額增加 3% 以上
   - id: revenue_year_high
     enabled: false
-    disabled_reason: "2026-10-01 審查淘汰：10 日扣成本超額 +0.36% 但校正後 t 1.26（< 2）；40 日 +2.26% 仍為正，待月營收回補 2015 起後重評"
+    disabled_reason: "2026-10-01 審查淘汰：10 日扣成本超額 +0.20%、校正後 t 1.35（< 2）（月營收回補 2015 起後重算，訊號期間 2017-03 起）；40 日 +2.03% 仍為正"
     test: rev_high12
     label: 營收一年高
     subtitle: 月營收高於前 12 個月最高・次月 10 日後進場
   - id: revenue_yoy_up3
     enabled: false
-    disabled_reason: "2026-10-01 審查淘汰：10 日扣成本超額 −0.16%（≤ 0）、校正後 t −1.38；與營收創高相關 0.97（重複）"
+    disabled_reason: "2026-10-01 審查淘汰：10 日扣成本超額 −0.21%（≤ 0）、校正後 t −2.58（月營收回補後重算）；與營收創高相關 0.97（重複）"
     test: rev_accel
     label: 年增連三升
     subtitle: 營收年增率連 3 個月擴大・最新年增率為正
   - id: rise_before_revenue
     enabled: false
-    disabled_reason: "2026-10-01 審查淘汰：10 日扣成本超額 +0.70% 但校正後 t 1.28（< 2）"
+    disabled_reason: "2026-10-01 審查淘汰：10 日扣成本超額 +0.43%、校正後 t 1.37（< 2）（月營收回補後重算）"
     test: lead_up
     label: 先漲營收升
     subtitle: 營收公布前 20 日漲幅全市場前 10%・年增率較上月上升
