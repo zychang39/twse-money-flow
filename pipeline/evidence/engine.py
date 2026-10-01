@@ -38,6 +38,17 @@ def net_return(gross: np.ndarray | float, fee: float, tax: float, slip: float = 
     return (1 + gross) * (1 - slip) * (1 - fee - tax) / ((1 + slip) * (1 + fee)) - 1
 
 
+def benchmark_net_of_costs() -> bool:
+    """同日等權基準是否也扣成本（審查修正 2026-10-01，預設 False）。
+
+    舊版的基準「用同樣規則算出的平均淨報酬」也扣了成本，策略與基準的成本互相抵銷，總表的「扣成本超額」實際上
+    不含成本（把手續費與稅設為 0，超額幾乎不變），與出場規則比較表的「相對等權」（等權指數，不扣成本）也不一致
+    （同一組事件固定 10 日：主表 +0.68%、出場表 +0.19%）。改為基準不扣成本，超額＝策略淨報酬 − 等權毛報酬。
+    設 `config/evidence.yml benchmark_net_of_costs: true` 可還原舊行為。
+    """
+    return bool(config.load("evidence").get("benchmark_net_of_costs", False))
+
+
 def _fwd_extreme(a: np.ndarray, h: int, fn: str) -> np.ndarray:
     """out[e] = fn(a[e : e+h])（向前看 h 列，含 e；NaN 略過）。"""
     rev = pd.DataFrame(a[::-1])
@@ -72,6 +83,7 @@ class Market:
     def __post_init__(self) -> None:
         T, C = self.open.shape
         self.fee, self.tax, self.slip = cost_rates()
+        self.bench_costs = benchmark_net_of_costs()
         prev = np.vstack([np.full((1, C), np.nan), self.close[:-1]])
         with np.errstate(invalid="ignore", divide="ignore"):
             self.open_gap = self.open / prev - 1
@@ -139,7 +151,8 @@ class Market:
         }
 
     def _market_mean(self, h: int) -> np.ndarray:
-        """同一進場日、同一持有期、universe 內全部股票（訊號日 t＝e−1 在 universe、進場日可進場）的平均淨報酬。"""
+        """同一進場日、同一持有期、universe 內全部股票（訊號日 t＝e−1 在 universe、進場日可進場）的平均毛報酬
+        （基準不扣成本；`benchmark_net_of_costs: true` 時為舊版的淨報酬）。"""
         T, C = self.open.shape
         out = np.full(T, np.nan)
         cols = np.arange(C)
@@ -153,7 +166,7 @@ class Market:
                 g = ex["px"] / self.open[e, c] - 1
             g = g[np.isfinite(g)]
             if g.size:
-                out[e] = float(np.mean(net_return(g, self.fee, self.tax, self.slip)))
+                out[e] = float(np.mean(net_return(g, self.fee, self.tax, self.slip) if self.bench_costs else g))
         return out
 
     def etf_return(self, code: str, e: np.ndarray, x: np.ndarray, at_close: np.ndarray) -> np.ndarray:

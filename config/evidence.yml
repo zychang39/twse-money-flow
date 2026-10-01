@@ -33,10 +33,11 @@ curve:
   extra_tests: [combo_three]    # 判定不是有效／環境依賴也要畫的指標
 
 # 1.4 成本（審查修正 2026-10-01）：手續費 0.1425% 不打折（commission_discount 1.0）、證交稅 0.3%（costs.yml）、
-# 滑價 0.1% 買賣各一次。
+# 滑價 0.1% 買賣各一次。基準（同日等權）不扣成本：benchmark_net_of_costs: true 可還原舊版（基準也扣成本，等於超額不含成本）。
 costs:
   commission_discount: 1.0
   slippage: 0.001
+benchmark_net_of_costs: false
 
 # 1.5 統計
 stats:
