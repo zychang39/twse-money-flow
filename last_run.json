@@ -1,9 +1,17 @@
 {
- "task": "holders_backfill",
- "at": "2026-10-01T13:50:53+08:00",
- "requests": 0,
- "ok": 0,
+ "task": "backfill",
+ "at": "2026-10-01T13:53:51+08:00",
+ "requests": 426,
+ "ok": 630,
  "failed": [],
  "pending": [],
- "deferred": true
+ "format_warnings": [
+  "twse_insti"
+ ],
+ "remaining": 485,
+ "by_source": {
+  "daily_days": 485
+ },
+ "progressed": true,
+ "chained": true
 }
