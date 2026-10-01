@@ -14,6 +14,7 @@ import { EquityChart } from '../components/EquityChart';
 import { AlphaCurve } from '../components/AlphaCurve';
 import { BenchSwitch, useBenchState } from '../components/BenchSwitch';
 import { SortMenu } from '../components/SortMenu';
+import { SwingCard } from '../components/SwingCard';
 import { type Hindsight, coverageText, pctSigned, tText } from '../lib/evidence';
 import { BENCH_LONG, type BenchKey, benchPick } from '../lib/bench';
 import { type CurveLine, curveSummary } from '../lib/curve';
@@ -225,6 +226,7 @@ function Detail({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
       {s.enabled ? <Actions s={s} date={data.date} horizon={data.horizon} /> : <p class="caption muted">未通過驗證（{s.reasons.join('；')}），不能設為訊號追蹤。</p>}
 
       {s.hindsight ? <HindsightCard h={s.hindsight} /> : null}
+      {s.swing ? <SwingCard sw={s.swing} hold={s.swing.hold} /> : null}
 
       <BenchSwitch value={bench} onChange={setBench} note={`超額相對：${BENCH_LONG[bench]}`} />
       <h2 class="section st-h">多期間表現（相對{BENCH_LABEL[bench]}）</h2>

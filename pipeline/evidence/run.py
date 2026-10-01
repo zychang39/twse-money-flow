@@ -681,6 +681,15 @@ def run_and_write(ev: EvData, out: Any = None, doc: Any = None) -> dict[str, Any
         rep["verdict_changes"] = notify_verdict_changes(res["rows"])
     lib = strategies.build(res)
     res["strategy_signals"] = lib.pop("_signals")
+    # 2026-10-01 波段策略（新檔案 swing.py）：併入策略庫與訊號追蹤；最終測試段的結果只在這裡計算（部署時）
+    from pipeline.evidence import swing
+
+    sw = swing.build(res)
+    lib["strategies"].extend(sw["strategies"])
+    res["strategy_signals"].update(sw["_signals"])
+    if out is not None:
+        for sid, det in sw["details"].items():
+            write_json(out / "evidence" / f"{sid}.json", det)
     # 2026-10-01 精簡清單（新檔案 selection.py）：校正後 t、每月觸發、處置與排名寫進 strategies.json
     from pipeline.evidence import selection
 

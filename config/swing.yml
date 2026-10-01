@@ -1,0 +1,39 @@
+# 波段策略（2026-10-01 新增；docs/swing/HYPOTHESIS.md、TRIALS.md）
+# 每套最多 3 個參數、不做網格最佳化；資料依訊號期間切三段（開發 60%、驗證 20%、最終測試 20%），最終測試只跑一次。
+# enabled 是註冊清單的啟用旗標（審查精簡：一行可還原）；上線門檻全部通過（gates）才會在策略庫標為有效。
+version: 1
+split: { dev: 0.6, val: 0.2 }           # 其餘 20% 為最終測試
+slots: 5                                # 組合模擬同時持有檔數（Sharpe、最大回撤、週轉率）
+gates:
+  t_corrected_min: 3                    # 校正後 t（全樣本）> 3
+  test_vs_dev_min: 0.5                  # 測試段超額 ≥ 開發段的 50%
+  year_pass_ratio: 0.7                  # 逐年至少七成年份為正
+  per_month_min: 10                     # 每月平均觸發 ≥ 10 檔
+  perturb_pct: 0.2                      # 參數各調 ±20% 後超額仍 > 0（開發＋驗證段）
+strategies:
+  - id: rev_strong
+    enabled: true
+    label: 營收高強勢
+    subtitle: 月營收創 12 個月新高・RS ≥ 70・20 日乖離 ≤ 10%・持有 40 日
+    family: 基本面
+    base: rev_high12                    # 基礎事件：月營收創 12 個月新高（次月 10 日生效）
+    hold: 40
+    params: { rs_min: 70, bias_max: 0.10 }
+  - id: high_flow
+    enabled: true
+    label: 近高點外資買
+    subtitle: 首次回到 52 週高點 95%・外資 5 日買超・大盤年線上・成交值 ≥ 1 億・持有 20 日
+    family: 動能
+    base: high52                        # 基礎事件：收盤 ÷ 前 252 日最高收盤首次 ≥ 0.95
+    hold: 20
+    params: { value_min: 100000000 }
+    filters: [foreign5_pos, regime_up]  # 固定條件（沒有參數）
+  - id: rs_flow
+    enabled: true
+    label: 強勢股外資買
+    subtitle: RS 百分位首次站上 90・外資 5 日買超・大盤年線上・成交值 ≥ 1 億・持有 40 日
+    family: 動能
+    base: rs90                          # 基礎事件：RS 百分位當日 ≥ 90 且前一日 < 90
+    hold: 40
+    params: { value_min: 100000000 }
+    filters: [foreign5_pos, regime_up]

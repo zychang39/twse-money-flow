@@ -411,6 +411,45 @@ def cmd_audit(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_swing(args: argparse.Namespace) -> int:
+    """波段策略（2026-10-01）：開發／驗證段的嘗試（TRIALS.md）與最終測試（只跑一次）。"""
+    from pipeline.derive.export import write_json
+    from pipeline.evidence import data as evdata
+    from pipeline.evidence import swing
+    from pipeline.evidence.run import evaluate
+
+    ev = evdata.load(DataStore(args.data_dir))
+    res = evaluate(ev, with_exits=False)
+    sw = swing.cfg()
+    if args.id:  # 單一策略的嘗試（可覆寫參數與持有天數；只看開發段，不碰最終測試段）
+        from pipeline.evidence import indicators as ind
+
+        spec = next(s for s in sw["strategies"] if s["id"] == args.id)
+        params = dict(spec.get("params") or {})
+        for kv in args.param or []:
+            k, v = kv.split("=", 1)
+            params[k] = float(v)
+        hold = int(args.hold or spec["hold"])
+        ctx = res["_ctx"]
+        f = ind.build_features(ctx["ev"], ctx["uni"], ctx["cfg"]["indicators"])
+        mk = swing.market_for(ctx["ev"], ctx["uni"], ctx["cfg"], [hold, round(hold * 0.8), round(hold * 1.2)])
+        r = swing.evaluate_spec(
+            spec, ctx["ev"], f, ctx["uni"], mk, ctx["cfg"], sw, params=params, hold=hold, with_test=False
+        )
+        r.pop("mask", None)
+        r.pop("events", None)
+        r["portfolio"].pop("equity_weekly", None)
+        print(json.dumps(r, ensure_ascii=False, indent=1, default=str))
+        return 0
+    lib = swing.build(res, with_test=args.segment == "test")
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    write_json(out / "swing.json", {k: v for k, v in lib.items() if k != "_signals"})
+    (out / "SWING_TABLES.md").write_text(swing.markdown(lib), encoding="utf-8")
+    print(swing.markdown(lib))
+    return 0
+
+
 def cmd_demo_data(args: argparse.Namespace) -> int:
     from pipeline.derive.demo import build_demo
 
@@ -507,6 +546,15 @@ def build_parser() -> argparse.ArgumentParser:
     aud.add_argument("--data-dir", default="data")
     aud.add_argument("--out", default="docs/audit/signals")
     aud.set_defaults(func=cmd_audit)
+
+    swg = sub.add_parser("swing", help="波段策略：開發／驗證段嘗試與最終測試（docs/swing）")
+    swg.add_argument("--data-dir", default="data")
+    swg.add_argument("--out", default="docs/swing/out")
+    swg.add_argument("--segment", default="dev", choices=["dev", "test"], help="test＝含最終測試段（只跑一次）")
+    swg.add_argument("--id", default="", help="單一策略的嘗試（只看開發／驗證段）")
+    swg.add_argument("--param", action="append", help="覆寫參數：name=value（可重複）")
+    swg.add_argument("--hold", default="", help="覆寫持有天數")
+    swg.set_defaults(func=cmd_swing)
 
     demo = sub.add_parser("demo-data", help="以測試樣本產生示範資料（本機開發）")
     demo.add_argument("--out", default="web/public/data")
