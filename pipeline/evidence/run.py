@@ -574,7 +574,7 @@ def evaluate(
             },
         },
         # 策略庫（M2）用的中間結果：不寫入 JSON
-        "_ctx": {"ev": ev, "mk": mk, "uni": uni, "tests": keep, "cfg": c},
+        "_ctx": {"ev": ev, "mk": mk, "uni": uni, "tests": keep, "cfg": c, "catalog": tests},
     }
 
 

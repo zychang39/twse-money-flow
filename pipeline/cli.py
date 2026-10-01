@@ -393,6 +393,24 @@ def cmd_evidence(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_audit(args: argparse.Namespace) -> int:
+    """審查 2026-10-01：校正後 t、多重檢定、相關矩陣、分組穩定性（AUDIT.md）；只讀，不寫前端 JSON。"""
+    from pipeline.derive.export import write_json
+    from pipeline.evidence import audit
+    from pipeline.evidence import data as evdata
+    from pipeline.evidence.run import evaluate
+
+    ev = evdata.load(DataStore(args.data_dir))
+    res = evaluate(ev, with_exits=False)
+    a = audit.run(res)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    write_json(out / "audit.json", a)
+    (out / "AUDIT_TABLES.md").write_text(audit.markdown(a), encoding="utf-8")
+    print(audit.markdown(a))
+    return 0
+
+
 def cmd_demo_data(args: argparse.Namespace) -> int:
     from pipeline.derive.demo import build_demo
 
@@ -484,6 +502,11 @@ def build_parser() -> argparse.ArgumentParser:
     evd.add_argument("--out", default="", help="前端 JSON 輸出目錄（例：web/public/data）")
     evd.add_argument("--doc", default="", help="Markdown 報告（例：docs/INDICATOR_EVIDENCE.md）")
     evd.set_defaults(func=cmd_evidence)
+
+    aud = sub.add_parser("audit", help="審查統計：校正後 t、多重檢定、相關矩陣、分組穩定性（AUDIT.md）")
+    aud.add_argument("--data-dir", default="data")
+    aud.add_argument("--out", default="docs/audit/signals")
+    aud.set_defaults(func=cmd_audit)
 
     demo = sub.add_parser("demo-data", help="以測試樣本產生示範資料（本機開發）")
     demo.add_argument("--out", default="web/public/data")

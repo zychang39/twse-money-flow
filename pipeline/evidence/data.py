@@ -71,6 +71,8 @@ class EvData:
     status_note: dict[str, Any] = field(default_factory=dict)
     # v3 M2：可投資的基準（還原價，含息、已處理分割）：代號 → {"open": (T,), "close": (T,)}
     etf: dict[str, dict[str, np.ndarray]] = field(default_factory=dict)
+    # 審查 2026-10-01：代號 → 市場（twse／tpex），分組穩定性（上市／上櫃）用
+    markets: dict[str, str] = field(default_factory=dict)
 
     @property
     def T(self) -> int:
@@ -333,6 +335,7 @@ def from_dataset(ds: Any) -> EvData:
                 "open": p.open[code].to_numpy(dtype=float) * f,
                 "close": p.close[code].to_numpy(dtype=float) * f,
             }
+    ev.markets = {c: str(p.markets.get(c, "")) for c in codes}
     ev.delist_date = official_delistings(ds.table("delisted"))
     ev.full_delivery, ev.status_note = full_delivery_mask(
         ds.table("cmode"),
