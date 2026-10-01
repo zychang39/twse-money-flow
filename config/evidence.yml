@@ -32,6 +32,12 @@ curve:
   per_day_scale: 250            # 每持有日超額年化：超額 ÷ N × 250
   extra_tests: [combo_three]    # 判定不是有效／環境依賴也要畫的指標
 
+# 1.4 成本（審查修正 2026-10-01）：手續費 0.1425% 不打折（commission_discount 1.0）、證交稅 0.3%（costs.yml）、
+# 滑價 0.1% 買賣各一次。
+costs:
+  commission_discount: 1.0
+  slippage: 0.001
+
 # 1.5 統計
 stats:
   t_threshold: 2.5              # 多重檢定：判定「有效」的 t 值門檻（一般 1.96 提高到 2.5）

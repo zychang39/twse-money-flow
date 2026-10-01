@@ -70,7 +70,7 @@ def _result(p: Paths, row: np.ndarray, px: np.ndarray | None, planned_locked: np
         hi = np.clip(np.nan_to_num(hold, nan=1).astype(int) - 1, 0, p.K)
         worst = np.minimum(cm[np.arange(len(hi)), hi], price)
         mae = worst / p.entry - 1
-    net = net_return(gross, mk.fee, mk.tax)
+    net = net_return(gross, mk.fee, mk.tax, mk.slip)
     xr = np.where(has, row, T - 1)
     bench = mk.bench_return(p.e, xr)
     ew = mk.ew_return(p.e, xr)

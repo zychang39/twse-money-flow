@@ -60,7 +60,7 @@ def run(values: np.ndarray, mk: Market, universe: np.ndarray, start: str, cfg: d
         ok = np.isfinite(g)
         if ok.sum() < 50:
             continue
-        r = net_return(g[ok], mk.fee, mk.tax)
+        r = net_return(g[ok], mk.fee, mk.tax, mk.slip)
         means, rho = quintile_month(values[a, cols[ok]], r)
         rows.append({"month": dates[a][:7], "q": means, "spread": means[4] - means[0], "rho": rho, "n": int(ok.sum())})
     if not rows:

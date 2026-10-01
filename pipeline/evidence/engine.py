@@ -5,7 +5,7 @@
 - 開盤 ≥ 前一日收盤 +5% → 標示跳空（主結果納入，另列「排除跳空 ≥ 5%」變體）。
 - 出場日跌停鎖死（最高價 ≤ 前一日收盤 −9.5%，整天都在跌停價）或停牌 → 順延到下一個可成交日的開盤；
   統計跌停鎖死次數與額外損失（順延後的出場價 ÷ 原出場日開盤價 − 1）。之後都無法成交（下市）→ 以最後收盤出場並標示。
-- 成本：手續費 0.1425% × 0.6 買賣各一次、證交稅 0.3%（本評估不含 ETF）。
+- 成本：手續費 0.1425%（不打折）買賣各一次、證交稅 0.3%、滑價 0.1% 買賣各一次（`config/evidence.yml costs`；本評估不含 ETF）。
 """
 
 from __future__ import annotations
@@ -19,15 +19,23 @@ import pandas as pd
 from pipeline.core import config
 
 
-def cost_rates() -> tuple[float, float]:
+def cost_rates() -> tuple[float, float, float]:
+    """評估用的成本（審查修正 2026-10-01）：手續費依 `config/evidence.yml costs.commission_discount`
+    （預設 1.0＝牌告 0.1425% 不打折）、證交稅 0.3%、滑價 `costs.slippage`（預設 0.1%，買賣各一次）。
+    舊版用券商折扣 0.6 且沒有滑價，比審查規格少算每筆來回約 0.26 個百分點。"""
     c = config.costs()
-    fee = float(c["commission"]["rate"]) * float(c["commission"]["discount"])
-    return fee, float(c["tax"]["stock"])
+    ev = config.load("evidence").get("costs") or {}
+    discount = float(ev.get("commission_discount", c["commission"]["discount"]))
+    fee = float(c["commission"]["rate"]) * discount
+    return fee, float(c["tax"]["stock"]), float(ev.get("slippage", 0.0))
 
 
-def net_return(gross: np.ndarray | float, fee: float, tax: float) -> Any:
-    """淨報酬 =（1 + 毛報酬）×（1 − 賣出手續費 − 證交稅）÷（1 + 買進手續費）− 1。"""
-    return (1 + gross) * (1 - fee - tax) / (1 + fee) - 1
+def net_return(gross: np.ndarray | float, fee: float, tax: float, slip: float = 0.0) -> Any:
+    """淨報酬 =（1 + 毛報酬）×（1 − 滑價）×（1 − 賣出手續費 − 證交稅）÷（(1 + 滑價) × (1 + 買進手續費)）− 1。
+
+    滑價：買進以開盤價 × (1 + slip) 成交、賣出以出場價 × (1 − slip) 成交。
+    """
+    return (1 + gross) * (1 - slip) * (1 - fee - tax) / ((1 + slip) * (1 + fee)) - 1
 
 
 def _fwd_extreme(a: np.ndarray, h: int, fn: str) -> np.ndarray:
@@ -63,7 +71,7 @@ class Market:
 
     def __post_init__(self) -> None:
         T, C = self.open.shape
-        self.fee, self.tax = cost_rates()
+        self.fee, self.tax, self.slip = cost_rates()
         prev = np.vstack([np.full((1, C), np.nan), self.close[:-1]])
         with np.errstate(invalid="ignore", divide="ignore"):
             self.open_gap = self.open / prev - 1
@@ -145,7 +153,7 @@ class Market:
                 g = ex["px"] / self.open[e, c] - 1
             g = g[np.isfinite(g)]
             if g.size:
-                out[e] = float(np.mean(net_return(g, self.fee, self.tax)))
+                out[e] = float(np.mean(net_return(g, self.fee, self.tax, self.slip)))
         return out
 
     def etf_return(self, code: str, e: np.ndarray, x: np.ndarray, at_close: np.ndarray) -> np.ndarray:
@@ -253,7 +261,7 @@ def evaluate(mk: Market, t: np.ndarray, c: np.ndarray, h: int) -> pd.DataFrame:
         gross = ex["px"] / entry - 1
         mae = np.minimum(mk.fmin[h][e_c, c], ex["px"]) / entry - 1
         mfe = np.maximum(mk.fmax[h][e_c, c], ex["px"]) / entry - 1
-    net = net_return(gross, mk.fee, mk.tax)
+    net = net_return(gross, mk.fee, mk.tax, mk.slip)
     bench = mk.bench_return(e_c, ex["row"])
     mkt = mk.market_mean[h][e_c]
     stuck = ex["delisted"] | ex["halted"]

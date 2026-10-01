@@ -32,11 +32,11 @@ def simulate(mk: Market, trades: pd.DataFrame, value: np.ndarray, k: int, start:
     """同時持有 k 檔的組合（每檔 1/k 的權益）逐日權益（從 start 列起，起始 1.0）。
 
     - 每天開盤先出場（依出場規則的出場列與出場價，扣賣出手續費與證交稅），再進場：當天進場的訊號依前一日成交值由大到小
-      填入空位；已持有的股票不重複進場。每筆投入＝前一日收盤權益 ÷ k（現金不足時以剩餘現金為限），扣買進手續費。
+      填入空位；已持有的股票不重複進場。每筆投入＝前一日收盤權益 ÷ k（現金不足時以剩餘現金為限），扣買進手續費與滑價。
     - 收盤以還原收盤價計值（當天無收盤沿用最後一個收盤）。
     """
     T = len(mk.dates)
-    fee, tax = mk.fee, mk.tax
+    fee, tax, slip = mk.fee, mk.tax, float(getattr(mk, "slip", 0.0))  # 審查修正 2026-10-01：滑價與事件研究一致
     by_entry: dict[int, list[tuple[float, int, int, float, float]]] = {}
     for e, c, x, entry, px in trades[["e", "c", "x", "entry", "px"]].itertuples(index=False):
         if e < start or not np.isfinite(px) or not np.isfinite(entry) or x >= T:
@@ -50,7 +50,7 @@ def simulate(mk: Market, trades: pd.DataFrame, value: np.ndarray, k: int, start:
     for d in range(start, T):
         for c in [c for c, p in pos.items() if int(p[1]) == d]:
             shares, _, px, _ = pos.pop(c)
-            cash += shares * px * (1 - fee - tax)
+            cash += shares * px * (1 - slip) * (1 - fee - tax)
         free = k - len(pos)
         for _, c, x, entry, px in sorted(by_entry.get(d, [])):
             if free <= 0:
@@ -60,7 +60,7 @@ def simulate(mk: Market, trades: pd.DataFrame, value: np.ndarray, k: int, start:
             alloc = min(prev_eq / k, cash)
             if alloc <= 0:
                 break
-            shares = alloc / (entry * (1 + fee))
+            shares = alloc / (entry * (1 + slip) * (1 + fee))
             cash -= alloc
             pos[c] = [shares, x, px, entry]
             free -= 1

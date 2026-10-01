@@ -103,13 +103,26 @@ def test_market_mean_same_entry_same_horizon():
     # 兩檔：進場第 1 列（開盤 100、50），第 3 列開盤 110、45 → 淨報酬平均
     o = np.array([[100, 50], [100, 50], [105, 48], [110, 45], [111, 44]], dtype=float)
     mk = _market(o, o.copy())
-    fee, tax = mk.fee, mk.tax
-    want = (engine.net_return(0.10, fee, tax) + engine.net_return(-0.10, fee, tax)) / 2
+    fee, tax, slip = mk.fee, mk.tax, mk.slip
+    want = (engine.net_return(0.10, fee, tax, slip) + engine.net_return(-0.10, fee, tax, slip)) / 2
     assert mk.market_mean[2][1] == pytest.approx(want)
     df = engine.evaluate(mk, np.array([0]), np.array([0]), 2)
-    assert df["exc_mkt"].iloc[0] == pytest.approx(engine.net_return(0.10, fee, tax) - want)
+    assert df["exc_mkt"].iloc[0] == pytest.approx(engine.net_return(0.10, fee, tax, slip) - want)
     # 指數：進場前一日收盤（第 0 列 100）到出場前一日（第 2 列 300）
-    assert df["exc_idx"].iloc[0] == pytest.approx(engine.net_return(0.10, fee, tax) - 2.0)
+    assert df["exc_idx"].iloc[0] == pytest.approx(engine.net_return(0.10, fee, tax, slip) - 2.0)
+
+
+def test_cost_rates_follow_audit_standard_and_slippage():
+    """審查規格：手續費 0.1425% 不打折、證交稅 0.3%、滑價 0.1% 買賣各一次。"""
+    fee, tax, slip = engine.cost_rates()
+    assert fee == pytest.approx(0.001425) and tax == pytest.approx(0.003) and slip == pytest.approx(0.001)
+    # 100 → 110：買 100.1、賣 109.89；淨＝109.89 × (1 − 0.001425 − 0.003) ÷ (100.1 × 1.001425) − 1
+    got = engine.net_return(0.10, fee, tax, slip)
+    assert got == pytest.approx(109.89 * (1 - 0.004425) / (100.1 * 1.001425) - 1)
+    assert got == pytest.approx(0.0913892, abs=1e-6)
+    # 不漲不跌：來回成本約 0.78%（手續費 0.285%＋稅 0.3%＋滑價 0.2%）
+    assert engine.net_return(0.0, fee, tax, slip) == pytest.approx(-0.0078280, abs=1e-6)
+    assert slip > 0
 
 
 def test_dedupe_first_trigger_until_exit():
@@ -457,11 +470,11 @@ def test_simulate_single_slot_hand():
     mk = _market(o, c)
     trades = pd.DataFrame({"e": [1], "c": [0], "x": [3], "entry": [100.0], "px": [105.0]})
     eq = simulate(mk, trades, np.ones_like(o), 1, 1)
-    fee, tax = mk.fee, mk.tax
-    shares = 1 / (100 * (1 + fee))
+    fee, tax, slip = mk.fee, mk.tax, mk.slip
+    shares = 1 / (100 * (1 + slip) * (1 + fee))
     assert eq[0] == pytest.approx(shares * 102)  # 第 1 列收盤
     assert eq[1] == pytest.approx(shares * 106)
-    cash = shares * 105 * (1 - fee - tax)  # 第 3 列開盤出場
+    cash = shares * 105 * (1 - slip) * (1 - fee - tax)  # 第 3 列開盤出場
     assert eq[2] == pytest.approx(cash) and eq[3] == pytest.approx(cash)
     st = curve_stats(np.array([1.0, 1.2, 0.9, 1.1] * 6), ["2025-01-01"] * 24)
     assert st["mdd"] == pytest.approx(-25.0)  # 1.2 → 0.9
@@ -478,8 +491,8 @@ def test_simulate_slots_fill_by_value_and_skip_held():
     )
     value = np.array([[5.0, 1.0, 9.0]] * 6)
     eq = simulate(mk, trades, value, 2, 1)
-    # 兩檔各投入一半，價格不變：權益只少買進手續費
-    assert eq[0] == pytest.approx(1 / (1 + mk.fee))
+    # 兩檔各投入一半，價格不變：權益只少買進手續費與滑價
+    assert eq[0] == pytest.approx(1 / ((1 + mk.slip) * (1 + mk.fee)))
 
 
 def test_health_rules():
@@ -636,19 +649,19 @@ def test_delisted_exit_last_close_and_conservative():
     df = engine.evaluate(mk, np.array([1, 1, 1]), np.array([0, 1, 2]), 3)
     assert df["delisted"].tolist() == [False, True, False]
     assert df["halted"].tolist() == [False, False, True]
-    fee, tax = mk.fee, mk.tax
-    assert df.loc[1, "net"] == pytest.approx(engine.net_return(0.6 - 1, fee, tax))
+    fee, tax, slip = mk.fee, mk.tax, mk.slip
+    assert df.loc[1, "net"] == pytest.approx(engine.net_return(0.6 - 1, fee, tax, slip))
     df = engine.annotate(df, mk)
     c = cfg()
     d = stats.delist_conservative(df, c)
     assert d is not None and d["affected"] == 1
     # 同一進場日 3 筆平均：(0 基準) 超額＝淨報酬；下市那筆改為 −1
-    n0 = engine.net_return(0.0, fee, tax)
-    n2 = engine.net_return(0.8 - 1, fee, tax)
+    n0 = engine.net_return(0.0, fee, tax, slip)
+    n2 = engine.net_return(0.8 - 1, fee, tax, slip)
     # 基準＝同日全市場平均，保守版本只改下市那筆的淨報酬
     mm = mk.market_mean[3][2]
     # 同日全市場（進場第 2 列）：0%、−40%（下市最後收盤 60）、−20%（停牌最後收盤 80）三檔扣成本後平均
-    assert mm == pytest.approx((n0 + engine.net_return(-0.4, fee, tax) + n2) / 3)
+    assert mm == pytest.approx((n0 + engine.net_return(-0.4, fee, tax, slip) + n2) / 3)
     assert d["mean_excess"] == pytest.approx(((n0 - mm) + (-1 - mm) + (n2 - mm)) / 3 * 100, abs=1e-3)
 
 
