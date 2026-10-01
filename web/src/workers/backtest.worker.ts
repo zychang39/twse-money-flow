@@ -4,7 +4,7 @@ import { buildReport, type Panel } from '../lib/backtest';
 import { screenerConfig, type Condition } from '../lib/config';
 
 interface Meta { dates: string[]; codes: string[]; names: string[]; is_etf: boolean[]; bench: (number | null)[]; regime_up: boolean[]; fields: string[] }
-interface Prices { open: (number | null)[][]; low: (number | null)[][]; close: (number | null)[][]; tradable: number[][]; blocked: [number, number][] }
+interface Prices { open: (number | null)[][]; high?: (number | null)[][] | null; low: (number | null)[][]; close: (number | null)[][]; tradable: number[][]; blocked: [number, number][] }
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
 
@@ -28,7 +28,7 @@ ctx.onmessage = async (e: MessageEvent<{ base: string; conditions: Condition[] }
     }
     ctx.postMessage({ type: 'progress', text: '計算中…' });
     const panel: Panel = {
-      dates: meta.dates, codes: meta.codes, open: prices.open, low: prices.low, close: prices.close, tradable: prices.tradable,
+      dates: meta.dates, codes: meta.codes, open: prices.open, high: prices.high ?? null, low: prices.low, close: prices.close, tradable: prices.tradable,
       blocked: prices.blocked, bench: meta.bench, regimeUp: meta.regime_up, isEtf: meta.is_etf,
     };
     const rep = buildReport(conditions, (f) => fields[f] ?? null, panel, (f) => screenerConfig.fields[f]?.label ?? f);

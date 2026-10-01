@@ -200,14 +200,14 @@ export function BacktestReport({ r }: { r: BacktestResult }) {
           </tbody>
         </table>
         {view === 'in_sample' || view === 'out_of_sample' ? <p class="tiny muted">樣本內／外分界：{String(r.horizons[hs[0]]?.oos_cut ?? '—')}（依訊號日期的期間前 2/3、後 1/3）。</p> : null}
-        <p class="caption muted">報酬已扣手續費與證交稅；超額報酬相對加權報酬指數；MAE 為持有期間最大不利波動。可信度依樣本數：&lt; {uiConfig.backtest_confidence.low_below} 筆為低、≥ {uiConfig.backtest_confidence.high_from} 筆為高。</p>
+        <p class="caption muted">報酬已扣手續費、證交稅與滑價（買賣各 0.1%）；出場日跌停鎖死順延到下一個可成交日；超額報酬相對加權報酬指數；MAE 為持有期間最大不利波動。可信度依樣本數：&lt; {uiConfig.backtest_confidence.low_below} 筆為低、≥ {uiConfig.backtest_confidence.high_from} 筆為高。</p>
       </div>
       <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>出場規則比較</h2>
       <div class="card"><ExitCompare r={r} h={String(r.detail_horizon)} /></div>
       <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>訊號衰減曲線</h2>
       <div class="card"><DecayChart decay={r.decay} /><p class="tiny muted">進場後第 1–{r.decay.length} 個交易日收盤的平均報酬（扣成本）。</p></div>
       <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>排除的樣本</h2>
-      <div class="card small">開盤即漲停 {ex.limit_up ?? 0} 筆 · 停牌 {ex.suspended ?? 0} 筆 · 處置期間 {ex.disposition ?? 0} 筆 · 尚無後續資料 {ex.no_future ?? 0} 筆</div>
+      <div class="card small">開盤即漲停 {ex.limit_up ?? 0} 筆 · 停牌 {ex.suspended ?? 0} 筆 · 處置期間 {ex.disposition ?? 0} 筆 · 尚無後續資料 {ex.no_future ?? 0} 筆 · 出場日跌停鎖死順延 {ex.locked_exit ?? 0} 筆</div>
       <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>逐筆明細（持有 {r.detail_horizon} 日，最近 {r.trades.length} 筆）</h2>
       {/* M3：5 欄以內（訊號日與 MAE 寫在股票名稱下方），不左右滑動 */}
       <div class="card flush">

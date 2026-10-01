@@ -3,6 +3,8 @@
  * T 日收盤後訊號 → T+1 開盤進場 → 持有 N 日後開盤出場；排除開盤即漲停、停牌、處置期間；扣成本；相對加權報酬指數。
  * 訊號預設為「今日新觸發」（今天符合、上一個交易日可判斷但不符合）；條件欄位最晚的資料起始日之前不產生訊號；
  * 出場規則：只看時間／停損／跌破均線（S5）。
+ * 審查修正 2026-10-01：滑價（backtest.slippage_pct，買賣各一次）；出場日跌停鎖死（最高價 ≤ 前收 × (1 − 9.5%)）賣不掉，
+ * 順延到下一個可成交日開盤（面板沒有 high 時不判斷）。
  */
 import { costsConfig, thresholds, type Condition } from './config';
 
@@ -12,6 +14,8 @@ export interface Panel {
   open: (number | null)[][];
   low: (number | null)[][];
   close: (number | null)[][];
+  /** 還原最高價（跌停鎖死判斷）；舊面板沒有時不判斷 */
+  high?: (number | null)[][] | null;
   tradable: number[][];
   blocked: [number, number][];
   bench: (number | null)[];
@@ -48,10 +52,20 @@ export interface Stats {
 
 const fin = (v: number | null | undefined): v is number => v !== null && v !== undefined && Number.isFinite(v);
 
-export function netReturn(gross: number, isEtf: boolean, discount = costsConfig.commission.discount): number {
+/** 滑價（單邊，比例）：config/thresholds.yml backtest.slippage_pct（%）。 */
+export const slippageRate = (): number => Number(thresholds.backtest.slippage_pct ?? 0) / 100;
+
+export function netReturn(gross: number, isEtf: boolean, discount = costsConfig.commission.discount, slippage = slippageRate()): number {
   const fee = costsConfig.commission.rate * discount;
   const tax = isEtf ? costsConfig.tax.etf : costsConfig.tax.stock;
-  return ((1 + gross) * (1 - fee - tax)) / (1 + fee) - 1;
+  return ((1 + gross) * (1 - slippage) * (1 - fee - tax)) / ((1 + slippage) * (1 + fee)) - 1;
+}
+
+/** 第 i 列整天跌停鎖死（最高價 ≤ 前一日收盤 × (1 + limitDownPct/100)）→ 當天賣不掉。 */
+export function lockedDown(px: Panel, i: number, c: number, limitDownPct: number): boolean {
+  if (!px.high || i <= 0) return false;
+  const hi = px.high[i]?.[c], prev = px.close[i - 1]?.[c];
+  return fin(hi) && fin(prev) && prev > 0 && hi / prev - 1 <= limitDownPct / 100;
 }
 
 export function conditionsMask(conditions: Condition[], lookup: (field: string) => (number | null)[][] | null, T: number, C: number): boolean[][] | null {
@@ -119,7 +133,7 @@ export function eligible(mask: boolean[][], dates: string[], start: string | nul
 
 export interface RunResult {
   trades: Record<number, Trade[]>;
-  excluded: { limit_up: number; suspended: number; disposition: number; no_future: number };
+  excluded: { limit_up: number; suspended: number; disposition: number; no_future: number; locked_exit: number };
   decay: (number | null)[];
   decayN: number[];
 }
@@ -154,10 +168,11 @@ export function run(signals: boolean[][], px: Panel, horizons: number[] = thresh
   const blocked = new Set(px.blocked.map(([t, c]) => `${t}:${c}`));
   const trades: Record<number, Trade[]> = {};
   horizons.forEach((h) => (trades[h] = []));
-  const excluded = { limit_up: 0, suspended: 0, disposition: 0, no_future: 0 };
+  const excluded = { limit_up: 0, suspended: 0, disposition: 0, no_future: 0, locked_exit: 0 };
   const decaySum = new Array(decayDays).fill(0);
   const decayN = new Array(decayDays).fill(0);
   const limitUp = limitUpPct / 100;
+  const limitDown = Number(thresholds.backtest.limit_down_pct ?? -9.5);
   for (let t = 0; t < T; t++) {
     for (let c = 0; c < px.codes.length; c++) {
       if (!signals[t][c]) continue;
@@ -177,9 +192,10 @@ export function run(signals: boolean[][], px: Panel, horizons: number[] = thresh
       for (const h of horizons) {
         const x = e + h;
         if (x >= T) continue;
-        const [k0, fixedPx] = findExit(px, c, e, x, entry, rule, stopPct, ma);
-        let k = k0;
-        while (fixedPx === null && k < T && !(px.tradable[k][c] && fin(px.open[k][c]))) k++;
+        let [k, fixedPx] = findExit(px, c, e, x, entry, rule, stopPct, ma);
+        if (fixedPx !== null && lockedDown(px, k, c, limitDown)) { fixedPx = null; k++; } // 停損觸及當天鎖死 → 下一個可成交日開盤
+        while (fixedPx === null && k < T && !(px.tradable[k][c] && fin(px.open[k][c]) && !lockedDown(px, k, c, limitDown))) k++;
+        for (let i = x; i < Math.min(k, T); i++) if (lockedDown(px, i, c, limitDown)) { excluded.locked_exit++; break; }
         let exitI: number;
         let exitPx: number;
         let delisted = false;

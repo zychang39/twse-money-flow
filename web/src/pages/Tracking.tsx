@@ -72,7 +72,7 @@ function StrategyCard({ st, ps }: { st: Strategy; ps: Position[] }) {
         <button class="btn small danger" onClick={() => { if (confirm(`停止追蹤「${preset?.label ?? st.name}」並刪除它的紀錄？`)) deleteStrategy(st.id); }}>停止追蹤</button>
       </div>
       <p class="caption muted">{preset?.subtitle ?? st.conditions.map((c) => describeCondition(c as Condition, label, unit)).join('；')}</p>
-      <p class="caption muted">自 {md(st.startAfter)} 之後的新觸發開始記錄（不回溯）・隔天開盤進場、持有 {st.horizon} 個交易日後開盤出場・已扣手續費與證交稅
+      <p class="caption muted">自 {md(st.startAfter)} 之後的新觸發開始記錄（不回溯）・隔天開盤進場、持有 {st.horizon} 個交易日後開盤出場・已扣手續費、證交稅與滑價
         {st.presetId ? '・全市場，由每日資料預先計算' : '・自訂條件在打開 App 時記錄當天的新觸發，沒打開的交易日不會補記'}</p>
       <Compare st={st} ps={ps} />
       {tomorrow.length ? <p class="caption" data-testid="track-exit-tomorrow">明天開盤出場：{tomorrow.map((p) => p.sig.name ?? p.sig.code).join('、')}</p> : null}
