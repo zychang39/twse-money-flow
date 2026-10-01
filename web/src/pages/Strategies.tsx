@@ -42,11 +42,12 @@ function Tags({ s }: { s: StrategyItem }) {
   );
 }
 
-/** 列表的一句話：選定基準下的 10 日超額與 t。 */
+/** 列表的一句話：選定基準下的超額與 t（判定持有 10 日；波段策略用自己的持有天數）。 */
 function listLine(s: StrategyItem, bench: BenchKey): string {
-  const h = s.h?.['10'];
+  const hz = s.swing?.hold ?? 10;
+  const h = s.h?.[String(hz)];
   const b = benchPick(h ?? { mean_excess: s.mean_excess, t: s.t }, h?.bench, bench);
-  return `10 日超額（${BENCH_LABEL[bench]}）${pctSigned(b.mean_excess)}・t ${tText(b.t)}`;
+  return `${hz} 日超額（${BENCH_LABEL[bench]}）${pctSigned(b.mean_excess)}・t ${tText(b.t)}`;
 }
 
 function sortRows(list: StrategyItem[], sort: SortState, bench: BenchKey) {
@@ -216,7 +217,7 @@ function Detail({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
       <h2 class="section st-h">健康度</h2>
       <div class="card">
         <p class="body"><b>{s.health?.status ?? '—'}</b></p>
-        <p class="caption muted">近 60 個交易日（{md(s.health?.since)} 起、已完成 {data.horizon} 日持有）平均超額 {pctSigned(s.health?.recent)}（{s.health?.recent_n ?? 0} 筆）；長期 {pctSigned(s.health?.long)}。超額＝相對同日全市場、扣成本。</p>
+        <p class="caption muted">近 60 個交易日（{md(s.health?.since)} 起、已完成 {s.swing?.hold ?? data.horizon} 日持有）平均超額 {pctSigned(s.health?.recent)}（{s.health?.recent_n ?? 0} 筆）；長期 {pctSigned(s.health?.long)}。超額＝相對同日全市場、扣成本。</p>
         <p class="caption">{envLine(s)}</p>
       </div>
 
