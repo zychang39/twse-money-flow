@@ -340,13 +340,18 @@ def gates(r: dict[str, Any], sw: dict[str, Any], best: dict[str, Any]) -> dict[s
         "years": bool(years) and pos / len(years) >= float(g["year_pass_ratio"]) - 1e-9,
         "per_month": (full.get("per_month") or 0) >= float(g["per_month_min"]),
     }
-    labels = {
-        "test_beats_best": f"測試段超額 {test.get('mean_excess')}% > 現有最佳 {best.get('mean_excess')}%（{best.get('id')}）",
-        "t_corrected": f"校正後 t {full.get('t_corr')} > {g['t_corrected_min']}",
-        "test_vs_dev": f"測試段 {test.get('mean_excess')}% ≥ 開發段 {dev.get('mean_excess')}% × {g['test_vs_dev_min']}",
-        "perturb_positive": "參數 ±20% 後超額仍 > 0",
-        "years": f"逐年 {pos}/{len(years)} 年為正 ≥ {g['year_pass_ratio']}",
-        "per_month": f"每月觸發 {full.get('per_month')} ≥ {g['per_month_min']}",
+    labels = {  # 「條件：實際值」；通過與否由 checks 決定
+        "test_beats_best": f"測試段超額須 > 現有最佳：{test.get('mean_excess')}% vs {best.get('mean_excess')}%（{best.get('id')}）",
+        "t_corrected": f"校正後 t 須 > {g['t_corrected_min']}：{full.get('t_corr')}",
+        "test_vs_dev": f"測試段須 ≥ 開發段 × {g['test_vs_dev_min']}：{test.get('mean_excess')}% vs {dev.get('mean_excess')}%",
+        "perturb_positive": "參數 ±20% 後超額須仍 > 0："
+        + "、".join(
+            f"{p['param']}×{p['mult']:.1f} {p.get('mean_excess')}%"
+            for p in r.get("perturb") or []
+            if "mean_excess" in p
+        ),
+        "years": f"逐年至少 {g['year_pass_ratio']:.0%} 年為正：{pos}/{len(years)}",
+        "per_month": f"每月觸發須 ≥ {g['per_month_min']}：{full.get('per_month')}",
     }
     return {"checks": checks, "labels": labels, "passed": all(checks.values()), "best_existing": best}
 
