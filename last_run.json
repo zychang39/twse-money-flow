@@ -1,9 +1,12 @@
 {
- "task": "backfill",
- "at": "2026-10-01T13:54:40+08:00",
- "requests": 0,
- "ok": 0,
+ "task": "stage",
+ "at": "2026-10-01T21:15:47+08:00",
+ "requests": 3,
+ "ok": 4,
  "failed": [],
  "pending": [],
- "deferred": true
+ "stage": "close",
+ "status": "done",
+ "waited": 0,
+ "target": "2026-10-01"
 }
