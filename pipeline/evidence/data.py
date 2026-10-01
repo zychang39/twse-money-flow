@@ -187,6 +187,10 @@ def revenue_table(rev: pd.DataFrame, dates: list[str], codes: list[str], fallbac
     eff = [date((p + 1).year, (p + 1).month, fallback_day).isoformat() for p in ym]
     r["effective"] = eff
     r["row"] = np.searchsorted(np.asarray(dates), np.asarray(eff), side="right") - 1
+    # 審查修正 2026-10-01（截斷測試發現）：生效日在資料最後一天之後的月份（提早公布、還沒到次月 10 日）
+    # 不能落在最後一列當訊號，否則訊號會出現在生效日之前；設為資料之外（len(dates)），事件與逐日面板都略過
+    if dates:
+        r.loc[r["effective"] > dates[-1], "row"] = len(dates)
     return r.reset_index(drop=True)
 
 

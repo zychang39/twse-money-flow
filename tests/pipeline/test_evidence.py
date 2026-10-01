@@ -373,6 +373,19 @@ def test_revenue_features_hand():
     assert r.loc["2025-04", "dyoy"] == pytest.approx(1.0)
 
 
+def test_revenue_effective_after_data_end_is_not_a_signal():
+    """審查修正 2026-10-01：生效日（次月 10 日）晚於資料最後一天的月份不能落在最後一列當訊號。"""
+    from pipeline.evidence.data import revenue_table
+
+    dates = ["2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01"]
+    rev = pd.DataFrame(
+        {"code": ["2330", "2330"], "ym": ["2026-08", "2026-09"], "revenue": [1.0, 2.0], "yoy": [1.0, 2.0]}
+    )
+    r = revenue_table(rev, dates, ["2330"], 10)
+    assert r.loc[r["ym"] == "2026-08", "row"].item() == -1  # 9/10 生效，早於資料起點 → −1（資料之前）
+    assert r.loc[r["ym"] == "2026-09", "row"].item() == len(dates)  # 10/10 生效，資料只到 10/1 → 不是訊號
+
+
 def test_revenue_effective_next_month_10th_entry_after():
     dates = ["2026-02-09", "2026-02-10", "2026-02-11", "2026-03-09", "2026-03-11"]
     rev = pd.DataFrame(
