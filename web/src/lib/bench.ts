@@ -1,6 +1,7 @@
 /**
  * v3 M5-3 基準切換：等權｜加權報酬｜0050｜00631L。同一頁的表格、圖表與讀值同步（同一個 state 由頁面往下傳），
  * 選擇記在 localStorage（tmf-bench），切換不改變捲動位置。判定一律以等權為準，其他基準只是換個比較對象。
+ * 2026-10-02 起預設顯示相對 0050 含息（記住的選擇不變）。
  */
 export type BenchKey = 'ew' | 'tr' | '0050' | '00631L';
 export const BENCH_KEYS: BenchKey[] = ['ew', 'tr', '0050', '00631L'];
@@ -8,7 +9,7 @@ export const BENCH_LABEL: Record<BenchKey, string> = { ew: '等權', tr: '加權
 export const BENCH_LONG: Record<BenchKey, string> = {
   ew: '同日等權 universe（判定用）',
   tr: '加權報酬指數',
-  '0050': '0050 買進持有（大型股）',
+  '0050': '0050 含息買進持有（大型股）',
   '00631L': '00631L 買進持有（2 倍槓桿、每日再平衡）',
 };
 
@@ -21,7 +22,7 @@ export function loadBench(): BenchKey {
   } catch {
     /* 私密瀏覽：用預設 */
   }
-  return 'ew';
+  return '0050';
 }
 
 export function saveBench(k: BenchKey): void {

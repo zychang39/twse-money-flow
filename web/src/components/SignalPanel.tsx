@@ -1,6 +1,6 @@
 /**
- * 個股頁「有效訊號面板」（M3）：只列指標效度評估判定為「有效」或「環境依賴」的指標（依 t 排序），
- * 顯示這一檔目前的狀態（觸發／接近觸發／未觸發）與該指標歷史 10 日超額報酬；點開看依據。
+ * 個股頁「有效訊號面板」（M3）：只列策略庫分級為「有效」或「觀察中」的策略對應的指標（依 t 排序；沒有策略庫資料時退回判定為有效／環境依賴），
+ * 顯示這一檔目前的狀態（觸發／接近觸發／未觸發）與該指標歷史超額報酬；點開看依據。每列帶分級標籤。
  * 不使用買賣字眼：狀態只描述條件是否成立。
  */
 import { useState } from 'preact/hooks';
@@ -9,12 +9,14 @@ import { loadJson } from '../data/api';
 import {
   type EvidenceFile, type EvidenceToday, STATE_TEXT, panelItems, panelSummary, pctSigned, tText, verdictNote,
 } from '../lib/evidence';
+import { type StrategiesFile, allowedTests, gradeByTest, gradeTone } from '../lib/strategies';
 import { IconChevron } from './Icons';
 import '../styles/evidence.css';
 
 const loadEvidence = () => Promise.all([
   loadJson<EvidenceFile>('evidence.json'),
   loadJson<EvidenceToday>('evidence_today.json').catch(() => null),
+  loadJson<StrategiesFile>('strategies.json').then((f) => f.strategies).catch(() => null),
 ]);
 
 function md(d: string): string {
@@ -26,9 +28,10 @@ export function SignalPanel({ code }: { code: string }) {
   const [open, setOpen] = useState<string | null>(null);
   if (d.loading) return <div class="skeleton sp-skel" aria-hidden="true" />;
   if (d.error || !d.data) return <p class="caption muted">指標效度資料暫時無法取得。</p>;
-  const [ev, today] = d.data;
+  const [ev, today, strategies] = d.data;
   const h = ev.meta.config?.primary_horizon ?? 10;
-  const items = panelItems(ev.rows, today, code, h);
+  const grades = gradeByTest(strategies);
+  const items = panelItems(ev.rows, today, code, h, allowedTests(strategies));
   return (
     <div class="sp" data-testid="signal-panel">
       <p class="caption muted">{panelSummary(items)}・超額＝歷史 {h} 日、相對同日全市場（扣成本）</p>
@@ -42,7 +45,10 @@ export function SignalPanel({ code }: { code: string }) {
                   <span class="ev-label">{it.row.label}</span>
                   <span class="ev-sub">歷史 {h} 日超額 {pctSigned(it.excess)}・t {tText(it.row.t)}{it.row.verdict === '環境依賴' ? '・環境依賴' : ''}</span>
                 </span>
-                <span class={`sp-state ${it.state}`}>{STATE_TEXT[it.state]}{it.date ? <span class="sp-date"> {md(it.date)}</span> : null}</span>
+                <span class="ev-tags">
+                  {grades?.get(it.row.id) ? (() => { const g = grades.get(it.row.id)!; const tone = gradeTone(g.grade); return <span class={`tag ev-verdict${tone === 'strong' ? ' strong' : tone === 'muted' ? ' muted' : ''}`} data-testid="grade-tag">{g.label}</span>; })() : null}
+                  <span class={`sp-state ${it.state}`}>{STATE_TEXT[it.state]}{it.date ? <span class="sp-date"> {md(it.date)}</span> : null}</span>
+                </span>
               </button>
               {isOpen ? (
                 <div class="ev-detail">

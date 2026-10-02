@@ -31,6 +31,13 @@
 .ev-foot { margin-top: var(--s-6); }
 /* 策略庫與槓桿計算 */
 .st-tags { display: inline-flex; flex-direction: column; align-items: flex-end; gap: var(--s-1); flex: none; }
+/* 分級標籤：停用＝弱化（只描邊、不填色）；有效沿用 .ev-verdict.strong */
+.tag.muted { background: transparent; color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line); }
+/* 分級區塊：標題帶數量；「停用與未通過」預設收合（44pt 按鈕） */
+.st-sec { margin-top: var(--s-6); }
+.st-sec-h { margin: 0 0 var(--s-2); }
+.st-fold { padding: 0; color: var(--text-1); }
+.st-fold .st-sec-h { margin: 0; }
 .st-row { text-decoration: none; }
 .st-h { margin-top: var(--s-8); margin-bottom: var(--s-2); }
 .st-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
