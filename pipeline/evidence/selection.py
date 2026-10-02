@@ -40,6 +40,10 @@ def _pos(v: Any) -> bool:
     return v is not None and float(v) > 0
 
 
+def _pct(v: Any) -> str:
+    return "無樣本" if v is None else f"{v}%"
+
+
 def _years_span(start: str | None, end: str | None) -> float | None:
     if not start or not end:
         return None
@@ -67,9 +71,9 @@ def grade_one(row: dict[str, Any], g: dict[str, Any]) -> tuple[str, dict[str, bo
     span = row.get("span_years")
     checks["sample_years"] = span is not None and span >= min_years
     labels = {
-        "net_excess": "40 與 20 日扣成本超額皆 > 0：" + " / ".join(f"{ex.get(h)}%" for h in hs),
+        "net_excess": "40 與 20 日扣成本超額皆 > 0：" + " / ".join(_pct(ex.get(h)) for h in hs),
         "t_corr": f"校正後 t ≥ {v.get('t_corr_min', 3)}：{row.get('t_corr')}",
-        "split": f"{v.get('split_date', '2022-01-01')[:4]} 前後皆為正：{row.get('pre')}% / {row.get('post')}%",
+        "split": f"{v.get('split_date', '2022-01-01')[:4]} 前後皆為正：{_pct(row.get('pre'))} / {_pct(row.get('post'))}",
         "years": f"逐年 ≥ {ratio:.0%} 為正：{pos}/{len(years)}",
         "per_month": f"每月觸發 ≥ {v.get('per_month_min', 10)}：{row.get('per_month')}",
         "gates": "九項上線門檻全過",

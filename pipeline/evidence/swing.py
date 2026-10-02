@@ -652,6 +652,7 @@ def build(res: dict[str, Any], f: dict[str, Any] | None = None, *, with_test: bo
                     "mean_excess": full.get("mean_excess"),
                     "mean_gross_excess": full.get("mean_gross_excess"),
                     "t": full.get("t"),
+                    "bench": full.get("bench"),
                 },
                 **(
                     {
@@ -660,6 +661,7 @@ def build(res: dict[str, Any], f: dict[str, Any] | None = None, *, with_test: bo
                             "mean_excess": r["other"].get("mean_excess"),
                             "mean_gross_excess": r["other"].get("mean_gross_excess"),
                             "t": r["other"].get("t"),
+                            "bench": r["other"].get("bench"),
                         }
                     }
                     if r.get("other")
