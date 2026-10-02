@@ -23,6 +23,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from pipeline.core import config
 from pipeline.evidence import engine, stats, verdict
 from pipeline.evidence.run import EventRunner
 
@@ -40,13 +41,42 @@ def block_t(cal: pd.Series, h: int) -> tuple[float | None, int]:
     return (None if t is None else round(float(t), 2)), int(blocks.size)
 
 
-def corrected_t(df: pd.DataFrame, h: int, col: str = "exc_mkt") -> dict[str, Any]:
+def concentration(df: pd.DataFrame, period_days: int | None) -> dict[str, Any]:
+    """進場日集中程度：不重複進場日數、佔訊號期間交易日的比例、最集中的 5% 進場日承載的事件比例。"""
+    if df.empty:
+        return {"dates": 0, "ratio": None, "top5pct_share": None}
+    counts = df.groupby("e").size().sort_values(ascending=False)
+    k = max(1, int(np.ceil(len(counts) * 0.05)))
+    return {
+        "dates": len(counts),
+        "ratio": None if not period_days else round(float(len(counts) / period_days), 4),
+        "top5pct_share": round(float(counts.iloc[:k].sum() / counts.sum()), 4),
+    }
+
+
+def corrected_t(
+    df: pd.DataFrame, h: int, col: str = "exc_mkt", period_days: int | None = None, ratio: float | None = None
+) -> dict[str, Any]:
+    """校正後 t（2026-10-02 第二輪，config/evidence.yml t_corr）：
+    同一天集中進場（不重複進場日 ÷ 訊號期間交易日數 < concentration_ratio）→ 一律用日曆時間法 t；
+    其餘取日曆時間法、Newey-West、不重疊區塊三者的最小值。不取最大值。period_days 未知時視為不集中。"""
     cal = stats.calendar_series(df, col)
     x = cal.to_numpy()
     m, _, t = stats.mean_t(x)
     nw = stats.newey_west_t(x, h)
     bt, nb = block_t(cal, h)
-    cands = [v for v in (nw, bt) if v is not None]
+    conc = concentration(df, period_days)
+    if ratio is None:
+        try:
+            ratio = float((config.load("evidence").get("t_corr") or {}).get("concentration_ratio", 0.25))
+        except Exception:  # 測試環境沒有 config 時
+            ratio = 0.25
+    concentrated = bool(conc["ratio"] is not None and conc["ratio"] < ratio)
+    if concentrated:
+        tc = t
+    else:
+        cands = [v for v in (t, nw, bt) if v is not None]
+        tc = min(cands) if cands else None
     return {
         "mean_excess": stats.pct(m),
         "t": None if t is None else round(float(t), 2),
@@ -54,7 +84,9 @@ def corrected_t(df: pd.DataFrame, h: int, col: str = "exc_mkt") -> dict[str, Any
         "t_block": bt,
         "blocks": nb,
         "dates": int(x.size),
-        "t_corr": round(min(cands), 2) if cands else None,
+        "t_corr": None if tc is None else round(float(tc), 2),
+        "t_corr_method": "日曆時間法（集中進場）" if concentrated else "min(日曆, NW, 區塊)",
+        "concentration": conc,
     }
 
 
@@ -194,7 +226,8 @@ def run(res: dict[str, Any], *, only: list[str] | None = None, min_days: int = 1
         d = engine.dedupe(fr)
         if d.empty:
             continue
-        ct = corrected_t(d, H)
+        pdays = int((np.asarray(ev.dates) >= start).sum())
+        ct = corrected_t(d, H, period_days=pdays)
         g = (row.get("h") or {}).get(str(H)) or {}
         ins = (
             (res["details"].get(tid) or {})

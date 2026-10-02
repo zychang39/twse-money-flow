@@ -4,7 +4,7 @@
 # 1.1 樣本範圍（universe）
 universe:
   min_listed_days: 120          # 上市櫃滿 120 個交易日
-  min_avg_value: 20000000       # 訊號日 20 日平均成交值 ≥ 2,000 萬元
+  min_avg_value: 50000000       # 訊號日 20 日平均成交值 ≥ 5,000 萬元（2026-10-02 第二輪：原 2,000 萬，低成交值實際不可成交）
   avg_value_days: 20
   min_close: 10                 # 訊號日收盤價（未還原）≥ 10 元
   exclude_name_patterns: ["-DR"]   # 存託憑證；ETF、ETN、受益證券以代號排除（只收 4 碼、非 0 開頭的普通股）
@@ -23,7 +23,8 @@ entry:
   limit_down_pct: -9.5          # 出場日最高價 ≤ 前一日收盤 −9.5% 視為跌停鎖死（當天賣不掉）
 horizons: [5, 10, 20, 40, 60]   # v3 M3：加入 40、60 日（出場規則比較也有固定 40、60 日）
 horizons_ref: [120]             # 只做參考、不進判定、不進出場比較
-primary_horizon: 10             # 判定用的持有天數（其餘持有天數一併報告）
+primary_horizon: 40             # 判定用的持有天數（2026-10-02 第二輪：原 10 日；成本固定、優勢隨持有累積，波段 40 日為主）
+secondary_horizon: 20           # 並列判定的第二持有天數（分級要求 40 與 20 日扣成本超額皆 > 0）；10 日仍計算顯示但不判定
 
 # v3 M3 事件時間累積超額曲線（有效、環境依賴的指標與三方同買）
 curve:
@@ -38,6 +39,12 @@ costs:
   commission_discount: 1.0
   slippage: 0.001
 benchmark_net_of_costs: false
+
+# 1.4a 校正後 t 的取法（2026-10-02 第二輪，AUDIT.md 第二節第 4 點）：
+# 同一天集中進場的策略（不重複進場日 ÷ 訊號期間交易日數 < concentration_ratio）一律用日曆時間法 t；
+# 其餘取日曆時間法、Newey-West、不重疊區塊三者的最小值。不可取最大值。
+t_corr:
+  concentration_ratio: 0.25
 
 # 1.5 統計
 stats:
@@ -111,3 +118,40 @@ recent_days: 60                # 策略健康度：最近 60 個交易日
 # 由 data 分支 2026-09-29 回補開始前的 tdcc_history 還原）。涵蓋率達 coverage_full 後，大戶週增與三方同買另算「只用這 31 檔」的版本並列。
 hindsight_codes: ["0050", "1303", "2303", "2308", "2317", "2327", "2330", "2344", "2368", "2382", "2383", "2408", "2409", "2454", "3026", "3037", "3042", "3105", "3189", "3324", "3443", "3653", "3665", "4958", "6182", "6213", "6274", "6488", "8046", "8150", "8299"]
 hindsight_tests: [whale_up, combo_three]
+
+# ------------------------------------------------------------------
+# 2026-10-02 第二輪：分級與新策略門檻（全站門檻集中在這個檔案；成本費率在 costs.yml、使用者回測的滑價與鎖死在 thresholds.yml backtest）
+# 分級（取代「全部停用」）：有效／觀察中／停用；判定持有天數 40 日為主、20 日並列；基準＝同日等權（畫面預設顯示相對 0050 含息）
+grading:
+  valid:
+    net_excess_positive_horizons: [40, 20]   # 40 日與 20 日扣成本超額皆 > 0
+    t_corr_min: 3                            # 校正後 t ≥ 3（40 日）
+    split_date: "2022-01-01"                 # 2022 前後兩段皆為正
+    year_pass_ratio: 0.7                     # 逐年至少七成為正
+    per_month_min: 10                        # 每月觸發 ≥ 10
+  watch:
+    t_corr_min: 2                            # 觀察中：40 日扣成本超額 > 0 且校正後 t ≥ 2
+  min_years_for_valid: 5                     # 樣本不足 5 年者最高只能列觀察中
+  dedupe_corr: 0.8                           # 相關係數 > 0.8 只留較強者（校正後 t 高者）
+  max_strategies: 15                         # 有效＋觀察中最多 15 套，超過依校正後 t 取前 15
+# 新策略上線門檻（docs/swing/HYPOTHESIS.md 第五節）
+swing_gates:
+  dev: ["2017-01-01", "2022-01-01"]          # 開發段
+  val: ["2022-01-01", "2024-11-01"]          # 驗證段
+  test: ["2024-11-01", null]                 # 最終測試段（null＝資料結束；上一輪已查看兩次，非全新樣本）
+  t_corr_min: 3
+  test_vs_dev_min: 0.5
+  year_pass_ratio: 0.7
+  perturb_pct: 0.2
+  delay_days: [1, 3]                         # 進場延後 1、3 日後超額仍 ≥ 原本的 50%
+  delay_keep_ratio: 0.5
+  per_month_min: 10
+  win_payoff: [[50, 1.5], [55, 1.2]]         # 勝率 ≥ 50% 且賺賠比 ≥ 1.5，或勝率 ≥ 55% 且賺賠比 ≥ 1.2
+  portfolio_slots: 10                        # 組合層：10 檔等權、槽位滿了就跳過
+  portfolio_mdd_ratio: 1.2                   # 最大回撤不深於等權基準的 1.2 倍；年化報酬 > 同期等權基準
+  common_rules:                              # 共用、不可調、不計入參數的組合層規則
+    regime_ma: 240                           # 加權指數收盤在 240 日線下不開新倉
+    bias_max: 0.20                           # 20 日乖離 > 20% 不進場
+  forward_since: "2026-10-02"                # 前瞻驗證起算日（合併日）；滿 forward_days 個交易日後在策略頁顯示
+  forward_days: 60
+  max_trials: 9                              # 本輪嘗試上限（累計上限 14）

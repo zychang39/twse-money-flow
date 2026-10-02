@@ -94,6 +94,8 @@ def summarize(df: pd.DataFrame, cfg: dict[str, Any], horizon: int, col: str = "e
         "t_nw": None if (nw := newey_west_t(cal, horizon)) is None else round(nw, 2),
         "ci": [pct(lo), pct(hi)],
         "mean_net": pct(float(df["net"].mean())),
+        "mean_gross_excess": _gross_mean(df),
+        "t_gross": _gross_t(df),
         "mean_exc_idx": pct(float(df["exc_idx"].mean())) if df["exc_idx"].notna().any() else None,
         "median_net": pct(float(df["net"].median())),
         "win": pct(wins / n),
@@ -162,10 +164,25 @@ def brief(df: pd.DataFrame, cfg: dict[str, Any], col: str = "exc_mkt") -> dict[s
         "n": len(df),
         "dates": int(cal.size),
         "mean_excess": pct(m),
+        "mean_gross_excess": _gross_mean(df),
         "t": None if t is None else round(t, 2),
         "ci": [pct(lo), pct(hi)],
         "win": pct(float((df["net"] > 0).mean())),
     }
+
+
+def _gross_mean(df: pd.DataFrame) -> float | None:
+    """毛超額（毛報酬 − 等權毛報酬）的日曆時間法平均；舊事件表沒有 exc_gross 欄時為 None。"""
+    if "exc_gross" not in df.columns or not df["exc_gross"].notna().any():
+        return None
+    return pct(mean_t(calendar_series(df, "exc_gross").to_numpy())[0])
+
+
+def _gross_t(df: pd.DataFrame) -> float | None:
+    if "exc_gross" not in df.columns or not df["exc_gross"].notna().any():
+        return None
+    t = mean_t(calendar_series(df, "exc_gross").to_numpy())[2]
+    return None if t is None else round(t, 2)
 
 
 def oos_cut(dates: list[str], fraction: float) -> str | None:

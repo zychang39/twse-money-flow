@@ -290,7 +290,8 @@ def evaluate(mk: Market, t: np.ndarray, c: np.ndarray, h: int) -> pd.DataFrame:
             "net": net,
             "gross": gross,
             "exc_idx": net - bench,
-            "exc_mkt": net - mkt,
+            "exc_mkt": net - mkt,  # 扣成本超額＝淨報酬 − 同日等權毛報酬（可交易性）
+            "exc_gross": gross - mkt,  # 毛超額＝毛報酬 − 同日等權毛報酬（選股能力；2026-10-02 第二輪）
             "exc_0050": net - b0050,
             "exc_00631L": net - b631,
             "mae": mae,
