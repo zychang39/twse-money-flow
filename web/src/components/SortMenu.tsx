@@ -28,8 +28,13 @@ export function SortMenu({ value, onChange, id, options = EVIDENCE_SORT }: { val
     btn.current?.focus({ preventScroll: true });
     requestAnimationFrame(() => { if (window.scrollY !== y) window.scrollTo(0, y); });
   };
+  // Escape 也在容器上同步處理（JSX 事件在第一次繪製就綁好）：document 的監聽在 useEffect 之後才掛上，
+  // 選單剛打開就按 Escape 時會漏接（CI 的 e2e 偶發失敗，2026-10-02）。
+  const onWrapKey = (e: KeyboardEvent) => {
+    if (open && e.key === 'Escape') { e.stopPropagation(); setOpen(false); btn.current?.focus({ preventScroll: true }); }
+  };
   return (
-    <div class="sort-head" ref={wrap}>
+    <div class="sort-head" ref={wrap} onKeyDown={onWrapKey}>
       <p class="caption muted sort-now" data-testid={`sort-now-${id}`}>排序：{sortLabel(value, options)}</p>
       <button ref={btn} type="button" class="btn small sort-btn" aria-haspopup="menu" aria-expanded={open} aria-controls={`sort-menu-${id}`} onClick={() => setOpen(!open)}>排序</button>
       {open ? (
