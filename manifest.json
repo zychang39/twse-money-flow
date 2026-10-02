@@ -1168,7 +1168,7 @@
   "updated_at": "2026-10-02T11:20+08:00",
   "weeks": 51
  },
- "last_target_date": "2026-10-01",
+ "last_target_date": "2026-10-02",
  "publish_probe": {
   "2026-09-30": {
    "tpex_daytrade": "20:34",
@@ -1236,6 +1236,10 @@
    {
     "at": "21:15",
     "date": "2026-10-01"
+   },
+   {
+    "at": "20:36",
+    "date": "2026-10-02"
    }
   ],
   "tpex_sbl": [
@@ -1306,6 +1310,10 @@
    {
     "at": "21:15",
     "date": "2026-10-01"
+   },
+   {
+    "at": "20:36",
+    "date": "2026-10-02"
    }
   ],
   "twse_sbl": [
@@ -1330,20 +1338,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-01T07:42:24+08:00",
-   "by_source": {
-    "tdcc_full": 84020
-   },
-   "chained": true,
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 84020,
-   "requests": 562,
-   "task": "holders_backfill"
-  },
   {
    "at": "2026-10-01T07:44:06+08:00",
    "by_source": {
@@ -1879,6 +1873,18 @@
    "remaining": 0,
    "requests": 201,
    "task": "backfill"
+  },
+  {
+   "at": "2026-10-02T20:36:09+08:00",
+   "failed": [],
+   "ok": 4,
+   "pending": [],
+   "requests": 3,
+   "stage": "close",
+   "status": "done",
+   "target": "2026-10-02",
+   "task": "stage",
+   "waited": 0
   }
  ],
  "sources": {
@@ -2102,12 +2108,12 @@
   },
   "tpex_index": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-02T03:00:37+08:00",
+   "last_attempt": "2026-10-02T20:36:09+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-01",
-   "last_success_at": "2026-10-02T03:00:37+08:00",
-   "rows": 1,
+   "last_success": "2026-10-02",
+   "last_success_at": "2026-10-02T20:36:09+08:00",
+   "rows": 2,
    "validation": "ok"
   },
   "tpex_insider": {
@@ -2162,12 +2168,12 @@
   },
   "tpex_quotes": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-01T21:15:43+08:00",
+   "last_attempt": "2026-10-02T20:36:04+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-01",
-   "last_success_at": "2026-10-01T21:15:43+08:00",
-   "rows": 1006,
+   "last_success": "2026-10-02",
+   "last_success_at": "2026-10-02T20:36:04+08:00",
+   "rows": 1007,
    "validation": "ok"
   },
   "tpex_revenue": {
@@ -2357,11 +2363,11 @@
   },
   "twse_index": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-01T21:15:34+08:00",
+   "last_attempt": "2026-10-02T20:35:55+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-01",
-   "last_success_at": "2026-10-01T21:15:34+08:00",
+   "last_success": "2026-10-02",
+   "last_success_at": "2026-10-02T20:35:55+08:00",
    "rows": 265,
    "validation": "ok"
   },
@@ -2427,11 +2433,11 @@
   },
   "twse_quotes": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-01T21:15:34+08:00",
+   "last_attempt": "2026-10-02T20:35:55+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-01",
-   "last_success_at": "2026-10-01T21:15:34+08:00",
+   "last_success": "2026-10-02",
+   "last_success_at": "2026-10-02T20:35:55+08:00",
    "rows": 1352,
    "validation": "ok"
   },
@@ -2488,22 +2494,12 @@
  },
  "stages": {
   "close": {
-   "at": "21:15",
+   "at": "20:36",
    "status": "done",
    "waited": 0
   },
-  "credit": {
-   "at": "03:04",
-   "status": "done",
-   "waited": 6
-  },
-  "date": "2026-10-01",
-  "insti": {
-   "at": "22:40",
-   "status": "done",
-   "waited": 0
-  }
+  "date": "2026-10-02"
  },
- "updated_at": "2026-10-02T13:28:43+08:00",
+ "updated_at": "2026-10-02T20:36:09+08:00",
  "version": 1
 }
