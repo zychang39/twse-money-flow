@@ -52,6 +52,8 @@ test.describe('E-02 休市狀態依交易日曆', () => {
 
 test.describe('U-02 無成交／停牌不是「今日」漲跌', () => {
   test('清單與個股頁顯示「今日無成交」與最後成交日，不顯示舊的漲跌', async ({ page }) => {
+    // 2026-10-02：固定時間在示範資料日（9/24）當晚，否則真實日期與示範資料差超過 2 個交易日時會正確出現「資料可能過期」
+    await page.clock.setFixedTime(new Date('2026-09-24T18:00:00+08:00'));
     await page.route('**/data/summary.json', async (route) => {
       const res = await route.fetch();
       const s = await res.json();
