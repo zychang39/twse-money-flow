@@ -1331,20 +1331,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-01T07:03:03+08:00",
-   "by_source": {
-    "daily_days": 1570
-   },
-   "chained": true,
-   "failed": [],
-   "ok": 714,
-   "pending": [],
-   "progressed": true,
-   "remaining": 1570,
-   "requests": 482,
-   "task": "backfill"
-  },
-  {
    "at": "2026-10-01T07:42:24+08:00",
    "by_source": {
     "tdcc_full": 84020
@@ -1879,6 +1865,20 @@
    "remaining": 0,
    "requests": 453,
    "task": "backfill"
+  },
+  {
+   "at": "2026-10-02T13:28:43+08:00",
+   "by_source": {},
+   "failed": [],
+   "format_warnings": [
+    "twse_insti"
+   ],
+   "ok": 300,
+   "pending": [],
+   "progressed": true,
+   "remaining": 0,
+   "requests": 201,
+   "task": "backfill"
   }
  ],
  "sources": {
@@ -2122,31 +2122,31 @@
   },
   "tpex_insti": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-01T22:39:44+08:00",
+   "last_attempt": "2026-10-02T13:28:31+08:00",
    "last_message": null,
    "last_status": "ok",
    "last_success": "2026-10-01",
-   "last_success_at": "2026-10-01T22:39:44+08:00",
+   "last_success_at": "2026-10-02T13:28:31+08:00",
    "rows": 911,
    "validation": "ok"
   },
   "tpex_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-02T02:59:11+08:00",
+   "last_attempt": "2026-10-02T13:28:43+08:00",
    "last_message": null,
    "last_status": "ok",
    "last_success": "2026-10-01",
-   "last_success_at": "2026-10-02T02:59:11+08:00",
+   "last_success_at": "2026-10-02T13:28:43+08:00",
    "rows": 918,
    "validation": "ok"
   },
   "tpex_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-02T02:59:11+08:00",
+   "last_attempt": "2026-10-02T13:28:43+08:00",
    "last_message": null,
    "last_status": "ok",
    "last_success": "2026-10-01",
-   "last_success_at": "2026-10-02T02:59:11+08:00",
+   "last_success_at": "2026-10-02T13:28:43+08:00",
    "rows": 2,
    "validation": "ok"
   },
@@ -2377,31 +2377,31 @@
   },
   "twse_insti": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-01T22:39:39+08:00",
+   "last_attempt": "2026-10-02T13:28:27+08:00",
    "last_message": null,
    "last_status": "ok",
    "last_success": "2026-10-01",
-   "last_success_at": "2026-10-01T22:39:39+08:00",
+   "last_success_at": "2026-10-02T13:28:27+08:00",
    "rows": 1318,
    "validation": "ok"
   },
   "twse_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-02T02:59:06+08:00",
+   "last_attempt": "2026-10-02T13:28:37+08:00",
    "last_message": null,
    "last_status": "ok",
    "last_success": "2026-10-01",
-   "last_success_at": "2026-10-02T02:59:06+08:00",
+   "last_success_at": "2026-10-02T13:28:37+08:00",
    "rows": 1293,
    "validation": "ok"
   },
   "twse_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-02T02:59:06+08:00",
+   "last_attempt": "2026-10-02T13:28:37+08:00",
    "last_message": null,
    "last_status": "ok",
    "last_success": "2026-10-01",
-   "last_success_at": "2026-10-02T02:59:06+08:00",
+   "last_success_at": "2026-10-02T13:28:37+08:00",
    "rows": 3,
    "validation": "ok"
   },
@@ -2504,6 +2504,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-02T12:49:10+08:00",
+ "updated_at": "2026-10-02T13:28:43+08:00",
  "version": 1
 }

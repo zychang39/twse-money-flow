@@ -1,10 +1,13 @@
 {
  "task": "backfill",
- "at": "2026-10-02T12:49:10+08:00",
- "requests": 453,
- "ok": 448,
+ "at": "2026-10-02T13:28:43+08:00",
+ "requests": 201,
+ "ok": 300,
  "failed": [],
  "pending": [],
+ "format_warnings": [
+  "twse_insti"
+ ],
  "remaining": 0,
  "by_source": {},
  "progressed": true
