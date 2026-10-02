@@ -392,8 +392,9 @@ def test_revenue_effective_next_month_10th_entry_after():
         {"code": ["1101", "1101"], "ym": ["2026-01", "2026-02"], "revenue": [1.0, 2.0], "yoy": [1.0, 2.0]}
     )
     t = revenue_table(rev, dates, ["1101"], 10)
-    # 1 月營收：生效 2/10（交易日）→ 訊號列 2/10，進場 2/11；2 月營收：生效 3/10（非交易日）→ 訊號列 3/9，進場 3/11
-    assert t["row"].tolist() == [1, 3]
+    # 2026-10-02：1 月營收生效 2/10（交易日）→ 訊號列 2/10 收盤，進場 2/11；
+    # 2 月營收生效 3/10（非交易日）→ 訊號列＝之後第一個交易日 3/11 收盤（舊版提早到 3/9），進場再下一日
+    assert t["row"].tolist() == [1, 4]
 
 
 def _tdcc(weeks: list[str], pcts: list[float]) -> pd.DataFrame:

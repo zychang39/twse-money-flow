@@ -4,7 +4,7 @@
 - 收盤價、量、三大法人、融資融券：資料日 T 就是訊號列。
 - 集保股權分散：資料日（週五）次日公布（週六）→ v3 M0-2 起訊號列＝下週第一個交易日（通常週一），進場＝週二開盤；
   訊號日 T 只引用 T 之前一週（含）以前已公布的週，不引用 T 當週（見 whale_usable_from）。
-- 月營收：公布日（取不到則為次月 10 日）→ 訊號列＝公布日（含）之前最後一個交易日，進場＝公布日之後第一個交易日。
+- 月營收：生效日＝次月 10 日（法定期限）→ 訊號列＝生效日當天或之後第一個交易日（收盤後產生訊號），進場＝再下一個交易日開盤。
 """
 
 from __future__ import annotations
@@ -171,7 +171,8 @@ def whale_panels(
 
 
 def revenue_table(rev: pd.DataFrame, dates: list[str], codes: list[str], fallback_day: int) -> pd.DataFrame:
-    """月營收（每檔每月）＋訊號列。生效日＝次月 fallback_day 日（官方沒有逐月的公司公布日歷史，一律用法定期限）。"""
+    """月營收（每檔每月）＋訊號列。生效日＝次月 fallback_day 日（官方沒有逐月的公司公布日歷史，一律用法定期限）；
+    訊號列＝生效日當天或之後第一個交易日。"""
     if rev.empty:
         return pd.DataFrame(columns=["code", "ym", "revenue", "yoy", "row"])
     r = rev[rev["code"].isin(set(codes))].copy()
@@ -188,11 +189,12 @@ def revenue_table(rev: pd.DataFrame, dates: list[str], codes: list[str], fallbac
     ym = pd.PeriodIndex(r["ym"].astype(str), freq="M")
     eff = [date((p + 1).year, (p + 1).month, fallback_day).isoformat() for p in ym]
     r["effective"] = eff
-    r["row"] = np.searchsorted(np.asarray(dates), np.asarray(eff), side="right") - 1
-    # 審查修正 2026-10-01（截斷測試發現）：生效日在資料最後一天之後的月份（提早公布、還沒到次月 10 日）
-    # 不能落在最後一列當訊號，否則訊號會出現在生效日之前；設為資料之外（len(dates)），事件與逐日面板都略過
-    if dates:
-        r.loc[r["effective"] > dates[-1], "row"] = len(dates)
+    # 2026-10-02 第二輪（AUDIT.md 第二節第 1 點）：訊號列＝生效日（次月 10 日）當天或之後第一個交易日的收盤
+    # （許多公司在 10 日盤後才公布；舊版用「生效日之前最後一個交易日」，遇假日會提早到 10 日之前），
+    # 進場＝再下一個交易日開盤。生效日在資料最後一天之後 → len(dates)（資料之外，不是訊號；2026-10-01 的前視修正）。
+    r["row"] = np.searchsorted(np.asarray(dates), np.asarray(eff), side="left")
+    if dates:  # 生效日早於資料起點 → −1（資料之前，不是訊號；否則會全部擠在第一列）
+        r.loc[r["effective"] < dates[0], "row"] = -1
     return r.reset_index(drop=True)
 
 
