@@ -432,9 +432,18 @@ def cmd_swing(args: argparse.Namespace) -> int:
         hold = int(args.hold or spec["hold"])
         ctx = res["_ctx"]
         f = ind.build_features(ctx["ev"], ctx["uni"], ctx["cfg"]["indicators"])
-        mk = swing.market_for(ctx["ev"], ctx["uni"], ctx["cfg"], [hold, round(hold * 0.8), round(hold * 1.2)])
+        mk = swing.market_for(ctx["ev"], ctx["uni"], ctx["cfg"], [hold, round(hold * 0.8), round(hold * 1.2), 20, 40])
         r = swing.evaluate_spec(
-            spec, ctx["ev"], f, ctx["uni"], mk, ctx["cfg"], sw, params=params, hold=hold, with_test=False
+            spec,
+            ctx["ev"],
+            f,
+            ctx["uni"],
+            mk,
+            ctx["cfg"],
+            swing.gates_cfg(ctx["cfg"]),
+            params=params,
+            hold=hold,
+            with_test=False,
         )
         r.pop("mask", None)
         r.pop("events", None)

@@ -1,15 +1,8 @@
-# 波段策略（2026-10-01 新增；docs/swing/HYPOTHESIS.md、TRIALS.md）
-# 每套最多 3 個參數、不做網格最佳化；資料依訊號期間切三段（開發 60%、驗證 20%、最終測試 20%），最終測試只跑一次。
-# enabled 是註冊清單的啟用旗標（審查精簡：一行可還原）；上線門檻全部通過（gates）才會在策略庫標為有效。
-version: 1
-split: { dev: 0.6, val: 0.2 }           # 其餘 20% 為最終測試
-slots: 5                                # 組合模擬同時持有檔數（Sharpe、最大回撤、週轉率）
-gates:
-  t_corrected_min: 3                    # 校正後 t（全樣本）> 3
-  test_vs_dev_min: 0.5                  # 測試段超額 ≥ 開發段的 50%
-  year_pass_ratio: 0.7                  # 逐年至少七成年份為正
-  per_month_min: 10                     # 每月平均觸發 ≥ 10 檔
-  perturb_pct: 0.2                      # 參數各調 ±20% 後超額仍 > 0（開發＋驗證段）
+# 波段策略（2026-10-01 新增；2026-10-02 第二輪改版，docs/swing/HYPOTHESIS.md、TRIALS.md）
+# 每套最多 3 個可調參數、整數或常見門檻、不做網格最佳化；三段固定日期切分與九項上線門檻集中在 config/evidence.yml 的 swing_gates。
+# enabled 是註冊清單的啟用旗標（一行可還原）；實際是否上架＝旗標 AND 分級（有效／觀察中），分級由資料重算（selection.py）。
+# 共用規則（加權指數在 240 日線下不開新倉、20 日乖離 > 20% 不進場）在組合層套用、不計入參數（evidence.yml swing_gates.common_rules）。
+version: 2
 strategies:
   - id: rev_strong
     enabled: true
@@ -37,3 +30,31 @@ strategies:
     hold: 40
     params: { value_min: 100000000 }
     filters: [foreign5_pos, regime_up]
+  # ---- 第二輪新策略（2026-10-02；每一族最多 3 個版本，本輪合計最多 9 次嘗試）
+  - id: rev_confirm
+    enabled: true
+    label: 營收高帶量
+    subtitle: 月營收創 12 個月新高・生效日收漲且量 ≥ 1.5 倍・RS ≥ 70・持有 40 日
+    family: 基本面
+    mechanism: A 事件後漂移
+    base: rev_confirm                   # 基礎事件：營收創 12 個月新高的生效日（10 日當天或之後第一個交易日）收盤上漲、量 ≥ vol_ratio × 前 20 日均量
+    hold: 40
+    params: { rs_min: 70, vol_ratio: 1.5 }
+  - id: squeeze_breakout
+    enabled: true
+    label: 收斂後突破
+    subtitle: RS ≥ 80・20 日波動低於 60 日・收盤突破前 20 日高點且量 ≥ 1.5 倍・持有 40 日
+    family: 動能
+    mechanism: B 趨勢延續
+    base: squeeze_breakout              # 基礎事件：收盤 > 前 20 日最高收盤（前一日未突破）、20 日已實現波動 < 60 日（固定）、量 ≥ vol_ratio
+    hold: 40
+    params: { rs_min: 80, vol_ratio: 1.5 }
+  - id: inst_pullback
+    enabled: true
+    label: 投信買回檔
+    subtitle: 投信 20 日淨買超 ≥ 1 倍日均量・RS ≥ 70・回檔至 20 日線附近且在 60 日線上・持有 20 日
+    family: 籌碼
+    mechanism: C 法人持續建倉
+    base: inst_pullback                 # 基礎事件：投信 20 日累計淨買超 ÷ 前 20 日均量 ≥ trust_ratio、RS ≥ rs_min、收盤 ≤ 20 日線 ×1.02 且 ≥ 60 日線且 ≤ 前 20 日高 ×0.95（條件首次成立）
+    hold: 20
+    params: { rs_min: 70, trust_ratio: 1.0 }
