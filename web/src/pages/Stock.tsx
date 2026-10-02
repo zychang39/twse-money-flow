@@ -275,7 +275,7 @@ export default function Stock({ code }: { code: string }) {
       </Block>
     ),
     signals: () => (
-      <Block id="sec-signals" question="有統計證據的訊號觸發了嗎？" answer="只列指標效度評估判定為有效或環境依賴的指標">
+      <Block id="sec-signals" question="有統計證據的訊號觸發了嗎？" answer="只列策略庫分級為有效或觀察中的策略對應的指標">
         <SignalPanel code={code} />
       </Block>
     ),

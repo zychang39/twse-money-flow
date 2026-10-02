@@ -5,7 +5,7 @@
 - 開盤 ≥ 前一日收盤 +5% → 標示跳空（主結果納入，另列「排除跳空 ≥ 5%」變體）。
 - 出場日跌停鎖死（最高價 ≤ 前一日收盤 −9.5%，整天都在跌停價）或停牌 → 順延到下一個可成交日的開盤；
   統計跌停鎖死次數與額外損失（順延後的出場價 ÷ 原出場日開盤價 − 1）。之後都無法成交（下市）→ 以最後收盤出場並標示。
-- 成本：手續費 0.1425% × 0.6 買賣各一次、證交稅 0.3%（本評估不含 ETF）。
+- 成本：手續費 0.1425%（不打折）買賣各一次、證交稅 0.3%、滑價 0.1% 買賣各一次（`config/evidence.yml costs`；本評估不含 ETF）。
 """
 
 from __future__ import annotations
@@ -19,15 +19,34 @@ import pandas as pd
 from pipeline.core import config
 
 
-def cost_rates() -> tuple[float, float]:
+def cost_rates() -> tuple[float, float, float]:
+    """評估用的成本（審查修正 2026-10-01）：手續費依 `config/evidence.yml costs.commission_discount`
+    （預設 1.0＝牌告 0.1425% 不打折）、證交稅 0.3%、滑價 `costs.slippage`（預設 0.1%，買賣各一次）。
+    舊版用券商折扣 0.6 且沒有滑價，比審查規格少算每筆來回約 0.26 個百分點。"""
     c = config.costs()
-    fee = float(c["commission"]["rate"]) * float(c["commission"]["discount"])
-    return fee, float(c["tax"]["stock"])
+    ev = config.load("evidence").get("costs") or {}
+    discount = float(ev.get("commission_discount", c["commission"]["discount"]))
+    fee = float(c["commission"]["rate"]) * discount
+    return fee, float(c["tax"]["stock"]), float(ev.get("slippage", 0.0))
 
 
-def net_return(gross: np.ndarray | float, fee: float, tax: float) -> Any:
-    """淨報酬 =（1 + 毛報酬）×（1 − 賣出手續費 − 證交稅）÷（1 + 買進手續費）− 1。"""
-    return (1 + gross) * (1 - fee - tax) / (1 + fee) - 1
+def net_return(gross: np.ndarray | float, fee: float, tax: float, slip: float = 0.0) -> Any:
+    """淨報酬 =（1 + 毛報酬）×（1 − 滑價）×（1 − 賣出手續費 − 證交稅）÷（(1 + 滑價) × (1 + 買進手續費)）− 1。
+
+    滑價：買進以開盤價 × (1 + slip) 成交、賣出以出場價 × (1 − slip) 成交。
+    """
+    return (1 + gross) * (1 - slip) * (1 - fee - tax) / ((1 + slip) * (1 + fee)) - 1
+
+
+def benchmark_net_of_costs() -> bool:
+    """同日等權基準是否也扣成本（審查修正 2026-10-01，預設 False）。
+
+    舊版的基準「用同樣規則算出的平均淨報酬」也扣了成本，策略與基準的成本互相抵銷，總表的「扣成本超額」實際上
+    不含成本（把手續費與稅設為 0，超額幾乎不變），與出場規則比較表的「相對等權」（等權指數，不扣成本）也不一致
+    （同一組事件固定 10 日：主表 +0.68%、出場表 +0.19%）。改為基準不扣成本，超額＝策略淨報酬 − 等權毛報酬。
+    設 `config/evidence.yml benchmark_net_of_costs: true` 可還原舊行為。
+    """
+    return bool(config.load("evidence").get("benchmark_net_of_costs", False))
 
 
 def _fwd_extreme(a: np.ndarray, h: int, fn: str) -> np.ndarray:
@@ -63,7 +82,8 @@ class Market:
 
     def __post_init__(self) -> None:
         T, C = self.open.shape
-        self.fee, self.tax = cost_rates()
+        self.fee, self.tax, self.slip = cost_rates()
+        self.bench_costs = benchmark_net_of_costs()
         prev = np.vstack([np.full((1, C), np.nan), self.close[:-1]])
         with np.errstate(invalid="ignore", divide="ignore"):
             self.open_gap = self.open / prev - 1
@@ -131,7 +151,8 @@ class Market:
         }
 
     def _market_mean(self, h: int) -> np.ndarray:
-        """同一進場日、同一持有期、universe 內全部股票（訊號日 t＝e−1 在 universe、進場日可進場）的平均淨報酬。"""
+        """同一進場日、同一持有期、universe 內全部股票（訊號日 t＝e−1 在 universe、進場日可進場）的平均毛報酬
+        （基準不扣成本；`benchmark_net_of_costs: true` 時為舊版的淨報酬）。"""
         T, C = self.open.shape
         out = np.full(T, np.nan)
         cols = np.arange(C)
@@ -145,7 +166,7 @@ class Market:
                 g = ex["px"] / self.open[e, c] - 1
             g = g[np.isfinite(g)]
             if g.size:
-                out[e] = float(np.mean(net_return(g, self.fee, self.tax)))
+                out[e] = float(np.mean(net_return(g, self.fee, self.tax, self.slip) if self.bench_costs else g))
         return out
 
     def etf_return(self, code: str, e: np.ndarray, x: np.ndarray, at_close: np.ndarray) -> np.ndarray:
@@ -253,7 +274,7 @@ def evaluate(mk: Market, t: np.ndarray, c: np.ndarray, h: int) -> pd.DataFrame:
         gross = ex["px"] / entry - 1
         mae = np.minimum(mk.fmin[h][e_c, c], ex["px"]) / entry - 1
         mfe = np.maximum(mk.fmax[h][e_c, c], ex["px"]) / entry - 1
-    net = net_return(gross, mk.fee, mk.tax)
+    net = net_return(gross, mk.fee, mk.tax, mk.slip)
     bench = mk.bench_return(e_c, ex["row"])
     mkt = mk.market_mean[h][e_c]
     stuck = ex["delisted"] | ex["halted"]
@@ -269,7 +290,8 @@ def evaluate(mk: Market, t: np.ndarray, c: np.ndarray, h: int) -> pd.DataFrame:
             "net": net,
             "gross": gross,
             "exc_idx": net - bench,
-            "exc_mkt": net - mkt,
+            "exc_mkt": net - mkt,  # 扣成本超額＝淨報酬 − 同日等權毛報酬（可交易性）
+            "exc_gross": gross - mkt,  # 毛超額＝毛報酬 − 同日等權毛報酬（選股能力；2026-10-02 第二輪）
             "exc_0050": net - b0050,
             "exc_00631L": net - b631,
             "mae": mae,
@@ -284,6 +306,25 @@ def evaluate(mk: Market, t: np.ndarray, c: np.ndarray, h: int) -> pd.DataFrame:
     ok = df["status"] == "ok"
     df.loc[ok & ~np.isfinite(df["net"]), "status"] = "no_price"
     return df
+
+
+def first_triggers(mask: np.ndarray, universe: np.ndarray, h: int) -> np.ndarray:
+    """(T, C) 訊號 → 只留「首次觸發」（審查修正 2026-10-01，策略頁今日新觸發與訊號追蹤用）。
+
+    與 dedupe 同一條規則的近似：同一檔觸發後名目持有 h 日（訊號列 t → 進場 t+1 → 出場 t+1+h），出場列（含）之後的
+    訊號才再計入；資料最後幾天（還沒出場）也套用同一條規則，所以今日清單不會列出持有中再次觸發的股票。
+    不看實際可否進場（漲停、停牌）與鎖死順延，所以與 dedupe 的結果在少數事件上可能不同。
+    """
+    m = mask & universe
+    out = np.zeros_like(m, dtype=bool)
+    T = m.shape[0]
+    for c in np.nonzero(m.any(axis=0))[0]:
+        busy = -1
+        for t in np.nonzero(m[:, c])[0]:
+            if t >= busy:
+                out[t, c] = True
+                busy = min(t + 1 + h, T)
+    return out
 
 
 def dedupe(df: pd.DataFrame) -> pd.DataFrame:

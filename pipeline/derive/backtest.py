@@ -5,7 +5,10 @@
 2. 進場：T+1 日開盤（還原價）。出場：進場後第 N 個交易日開盤（持有 N 日）。
 3. 排除：進場日開盤漲幅 ≥ 9.5%（視為開盤即漲停）、進場日停牌（無開盤價或無量）、進場日處於處置期間。
 4. 出場日無開盤價（停牌、下市）：往後找第一個有開盤價的日子；找不到則以進場後最後一個收盤價出場並標示。
-5. 成本：買進手續費、賣出手續費、證交稅（百分比模式，不計最低 20 元）。
+5. 成本：買進手續費、賣出手續費、證交稅（百分比模式，不計最低 20 元）、滑價（`backtest.slippage_pct`，買賣各一次；
+   審查修正 2026-10-01）。
+4a. 出場日跌停鎖死（當日最高價 ≤ 前一日收盤 × (1 − 9.5%)，整天都在跌停價）賣不掉：順延到下一個可成交日開盤；停損觸及
+   當天鎖死也順延（審查修正 2026-10-01；需要 `high`，沒有最高價的面板不判斷）。
 6. 超額報酬：相對加權報酬指數（T 日收盤至出場前一日收盤，近似同一持有期間）。
 7. 訊號定義（signal_definition）：預設為「今日新觸發」——T 日全部條件成立、上一個交易日不成立（且上一個交易日
    每個條件都有資料；資料剛開始的第一天不算新觸發）。「每天符合」的統計另外並列，供比較。
@@ -37,6 +40,14 @@ class Prices:
     bench: np.ndarray  # (T,) 加權報酬指數
     regime_up: np.ndarray  # (T,) bool：加權指數在年線之上
     is_etf: np.ndarray  # (C,) bool
+    high: np.ndarray | None = None  # (T, C) 還原最高（跌停鎖死判斷；None 時不判斷）
+
+    def locked(self, i: int, c: int, limit_down_pct: float) -> bool:
+        """第 i 列整天跌停鎖死（最高價 ≤ 前一日收盤 × (1 + limit_down_pct/100)）→ 當天賣不掉。"""
+        if self.high is None or i <= 0:
+            return False
+        hi, prev = self.high[i, c], self.close[i - 1, c]
+        return bool(np.isfinite(hi) and np.isfinite(prev) and prev > 0 and hi / prev - 1 <= limit_down_pct / 100)
 
 
 def cost_rates(discount: float | None = None) -> tuple[float, float, float, float]:
@@ -45,10 +56,17 @@ def cost_rates(discount: float | None = None) -> tuple[float, float, float, floa
     return fee, fee, float(c["tax"]["stock"]), float(c["tax"]["etf"])
 
 
-def net_return(gross: float, is_etf: bool, discount: float | None = None) -> float:
+def slippage_rate() -> float:
+    """滑價（單邊，比例）：`config/thresholds.yml backtest.slippage_pct`（%），沒有設定為 0。"""
+    return float(config.thresholds()["backtest"].get("slippage_pct", 0.0)) / 100
+
+
+def net_return(gross: float, is_etf: bool, discount: float | None = None, slippage: float | None = None) -> float:
+    """淨報酬 =（1 + 毛報酬）×（1 − 滑價）×（1 − 賣出手續費 − 證交稅）÷（(1 + 滑價) × (1 + 買進手續費)）− 1。"""
     buy, sell, tax_stock, tax_etf = cost_rates(discount)
     tax = tax_etf if is_etf else tax_stock
-    return (1 + gross) * (1 - sell - tax) / (1 + buy) - 1
+    slip = slippage_rate() if slippage is None else slippage
+    return (1 + gross) * (1 - slip) * (1 - sell - tax) / ((1 + slip) * (1 + buy)) - 1
 
 
 @dataclass
@@ -107,9 +125,10 @@ def run(
     decay_days = decay_days or int(bt["decay_days"])
     limit_up = (limit_up_pct if limit_up_pct is not None else float(bt["limit_up_pct"])) / 100
     stop = float(stop_pct if stop_pct is not None else bt.get("stop_loss_pct", -7))
+    limit_down = float(bt.get("limit_down_pct", -9.5))
     T = len(px.dates)
     trades: dict[int, list[Trade]] = {h: [] for h in horizons}
-    excluded = {"limit_up": 0, "suspended": 0, "disposition": 0, "no_future": 0}
+    excluded = {"limit_up": 0, "suspended": 0, "disposition": 0, "no_future": 0, "locked_exit": 0}
     decay_sum = np.zeros(decay_days)
     decay_n = np.zeros(decay_days)
     ts, cs = np.nonzero(signals)
@@ -142,8 +161,16 @@ def run(
                 continue
             delisted = False
             k, fixed_px = _find_exit(px, c, e, x, float(entry), rule, stop, ma)
-            while fixed_px is None and k < T and not (px.tradable[k, c] and np.isfinite(px.open[k, c])):
+            if fixed_px is not None and px.locked(k, c, limit_down):
+                fixed_px, k = None, k + 1  # 停損觸及當天跌停鎖死賣不掉 → 下一個可成交日開盤
+            while (
+                fixed_px is None
+                and k < T
+                and not (px.tradable[k, c] and np.isfinite(px.open[k, c]) and not px.locked(k, c, limit_down))
+            ):
                 k += 1
+            if px.high is not None and any(px.locked(i, c, limit_down) for i in range(x, min(k, T))):
+                excluded["locked_exit"] += 1
             if fixed_px is not None:
                 exit_px = fixed_px
                 exit_i = k

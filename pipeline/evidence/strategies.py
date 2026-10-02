@@ -32,11 +32,11 @@ def simulate(mk: Market, trades: pd.DataFrame, value: np.ndarray, k: int, start:
     """同時持有 k 檔的組合（每檔 1/k 的權益）逐日權益（從 start 列起，起始 1.0）。
 
     - 每天開盤先出場（依出場規則的出場列與出場價，扣賣出手續費與證交稅），再進場：當天進場的訊號依前一日成交值由大到小
-      填入空位；已持有的股票不重複進場。每筆投入＝前一日收盤權益 ÷ k（現金不足時以剩餘現金為限），扣買進手續費。
+      填入空位；已持有的股票不重複進場。每筆投入＝前一日收盤權益 ÷ k（現金不足時以剩餘現金為限），扣買進手續費與滑價。
     - 收盤以還原收盤價計值（當天無收盤沿用最後一個收盤）。
     """
     T = len(mk.dates)
-    fee, tax = mk.fee, mk.tax
+    fee, tax, slip = mk.fee, mk.tax, float(getattr(mk, "slip", 0.0))  # 審查修正 2026-10-01：滑價與事件研究一致
     by_entry: dict[int, list[tuple[float, int, int, float, float]]] = {}
     for e, c, x, entry, px in trades[["e", "c", "x", "entry", "px"]].itertuples(index=False):
         if e < start or not np.isfinite(px) or not np.isfinite(entry) or x >= T:
@@ -50,7 +50,7 @@ def simulate(mk: Market, trades: pd.DataFrame, value: np.ndarray, k: int, start:
     for d in range(start, T):
         for c in [c for c, p in pos.items() if int(p[1]) == d]:
             shares, _, px, _ = pos.pop(c)
-            cash += shares * px * (1 - fee - tax)
+            cash += shares * px * (1 - slip) * (1 - fee - tax)
         free = k - len(pos)
         for _, c, x, entry, px in sorted(by_entry.get(d, [])):
             if free <= 0:
@@ -60,7 +60,7 @@ def simulate(mk: Market, trades: pd.DataFrame, value: np.ndarray, k: int, start:
             alloc = min(prev_eq / k, cash)
             if alloc <= 0:
                 break
-            shares = alloc / (entry * (1 + fee))
+            shares = alloc / (entry * (1 + slip) * (1 + fee))
             cash -= alloc
             pos[c] = [shares, x, px, entry]
             free -= 1
@@ -265,6 +265,10 @@ def build(res: dict[str, Any]) -> dict[str, Any]:
             continue
         v = row["verdict"]
         enabled = v in (verdict.VALID, verdict.ENV)
+        # 審查精簡 2026-10-01：註冊清單的啟用旗標（config/strategies.yml enabled: false ＋ disabled_reason）；
+        # 不刪程式碼，改回 true 即還原
+        registered = bool(s.get("enabled", True))
+        enabled = enabled and registered
         env = None
         if v == verdict.ENV and isinstance(row.get("reasons"), list):
             env_info = (details.get(s["test"]) or {}).get("env")
@@ -275,7 +279,9 @@ def build(res: dict[str, Any]) -> dict[str, Any]:
             **base,
             "verdict": v,
             "enabled": enabled,
-            "reasons": row.get("reasons", []),
+            "registered": registered,
+            "reasons": ([f"註冊清單停用：{s.get('disabled_reason', '')}".rstrip("：")] if not registered else [])
+            + list(row.get("reasons", [])),
             "env": env,
             "param": row.get("param"),
             "definition": row.get("definition"),
@@ -298,8 +304,10 @@ def build(res: dict[str, Any]) -> dict[str, Any]:
             "delist": row.get("delist"),
             "hindsight": row.get("hindsight"),
         }
-        mask = keep["mask"]
-        today_codes = [ev.codes[i] for i in np.nonzero(mask[last] & uni[last])[0]]
+        # 審查修正 2026-10-01：今日新觸發與訊號追蹤改用「首次觸發」（與回測的去重規則一致）；
+        # 舊版列出所有當日成立的事件，持有期間內再次觸發的股票也會被列出與追蹤
+        mask = engine.first_triggers(keep["mask"], uni, H)
+        today_codes = [ev.codes[i] for i in np.nonzero(mask[last])[0]]
         item["today"] = [
             {
                 "code": code,
@@ -311,9 +319,9 @@ def build(res: dict[str, Any]) -> dict[str, Any]:
         item["today_note"] = today_note(item, ev, mk, last)
         if enabled:
             signals[s["id"]] = {
-                ev.dates[t]: [ev.codes[i] for i in np.nonzero(mask[t] & uni[t])[0]]
+                ev.dates[t]: [ev.codes[i] for i in np.nonzero(mask[t])[0]]
                 for t in range(max(0, T - 250), T)
-                if (mask[t] & uni[t]).any()
+                if mask[t].any()
             }
             item.update(_portfolio(ev, mk, uni, c, sc, keep, details.get(s["test"]) or {}, H))
         out.append(item)

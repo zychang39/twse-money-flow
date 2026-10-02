@@ -275,7 +275,7 @@ def revenue_features(rev: pd.DataFrame) -> pd.DataFrame:
 
 
 def revenue_event(rf: pd.DataFrame, col: str, T: int, codes: list[str]) -> np.ndarray:
-    """月營收事件放到訊號列（生效日之前最後一個交易日）。"""
+    """月營收事件放到訊號列（第二輪：生效日當天或之後第一個交易日，見 data.revenue_table）。"""
     out = np.zeros((T, len(codes)), dtype=bool)
     pos = {c: i for i, c in enumerate(codes)}
     sel = rf[rf[col].fillna(False).astype(bool) & (rf["row"] >= 0) & (rf["row"] < T)]

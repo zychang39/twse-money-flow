@@ -25,15 +25,33 @@ describe('回測引擎（與 Python 版同規則）', () => {
     expect(tr.exitDate).toBe(DATES[8]);
     expect(tr.gross).toBeCloseTo(115 / 106 - 1);
   });
-  it('成本扣除', () => {
+  it('成本扣除（含滑價 0.1% 買賣各一次）', () => {
     const fee = 0.001425 * 0.6;
-    expect(netReturn(0.1, false)).toBeCloseTo((1.1 * (1 - fee - 0.003)) / (1 + fee) - 1, 10);
-    expect(netReturn(0.1, true)).toBeCloseTo((1.1 * (1 - fee - 0.001)) / (1 + fee) - 1, 10);
+    const slip = 0.001;
+    expect(netReturn(0.1, false)).toBeCloseTo((1.1 * (1 - slip) * (1 - fee - 0.003)) / ((1 + slip) * (1 + fee)) - 1, 10);
+    expect(netReturn(0.1, true)).toBeCloseTo((1.1 * (1 - slip) * (1 - fee - 0.001)) / ((1 + slip) * (1 + fee)) - 1, 10);
+    expect(netReturn(0.1, false, 0.6, 0)).toBeCloseTo((1.1 * (1 - fee - 0.003)) / (1 + fee) - 1, 10);
+    // 與 Python 版同一個手算值：折扣 0.6、股票稅、滑價 0.1%：100 → 110 淨 +9.26%
+    expect(netReturn(0.1, false)).toBeCloseTo(0.0926360, 6);
+  });
+  it('出場日跌停鎖死賣不掉：順延到下一個可成交日開盤（審查修正）', () => {
+    // 進場第 2 列開盤 100；持有 2 日應在第 4 列出場，但第 4 列最高價 90（≤ 前收 100 × 0.905）整天鎖死 → 第 5 列開盤 88
+    const opens = [100, 100, 100, 100, 90, 88, 90, 90, 90, 90, 90, 90];
+    const closes = [100, 100, 100, 100, 90, 89, 90, 90, 90, 90, 90, 90];
+    const px = panel(opens, { close: closes });
+    px.high = opens.map((o, i) => [i === 4 ? 90 : o + 1]);
+    const res = run(sig(1), px, [2], 1);
+    expect(res.trades[2][0].exitDate).toBe(DATES[5]);
+    expect(res.trades[2][0].exit).toBe(88);
+    expect(res.excluded.locked_exit).toBe(1);
+    // 沒有 high 的舊面板：維持原本行為（第 4 列開盤 90 出場）
+    const old = run(sig(1), panel(opens, { close: closes }), [2], 1);
+    expect(old.trades[2][0].exitDate).toBe(DATES[4]);
   });
   it('排除：開盤漲停、停牌、處置', () => {
     const px = panel([100, 100, 110, 100, null, 100, 100, 100, 100, 100, 100, 100], { blocked: [[7, 0]] });
     const res = run(sig(1, 3, 6), px, [2], 1);
-    expect(res.excluded).toEqual({ limit_up: 1, suspended: 1, disposition: 1, no_future: 0 });
+    expect(res.excluded).toEqual({ limit_up: 1, suspended: 1, disposition: 1, no_future: 0, locked_exit: 0 });
   });
   it('停牌順延出場、下市以最後收盤出場', () => {
     const opens = [100, 100, 100, null, 104, 105, null, null, null, null, null, null];

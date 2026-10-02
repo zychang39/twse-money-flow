@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import time
@@ -17,6 +18,8 @@ from pipeline.registry import build_url
 from pipeline.sources import advanced
 from pipeline.sources.base import ParseError, ParseResult
 from pipeline.tasks import SOURCE_ERRORS, RunContext, _fetch, err_text
+
+log = logging.getLogger(__name__)
 
 
 def _upsert_by_month(ctx: RunContext, source: str, df: pd.DataFrame, keys: list[str]) -> None:
@@ -174,11 +177,26 @@ def _tdcc_have(ctx: RunContext) -> tuple[set[str], set[tuple[str, str]]]:
     return weeks, pairs
 
 
+def tdcc_bad_dates(new: pd.DataFrame, today: date) -> pd.Series:
+    """集保個股歷史查詢偶爾回傳錯誤的資料日期（例：2022-10-23 週日、2035-02-28 未來）；
+    集保資料日一定是營業日（週一～週五）且不晚於今天。回傳壞日期的布林遮罩（2026-10-02 第二輪：寫入前就擋下，不只在載入時過濾）。"""
+    d = pd.to_datetime(new["date"], errors="coerce")
+    return d.isna() | (d.dt.weekday >= 5) | (d > pd.Timestamp(today))
+
+
 def _tdcc_upsert(ctx: RunContext, frames: list[pd.DataFrame]) -> None:
-    """依週別寫入 tdcc_history（同一週、同一檔以新資料取代）。"""
+    """依週別寫入 tdcc_history（同一週、同一檔以新資料取代）；壞日期的列不寫入並記在 manifest。"""
     if not frames:
         return
     new = pd.concat(frames, ignore_index=True)
+    bad = tdcc_bad_dates(new, ctx.today)
+    if bad.any():
+        dates = sorted(set(new.loc[bad, "date"].astype(str)))
+        log.warning("tdcc_history：%d 列壞日期不寫入（%s）", int(bad.sum()), "、".join(dates[:5]))
+        ctx.note("tdcc_history_bad_dates", "skipped", rows=int(bad.sum()), message="、".join(dates[:10]))
+        new = new[~bad.to_numpy()]
+        if new.empty:
+            return
     for iso, part in new.groupby("date"):
         d = date.fromisoformat(str(iso))
         old = ctx.store.read("tdcc_history", d)

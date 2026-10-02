@@ -14,15 +14,21 @@ import { EquityChart } from '../components/EquityChart';
 import { AlphaCurve } from '../components/AlphaCurve';
 import { BenchSwitch, useBenchState } from '../components/BenchSwitch';
 import { SortMenu } from '../components/SortMenu';
+import { SwingCard } from '../components/SwingCard';
 import { type Hindsight, coverageText, pctSigned, tText } from '../lib/evidence';
 import { BENCH_LONG, type BenchKey, benchPick } from '../lib/bench';
 import { type CurveLine, curveSummary } from '../lib/curve';
-import { type SortState, loadSort, saveSort, sortItems } from '../lib/sorting';
+import { STRATEGY_SORT, type SortState, loadSort, saveSort, sortItems } from '../lib/sorting';
 import {
-  type BenchCompare, type Perf, type StrategiesFile, type StrategyItem, BENCH_KEYS, BENCH_LABEL, PERF_ROWS, basisText,
-  enabledFirst, envLine, groupName, healthTone,
+  type BenchCompare, type Grade, type Perf, type StrategiesFile, type StrategyItem, BENCH_KEYS, BENCH_LABEL, PERF_ROWS, basisText,
+  envLine, gradeOf, gradeTone, groupName, healthTone, judgeHold, netExcess,
 } from '../lib/strategies';
+import { IconChevron } from '../components/Icons';
 import '../styles/evidence.css';
+
+/** 回測成本（策略頁與策略庫頁尾共用；個人試算另用設定的券商折扣） */
+const COST_NOTE = '回測成本：牌告手續費 0.1425%×2、證交稅 0.3%、滑價 0.1%×2；個人試算用你在設定的券商折扣。';
+const BENCH_NOTE = '判定依同日等權（40 日、扣成本）；畫面可切換顯示相對 0050 含息';
 
 export const loadStrategies = () => loadJson<StrategiesFile>('strategies.json');
 
@@ -32,74 +38,126 @@ function md(d: string | null | undefined): string {
   return `${Number(m)}/${Number(day)}`;
 }
 
+/** 分級標籤：有效＝強調、觀察中＝一般、停用＝弱化；琥珀只給樣本範圍受限與健康度風險。 */
+function GradeTag({ s }: { s: StrategyItem }) {
+  const g = gradeOf(s);
+  const tone = gradeTone(g);
+  return <span class={`tag ev-verdict${tone === 'strong' ? ' strong' : tone === 'muted' ? ' muted' : ''}`} data-testid="grade-tag" data-grade={g}>{s.grade_label ?? g}</span>;
+}
+
 function Tags({ s }: { s: StrategyItem }) {
   return (
     <span class="st-tags">
-      <span class={`tag ${s.verdict === '樣本範圍受限' ? 'risk' : ''}`}>{s.verdict}</span>
+      <GradeTag s={s} />
+      {s.verdict === '樣本範圍受限' ? <span class="tag risk">{s.verdict}</span> : null}
       {s.enabled && s.health ? <span class={`tag ${healthTone(s.health.status) === 'risk' ? 'risk' : ''}`}>{s.health.status}</span> : null}
     </span>
   );
 }
 
-/** 列表的一句話：選定基準下的 10 日超額與 t。 */
+/** 選定基準下的主判定持有天數（40 日；波段策略用自己的 hold）超額、t、勝率。 */
+function judged(s: StrategyItem, bench: BenchKey): { hold: number; excess: number | null; t: number | null; win: number | null } {
+  const hold = judgeHold(s);
+  const h = s.h?.[String(hold)];
+  const bt = h?.bench ?? s.swing?.full?.bench ?? (hold === 40 ? s.bench : undefined);
+  if (bench === 'ew') return { hold, excess: netExcess(s, hold), t: h?.t ?? s.t ?? null, win: s.win ?? s.swing?.full?.win ?? bt?.ew?.win ?? null };
+  const b = benchPick(h ?? { mean_excess: s.mean_excess, t: s.t }, bt, bench);
+  return { hold, excess: b.mean_excess ?? null, t: b.t ?? null, win: b.win ?? null };
+}
+
+const winText = (v: number | null | undefined): string => (v === null || v === undefined ? '—' : `${v.toFixed(0)}%`);
+
+/** 列表的一句話：「校正後 t X・40 日扣成本超額 ±Y%・勝率 Z%・每月 N 檔」（切到其他基準時超額與勝率換基準並標示）。 */
 function listLine(s: StrategyItem, bench: BenchKey): string {
-  const h = s.h?.['10'];
-  const b = benchPick(h ?? { mean_excess: s.mean_excess, t: s.t }, h?.bench, bench);
-  return `10 日超額（${BENCH_LABEL[bench]}）${pctSigned(b.mean_excess)}・t ${tText(b.t)}`;
+  const j = judged(s, bench);
+  const rel = bench === 'ew' ? '' : `（相對 ${bench === '0050' ? '0050 含息' : BENCH_LABEL[bench]}）`;
+  return `校正後 t ${tText(s.t_corr)}・${j.hold} 日扣成本超額 ${pctSigned(j.excess)}${rel}・勝率 ${winText(j.win)}・每月 ${s.per_month ?? '—'} 檔`;
 }
 
 function sortRows(list: StrategyItem[], sort: SortState, bench: BenchKey) {
   return sortItems(
     list.map((s) => {
-      const h = s.h?.['10'];
-      const b = benchPick(h ?? { mean_excess: s.mean_excess, t: s.t }, h?.bench, bench);
-      return { s, label: s.label, verdict: s.verdict, t: b.t ?? null, excess: b.mean_excess ?? null, health: s.health?.recent ?? null, today: s.today?.length ?? 0 };
+      const j = judged(s, bench);
+      return {
+        s, label: s.label, verdict: s.verdict, t: j.t, excess: j.excess, health: s.health?.recent ?? null, today: s.today?.length ?? 0,
+        rank: s.rank ?? null, t_corr: s.t_corr ?? null, win: j.win, per_month: s.per_month ?? null, family: s.family ?? s.selection?.family ?? null,
+      };
     }),
     sort,
   ).map((x) => x.s);
 }
 
+function Row({ s, bench, off }: { s: StrategyItem; bench: BenchKey; off?: boolean }) {
+  return (
+    <a class="ev-row st-row" href={`#/explore/strategies/${s.id}`} data-testid={`st-row-${s.id}`}>
+      <span class="ev-main">
+        <span class="ev-label">{s.label}</span>
+        <span class="ev-sub">{s.subtitle}</span>
+        {off ? (
+          <span class="ev-sub">{s.grade_reason || s.reasons.join('；') || '未通過驗證'}</span>
+        ) : (
+          <>
+            <span class="ev-sub" data-testid="st-line">{listLine(s, bench)}</span>
+            <span class="ev-sub">{envLine(s)}・今日新觸發 {s.today?.length ?? 0} 檔{s.rank ? `・排名 ${s.rank}` : ''}</span>
+            {s.grade_reason ? <span class="ev-sub">{s.grade_reason}</span> : null}
+          </>
+        )}
+      </span>
+      <Tags s={s} />
+    </a>
+  );
+}
+
+const GRADES: Grade[] = ['有效', '觀察中', '停用'];
+const SECTION_TITLE: Record<Grade, string> = { 有效: '有效', 觀察中: '觀察中', 停用: '停用與未通過' };
+const EMPTY_TEXT: Record<Grade, string> = {
+  有效: '目前沒有分級為「有效」的策略：需要 40 與 20 日扣成本超額皆 > 0、校正後 t ≥ 3、2022 前後皆為正、逐年 ≥ 70% 為正、每月觸發 ≥ 10、樣本 ≥ 5 年。',
+  觀察中: '目前沒有分級為「觀察中」的策略（40 日扣成本超額 > 0 且校正後 t ≥ 2，但未達有效）。',
+  停用: '沒有停用的策略。',
+};
+
 function StrategyList({ data }: { data: StrategiesFile }) {
   const [bench, setBench] = useBenchState();
-  const [sort, setSortState] = useState<SortState>(() => loadSort('strategies'));
+  const [sort, setSortState] = useState<SortState>(() => loadSort('strategies', STRATEGY_SORT));
   const setSort = (x: SortState) => { saveSort('strategies', x); setSortState(x); };
-  const { enabled, disabled } = enabledFirst(data.strategies);
-  const on = useMemo(() => sortRows(enabled, sort, bench), [enabled, sort, bench]);
-  const off = useMemo(() => sortRows(disabled, sort, bench), [disabled, sort, bench]);
+  const [openOff, setOpenOff] = useState(false);
+  const groups = useMemo(() => {
+    const by: Record<Grade, StrategyItem[]> = { 有效: [], 觀察中: [], 停用: [] };
+    for (const s of data.strategies) by[gradeOf(s)].push(s);
+    return { 有效: sortRows(by['有效'], sort, bench), 觀察中: sortRows(by['觀察中'], sort, bench), 停用: sortRows(by['停用'], sort, bench) };
+  }, [data.strategies, sort, bench]);
   return (
     <>
-      <BenchSwitch value={bench} onChange={setBench} note={`超額相對：${BENCH_LONG[bench]}（上架依等權判定）`} />
-      <SortMenu id="strategies" value={sort} onChange={setSort} />
-      <div class="list ev-list" style={{ marginTop: 'var(--s-2)' }} data-testid="st-list">
-        {on.map((s) => (
-          <a key={s.id} class="ev-row st-row" href={`#/explore/strategies/${s.id}`} data-testid={`st-row-${s.id}`}>
-            <span class="ev-main">
-              <span class="ev-label">{s.label}</span>
-              <span class="ev-sub">{s.subtitle}</span>
-              <span class="ev-sub">{listLine(s, bench)}</span>
-              <span class="ev-sub">{envLine(s)}・今日新觸發 {s.today?.length ?? 0} 檔</span>
-            </span>
-            <Tags s={s} />
-          </a>
-        ))}
-      </div>
-      {off.length ? (
-        <>
-          <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>未通過驗證（不上架）</h2>
-          <div class="list ev-list">
-            {off.map((s) => (
-              <a key={s.id} class="ev-row st-row" href={`#/explore/strategies/${s.id}`}>
-                <span class="ev-main">
-                  <span class="ev-label">{s.label}</span>
-                  <span class="ev-sub">{s.subtitle}</span>
-                  <span class="ev-sub">{s.reasons.join('；')}</span>
-                </span>
-                <Tags s={s} />
-              </a>
-            ))}
-          </div>
-        </>
-      ) : null}
+      <BenchSwitch value={bench} onChange={setBench} note={BENCH_NOTE} />
+      <SortMenu id="strategies" value={sort} onChange={setSort} options={STRATEGY_SORT} />
+      {GRADES.map((g) => {
+        const list = groups[g];
+        const id = `st-sec-${g}`;
+        if (g === '停用') {
+          return (
+            <section key={g} class="st-sec" data-testid={id}>
+              <button type="button" class="collapsed-row st-fold" aria-expanded={openOff} aria-controls={`${id}-list`} onClick={() => setOpenOff(!openOff)}>
+                <span class="section st-sec-h">{SECTION_TITLE[g]}（{list.length}）</span>
+                <IconChevron />
+              </button>
+              {openOff ? (
+                <div class="list ev-list" id={`${id}-list`} data-testid={`${id}-list`}>
+                  {list.length ? list.map((s) => <Row key={s.id} s={s} bench={bench} off />) : <p class="list-item caption muted">{EMPTY_TEXT[g]}</p>}
+                </div>
+              ) : null}
+            </section>
+          );
+        }
+        return (
+          <section key={g} class="st-sec" data-testid={id}>
+            <h2 class="section st-sec-h">{SECTION_TITLE[g]}（{list.length}）</h2>
+            <div class="list ev-list" data-testid={`${id}-list`}>
+              {list.length ? list.map((s) => <Row key={s.id} s={s} bench={bench} />) : <p class="list-item caption muted">{EMPTY_TEXT[g]}</p>}
+            </div>
+          </section>
+        );
+      })}
+      <p class="caption muted ev-foot" data-testid="cost-note">{COST_NOTE}</p>
     </>
   );
 }
@@ -209,23 +267,34 @@ function Detail({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
       <PageHead eyebrow={s.subtitle} title={s.label}>
         <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>依規則產生，非推薦・資料至 {data.date}</p>
         <Tags s={s} />
+        {s.grade_reason ? <p class="caption" data-testid="grade-reason" style={{ marginTop: 'var(--s-1)' }}>{s.grade_reason}</p> : null}
+        <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>
+          校正後 t {tText(s.t_corr)}・{judgeHold(s)} 日扣成本超額 {pctSigned(netExcess(s))}{s.excess_h?.['20'] !== undefined && judgeHold(s) !== 20 ? `・20 日 ${pctSigned(s.excess_h['20'])}` : ''}
+          {s.mean_gross_excess !== undefined ? `・毛超額 ${pctSigned(s.mean_gross_excess)}` : ''}・每月 {s.per_month ?? '—'} 檔{s.family ? `・${s.family}` : ''}
+        </p>
+        {s.split2022 ? (
+          <p class="caption muted" data-testid="split2022" style={{ marginTop: 'var(--s-1)' }}>
+            {s.split2022.date.slice(0, 4)} 前 {pctSigned(s.split2022.pre?.mean_excess)}（t {tText(s.split2022.pre?.t)}、{(s.split2022.pre?.n ?? 0).toLocaleString('zh-TW')} 筆）／後 {pctSigned(s.split2022.post?.mean_excess)}（t {tText(s.split2022.post?.t)}、{(s.split2022.post?.n ?? 0).toLocaleString('zh-TW')} 筆）
+          </p>
+        ) : null}
       </PageHead>
 
       <h2 class="section st-h">健康度</h2>
       <div class="card">
         <p class="body"><b>{s.health?.status ?? '—'}</b></p>
-        <p class="caption muted">近 60 個交易日（{md(s.health?.since)} 起、已完成 {data.horizon} 日持有）平均超額 {pctSigned(s.health?.recent)}（{s.health?.recent_n ?? 0} 筆）；長期 {pctSigned(s.health?.long)}。超額＝相對同日全市場、扣成本。</p>
+        <p class="caption muted">近 60 個交易日（{md(s.health?.since)} 起、已完成 {judgeHold(s)} 日持有）平均超額 {pctSigned(s.health?.recent)}（{s.health?.recent_n ?? 0} 筆）；長期 {pctSigned(s.health?.long)}。超額＝相對同日全市場、扣成本。</p>
         <p class="caption">{envLine(s)}</p>
       </div>
 
       <h2 class="section st-h">今日新觸發（{md(data.date)}）</h2>
       <TodayList s={s} date={data.date} />
       {s.env && !s.env.today ? <p class="caption risk-text">今日大盤環境不符合這個策略的啟用條件。</p> : null}
-      {s.enabled ? <Actions s={s} date={data.date} horizon={data.horizon} /> : <p class="caption muted">未通過驗證（{s.reasons.join('；')}），不能設為訊號追蹤。</p>}
+      {s.enabled ? <Actions s={s} date={data.date} horizon={data.horizon} /> : <p class="caption muted">分級為「{gradeOf(s)}」（{s.grade_reason || s.reasons.join('；') || '未通過驗證'}），不能設為訊號追蹤。</p>}
 
       {s.hindsight ? <HindsightCard h={s.hindsight} /> : null}
+      {s.swing ? <SwingCard sw={s.swing} hold={s.swing.hold} /> : null}
 
-      <BenchSwitch value={bench} onChange={setBench} note={`超額相對：${BENCH_LONG[bench]}`} />
+      <BenchSwitch value={bench} onChange={setBench} note={`${BENCH_NOTE}・目前：${BENCH_LONG[bench]}`} />
       <h2 class="section st-h">多期間表現（相對{BENCH_LABEL[bench]}）</h2>
       <table class="ev-table" aria-label={`各持有天數的超額報酬，相對${BENCH_LABEL[bench]}`}>
         <thead><tr><th scope="col">持有</th><th scope="col">超額</th><th scope="col">t</th><th scope="col">樣本</th></tr></thead>
@@ -236,7 +305,7 @@ function Detail({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
           })}
         </tbody>
       </table>
-      <p class="caption muted">超額扣成本，同一檔只計首次觸發；＊120 日只做參考。</p>
+      <p class="caption muted">超額扣成本，同一檔只計首次觸發；判定以 {judgeHold(s)} 日為主、20 日並列，10 日只供參考；＊120 日只做參考。</p>
       <h2 class="section st-h">累積超額曲線（相對{BENCH_LABEL[bench]}）</h2>
       {curveLine ? <><AlphaCurve line={curveLine} label={`相對${BENCH_LABEL[bench]}`} n={curve.data?.curve?.n} /><p class="caption">{curveSummary(curveLine)}</p></> : <p class="caption muted">{curve.loading ? '載入中…' : '曲線資料累積中。'}</p>}
 
@@ -333,6 +402,7 @@ function Detail({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
       </table>
       {s.note ? <p class="caption risk-text">{s.note}</p> : null}
       <p class="caption muted">{s.definition}</p>
+      <p class="caption muted" data-testid="cost-note">{COST_NOTE}</p>
       <div class="st-actions">
         <a class="btn" href={`#/explore/leverage?s=${s.id}`}>槓桿風險計算</a>
         <a class="btn" href="#/explore/evidence">指標效度表</a>
@@ -348,8 +418,8 @@ export default function Strategies({ id }: { id?: string }) {
     <div class="page has-bench">
       <TopBar back={id ? '/explore/strategies' : '/explore'} />
       {!id ? (
-        <PageHead eyebrow="依指標效度評估包成的策略" title={d.data ? `策略庫：${d.data.strategies.filter((x) => x.enabled).length} 個通過驗證` : '策略庫'}>
-          <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>依規則產生，非推薦。只有判定為「有效」或「環境依賴」的指標會上架，每日重算。</p>
+        <PageHead eyebrow="依指標效度評估包成的策略" title={d.data ? `策略庫：${d.data.strategies.filter((x) => gradeOf(x) === '有效').length} 個有效・${d.data.strategies.filter((x) => gradeOf(x) === '觀察中').length} 個觀察中` : '策略庫'}>
+          <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>依規則產生，非推薦。每日依資料重新分級：有效、觀察中會上架並可設為訊號追蹤；停用與未通過的只列在下方供查閱。</p>
         </PageHead>
       ) : null}
       {d.loading ? <Loading /> : null}

@@ -101,7 +101,13 @@ def load(store: DataStore) -> Dataset:
     tdcc = ds.tables.get("tdcc")
     if tdcc is not None and not tdcc.empty:
         # 開放資料（整週全部股票）優先；個股歷史查詢只補開放資料沒有的週別
-        ds.tables["tdcc"] = tdcc.drop_duplicates(["date", "code", "level"], keep="first").reset_index(drop=True)
+        tdcc = tdcc.drop_duplicates(["date", "code", "level"], keep="first")
+        # 審查修正 2026-10-01：個股歷史查詢偶爾回傳錯誤的資料日期（例：2022-10-23 週日、2035-02-28 未來），
+        # 集保資料日一定是營業日且不晚於最新行情日；不合的列視為壞資料（DATA_AUDIT.md）
+        d = pd.to_datetime(tdcc["date"], errors="coerce")
+        last = pd.Timestamp(ds.dates[-1]) if ds.dates else pd.Timestamp.max
+        ok = d.notna() & (d.dt.weekday < 5) & (d <= last)
+        ds.tables["tdcc"] = tdcc[ok.to_numpy()].reset_index(drop=True)
     for name, sources in {
         "short_halt": ["twse_short_halt", "tpex_short_halt"],
         "insider": ["twse_insider", "tpex_insider"],

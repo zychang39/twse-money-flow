@@ -41,6 +41,122 @@ export interface StrategyItem {
   hindsight?: import('./evidence').Hindsight;
   /** v3 M2-3：5 檔組合 vs (b)(c)(d) 同期 */
   compare?: BenchCompare;
+  /** 2026-10-01 精簡清單：有效性排名（1 最前）、校正後 t、每月觸發數、精簡規則的處置理由；波段策略另有 swing 區塊 */
+  rank?: number | null;
+  t_corr?: number | null;
+  per_month?: number | null;
+  selection?: { score?: number | null; reasons?: string[]; status?: string; family?: string; registered?: boolean } | null;
+  registered?: boolean;
+  kind?: 'swing' | string;
+  swing?: SwingBlock;
+  /** 2026-10-02 分級：有效／觀察中／停用（舊資料沒有時由 enabled 推回）；grade_reason 在觀察中／停用時一定有內容 */
+  grade?: Grade;
+  grade_label?: string;
+  grade_reason?: string;
+  grade_checks?: Record<string, boolean>;
+  /** 40 日（主判定）勝率 %（0–100）與類別 */
+  win?: number | null;
+  family?: string;
+  /** 40 日與 20 日扣成本超額 %（相對同日等權） */
+  excess_h?: { '40'?: number | null; '20'?: number | null } & Record<string, number | null | undefined>;
+  /** 毛超額 %（扣成本前） */
+  mean_gross_excess?: number | null;
+  /** 2022 前／後兩段 */
+  split2022?: { date: string; pre: SplitHalf; post: SplitHalf };
+  /** 前瞻驗證（合併後的新訊號） */
+  forward?: ForwardBlock;
+}
+
+export type Grade = '有效' | '觀察中' | '停用';
+export interface SplitHalf { n?: number; mean_excess?: number | null; t?: number | null }
+export interface ForwardBlock {
+  since: string;
+  elapsed_days: number;
+  required_days: number;
+  ready: boolean;
+  signals: number;
+  completed: number;
+  mean_excess: number | null;
+  t: number | null;
+  backtest_mean_excess: number | null;
+}
+
+/** 分級：舊資料沒有 grade 時由 enabled 推回（上架＝觀察中、未上架＝停用）。 */
+export const gradeOf = (s: Pick<StrategyItem, 'grade' | 'enabled'>): Grade =>
+  s.grade === '有效' || s.grade === '觀察中' || s.grade === '停用' ? s.grade : s.enabled ? '觀察中' : '停用';
+
+/** 分級標籤的語氣：有效＝強調、觀察中＝一般、停用＝弱化（琥珀只給風險，不用在分級）。 */
+export const gradeTone = (g: Grade): 'strong' | 'plain' | 'muted' => (g === '有效' ? 'strong' : g === '觀察中' ? 'plain' : 'muted');
+
+/** 主判定持有天數：波段策略用自己的 hold，其餘 40 日（2026-10-02 起）。 */
+export const judgeHold = (s: Pick<StrategyItem, 'swing'>): number => s.swing?.hold ?? 40;
+
+/** 40 日（主判定）扣成本超額：excess_h 優先，其次 h[hold]，最後 mean_excess。 */
+export function netExcess(s: StrategyItem, hold = judgeHold(s)): number | null {
+  const k = String(hold);
+  const e = s.excess_h?.[k];
+  if (e !== undefined && e !== null) return e;
+  return s.h?.[k]?.mean_excess ?? s.mean_excess ?? null;
+}
+
+/** 個股頁有效訊號面板：只列分級為有效或觀察中的策略；回傳指標 id → 分級標籤。 */
+export function gradeByTest(list: StrategyItem[] | null | undefined): Map<string, { grade: Grade; label: string }> | null {
+  if (!list) return null;
+  const out = new Map<string, { grade: Grade; label: string }>();
+  for (const s of list) {
+    const g = gradeOf(s);
+    const prev = out.get(s.test);
+    // 同一個指標對應多套策略時，取最好的分級
+    if (!prev || GRADE_ORDER[g] < GRADE_ORDER[prev.grade]) out.set(s.test, { grade: g, label: s.grade_label ?? g });
+  }
+  return out;
+}
+
+export const GRADE_ORDER: Record<Grade, number> = { 有效: 0, 觀察中: 1, 停用: 2 };
+
+/** 允許出現在個股頁訊號面板的指標 id（分級為有效或觀察中）；沒有策略資料時回傳 null（沿用判定規則）。 */
+export function allowedTests(list: StrategyItem[] | null | undefined): Set<string> | null {
+  const m = gradeByTest(list);
+  if (!m) return null;
+  return new Set([...m.entries()].filter(([, v]) => v.grade !== '停用').map(([k]) => k));
+}
+
+export interface SwingSegment { period?: [string, string]; n?: number; per_month?: number; mean_excess?: number | null; mean_gross_excess?: number | null; t?: number | null; t_corr?: number | null; win?: number | null; payoff?: number | null }
+export interface SwingFull extends SwingSegment {
+  t_corr_method?: 'calendar' | 'min' | string;
+  concentration?: { dates?: number; ratio?: number | null; top5pct_share?: number | null };
+  bench?: Record<string, { mean_excess: number | null; t: number | null; ci?: [number | null, number | null]; win?: number | null } | null>;
+}
+export interface SwingPortfolio extends Perf {
+  slots?: number;
+  executed?: number;
+  skipped_full?: number;
+  skipped_rule?: number;
+  turnover?: number;
+  trades_per_year?: number;
+  bench_ew?: Perf;
+  bench_0050?: Perf;
+  ann_vs_ew?: number | null;
+  ann_vs_0050?: number | null;
+  mdd_ratio_ew?: number | null;
+}
+export interface SwingBlock {
+  hold: number;
+  params: Record<string, number>;
+  segments: Partial<Record<'dev' | 'val' | 'test', SwingSegment>>;
+  /** 固定日曆切段：開發 2017-01～2021-12、驗證 2022-01～2024-10、最終測試 2024-11 起 */
+  split?: Partial<Record<'dev' | 'val' | 'test', [string, string]>>;
+  gates: { checks: Record<string, boolean>; labels: Record<string, string>; passed: boolean };
+  perturb?: { param: string; mult: number; value?: number; mean_excess?: number | null; n?: number; note?: string }[] | null;
+  /** 進場延後 1、3 個交易日（0＝full） */
+  delays?: { delay: number; n?: number; mean_excess?: number | null; t?: number | null }[] | null;
+  dist?: { win?: number | null; avg_win?: number | null; avg_loss?: number | null; payoff?: number | null; loss_streak?: { max: number; p50: number; p90: number }; mae_p50?: number | null; mae_p90?: number | null };
+  portfolio?: SwingPortfolio;
+  full?: SwingFull;
+  /** 另一個持有天數（主判定 40 則為 20，反之 40）的全樣本 */
+  other?: SwingSegment & { hold: number };
+  forward?: ForwardBlock;
+  test_note?: string;
 }
 
 import type { BenchKey } from './bench';

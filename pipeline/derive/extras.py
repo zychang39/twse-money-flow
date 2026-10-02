@@ -45,6 +45,7 @@ def disposition_mask(ds: Any, dates: list[str], codes: list[str]) -> np.ndarray:
 def build_prices(ds: Any, p: Any) -> bt.Prices:
     af = p.af.to_numpy()
     op = p.open.to_numpy() * af
+    hi = p.high.to_numpy() * af
     lo = p.low.to_numpy() * af
     cl = p.close.to_numpy() * af
     vol = p.volume.to_numpy()
@@ -64,6 +65,7 @@ def build_prices(ds: Any, p: Any) -> bt.Prices:
         bench=bench,
         regime_up=regime,
         is_etf=np.array([is_etf(c) for c in p.codes]),
+        high=hi,
     )
 
 
@@ -216,6 +218,7 @@ def custom_panel(
         base / "prices.json",
         {
             "open": _round(px.open[sl][:, ci], 3),
+            "high": _round(px.high[sl][:, ci], 3) if px.high is not None else None,
             "low": _round(px.low[sl][:, ci], 3),
             "close": _round(px.close[sl][:, ci], 3),
             "tradable": [[1 if v else 0 for v in row] for row in px.tradable[sl][:, ci]],

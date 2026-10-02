@@ -215,10 +215,13 @@ export interface PanelItem {
   excess: number | null;
 }
 
-/** 只列判定為有效或環境依賴的指標，依 t 由高到低；狀態：近期觸發（日期）／今日接近觸發／未觸發。 */
-export function panelItems(rows: EvidenceRow[], today: EvidenceToday | null, code: string, horizon = 10): PanelItem[] {
+/**
+ * 只列判定為有效或環境依賴的指標，依 t 由高到低；狀態：近期觸發（日期）／今日接近觸發／未觸發。
+ * allowed（2026-10-02）：有策略庫分級時改以分級為準，只列分級為有效或觀察中的策略對應的指標（lib/strategies.allowedTests）；null 時沿用判定規則。
+ */
+export function panelItems(rows: EvidenceRow[], today: EvidenceToday | null, code: string, horizon = 10, allowed: Set<string> | null = null): PanelItem[] {
   return rows
-    .filter((r) => r.kind === 'event' && isUsable(r.verdict))
+    .filter((r) => r.kind === 'event' && (allowed ? allowed.has(r.id) : isUsable(r.verdict)))
     .sort((a, b) => (b.t ?? -99) - (a.t ?? -99))
     .map((row) => {
       const t = today?.tests[row.id];

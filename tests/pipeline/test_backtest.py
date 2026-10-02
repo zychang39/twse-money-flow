@@ -52,10 +52,36 @@ def test_entry_is_next_open_no_lookahead():
 
 def test_costs_deducted():
     fee = 0.001425 * 0.6
-    expected = (1.1) * (1 - fee - 0.003) / (1 + fee) - 1
+    slip = 0.001  # 審查修正 2026-10-01：滑價 0.1% 買賣各一次（thresholds.backtest.slippage_pct）
+    assert bt.slippage_rate() == pytest.approx(slip)
+    expected = (1.1) * (1 - slip) * (1 - fee - 0.003) / ((1 + slip) * (1 + fee)) - 1
     assert bt.net_return(0.10, is_etf=False) == pytest.approx(expected)
-    assert bt.net_return(0.10, is_etf=True) == pytest.approx(1.1 * (1 - fee - 0.001) / (1 + fee) - 1)
+    assert bt.net_return(0.10, is_etf=False) == pytest.approx(0.0926360, abs=1e-6)  # 與 TS 版同一個手算值
+    assert bt.net_return(0.10, is_etf=True) == pytest.approx(
+        1.1 * (1 - slip) * (1 - fee - 0.001) / ((1 + slip) * (1 + fee)) - 1
+    )
+    assert bt.net_return(0.10, is_etf=False, slippage=0.0) == pytest.approx(1.1 * (1 - fee - 0.003) / (1 + fee) - 1)
     assert bt.net_return(0.0, False) < 0  # 不漲不跌也會因成本虧損
+
+
+def test_exit_deferred_when_limit_down_locked():
+    """審查修正 2026-10-01：出場日整天跌停鎖死（最高價 ≤ 前收 −9.5%）賣不掉 → 下一個可成交日開盤。"""
+    opens = [100, 100, 100, 100, 90, 88, 90, 90, 90, 90, 90, 90]
+    closes = [100, 100, 100, 100, 90, 89, 90, 90, 90, 90, 90, 90]
+    px = make_prices(opens, closes)
+    px.high = np.array([[90.0 if i == 4 else o + 1 for i, o in enumerate(opens)]]).T
+    res = bt.run(sig(1), px, horizons=[2], decay_days=1)
+    tr = res["trades"][2][0]
+    assert tr.exit_date == DATES[5] and tr.exit == 88
+    assert res["excluded"]["locked_exit"] == 1
+    # 停損觸及當天鎖死也順延
+    res = bt.run(sig(1), px, horizons=[4], decay_days=1, rule="stop", stop_pct=-5)
+    tr = res["trades"][4][0]
+    assert tr.exit_date == DATES[5] and tr.exit == 88
+    # 沒有最高價的面板維持原行為
+    px.high = None
+    tr = bt.run(sig(1), px, horizons=[2], decay_days=1)["trades"][2][0]
+    assert tr.exit_date == DATES[4] and tr.exit == 90
 
 
 def test_exclusions_limit_up_suspended_disposition():
@@ -65,7 +91,7 @@ def test_exclusions_limit_up_suspended_disposition():
     px = make_prices(opens, blocked=blocked)
     res = bt.run(sig(1, 3, 6), px, horizons=[2], decay_days=1)
     # 第 1 天訊號 → 第 2 天開盤 110（+10%）排除；第 3 天訊號 → 第 4 天停牌；第 6 天訊號 → 第 7 天處置
-    assert res["excluded"] == {"limit_up": 1, "suspended": 1, "disposition": 1, "no_future": 0}
+    assert res["excluded"] == {"limit_up": 1, "suspended": 1, "disposition": 1, "no_future": 0, "locked_exit": 0}
     assert res["trades"][2] == []
 
 

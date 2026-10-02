@@ -103,13 +103,27 @@ def test_market_mean_same_entry_same_horizon():
     # 兩檔：進場第 1 列（開盤 100、50），第 3 列開盤 110、45 → 淨報酬平均
     o = np.array([[100, 50], [100, 50], [105, 48], [110, 45], [111, 44]], dtype=float)
     mk = _market(o, o.copy())
-    fee, tax = mk.fee, mk.tax
-    want = (engine.net_return(0.10, fee, tax) + engine.net_return(-0.10, fee, tax)) / 2
+    fee, tax, slip = mk.fee, mk.tax, mk.slip
+    # 審查修正 2026-10-01：基準（同日等權）不扣成本＝毛報酬平均；事件扣成本（含滑價）
+    want = (0.10 + -0.10) / 2
     assert mk.market_mean[2][1] == pytest.approx(want)
     df = engine.evaluate(mk, np.array([0]), np.array([0]), 2)
-    assert df["exc_mkt"].iloc[0] == pytest.approx(engine.net_return(0.10, fee, tax) - want)
+    assert df["exc_mkt"].iloc[0] == pytest.approx(engine.net_return(0.10, fee, tax, slip) - want)
     # 指數：進場前一日收盤（第 0 列 100）到出場前一日（第 2 列 300）
-    assert df["exc_idx"].iloc[0] == pytest.approx(engine.net_return(0.10, fee, tax) - 2.0)
+    assert df["exc_idx"].iloc[0] == pytest.approx(engine.net_return(0.10, fee, tax, slip) - 2.0)
+
+
+def test_cost_rates_follow_audit_standard_and_slippage():
+    """審查規格：手續費 0.1425% 不打折、證交稅 0.3%、滑價 0.1% 買賣各一次。"""
+    fee, tax, slip = engine.cost_rates()
+    assert fee == pytest.approx(0.001425) and tax == pytest.approx(0.003) and slip == pytest.approx(0.001)
+    # 100 → 110：買 100.1、賣 109.89；淨＝109.89 × (1 − 0.001425 − 0.003) ÷ (100.1 × 1.001425) − 1
+    got = engine.net_return(0.10, fee, tax, slip)
+    assert got == pytest.approx(109.89 * (1 - 0.004425) / (100.1 * 1.001425) - 1)
+    assert got == pytest.approx(0.0913892, abs=1e-6)
+    # 不漲不跌：來回成本約 0.78%（手續費 0.285%＋稅 0.3%＋滑價 0.2%）
+    assert engine.net_return(0.0, fee, tax, slip) == pytest.approx(-0.0078280, abs=1e-6)
+    assert engine.benchmark_net_of_costs() is False
 
 
 def test_dedupe_first_trigger_until_exit():
@@ -359,14 +373,28 @@ def test_revenue_features_hand():
     assert r.loc["2025-04", "dyoy"] == pytest.approx(1.0)
 
 
+def test_revenue_effective_after_data_end_is_not_a_signal():
+    """審查修正 2026-10-01：生效日（次月 10 日）晚於資料最後一天的月份不能落在最後一列當訊號。"""
+    from pipeline.evidence.data import revenue_table
+
+    dates = ["2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01"]
+    rev = pd.DataFrame(
+        {"code": ["2330", "2330"], "ym": ["2026-08", "2026-09"], "revenue": [1.0, 2.0], "yoy": [1.0, 2.0]}
+    )
+    r = revenue_table(rev, dates, ["2330"], 10)
+    assert r.loc[r["ym"] == "2026-08", "row"].item() == -1  # 9/10 生效，早於資料起點 → −1（資料之前）
+    assert r.loc[r["ym"] == "2026-09", "row"].item() == len(dates)  # 10/10 生效，資料只到 10/1 → 不是訊號
+
+
 def test_revenue_effective_next_month_10th_entry_after():
     dates = ["2026-02-09", "2026-02-10", "2026-02-11", "2026-03-09", "2026-03-11"]
     rev = pd.DataFrame(
         {"code": ["1101", "1101"], "ym": ["2026-01", "2026-02"], "revenue": [1.0, 2.0], "yoy": [1.0, 2.0]}
     )
     t = revenue_table(rev, dates, ["1101"], 10)
-    # 1 月營收：生效 2/10（交易日）→ 訊號列 2/10，進場 2/11；2 月營收：生效 3/10（非交易日）→ 訊號列 3/9，進場 3/11
-    assert t["row"].tolist() == [1, 3]
+    # 2026-10-02：1 月營收生效 2/10（交易日）→ 訊號列 2/10 收盤，進場 2/11；
+    # 2 月營收生效 3/10（非交易日）→ 訊號列＝之後第一個交易日 3/11 收盤（舊版提早到 3/9），進場再下一日
+    assert t["row"].tolist() == [1, 4]
 
 
 def _tdcc(weeks: list[str], pcts: list[float]) -> pd.DataFrame:
@@ -457,11 +485,11 @@ def test_simulate_single_slot_hand():
     mk = _market(o, c)
     trades = pd.DataFrame({"e": [1], "c": [0], "x": [3], "entry": [100.0], "px": [105.0]})
     eq = simulate(mk, trades, np.ones_like(o), 1, 1)
-    fee, tax = mk.fee, mk.tax
-    shares = 1 / (100 * (1 + fee))
+    fee, tax, slip = mk.fee, mk.tax, mk.slip
+    shares = 1 / (100 * (1 + slip) * (1 + fee))
     assert eq[0] == pytest.approx(shares * 102)  # 第 1 列收盤
     assert eq[1] == pytest.approx(shares * 106)
-    cash = shares * 105 * (1 - fee - tax)  # 第 3 列開盤出場
+    cash = shares * 105 * (1 - slip) * (1 - fee - tax)  # 第 3 列開盤出場
     assert eq[2] == pytest.approx(cash) and eq[3] == pytest.approx(cash)
     st = curve_stats(np.array([1.0, 1.2, 0.9, 1.1] * 6), ["2025-01-01"] * 24)
     assert st["mdd"] == pytest.approx(-25.0)  # 1.2 → 0.9
@@ -478,8 +506,8 @@ def test_simulate_slots_fill_by_value_and_skip_held():
     )
     value = np.array([[5.0, 1.0, 9.0]] * 6)
     eq = simulate(mk, trades, value, 2, 1)
-    # 兩檔各投入一半，價格不變：權益只少買進手續費
-    assert eq[0] == pytest.approx(1 / (1 + mk.fee))
+    # 兩檔各投入一半，價格不變：權益只少買進手續費與滑價
+    assert eq[0] == pytest.approx(1 / ((1 + mk.slip) * (1 + mk.fee)))
 
 
 def test_health_rules():
@@ -636,19 +664,19 @@ def test_delisted_exit_last_close_and_conservative():
     df = engine.evaluate(mk, np.array([1, 1, 1]), np.array([0, 1, 2]), 3)
     assert df["delisted"].tolist() == [False, True, False]
     assert df["halted"].tolist() == [False, False, True]
-    fee, tax = mk.fee, mk.tax
-    assert df.loc[1, "net"] == pytest.approx(engine.net_return(0.6 - 1, fee, tax))
+    fee, tax, slip = mk.fee, mk.tax, mk.slip
+    assert df.loc[1, "net"] == pytest.approx(engine.net_return(0.6 - 1, fee, tax, slip))
     df = engine.annotate(df, mk)
     c = cfg()
     d = stats.delist_conservative(df, c)
     assert d is not None and d["affected"] == 1
     # 同一進場日 3 筆平均：(0 基準) 超額＝淨報酬；下市那筆改為 −1
-    n0 = engine.net_return(0.0, fee, tax)
-    n2 = engine.net_return(0.8 - 1, fee, tax)
-    # 基準＝同日全市場平均，保守版本只改下市那筆的淨報酬
+    n0 = engine.net_return(0.0, fee, tax, slip)
+    n2 = engine.net_return(0.8 - 1, fee, tax, slip)
+    # 基準＝同日全市場平均（毛報酬，不扣成本），保守版本只改下市那筆的淨報酬
     mm = mk.market_mean[3][2]
-    # 同日全市場（進場第 2 列）：0%、−40%（下市最後收盤 60）、−20%（停牌最後收盤 80）三檔扣成本後平均
-    assert mm == pytest.approx((n0 + engine.net_return(-0.4, fee, tax) + n2) / 3)
+    # 同日全市場（進場第 2 列）：0%、−40%（下市最後收盤 60）、−20%（停牌最後收盤 80）三檔毛報酬平均
+    assert mm == pytest.approx((0.0 + -0.4 + -0.2) / 3)
     assert d["mean_excess"] == pytest.approx(((n0 - mm) + (-1 - mm) + (n2 - mm)) / 3 * 100, abs=1e-3)
 
 
@@ -677,3 +705,19 @@ def test_verdict_changes_only_after_limited():
     msgs = verdict_changes(prev, rows)
     assert len(msgs) == 1 and "三方同買 由「樣本範圍受限」改判為「無效」（涵蓋率 93%" in msgs[0]
     assert "買進" not in msgs[0] and "賣出" not in msgs[0]
+
+
+def test_corrected_t_takes_smallest_absolute_value():
+    """第二輪：不集中進場時取 |t| 最小者（保留正負號），負的 t 不會因取 min 而被高估顯著性。"""
+    from pipeline.evidence import audit
+
+    rng = np.random.default_rng(3)
+    n = 400
+    d = pd.DataFrame({"e": np.arange(n), "exc_mkt": rng.normal(-0.002, 0.03, n), "t": np.arange(n), "c": 0})
+    r = audit.corrected_t(d, 10, period_days=n, ratio=0.25)
+    cands = [v for v in (r["t"], r["t_nw"], r["t_block"]) if v is not None]
+    assert r["t_corr"] == min(cands, key=abs)
+    assert r["t_corr_method"] == "min(日曆, NW, 區塊)"
+    # 集中進場（進場日只佔 5%）→ 日曆時間法
+    r2 = audit.corrected_t(d, 10, period_days=n * 40, ratio=0.25)
+    assert r2["t_corr"] == r2["t"] and "集中" in r2["t_corr_method"]

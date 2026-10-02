@@ -428,3 +428,19 @@ def test_tdcc_full_progress_eta_lanes():
     assert p["runtime_hours_left"] == 2.5
     # 2.5 ÷ 0.658929 ≈ 3.794 小時 → 03:47
     assert p["eta"] == "2026-09-30T03:47+08:00"
+
+
+def test_tdcc_upsert_skips_bad_dates(tmp_path):
+    """第二輪：集保個股歷史的壞日期（週日、未來）在寫入前就擋下，並記在 manifest；正常列照寫。"""
+    ctx = make_ctx(tmp_path, {})
+    from pipeline import tasks_advanced
+
+    rows = lambda d: pd.DataFrame(  # noqa: E731
+        {"date": [d] * 2, "code": ["8499"] * 2, "level": [1, 2], "holders": [1, 1], "shares": [1, 1], "pct": [1.0, 1.0]}
+    )
+    tasks_advanced._tdcc_upsert(ctx, [rows("2026-09-18"), rows("2022-10-23"), rows("2035-02-28")])
+    assert ctx.store.read("tdcc_history", date(2026, 9, 18)) is not None
+    assert ctx.store.read("tdcc_history", date(2022, 10, 23)) is None
+    assert ctx.store.read("tdcc_history", date(2035, 2, 28)) is None
+    rec = ctx.manifest["sources"]["tdcc_history_bad_dates"]
+    assert rec["last_status"] == "skipped" and "2022-10-23" in str(rec) and "2035-02-28" in str(rec)
