@@ -59,7 +59,8 @@ def corrected_t(
 ) -> dict[str, Any]:
     """校正後 t（2026-10-02 第二輪，config/evidence.yml t_corr）：
     同一天集中進場（不重複進場日 ÷ 訊號期間交易日數 < concentration_ratio）→ 一律用日曆時間法 t；
-    其餘取日曆時間法、Newey-West、不重疊區塊三者的最小值。不取最大值。period_days 未知時視為不集中。"""
+    其餘取日曆時間法、Newey-West、不重疊區塊三者中**絕對值最小**者（保留正負號）：正的 t 取最小、負的 t 取最接近 0 的，
+    兩個方向都不高估顯著性；不取最大值。period_days 未知時視為不集中。"""
     cal = stats.calendar_series(df, col)
     x = cal.to_numpy()
     m, _, t = stats.mean_t(x)
@@ -75,8 +76,8 @@ def corrected_t(
     if concentrated:
         tc = t
     else:
-        cands = [v for v in (t, nw, bt) if v is not None]
-        tc = min(cands) if cands else None
+        cands = [float(v) for v in (t, nw, bt) if v is not None]
+        tc = min(cands, key=abs) if cands else None
     return {
         "mean_excess": stats.pct(m),
         "t": None if t is None else round(float(t), 2),

@@ -705,3 +705,19 @@ def test_verdict_changes_only_after_limited():
     msgs = verdict_changes(prev, rows)
     assert len(msgs) == 1 and "三方同買 由「樣本範圍受限」改判為「無效」（涵蓋率 93%" in msgs[0]
     assert "買進" not in msgs[0] and "賣出" not in msgs[0]
+
+
+def test_corrected_t_takes_smallest_absolute_value():
+    """第二輪：不集中進場時取 |t| 最小者（保留正負號），負的 t 不會因取 min 而被高估顯著性。"""
+    from pipeline.evidence import audit
+
+    rng = np.random.default_rng(3)
+    n = 400
+    d = pd.DataFrame({"e": np.arange(n), "exc_mkt": rng.normal(-0.002, 0.03, n), "t": np.arange(n), "c": 0})
+    r = audit.corrected_t(d, 10, period_days=n, ratio=0.25)
+    cands = [v for v in (r["t"], r["t_nw"], r["t_block"]) if v is not None]
+    assert r["t_corr"] == min(cands, key=abs)
+    assert r["t_corr_method"] == "min(日曆, NW, 區塊)"
+    # 集中進場（進場日只佔 5%）→ 日曆時間法
+    r2 = audit.corrected_t(d, 10, period_days=n * 40, ratio=0.25)
+    assert r2["t_corr"] == r2["t"] and "集中" in r2["t_corr_method"]
