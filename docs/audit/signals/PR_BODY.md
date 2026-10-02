@@ -19,7 +19,7 @@
 | 校正後 t | min(NW, 區塊) | 集中進場 → 日曆時間法；其餘取 |t| 最小者（保留正負號）；永不取最大 |
 | 新策略 | rev_strong 6／6 有效 | rev_strong 6／9 停用（t 1.98）；A 8／9 觀察中；B 2／9、C 0／9 停用 |
 | 組合模擬 | 5 檔、週轉「每槽 62.6 次／年」（錯） | 10 檔、共用規則、實際成交週轉 **每槽 3.0～4.4 次／年** |
-| CI | e2e 紅燈（示範資料過期橫幅） | 綠燈（固定時間） |
+| CI | e2e 紅燈（示範資料過期橫幅） | 綠燈（固定時間；排序選單 Escape 的 e2e 偶發失敗也已修） |
 
 ## 2. 查證六項（docs/AUDIT.md 第二節；每項有數字）
 
@@ -30,9 +30,9 @@
 | 3 | 2017–2020 還原價 | **回補前未還原**：2017–2019 還原因子有變動的股票 0／2／0 檔，2020 只有 9 月起 162 檔；0050 除息只有 2021-01 起。**已回補**（run #111）：2017–2020 各 1,210／1,242／1,297／1,272 檔（與 2021 後同量級）、0050 除息 2016-07 起 21 次。回補前後 rev_strong 全樣本 +1.39% → +1.41%（相對等權兩邊都未還原時大致抵銷）；絕對報酬與基準年化有差（等權 +13.3% → +15.4%） | AUDIT.md 第二節第 3 點；DATA_AUDIT 第二輪回補表 |
 | 4 | 校正後 t 取法 | 集中進場（進場日 ÷ 期間交易日 < 25%）只用日曆時間法；其餘取三者中絕對值最小者（保留正負號，負的 t 不被高估；例 20 日新高突破 −3.99／−3.21／−3.07 取 −3.07）；永不取 max（`evidence.yml t_corr.concentration_ratio`，commit 1a479d32）。全部 19 套重算：營收類與三方同買為集中進場（例 rev_strong 105 個進場日／4.5%）；其他用 min。三種 t 與採用值在 `docs/audit/signals/AUDIT_TABLES.md` 與 strategies.json（`t_corr_method`） | 分級總表「校正後 t（取法）」欄 |
 | 5 | 下市股 | 官方終止上市櫃公告 265 檔（2001 起），2016-09 後 78 檔、面板內 62 檔；持有中下市以最後收盤出場並另列 −100% 保守版本；未納入者多為公告前已停止交易；偏誤方向略高估、程度小 | AUDIT.md 第二節第 5 點 |
-| 6 | e2e 失敗 | 示範資料日固定 2026-09-24，橫幅依「今天 − 資料日」顯示；測試改用 `page.clock.setFixedTime`（commit 71af4ed5）。CI run #74 綠燈（python＋web 含 e2e） | `.github` Actions |
+| 6 | e2e 失敗 | 示範資料日固定 2026-09-24，橫幅依「今天 − 資料日」顯示；測試改用 `page.clock.setFixedTime`（commit 71af4ed5）。另一個偶發失敗（排序選單剛打開就按 Escape，document 的 keydown 監聽還沒掛上）改在容器上同步處理（commit 35c82ffd）。CI run #85 綠燈（python＋web 含 e2e） | `.github` Actions |
 
-確定的錯誤（本輪）：營收訊號日（1）、組合週轉率（1）、集保壞日期寫入（1）、e2e 時間（1）＝ **4 項**，各一個 commit，commit 訊息含前後數字。
+確定的錯誤（本輪）：營收訊號日（1）、組合週轉率（1）、集保壞日期寫入（1）、e2e 時間（1）＝ **4 項**，各一個 commit，commit 訊息含前後數字；另修 1 個 e2e 偶發失敗（排序選單 Escape）。
 
 ## 3. 分級總表（修正前＝main＋2026-10-01 資料、10 日判定；上一輪＝第一輪 PR；本輪＝data 分支 8dd8ff51、40 日判定、universe 5,000 萬）
 
@@ -119,7 +119,7 @@
 | 修改 | `pipeline/evidence/data.py` | 月營收訊號列改為「10 日當天或之後第一個交易日」（查證 1） |
 | 修改 | `pipeline/evidence/engine.py` | 事件表新增 `exc_gross`（毛超額） |
 | 修改 | `pipeline/evidence/stats.py` | `brief`／`summarize` 回報 `mean_gross_excess`、`t_gross` |
-| 修改 | `pipeline/evidence/audit.py` | `corrected_t` 依集中度選法（集中進場 → 日曆時間法；其餘 min）；`concentration` |
+| 修改 | `pipeline/evidence/audit.py` | `corrected_t` 依集中度選法（集中進場 → 日曆時間法；其餘取 |t| 最小者）；`concentration` |
 | 修改 | `pipeline/evidence/selection.py` | 分級取代淘汰：有效／觀察中／停用、樣本 5 年上限、去重、名額 15、`enabled`＝分級 AND 旗標；報告表 |
 | 修改 | `pipeline/evidence/swing.py` | 固定日期三段、40/20 日並列、進場延後、九項門檻、10 檔組合（實際成交週轉率、共用規則）、前瞻驗證、三個新基礎事件、`flow` 固定定義 |
 | 修改 | `pipeline/evidence/indicators.py` | `revenue_event` 註解（訊號列定義） |
@@ -127,15 +127,15 @@
 | 修改 | `pipeline/tasks_advanced.py` | `_tdcc_upsert` 壞日期不寫入並記 manifest |
 | 新增 | `tests/pipeline/test_selection.py` | 分級規則、5 年上限、波段需門檻、報告 |
 | 修改 | `tests/pipeline/test_swing.py` | 六套（含三套新策略）的截斷測試、固定日期三段、延後遮罩、九項門檻、組合實際成交、績效手算 |
-| 修改 | `tests/pipeline/test_evidence.py`、`test_tasks.py` | 營收訊號列新規則；集保壞日期 |
+| 修改 | `tests/pipeline/test_evidence.py`、`test_tasks.py` | 營收訊號列新規則；校正後 t 取 |t| 最小；集保壞日期 |
 | 修改 | `web/src/pages/Strategies.tsx` | 三區、收合、列欄位、分級標籤與理由、2022 前後、成本說明 |
 | 修改 | `web/src/lib/sorting.ts`（＋test） | 策略庫六種排序、共用並記住；舊清單沿用舊選項 |
 | 修改 | `web/src/lib/strategies.ts`（＋test）、`evidence.ts`、`bench.ts` | 分級欄位型別與 helper；個股頁只列有效與觀察中；預設基準 0050 含息 |
-| 修改 | `web/src/components/SwingCard.tsx`、`SortMenu.tsx`、`SignalPanel.tsx`、`pages/Stock.tsx`、`styles/evidence.css` | 進場延後、前瞻驗證、10 檔組合、九項門檻；排序選項可注入；個股頁分級標籤；停用標籤樣式 |
+| 修改 | `web/src/components/SwingCard.tsx`、`SortMenu.tsx`、`SignalPanel.tsx`、`pages/Stock.tsx`、`styles/evidence.css` | 進場延後、前瞻驗證、10 檔組合、九項門檻；排序選項可注入、Escape 同步處理；個股頁分級標籤；停用標籤樣式 |
 | 新增 | `web/e2e/grades.spec.ts` | 三區、收合、排序持久化、基準預設、SwingCard 新列、個股頁過濾 |
 | 修改 | `web/e2e/r1-m1.spec.ts` | 固定時間（查證 6） |
 | 新增 | `web/scripts/r2-shots.mjs` | 本輪截圖 |
-| 修改 | `docs/AUDIT.md`、`DATA_AUDIT.md`、`DECISIONS.md`（#194–208）、`docs/swing/HYPOTHESIS.md`、`TRIALS.md`、`docs/audit/signals/*` | 查證六項、回補、決策、原理與 H4–H6、第 6～11 次嘗試與驗證、最終表 |
+| 修改 | `docs/AUDIT.md`、`DATA_AUDIT.md`、`DECISIONS.md`（#194–208）、`docs/swing/HYPOTHESIS.md`、`TRIALS.md`、`docs/audit/signals/*` | 查證六項、回補、決策、原理與 H4–H6、第 6～11 次嘗試與驗證、最終表、審查表重算 |
 | 停用（旗標） | 無 | 本輪沒有用旗標停用任何策略：停用由資料分級決定（`strategies.json` 的 `grade`），旗標全部 true，隨時可用旗標覆蓋 |
 
 
@@ -190,7 +190,7 @@ cd web && npm ci && npm run lint && npm run typecheck && npm test && npm run bui
 ### 未完成事項
 | 項目 | 未完成原因 | 完成條件 | 預計完成時間 | 接手指令 | 完成後哪些結果會變 |
 |---|---|---|---|---|---|
-| 法人／信用 2016-09-01～11-16 | Actions run #112 排在 #111 之後，撰寫時仍在執行 | data 分支四個來源 2016-09-01 起每交易日各一檔 | 2026-10-02 晚間 | 已觸發；失敗時 Data workflow → `task=backfill, source=twse_insti,tpex_insti,twse_margin,tpex_margin, start=2016-09-01, end=2016-11-16` | 籌碼類指標訊號期間提前 2.5 個月；分級不變 |
+| 法人／信用 2016-09-01～11-16 | Actions run #112 排在 #111 之後，撰寫時仍在執行（交易日 13:30–22:30 暫停） | data 分支四個來源 2016-09-01 起每交易日各一檔 | 2026-10-02 晚間 | 已觸發；失敗時 Data workflow → `task=backfill, source=twse_insti,tpex_insti,twse_margin,tpex_margin, start=2016-09-01, end=2016-11-16` | 籌碼類指標訊號期間提前 2.5 個月；分級不變 |
 | 集保全市場回補 | 官方個股查詢逐檔逐週，99,500 次 | 回補完成（manifest `holders_backfill` 100%） | 2026-10-08 | 已在排程中，不需人工 | 三方同買、大戶週增由「樣本範圍受限」改為資料分級（自動） |
 | 前瞻驗證 | 需合併後 60 個交易日 | `forward.ready` 為 true | 約 2026-12-底 | 無（每日部署自動） | 有效者的「待前瞻驗證」標示；前瞻 vs 回測對照 |
 | 櫃買除權息 2016-02、2017-01 | 來源回傳空表 | 月檔有資料或確認該月無事件 | 5 分鐘 | Data workflow → `task=backfill, source=tpex_exright, start=2016-02-01, end=2016-02-29`（與 2017-01） | 少數櫃買股 2016/2017 初的還原價 |
@@ -201,13 +201,14 @@ cd web && npm ci && npm run lint && npm run typecheck && npm test && npm run bui
 | 判定持有天數 | `config/evidence.yml` `primary_horizon`／`secondary_horizon` | 10 → 40／（無）→ 20 | 改回 10、刪 secondary_horizon | 總表與策略庫以 10 日判定；分級的「40 與 20 日皆 > 0」需同步改 grading | 是（分級、UI 的 judgeHold 預設 40） |
 | universe 流動性 | `evidence.yml` `universe.min_avg_value` | 20000000 → 50000000 | 改回 | 樣本數增加約 30%、超額略高（小型股） | 否 |
 | 價格類評估起點 | `evidence.yml` `price_start` | 2022-01-01 → 2017-01-01 | 改回 | 價格類指標樣本回到 2.8 年、全部降為觀察中以下（5 年上限） | 是（新策略 B 開發段空白） |
-| 校正後 t 取法 | `evidence.yml` `t_corr.concentration_ratio` | （無）→ 0.25 | 設 0 → 一律 min(三者) | 集中進場策略的 t_corr 改為 min（營收類略低） | 否 |
+| 校正後 t 取法 | `evidence.yml` `t_corr.concentration_ratio`；`audit.corrected_t` 的 `min(cands, key=abs)` | （無）→ 0.25；min → |t| 最小 | 設 0 → 一律取三者；改回 `min(cands)` → 負的 t 取最負 | 集中進場策略的 t_corr 改為 min（營收類略低）；負 t 策略的數字變更負（分級不變） | 否 |
 | 分級規則 | `evidence.yml` `grading` | （無） | 刪除整段 → selection 用預設值（同內容） | 無 | — |
 | 成本 | `evidence.yml` `costs` | 第一輪已改（折扣 1.0、滑價 0.1%） | 見第一輪 | — | — |
 | 月營收訊號列 | `pipeline/evidence/data.py` `revenue_table` 的 `searchsorted(side="left")` | 之前最後一個交易日 → 當天或之後第一個交易日 | `git revert 9e1145f6` | rev_strong 全樣本 +1.41% → +1.79%、t 1.98 → 2.76（含前視） | 是（A 的事件定義） |
 | 組合模擬 | `pipeline/evidence/swing.py` `simulate_portfolio`／`portfolio` | 全部事件數週轉 → 實際成交 | 無單獨 revert（與新引擎同一 commit 09fda3ad）；舊算法＝`len(d)/years/k` | 週轉率回到 23.1（10 檔）、46.2（5 檔） | 是 |
 | 集保壞日期 | `pipeline/tasks_advanced.py` `_tdcc_upsert` | 不檢查 → 寫入前擋下 | `git revert 8f604f9f` | 無（載入時過濾仍在） | 否 |
 | e2e 固定時間 | `web/e2e/r1-m1.spec.ts` | 無 → `setFixedTime` | `git revert 71af4ed5` | U-02 在 9/25 之後失敗 | 否 |
+| 排序選單 Escape | `web/src/components/SortMenu.tsx` `onWrapKey` | 只靠 document 監聽 → 容器同步處理 | `git revert 35c82ffd` | v3-lab.spec 排序選單測試偶發失敗 | 否 |
 | 註冊旗標 | `config/strategies.yml` `enabled` | false（第一輪）→ true | 改回 false 或用 `audit_note` 對應 | 旗標 false 的策略不論分級都不上架 | 否 |
 | 預設基準 | `web/src/lib/bench.ts` `loadBench` | 'ew' → '0050' | 改回 | 畫面預設顯示相對等權 | 否 |
 | 新策略 | `config/swing.yml` 三個項目 | 新增 | `enabled: false` 或刪除項目 | 策略庫少三套（含停用區） | 否 |
