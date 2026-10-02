@@ -56,8 +56,11 @@ def realized_vol(close: np.ndarray, n: int) -> np.ndarray:
     return pd.DataFrame(r).rolling(n, min_periods=n).std(ddof=1).to_numpy()
 
 
-def base_mask(base: str, ev: Any, f: dict[str, Any], params: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
-    """基礎事件 (T, C) 與「可計算」遮罩。只用訊號日（含）以前的資料。"""
+def base_mask(
+    base: str, ev: Any, f: dict[str, Any], params: dict[str, Any], flow: str = "trust"
+) -> tuple[np.ndarray, np.ndarray]:
+    """基礎事件 (T, C) 與「可計算」遮罩。只用訊號日（含）以前的資料。flow（inst_pullback 的固定定義，不是參數）：
+    trust＝投信 20 日累計淨買超；both＝投信＋外資合計。"""
     T = len(ev.dates)
     with np.errstate(invalid="ignore", divide="ignore"):
         if base == "rev_high12":
@@ -88,10 +91,11 @@ def base_mask(base: str, ev: Any, f: dict[str, Any], params: dict[str, Any]) -> 
             # 收盤 ≤ 20 日線 × 1.02、收盤 ≥ 60 日線、收盤 ≤ 前 20 日最高收盤 × 0.95（固定條件，首次成立日）
             ma20, ma60 = ind.ma(ev.close, 20), ind.ma(ev.close, 60)
             hi20 = ind.shift(ind.rolling(ev.close, 20, "max"), 1)
-            flow = f["trust20"] >= float(params.get("trust_ratio", 1.0))
+            net20 = f["trust20"] + f["foreign20"] if flow == "both" else f["trust20"]
+            buying = net20 >= float(params.get("trust_ratio", 1.0))
             pull = (ev.close <= ma20 * 1.02) & (ev.close >= ma60) & (ev.close <= hi20 * 0.95)
-            avail = np.isfinite(f["trust20"]) & np.isfinite(ma60) & np.isfinite(hi20) & np.isfinite(f["rs_pct"])
-            cond = flow & pull & (f["rs_pct"] >= float(params.get("rs_min", 70)))
+            avail = np.isfinite(net20) & np.isfinite(ma60) & np.isfinite(hi20) & np.isfinite(f["rs_pct"])
+            cond = buying & pull & (f["rs_pct"] >= float(params.get("rs_min", 70)))
             return ind.first_true(cond & avail, avail), avail
     raise ValueError(base)
 
@@ -100,7 +104,7 @@ def signal_mask(
     spec: dict[str, Any], ev: Any, f: dict[str, Any], uni: np.ndarray, mk: engine.Market, params: dict[str, Any]
 ) -> np.ndarray:
     """(T, C)：訊號日在 universe 內且全部條件成立。只用 T 日（含）以前的資料（截斷測試保證）。"""
-    m, _ = base_mask(str(spec["base"]), ev, f, params)
+    m, _ = base_mask(str(spec["base"]), ev, f, params, str(spec.get("flow", "trust")))
     m = m & uni
     with np.errstate(invalid="ignore"):
         if "rs_min" in params and spec["base"] != "inst_pullback":
@@ -129,7 +133,7 @@ def common_rule_mask(ev: Any, f: dict[str, Any], mk: engine.Market, g: dict[str,
 
 
 def period_start(spec: dict[str, Any], ev: Any, f: dict[str, Any], uni: np.ndarray, c: dict[str, Any]) -> str | None:
-    _, avail = base_mask(str(spec["base"]), ev, f, dict(spec.get("params") or {}))
+    _, avail = base_mask(str(spec["base"]), ev, f, dict(spec.get("params") or {}), str(spec.get("flow", "trust")))
     ok = (avail & uni).any(axis=1)
     if not ok.any():
         return None
