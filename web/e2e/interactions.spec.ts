@@ -48,7 +48,7 @@ test('期間選擇器：選中者為實心格，選擇會被記住；所選區�
 test('個股頁：同一清單左右切換（按鈕與拖曳手勢）', async ({ page }) => {
   await addWatch(page, ['2330', '2317', '0050']);
   await page.goto('#/mine?seg=watch');
-  const quiet = page.getByRole('button', { name: /都沒有顯著變化|低於門檻/ });
+  const quiet = page.getByRole('button', { name: /未達門檻|都沒有顯著變化|低於門檻/ });
   if (await quiet.count() && (await quiet.getAttribute('aria-expanded')) === 'false') await quiet.click();
   await page.locator('.srow').first().click();
   await expect(page.getByTestId('list-position')).toHaveText(/自選\S* 1\/3/);
@@ -92,7 +92,7 @@ test('底部面板：頭像選單可開啟、Esc 關閉；拖曳把手往下可�
 test('清單列：長按（右鍵）叫出快速預覽；左滑露出移除', async ({ page }) => {
   await addWatch(page, ['2330', '2317']);
   await page.goto('#/mine?seg=watch');
-  const quiet = page.getByRole('button', { name: /都沒有顯著變化|低於門檻/ });
+  const quiet = page.getByRole('button', { name: /未達門檻|都沒有顯著變化|低於門檻/ });
   if (await quiet.count() && (await quiet.getAttribute('aria-expanded')) === 'false') await quiet.click();
   const row = page.getByRole('button', { name: /鴻海 2317/ });
   await row.dispatchEvent('contextmenu');

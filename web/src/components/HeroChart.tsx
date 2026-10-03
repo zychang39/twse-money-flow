@@ -563,7 +563,7 @@ export function HeroChart({
       <PeriodSelector value={period} onChange={onPeriod} label={periodsLabel ?? '走勢期間'} periods={periods} />
       {onBasis && basis ? (
         <div class="range-basis" data-testid="range-basis">
-          <span class="caption muted">{rangeOn ? '兩指或按住拖曳看區間報酬（桌機：按住拖曳）' : ''}</span>
+          <span class="caption muted">{''}</span>
           <div class="segmented range-seg" role="group" aria-label="價格基準（主角數字、走勢、區間報酬一起切換）">
             {(['adj', 'raw'] as const).map((b) => <button key={b} aria-pressed={basis === b} onClick={() => onBasis(b)}>{b === 'adj' ? '還原價' : '原始價'}</button>)}
           </div>

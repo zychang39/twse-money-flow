@@ -100,7 +100,7 @@ export function checklistCalc(f: ChecklistInput, p: { capital: number; riskPct: 
       : target === null ? `請填入「${FIELD_LABEL.target}」`
       : stop >= entry ? '停損價要低於進場價'
       : target <= entry ? '目標價要高於進場價'
-      : shares <= 0 ? (size && size.shares === 0 && typed === null ? '股數為 0：依風險上限不足 1 張，請改用零股或自行輸入股數' : '請輸入大於 0 的股數')
+      : shares <= 0 ? (size && size.shares === 0 && typed === null ? '股數為 0：風險上限換算的股數小於 1 張，請改用零股或自行輸入股數' : '請輸入大於 0 的股數')
       : null);
 
   return {

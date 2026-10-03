@@ -1,0 +1,62 @@
+[
+ {
+  "page": "brief",
+  "hash": "#/",
+  "seg": null,
+  "violations": []
+ },
+ {
+  "page": "stock-momentum",
+  "hash": "#/stock/2330",
+  "seg": "動能",
+  "violations": []
+ },
+ {
+  "page": "stock-chips",
+  "hash": "#/stock/2330",
+  "seg": "籌碼",
+  "violations": []
+ },
+ {
+  "page": "stock-fundamental",
+  "hash": "#/stock/2330",
+  "seg": "基本面",
+  "violations": []
+ },
+ {
+  "page": "stock-events",
+  "hash": "#/stock/2330",
+  "seg": "事件",
+  "violations": []
+ },
+ {
+  "page": "stock-tpex",
+  "hash": "#/stock/6488",
+  "seg": "動能",
+  "violations": []
+ },
+ {
+  "page": "strategies",
+  "hash": "#/explore/strategies",
+  "seg": null,
+  "violations": []
+ },
+ {
+  "page": "strategy-detail",
+  "hash": "#/explore/strategies/revenue_year_high",
+  "seg": null,
+  "violations": []
+ },
+ {
+  "page": "etf",
+  "hash": "#/explore/etf",
+  "seg": null,
+  "violations": []
+ },
+ {
+  "page": "flow",
+  "hash": "#/discipline",
+  "seg": null,
+  "violations": []
+ }
+]

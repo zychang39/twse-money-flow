@@ -123,7 +123,7 @@ export function evaluate(h: StockHistory): Check[] {
     const fp = g('fair_position');
     out.push(fp === null ? NA('fair', cat, '合理價區間')
       : mk('fair', cat, '合理價區間', fp <= 0 ? 'bull' : fp >= 100 ? 'bear' : 'neutral',
-        fp <= 0 ? '股價低於便宜價' : fp >= 100 ? '股價高於昂貴價' : `股價位於便宜價與昂貴價之間（${INT.format(fp)}%）`));
+        fp <= 0 ? '股價低於估算區間下限' : fp >= 100 ? '股價高於估算區間上限' : `股價位於估算區間的 ${INT.format(fp)}%`));
     const dy = g('dividend_yield');
     out.push(dy === null ? NA('yield', cat, '殖利率')
       : mk('yield', cat, '殖利率', dy >= c.yield_good ? 'bull' : 'neutral', `殖利率 ${pctPlain(dy)}`));

@@ -434,7 +434,7 @@ export default function Mine() {
         {group !== HOT && quiet.length ? (
           <>
             <button class="collapsed-row" aria-expanded={showQuiet || !main.length} onClick={() => setShowQuiet(!showQuiet)}>
-              <span>{main.length ? `${quiet.length} 檔變化低於門檻` : `${quiet.length} 檔都沒有顯著變化`}</span><IconChevronDown />
+              <span>{main.length ? `其餘 ${quiet.length} 檔未達門檻` : `${quiet.length} 檔未達門檻`}</span><IconChevronDown />
             </button>
             {showQuiet || !main.length ? quiet.map((c) => (
               <StockListRow key={c.code} code={c.code} row={c.row} hist={hist.get(c.code)} sub={sub(c.code, [])}

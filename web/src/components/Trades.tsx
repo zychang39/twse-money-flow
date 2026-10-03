@@ -34,7 +34,7 @@ function autoChecklist(r: StockRow | undefined) {
   const y3 = r.revenue_yoy_3m as number | null;
   const revenue = y3 === null || y3 === undefined ? '' : y3 >= 20 ? '高成長（近 3 月年增 ≥ 20%）' : y3 > 0 ? '成長' : '衰退';
   const fp = r.fair_position as number | null;
-  const valuation = fp === null || fp === undefined ? '' : fp <= 33 ? '偏便宜' : fp <= 67 ? '合理' : '偏貴';
+  const valuation = fp === null || fp === undefined ? '' : fp <= 33 ? '本益比位置低' : fp <= 67 ? '本益比位置中' : '本益比位置高';
   return { trend, revenue, valuation };
 }
 
@@ -139,7 +139,7 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
           {sel('market', FIELD_LABEL.market, ['偏多', '中性', '偏空'], '（見盤後簡報）')}
           {sel('trend', FIELD_LABEL.trend, ['多頭（年線、季線之上）', '年線之上、短線整理', '年線之下'])}
           {sel('revenue', FIELD_LABEL.revenue, ['高成長（近 3 月年增 ≥ 20%）', '成長', '衰退', '不適用'])}
-          {sel('valuation', FIELD_LABEL.valuation, ['偏便宜', '合理', '偏貴', '不適用'])}
+          {sel('valuation', FIELD_LABEL.valuation, ['本益比位置低', '本益比位置中', '本益比位置高', '不適用'])}
           {sel('reasonType', FIELD_LABEL.reasonType, REASONS)}
           <div class="field"><label for="ck-reason">理由（必填）</label><textarea id="ck-reason" class="input" rows={2} value={f.reason} onInput={set('reason')} /></div>
           <div class="grid three">
@@ -152,7 +152,7 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
               {rr !== null && rr < MIN_RR ? <span class="tag risk" style={{ marginLeft: 'var(--s-2)' }}>低於 1:{MIN_RR}</span> : null}</div>
             <div data-testid="checklist-size">建議部位：{calc.sizeText}</div>
             <div>觸及停損的虧損：{calc.lossIfStopped === null ? '—' : `約 ${fmtMoney(calc.lossIfStopped)}`}</div>
-            {calc.size && calc.size.shares === 0 ? <div class="risk">依風險上限不足 1 張：可改用零股、放寬停損或自行輸入股數</div> : null}
+            {calc.size && calc.size.shares === 0 ? <div class="risk">風險上限換算的股數小於 1 張：可改用零股、放寬停損或自行輸入股數</div> : null}
           </div>
           {num('shares', `${FIELD_LABEL.shares}（預設為建議部位）`, f.shares || String(calc.size?.shares ?? ''), 'numeric')}
           <button class="btn primary block" disabled={!valid} onClick={save} data-testid="checklist-submit">{valid ? '加入持倉' : calc.blocker}</button>

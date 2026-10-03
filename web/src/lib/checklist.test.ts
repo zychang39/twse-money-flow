@@ -43,7 +43,7 @@ describe('#10 新增持倉前檢查表', () => {
     expect(c.rr).toBeCloseTo(3); // (250 − 190) ÷ (190 − 170)
     expect(c.size).toEqual({ shares: 0, lots: 0 }); // 100 萬 × 1% ÷ 20 = 500 股 → 0 張
     expect(c.shares).toBe(0);
-    expect(c.blocker).toBe('股數為 0：依風險上限不足 1 張，請改用零股或自行輸入股數');
+    expect(c.blocker).toBe('股數為 0：風險上限換算的股數小於 1 張，請改用零股或自行輸入股數');
     // 自行輸入 500 股 → 可以加入
     const typed = checklistCalc({ ...done, entry: '190', stop: '170', target: '250', shares: '500' }, P);
     expect(typed.blocker).toBeNull();
