@@ -193,3 +193,8 @@
 .index-ohlc { margin-top: var(--s-4); }
 .ui-row-toggle { display: inline-flex; color: var(--text-2); }
 .ui-row-toggle svg { width: var(--s-4); height: var(--s-4); }
+
+/* 2026-10（市場溫度、產業、行事曆）：分段控制與前後內容的間距；區塊內的整列按鈕 */
+.ui-head + .ui-seg { margin-top: var(--s-4); }
+.ui-seg + .ui-seg, .ui-seg + .heat, .ui-stats + .ui-seg, .ui-card > .ui-seg { margin-top: var(--s-3); }
+.ui-sec > .ui-list + .ui-btn { margin-top: var(--s-3); }

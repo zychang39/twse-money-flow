@@ -8,14 +8,14 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
-import { Banner, DataStatus, ErrorState, Loading } from '../components/DataStatus';
+import { Banner, ErrorState, Loading } from '../components/DataStatus';
 import { type PagerApi, StockPager } from '../components/StockPager';
 import { StockChart } from '../components/StockChart';
 import { ChipsPanel, EventsPanel, FundamentalPanel, MomentumPanel, SummaryStats, mdw } from '../components/StockPanels';
 import { ScoreDetailView } from '../components/ScoreDetail';
 import { categoryName } from '../components/Scores';
 import { Sheet } from '../components/Sheet';
-import { List, PageTitle, Row, Seg, Tag } from '../components/ui';
+import { List, PageTitle, Row, Seg, Tag, Warn } from '../components/ui';
 import { IconCloudOff, IconMore, IconStar, IconStarFill } from '../components/Icons';
 import { lazyPick } from '../lazy';
 import { useAsync, useDb, useStockData } from '../hooks';
@@ -29,12 +29,12 @@ import { type RangeBasis, getRangeBasis, setRangeBasis } from '../lib/rangeRetur
 import { isNotFound, loadInactive, loadLongHistory, loadMeta, loadStockIntraday, loadStockIntradayIndex } from '../data/api';
 import { INTRADAY_PERIODS, STOCK_CHART_PERIODS, adjDiffers, dailySeries, intradaySeries } from '../lib/stockChart';
 import { statusTags } from '../lib/stockFacts';
-import { makeCalendar } from '../lib/tradingCalendar';
+import { dataPhase, makeCalendar } from '../lib/tradingCalendar';
 import { todayTpe } from '../lib/dates';
 import { getListContext } from '../lib/listContext';
 import { inactiveText, tradeStatusNote } from '../lib/tradeStatus';
 import { navigate } from '../router';
-import { PAGE_SOURCES } from '../lib/health';
+import { PAGE_SOURCES, affectedFor } from '../lib/health';
 import type { StockHistory } from '../data/types';
 import '../styles/stock.css';
 
@@ -167,6 +167,14 @@ export default function Stock({ code }: { code: string }) {
   const cal = useMemo(() => makeCalendar(meta.data?.calendar), [meta.data]);
   const today = todayTpe();
   const marketDate = meta.data?.market_date ?? null;
+  // 資料狀態：只有落後超過 2 個交易日或本頁用到的資料源異常才顯示一行橘色警示（資料時間已在走勢圖下方）
+  const staleText = (() => {
+    if (!meta.data || !marketDate) return null;
+    const { phase, lag } = dataPhase(marketDate, cal);
+    const failed = affectedFor(PAGE_SOURCES.stock, meta.data.sources_affected ?? meta.data.sources_failed).length;
+    if (phase === 'stale') return `資料停在 ${Number(marketDate.slice(5, 7))}/${Number(marketDate.slice(8, 10))}，落後 ${lag} 個交易日`;
+    return failed ? `${failed} 個資料源異常` : null;
+  })();
   const asof = (d: string | null) => (d ? `資料日 ${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}${marketDate && d < marketDate ? `(${Number(marketDate.slice(5, 7))}/${Number(marketDate.slice(8, 10))} 尚未公布)` : ''}` : '無資料');
 
   useEffect(() => { setScore(null); setMenu(false); }, [code]);
@@ -230,7 +238,7 @@ export default function Stock({ code }: { code: string }) {
 
       {h ? (
         <div key={code} class={`stock-lower ${code !== firstCode.current ? 'fade-in' : ''}`}>
-          <DataStatus uses={PAGE_SOURCES.stock} />
+          {staleText ? <Warn testid="stock-stale">{staleText}</Warn> : null}
           <StatusTags h={h} today={today} cal={cal} />
           <SummaryStats h={h} />
           <SignalPanel code={code} />

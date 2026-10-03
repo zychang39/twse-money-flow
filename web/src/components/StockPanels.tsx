@@ -363,7 +363,7 @@ export function FundamentalPanel({ h, asof }: { h: StockHistory; asof: (d: strin
           <Card>
             <NetBars values={rev.yoy12.map((r) => r.yoy)} dates={rev.yoy12.map((r) => r.ym)} unit="%" height={96}
               format={(v, sign = true) => (v === null || v === undefined ? '—' : `${sign && v > 0 ? '+' : v < 0 ? '−' : ''}${fmtNum(Math.abs(v), 1)}%`)}
-              words={['年增', '年減']} emphasizeRecent={false} caption={`近 ${rev.yoy12.length} 個月營收年增率`} label={`近 ${rev.yoy12.length} 個月營收年增率柱狀圖`} />
+              words={['年增', '年減']} emphasizeRecent={false} neutral caption={`近 ${rev.yoy12.length} 個月營收年增率`} label={`近 ${rev.yoy12.length} 個月營收年增率柱狀圖`} />
           </Card>
         ) : null}
         <List>

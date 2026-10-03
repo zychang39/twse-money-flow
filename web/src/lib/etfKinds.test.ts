@@ -38,3 +38,29 @@ describe('期貨與選擇權走勢的數字格式', () => {
     expect(fmtRatioPct(undefined)).toBe('—');
   });
 });
+
+describe('主動式 ETF 頁（SPEC §7）', async () => {
+  const { sortItems, coverageLine, unverifiedLine, itemSub } = await import('../pages/Etf');
+  const item = (o: Partial<import('../data/types').EtfItem>): import('../data/types').EtfItem => ({
+    code: '2330', name: '台積電', dir: 'add', kind: 'add', value_yi: 1, pct_avg20: 1, pct_mcap: 0.01, etfs_same_dir: 1, etfs: [], ...o,
+  });
+  it('排序：依口徑絕對值由大到小，缺值排最後', () => {
+    const xs = [item({ code: 'a', value_yi: 5, pct_avg20: 1, pct_mcap: null }), item({ code: 'b', value_yi: 1, pct_avg20: 9, pct_mcap: 0.2 }), item({ code: 'c', value_yi: -7, pct_avg20: -3, pct_mcap: 0.1 })];
+    expect(sortItems(xs, 'value').map((x) => x.code)).toEqual(['c', 'a', 'b']);
+    expect(sortItems(xs, 'pct_avg20').map((x) => x.code)).toEqual(['b', 'c', 'a']);
+    expect(sortItems(xs, 'pct_mcap').map((x) => x.code)).toEqual(['b', 'c', 'a']);
+  });
+  it('頁首一列：涵蓋 n/N 檔・持股日 M/D；未驗證時第二行寫樣本數與期間', () => {
+    expect(coverageLine({ covered: 8, total: 32, holdings_date: '2026-10-02', issuers: 4 })).toBe('涵蓋 8/32 檔・持股日 10/2');
+    expect(coverageLine(undefined)).toBe('持股資料累積中');
+    expect(unverifiedLine({ verified: false, metric: null, n: 156, period: ['2025-10-03', '2026-08-04'], rows: [] })).toBe('排序口徑未驗證（樣本 156 筆、2025/10/3–2026/8/4）');
+    expect(unverifiedLine({ verified: false, metric: null, n: 0, period: [null, null], rows: [] })).toBe('排序口徑未驗證（樣本 0 筆）');
+    expect(unverifiedLine({ verified: true, metric: 'value', n: 400, period: ['2025-10-03', '2026-08-04'], rows: [] })).toBeNull();
+  });
+  it('副資訊：不重複「加碼／減碼」，只標新增、剔除；同向檔數、佔市值', () => {
+    expect(itemSub(item({ etfs_same_dir: 2, pct_mcap: 0.0449 }))).toBe('同向 2 檔・佔市值 0.04%');
+    expect(itemSub(item({ kind: 'new', pct_mcap: 0.2303 }))).toBe('新增・同向 1 檔・佔市值 0.23%');
+    expect(itemSub(item({ dir: 'reduce', kind: 'exit', pct_mcap: -0.5 }))).toBe('剔除・同向 1 檔・佔市值 0.50%');
+    expect(itemSub(item({ pct_mcap: null }))).toBe('同向 1 檔');
+  });
+});

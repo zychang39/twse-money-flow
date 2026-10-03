@@ -189,10 +189,12 @@ test('今晚：加入自選後出現在「自選股的新變化」區塊', async
   await expect(row).toBeVisible();
 });
 
-test('處置預警、行事曆、週報顯示資料', async ({ page }) => {
+test('處置與注意、行事曆、週報顯示資料', async ({ page }) => {
   await page.goto('#/explore/disposition');
-  await expect(page.getByText('可能進入處置').first()).toBeVisible();
-  await expect(page.getByText(/分盤撮合約每 5 分鐘/)).toBeVisible();
+  // 2026-10：只呈現事實與次數，不再出現「可能進入處置」之類的預測
+  await expect(page.getByRole('heading', { name: '處置中' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '注意次數' })).toBeVisible();
+  await expect(page.getByText('可能進入處置')).toHaveCount(0);
   await page.goto('#/explore/calendar');
   await page.getByRole('button', { name: '全部' }).click();
   await expect(page.getByText(/融券最後回補日/)).toBeVisible();
@@ -207,11 +209,13 @@ test('市場溫度：資金環境燈號與市場溫度', async ({ page }) => {
   await expect(page.getByText('散戶多空比（小台）').first()).toBeVisible();
 });
 
-test('主動式 ETF：持股標示部分涵蓋與來源投信', async ({ page }) => {
+test('主動式 ETF：頁首一列涵蓋檔數與持股日，投信與方法在 ⓘ', async ({ page }) => {
   await page.goto('#/explore/etf');
-  await expect(page.getByText(/部分涵蓋：\d+／\d+ 檔主動式 ETF 有持股資料/)).toBeVisible();
-  // 投信清單與家數來自 config/sources.yml（issuers status=verified），不寫死名單
-  await expect(page.getByText(/目前涵蓋.+\d+ 家投信/)).toBeVisible();
+  // SPEC §7：頁首「涵蓋 8/32 檔・持股日 10/2」；投信家數與已實作家數分開寫在 ⓘ
+  await expect(page.getByTestId('etf-coverage')).toHaveText(/^(涵蓋 \d+\/\d+ 檔・持股日 \d+\/\d+|持股資料累積中)$/);
+  await page.getByTestId('etf-info').click();
+  await expect(page.getByRole('dialog').getByText(/來自 \d+ 家投信/)).toBeVisible();
+  await expect(page.getByRole('dialog').getByText(/已實作 \d+ 家投信、\d+ 檔/)).toBeVisible();
 });
 
 test('資料健康：列出還原價推估事件並標示「推估」', async ({ page }) => {

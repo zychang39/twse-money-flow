@@ -78,11 +78,11 @@ for (const width of [375, 393]) {
       expect(await sub.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('normal');
     });
 
-    test('U-06：探索頁卡片的說明只在「・」或空白後換行，不斷在詞中間', async ({ page }) => {
+    test('U-06：探索頁入口列的副資訊單行（2026-10 改版：副資訊最多一行），不斷在詞中間', async ({ page }) => {
       await page.goto('#/explore');
-      await expect(page.locator('.tile-status').first()).toBeVisible();
+      await expect(page.locator('.ui-row-sub').first()).toBeVisible();
       await page.waitForTimeout(600);
-      const breaks = await page.locator('.tile-status').evaluateAll((els) => els.flatMap((el) => {
+      const breaks = await page.locator('.ui-row-sub').evaluateAll((els) => els.flatMap((el) => {
         const text = el.firstChild;
         if (!text || text.nodeType !== Node.TEXT_NODE) return [];
         const s = text.textContent!;

@@ -24,6 +24,11 @@ const LONG_PRESS_MS = 300;
 const SLOP = 8;
 const reduceMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
+/** 價差的小數位數依價位（升降單位）：50 元以下 2 位、500 元以下 1 位、以上整數。 */
+export function priceDigits(p: number): number {
+  return p < 50 ? 2 : p < 500 ? 1 : 0;
+}
+
 function label(t: string): string {
   if (t.length > 10) return `${Number(t.slice(5, 7))}/${Number(t.slice(8, 10))} ${t.slice(11, 16)}`;
   return `${Number(t.slice(0, 4))}/${Number(t.slice(5, 7))}/${Number(t.slice(8, 10))}`;
@@ -218,7 +223,7 @@ export function StockChart({ series, candle, period, onPeriod, periods, adjLabel
         {adjLabel ? <span class="ui-foot ui-muted" data-testid="basis-tag">還原</span> : null}
       </div>
       <p class="sc-line ui-foot" data-testid="hero-change">
-        {dayChg ? <Signed v={dayChg.abs} digits={dayChg.abs !== 0 && Math.abs(dayChg.abs) < 100 ? 2 : 1} kind="arrow" /> : <span>—</span>}
+        {dayChg ? <Signed v={dayChg.abs} digits={priceDigits(bar?.c ?? 0)} kind="arrow" /> : <span>—</span>}
         {dayChg && dayChg.pct !== null ? <Signed v={dayChg.pct} digits={2} unit="%" kind="sign" /> : null}
         <span class="ui-muted">{bar ? label(bar.t) : ''}</span>
       </p>
@@ -286,13 +291,13 @@ export function StockChart({ series, candle, period, onPeriod, periods, adjLabel
         {scrub !== null && !rr && bar ? (
           <div class="sc-tip ui-foot" role="status" data-testid="crosshair-tip">
             <span>{label(bar.t)}{bar.v !== null ? `・量 ${fmtLotsUnit(bar.v, false)}` : ''}</span>
-            {bar.o !== null && bar.h !== null && bar.l !== null ? <span>開 {fmtPrice(bar.o)}　高 {fmtPrice(bar.h)}　低 {fmtPrice(bar.l)}　收 {fmtPrice(bar.c)}</span> : <span>收 {fmtPrice(bar.c)}</span>}
+            {bar.o !== null && bar.h !== null && bar.l !== null ? <span>開 {fmtPrice(bar.o)}  高 {fmtPrice(bar.h)}  低 {fmtPrice(bar.l)}  收 {fmtPrice(bar.c)}</span> : <span>收 {fmtPrice(bar.c)}</span>}
           </div>
         ) : null}
         {rr ? (
           <div class={`sc-tip ui-foot ${sel?.fading ? 'sc-fade' : ''}`} role="status" data-testid="range-tip">
             <span>{axisLabel(rr.fromDate, intraday)} – {axisLabel(rr.toDate, intraday)}{intraday ? '' : `・${rr.days} 個交易日`}</span>
-            <span><Signed v={rr.abs} digits={Math.abs(rr.abs) < 100 ? 2 : 1} kind="arrow" />　<Signed v={rr.pct} digits={2} unit="%" /></span>
+            <span><Signed v={rr.abs} digits={priceDigits(rr.toValue)} kind="arrow" />  <Signed v={rr.pct} digits={2} unit="%" /></span>
           </div>
         ) : null}
       </div>

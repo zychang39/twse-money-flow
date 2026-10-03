@@ -50,3 +50,4 @@
 .sk-seg { margin-top: var(--block-gap); }
 .sk-clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .sk-menu > * + * { margin-top: var(--s-4); }
+.tool-summary { margin: var(--s-2) 0 0; }

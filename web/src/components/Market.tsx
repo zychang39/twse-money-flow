@@ -94,22 +94,28 @@ export function FuturesCard({ market }: { market: MarketData }) {
         <Row label="選擇權 P/C 比（未平倉）" sub={p ? md(p.date) : '期交所資料尚未取得'} value={<Num v={p ? pctPlain(p.v) : null} />} />
       </List>
       {fut.length ? (
-        <div data-testid="futures-series">
+        <>
           <CardLabel>外資台指期淨未平倉・近 {fut.length} 日</CardLabel>
-          <NetBars values={fut.map((x) => x.net)} dates={fut.map((x) => x.date)} label="外資台指期淨未平倉（口）" height={96} unit="口" format={fmtContracts} words={['淨多', '淨空']} />
-        </div>
+          <div data-testid="futures-series">
+            <NetBars values={fut.map((x) => x.net)} dates={fut.map((x) => x.date)} label="外資台指期淨未平倉（口）" height={96} unit="口" format={fmtContracts} words={['淨多', '淨空']} />
+          </div>
+        </>
       ) : null}
       {retail.length ? (
-        <div data-testid="retail-series">
+        <>
           <CardLabel>小台散戶多空比・近 {retail.length} 日</CardLabel>
-          <NetBars values={retail.map((x) => x.mtx)} dates={retail.map((x) => x.date)} label="小台散戶多空比（%）" height={96} unit="%" format={fmtRatioPct} words={['散戶淨多', '散戶淨空']} />
-        </div>
+          <div data-testid="retail-series">
+            <NetBars values={retail.map((x) => x.mtx)} dates={retail.map((x) => x.date)} label="小台散戶多空比（%）" height={96} unit="%" format={fmtRatioPct} words={['散戶淨多', '散戶淨空']} />
+          </div>
+        </>
       ) : null}
       {pc.length ? (
-        <div data-testid="pc-series">
+        <>
           <CardLabel>選擇權 P/C 比・近 {pc.length} 日</CardLabel>
-          <NetBars values={pc.map((x) => x.pc)} dates={pc.map((x) => x.date)} label="臺指選擇權未平倉 P/C 比（%）" height={96} unit="%" format={(v) => pctPlain(v)} minZero neutral emphasizeRecent={false} />
-        </div>
+          <div data-testid="pc-series">
+            <NetBars values={pc.map((x) => x.pc)} dates={pc.map((x) => x.date)} label="臺指選擇權未平倉 P/C 比（%）" height={96} unit="%" format={(v) => pctPlain(v)} minZero neutral emphasizeRecent={false} />
+          </div>
+        </>
       ) : null}
     </Card>
   );

@@ -140,10 +140,10 @@ export function riskCalc(i: RiskInput): RiskResult {
   };
 }
 
-/** 「停損價高於一日跌停價（90.00）」／「停損價低於一日跌停價（90.00），連續 2 日跌停才觸及」 */
+/** 「停損價高於一日跌停價(90.00)」／「停損價低於一日跌停價(90.00)，連續 2 日跌停才觸及」（與數字相鄰的括號用半形） */
 export function stopVsLimitText(r: Pick<RiskResult, 'stopVsLimit' | 'limitDown1' | 'limitDaysToStop'>, fmt: (v: number) => string = (v) => v.toFixed(2)): string {
   if (r.stopVsLimit === null || r.limitDown1 === null) return '';
-  const lim = `一日跌停價（${fmt(r.limitDown1)}）`;
+  const lim = `一日跌停價(${fmt(r.limitDown1)})`;
   if (r.stopVsLimit === 'equal') return `停損價等於${lim}`;
   if (r.stopVsLimit === 'above') return `停損價高於${lim}`;
   return `停損價低於${lim}${r.limitDaysToStop ? `，連續 ${r.limitDaysToStop} 日跌停才觸及` : ''}`;

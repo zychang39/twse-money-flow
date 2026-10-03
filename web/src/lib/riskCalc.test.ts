@@ -79,12 +79,12 @@ describe('風險試算（M2，2026-10-03）：ATR 停損距離 → 股數；連�
     const a = riskCalc({ capital: 1_000_000, riskPct: 1, oddLot: false, price: 100, atr: 2, k: 2 });
     expect(a.stopVsLimit).toBe('above');
     expect(a.limitDaysToStop).toBe(1);
-    expect(stopVsLimitText(a)).toBe('停損價高於一日跌停價（90.00）');
+    expect(stopVsLimitText(a)).toBe('停損價高於一日跌停價(90.00)');
     // 價 100、ATR 7、k 2 → 停損 86 < 一日跌停 90；連續 2 日跌停（81）才觸及
     const b = riskCalc({ capital: 1_000_000, riskPct: 1, oddLot: false, price: 100, atr: 7, k: 2 });
     expect(b.stopVsLimit).toBe('below');
     expect(b.limitDaysToStop).toBe(2);
-    expect(stopVsLimitText(b)).toBe('停損價低於一日跌停價（90.00），連續 2 日跌停才觸及');
+    expect(stopVsLimitText(b)).toBe('停損價低於一日跌停價(90.00)，連續 2 日跌停才觸及');
     const c = riskCalc({ capital: 1_000_000, riskPct: 1, oddLot: false, price: 100, atr: 5, k: 2 });
     expect(c.stopVsLimit).toBe('equal');
   });
