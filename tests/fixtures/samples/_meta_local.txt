@@ -50,3 +50,10 @@ tpex_pe_hist.json|GET|https://www.tpex.org.tw/www/zh-tw/afterTrading/peQryDate?d
 tdcc_qryStock_3406.html|POST|https://www.tdcc.com.tw/portal/zh/smWeb/qryStock（scaDate=20250926&stockNo=3406；裁切保留表單與結果表格）|200 76780
 twse_MI_5MINS_INDEX.json|GET|https://www.twse.com.tw/exchangeReport/MI_5MINS_INDEX?response=json&date=20261002|200 裁切：3241 列保留 17 列（09:00:00～09:01:05、13:29:50～13:30:00），欄位結構不變|2026-10-03
 taifex_pcRatio.csv|POST queryStartDate=2026%2F09%2F01&queryEndDate=2026%2F09%2F24（裁切：18 列保留前 8 列，Big5、CRLF、每列結尾多一個逗號）|https://www.taifex.com.tw/cht/3/pcRatioDown|200 1025|2026-10-03
+etf_taishin_00986A.html|GET FundType=ALL&DataDate=2026-10-02（適用日；持股表 36 列裁切為前 6 列＋合計列；頁面「2026/10/1預估發行受益權單位數」為持股日）|https://www.tsit.com.tw/ETF/Home/Pcf/00986A|200 49145|2026-10-03
+etf_taishin_nodata.html|GET FundType=ALL&DataDate=2026-10-03（該日無清單：版面仍在、金額 0、日期 0001/1/1；未裁切）|https://www.tsit.com.tw/ETF/Home/Pcf/00986A|200 39005|2026-10-03
+etf_kgi_J024.html|POST 表單 fundID=J024&queryDate=（最新＝適用日 2026/10/05；jQuery .load 局部頁面，中文為 HTML 實體；持股表 50 列裁切為前 5 列＋最後 1 列 display:none）|https://www.kgifund.com.tw/Fund/RedemptionVC|200 34126|2026-10-03
+etf_ab_TW00000404A5.json|GET（00404A，最新＝asOfDate 10/02/2026；domesticHoldings 每段裁切為前 4 筆，其餘欄位不變）|https://webapi.alliancebernstein.com/v2/funds/tw/zh-tw/investor/TW00000404A5/holdings|200 9295|2026-10-03
+etf_fsitc_183.json|POST JSON {"pStrFundID":"183","pStrDate":""}（00408A，最新＝sdate 2026-10-02；d 字串內 group 1 裁切為前 4 筆，group 4、5 全留）|https://www.fsitc.com.tw/WebAPI.aspx/Get_hd|200 7335|2026-10-03
+etf_fhtrust_ETF26.xlsx|GET（00409A，2026-10-01 基金資產明細 xlsx；未裁切，60 列）|https://www.fhtrust.com.tw/api/assetsExcel/ETF26/20261001|200 9997|2026-10-03
+etf_fhtrust_nodata.json|GET（2026-10-03 尚無資料：HTTP 200、JSON 文字「查無資料」）|https://www.fhtrust.com.tw/api/assetsExcel/ETF26/20261003|200 12|2026-10-03

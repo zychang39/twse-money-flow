@@ -109,9 +109,11 @@ export default function Etf() {
           ) : null}
           {any ? (
             <>
-              <p class="caption muted" style={{ marginTop: 'var(--s-2)' }} data-testid="etf-kind-counts">
-                持股變動分類：{kindCountsText(rk!)}。新增＝前次沒有、本次持有；剔除＝前次持有、本次 0 股。
-              </p>
+              {rk ? (
+                <p class="caption muted" style={{ marginTop: 'var(--s-2)' }} data-testid="etf-kind-counts">
+                  持股變動分類：{kindCountsText(rk)}。新增＝前次沒有、本次持有；剔除＝前次持有、本次 0 股。
+                </p>
+              ) : null}
               <h2 class="section" style={{ marginTop: 'var(--s-4)' }}>跨檔加碼／減碼<span class="caption muted" style={{ display: 'block', fontWeight: 'normal' }}>兩檔以上主動式 ETF 同方向變動</span></h2>
               {crossAdd.length || crossReduce.length ? (
                 <div class="grid two" style={{ marginTop: 'var(--s-2)' }}>
