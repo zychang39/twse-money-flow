@@ -68,7 +68,7 @@ export default function Methodology() {
             </div>
           </div>
         ))}
-        <p class="small">處置風險預警：官方「注意累計次數可能達處置標準」名單優先；另自行累計連續注意 ≥ {th.disposition_warning.consecutive_days} 日、近 10 日 ≥ {th.disposition_warning.within_10_days} 次、近 30 日 ≥ {th.disposition_warning.within_30_days} 次時標示「可能進入處置」。</p>
+        <p class="small">注意累計（官方公布）：只標示證交所／櫃買公布的注意累計名單，不自行推測是否會被處置。</p>
       </Section>
 
       <Section title="指標">

@@ -442,6 +442,10 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
                 f"(散戶多 − 散戶空) ÷ 全市場未平倉；≥ +{c['hot_above']}% 過熱、≤ {c['cold_below']}% 過冷（反向參考）",
             )
         )
+        tl[-1].update(
+            short=f"{_m(f'{v:+.1f}')}%",
+            detail=(f"微台 {_m(f'{float(rr_tmf.iloc[-1]):+.1f}')}%・" if len(rr_tmf) else "") + str(rr.index[-1]),
+        )
     else:
         tl.append(_light("retail", "散戶多空比（小台）", "gray", "資料源待處理", "期交所未平倉資料"))
     mt = ds.margin_total
@@ -460,6 +464,7 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
                     f"上市＋上櫃融資金額 5 日變化；≥ +{c['hot_above']}% 過熱、≤ {c['cold_below']}% 降溫",
                 )
             )
+            tl[-1].update(short=f"{_m(f'{chg:+.2f}')}%", detail=f"融資 {amt.iloc[-1] / 1e5:,.0f} 億・5 日變化")
     value = p.value.sum(axis=1)
     if len(value) > 20:
         ratio = float(value.iloc[-1] / value.iloc[-21:-1].mean())
@@ -474,6 +479,10 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
                 f"上市＋上櫃成交金額 ÷ 前 20 日平均；≥ {c['hot_above']} 過熱、≤ {c['cold_below']} 冷清",
             )
         )
+        tl[-1].update(short=f"{ratio:.2f}×", detail=f"成交 {value.iloc[-1] / 1e8:,.0f} 億・÷ 前 20 日平均")
+    for li in tl:
+        li.setdefault("short", "—")
+        li.setdefault("detail", li["value"])
     retail_series = [{"date": d, "mtx": clean(v, 2), "tmf": clean(rr_tmf.get(d), 2)} for d, v in rr.iloc[-60:].items()]
     return {
         "env": {

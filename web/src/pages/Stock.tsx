@@ -1,170 +1,105 @@
 /**
- * 個股頁：預設只顯示主角數字、走勢、一句話健檢、四環分數；往下捲才展開法人、籌碼、營收、估值等區塊。
- * 換股（M5）：只在頁首區域（股票名稱、頂列「自選 1／3」）左右滑動、點頂列的 ‹ ›，或電腦版的左右方向鍵；
- * 走勢圖區域完全交給圖表手勢（單指查價、兩指或按住拖曳選區間），不會換股（Apple 股市式，頂列與下方內容不動）；
- * 「進階」切換成 lightweight-charts 完整 K 線；細節用底部面板。
- * 環境光與走勢線同一個期間、同一個顏色。
+ * 個股頁（SPEC §5，2026-10 改版；動能與籌碼優先）。由上到下：
+ *   導覽列（返回｜自選股異動分頁器｜★｜⋯）→ 名稱（LargeTitle）＋代號・市場・產業 → 價格、當日漲跌、所選區間漲跌 → 走勢圖（區間 8 格）
+ *   → 狀態標籤（處置中、注意次數、融券回補、除權息；有才顯示）→ 摘要格 2×3 → 策略訊號 → sticky 分段「動能｜籌碼｜基本面｜事件」。
+ * ⋯ 內含「還原價／原始價」「K 線／折線」「進階」與手勢說明；進階才顯示四個分項分數、多空條件計數、KD、MACD（綜合分已移除）。
+ * 換股：頁首區域左右滑動、頂列 ‹ ›、電腦版左右方向鍵；走勢圖區域完全交給圖表手勢（長按十字線、兩指區間報酬）。
  */
-import { Fragment, type ComponentChildren } from 'preact';
+import type { ComponentChildren } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { Ambient, Block, TopBar } from '../components/Chrome';
-import { Accumulating, Banner, DataStatus, ErrorState, Loading } from '../components/DataStatus';
-import { HeroChart, usePeriod } from '../components/HeroChart';
+import { TopBar } from '../components/Chrome';
+import { Banner, DataStatus, ErrorState, Loading } from '../components/DataStatus';
 import { type PagerApi, StockPager } from '../components/StockPager';
-import { ScoreRings, compositeCompleteness, categoryName, completenessText, scoreOutOf } from '../components/Scores';
+import { StockChart } from '../components/StockChart';
+import { ChipsPanel, EventsPanel, FundamentalPanel, MomentumPanel, SummaryStats, mdw } from '../components/StockPanels';
 import { ScoreDetailView } from '../components/ScoreDetail';
-import { creditAnswer, creditSummary } from '../lib/credit';
-import { type HolderBlock, structureSentence } from '../lib/holders';
+import { categoryName } from '../components/Scores';
 import { Sheet } from '../components/Sheet';
-import { NetBars } from '../components/Viz';
-import { IconChevron, IconCloudOff, IconStar, IconStarFill } from '../components/Icons';
-import { lazy, lazyPick } from '../lazy';
-import type { EventRow } from '../components/StockSections';
-import type { Conference } from '../components/Research';
+import { List, PageTitle, Row, Seg, Tag } from '../components/ui';
+import { IconCloudOff, IconMore, IconStar, IconStarFill } from '../components/Icons';
+import { lazyPick } from '../lazy';
 import { useAsync, useDb, useStockData } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { addWatch, getSetting, isWatched, removeWatch } from '../db/db';
 import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
 import type { CategoryId } from '../lib/config';
-import type { ChipBlock } from '../lib/chips';
-import { adjClose } from '../lib/history';
-import { LONG_PERIODS, STOCK_PERIODS, change, periodStart, type Period } from '../lib/periods';
-import { heroWindows, windowFor, withDaily, type HeroWindows } from '../lib/heroSeries';
+import type { Period } from '../lib/periods';
+import { usePeriod } from '../components/HeroChart';
 import { type RangeBasis, getRangeBasis, setRangeBasis } from '../lib/rangeReturn';
-import { isNotFound, loadInactive, loadLongHistory, loadMeta } from '../data/api';
-import { asofNote, asofText, lastValidDate } from '../lib/asof';
-import { useSignalPanel } from '../lib/signalSummary';
-import { inactiveText, tradeStatusNote } from '../lib/tradeStatus';
-import type { StockHistory } from '../data/types';
-import { SECTION_ORDER, STYLE_DESC, STYLE_NAME, STYLE_PERIOD, type SectionId } from '../lib/style';
-import { useInvestStyle } from '../hooks';
-import { type QuarterRow, type RevenueRow, momentumAnswer, momentumFacts, profitAnswer, profitFacts, revenueAnswer, revenueFacts } from '../lib/fundamentals';
-import { conclusionLine, valuationPhrase } from '../lib/verdict';
-import { techFacts } from '../lib/technical';
-import { COST_RULE_NOTE, instInsight, type Who } from '../lib/insights';
+import { isNotFound, loadInactive, loadLongHistory, loadMeta, loadStockIntraday, loadStockIntradayIndex } from '../data/api';
+import { INTRADAY_PERIODS, STOCK_CHART_PERIODS, adjDiffers, dailySeries, intradaySeries } from '../lib/stockChart';
+import { statusTags } from '../lib/stockFacts';
+import { makeCalendar } from '../lib/tradingCalendar';
+import { todayTpe } from '../lib/dates';
 import { getListContext } from '../lib/listContext';
-import { commitHero, heroSeen } from '../lib/seen';
-import { fmtNum, fmtPrice, orMissing } from '../lib/format';
+import { inactiveText, tradeStatusNote } from '../lib/tradeStatus';
 import { navigate } from '../router';
-import { restorePending } from '../lib/scrollRestore';
 import { PAGE_SOURCES } from '../lib/health';
-import { evaluate, tally, title as bbTitle } from '../lib/bullbear';
-import { BullBearBar } from '../components/BullBearBar';
+import type { StockHistory } from '../data/types';
+import '../styles/stock.css';
 
-/** 第一次繪製時先畫的區塊數（主角區之下）：結論、有效訊號面板、四環分數 */
-const FIRST_SECTIONS = 3;
-
-const AdvancedChart = lazy(() => import('../components/AdvancedChart'));
-// 下方區塊的細節元件延後載入：個股頁的 JS 先只包含主角區與區塊標題（一句話結論），縮短 LCP 與 TBT
-const chips = () => import('../components/Chips');
-const credit = () => import('../components/Credit');
-const sections = () => import('../components/StockSections');
-const ChipDaily = lazyPick(chips, 'ChipDaily');
-const ChipStats = lazyPick(chips, 'ChipStats');
-const ForeignHolding = lazyPick(credit, 'ForeignHolding');
-const MarginCard = lazyPick(credit, 'MarginCard');
-const ShortCard = lazyPick(credit, 'ShortCard');
-const StructureBlock = lazyPick(() => import('../components/Structure'), 'StructureBlock');
-const EventsList = lazyPick(sections, 'EventsList');
-const ForeignTrend = lazyPick(sections, 'ForeignTrend');
-const MomentumSection = lazyPick(sections, 'MomentumSection');
-const RiskCalcCard = lazyPick(sections, 'RiskCalcCard');
-const ProfitSection = lazyPick(sections, 'ProfitSection');
-const RevenueSection = lazyPick(sections, 'RevenueSection');
-const ValuationSection = lazyPick(sections, 'ValuationSection');
-const Research = lazyPick(() => import('../components/Research'), 'Research');
-const StockExtras = lazyPick(() => import('../components/StockExtras'), 'StockExtras');
 const SignalPanel = lazyPick(() => import('../components/SignalPanel'), 'SignalPanel');
 
-type SheetKind = { kind: 'score'; id?: CategoryId } | { kind: 'more' } | null;
+type SegId = 'm' | 'c' | 'f' | 'e';
+const SEGS = [['m', '動能'], ['c', '籌碼'], ['f', '基本面'], ['e', '事件']] as const;
+const SEG_KEY = 'tmf-stock-seg';
+const CHART_KEY = 'tmf-stock-chart';
+const ADV_KEY = 'tmf-stock-advanced';
+const read = <T extends string>(k: string, allowed: readonly T[], d: T): T => {
+  try { const v = localStorage.getItem(k) as T | null; return v && allowed.includes(v) ? v : d; } catch { return d; }
+};
+const write = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* 無痕模式 */ } };
 
-function lastOf(a: unknown): number | null {
-  if (!Array.isArray(a)) return null;
-  for (let i = a.length - 1; i >= 0; i--) if (a[i] !== null && a[i] !== undefined) return a[i] as number;
-  return null;
-}
-
-/**
- * 區塊自己的資料日（2026-10-02 健檢 M1-4）：「資料日 10/1（10/2 尚未公布）」。
- * date＝該區塊序列最後一個有值的日期（lib/asof.lastValidDate）；marketDate＝meta.json 的最新交易日。
- */
-function AsOfLine({ date, marketDate, reason, extra }: { date: string | null; marketDate: string | null | undefined; reason?: string; extra?: string }) {
-  return (
-    <p class="caption muted" data-testid="asof-line" style={{ marginTop: 'var(--s-2)' }}>
-      {asofText(date, reason)}{asofNote(date, marketDate)}{extra ? `・${extra}` : ''}
-    </p>
-  );
-}
-
-/** 幾個序列中最晚的有值日期（法人：外資／投信／自營商任一有值即算該日有資料）。 */
-function latestValidDate(dates: string[], series: ((number | null)[] | undefined)[]): string | null {
-  let best: string | null = null;
-  for (const s of series) {
-    const d = lastValidDate(dates, s);
-    if (d && (!best || d > best)) best = d;
-  }
-  return best;
-}
-
-/**
- * 主角走勢的視窗（v3 M5）：期間在個股檔範圍內（約 4.5 年）直接用；5Y／10Y／ALL 超過時載入長歷史股價檔
- * （收盤回補 10 年）；10Y、ALL 改為週線取樣。回傳還原價與原始價（同一組日期與取樣點，見 lib/heroSeries）。
- */
-function useHeroWindow(code: string, h: StockHistory | null, period: Period): HeroWindows {
-  const needLong = !!h && LONG_PERIODS.includes(period) && (period === 'ALL' || periodStart(h.d, period).truncated);
-  const long = useAsync(() => (needLong ? loadLongHistory(code) : Promise.resolve(null)), [code, needLong]);
-  return useMemo(() => {
-    if (!h) return { adj: null, raw: null };
-    const L = needLong && long.data && long.data.d.length > h.d.length ? long.data : null;
-    // 「今日」一律用個股檔的日資料（#3），不受期間與週線取樣影響
-    return withDaily(L ? heroWindows(L.d, L.c, L.af, period) : heroWindows(h.d, h.c, h.af, period), h.d, h.c, h.af);
-  }, [h, long.data, period, needLong]);
-}
-
-/** 主角區（名稱、股價、走勢圖）：個股頁左右換股時，前一檔／目前／後一檔各一份。 */
-function StockHero({ code, fallbackName, fallbackIndustry, status, period, onPeriod, seen, basis, onBasis, advanced = false, swipe = false }: {
+/** 主角區（名稱、價格、走勢圖）：左右換股時前一檔／目前／後一檔各一份。 */
+function StockHero({ code, fallbackName, fallbackIndustry, status, period, onPeriod, basis, candle, swipe = false }: {
   code: string;
   fallbackName?: string | null;
   fallbackIndustry?: string | null;
-  /** U-02：今日無成交／停牌中（中性文字，不是資料問題） */
   status?: string | null;
   period: Period;
   onPeriod: (p: Period) => void;
-  seen: number | null;
-  /** M5：價格基準（還原／原始）：主角數字、走勢、今日與期間漲跌、區間報酬、進階圖與成本線一起切換 */
   basis: RangeBasis;
-  onBasis: (b: RangeBasis) => void;
-  advanced?: boolean;
-  /** M5：頁首（名稱列）是左右換股的區域（data-swipe）；走勢圖區域不換股 */
+  candle: boolean;
   swipe?: boolean;
 }) {
   const { data: h, error } = useStockData(code);
-  const win = windowFor(useHeroWindow(code, h, period), basis);
   const inactive = useAsync(() => (error && isNotFound(error) ? loadInactive().then((m) => m.get(code) ?? null) : Promise.resolve(null)), [code, !!error]);
+  const idx = useAsync(loadStockIntradayIndex, []);
+  const hasIntra = !!idx.data?.codes.includes(code);
+  const periods = hasIntra ? STOCK_CHART_PERIODS : STOCK_CHART_PERIODS.filter((p) => !INTRADAY_PERIODS.includes(p));
+  const eff: Period = periods.includes(period) ? period : '1Y';
+  const intraOn = INTRADAY_PERIODS.includes(eff);
+  const intra = useAsync(() => (intraOn && hasIntra ? loadStockIntraday(code) : Promise.resolve(null)), [code, intraOn, hasIntra]);
+  const needLong = !!h && (eff === '5Y' || eff === 'ALL');
+  const long = useAsync(() => (needLong ? loadLongHistory(code) : Promise.resolve(null)), [code, needLong]);
+  const series = useMemo(() => {
+    if (!h) return null;
+    if (intraOn) return intradaySeries(intra.data, eff);
+    return dailySeries(h, eff, basis, needLong ? long.data : null);
+  }, [h, eff, basis, intraOn, intra.data, long.data, needLong]);
   const market = h?.market ?? inactive.data?.market;
+  const industry = h?.industry ?? fallbackIndustry ?? null;
+  const sub = `${code}${market ? `・${market === 'tpex' ? '上櫃' : '上市'}` : ''}${industry ? `・${industry}` : ''}`;
+  const last = series?.bars[series.bars.length - 1];
+  const foot = !series || !last ? null
+    : series.kind === 'intraday' ? `5 分 K・${mdw(last.t)} ${last.t.slice(11, 16)}・${intra.data?.source ?? ''}`
+      : `資料至 ${mdw(last.t)} 收盤${series.kind === 'weekly' ? '・週 K' : series.kind === 'close' ? '・收盤折線' : ''}${basis === 'raw' ? '・原始價' : ''}`;
   return (
     <>
-      <header class={`page-head ${swipe ? 'swipe-zone' : ''}`} data-swipe={swipe ? '' : undefined}>
-        <div class="eyebrow">{code}{market ? `・${market === 'tpex' ? '上櫃' : '上市'}` : ''}{h || fallbackIndustry ? `・${h?.industry ?? fallbackIndustry ?? '—'}` : ''}</div>
-        <h1 class="title">{h?.name ?? fallbackName ?? inactive.data?.name ?? code}</h1>
-        {h && status ? <p class="caption muted trade-note" data-testid="trade-note">{status}</p> : null}
-      </header>
+      <div class={swipe ? 'swipe-zone' : ''} data-swipe={swipe ? '' : undefined}>
+        <PageTitle title={h?.name ?? fallbackName ?? inactive.data?.name ?? code} sub={status ? `${sub}・${status}` : sub} />
+      </div>
       {h ? (
-        <div style={{ marginTop: 'var(--s-2)' }}>
-          {advanced ? <AdvancedChart h={h} mode={basis} onMode={onBasis} /> : (
-            <HeroChart label={basis === 'raw' ? '收盤價（原始）' : '收盤價（還原）'} win={win} period={period} onPeriod={onPeriod} seen={basis === 'adj' ? seen : null}
-              format={(v) => fmtPrice(v)} formatDelta={(v) => fmtNum(v, v >= 100 ? 1 : 2)} area height={200} periodsLabel="股價走勢期間"
-              periods={STOCK_PERIODS} heroChange="both" basis={basis} onBasis={onBasis} />
-          )}
-        </div>
+        <StockChart series={series} candle={candle} period={eff} onPeriod={onPeriod} periods={periods}
+          adjLabel={basis === 'adj' && !intraOn && adjDiffers(h, eff)} footnote={foot}
+          loading={(intraOn && intra.loading) || (needLong && long.loading)}
+          emptyText={intraOn ? '盤中資料暫時無法取得' : '資料累積中'} />
       ) : error ? null : <Loading hero />}
     </>
   );
 }
 
-/**
- * M5：頂列「自選 1／3」那一列也可以左右滑動換股（滑動距離 ≥ 40px 且以水平為主），與點 ‹ › 相同。
- */
+/** 頂列「自選股異動 1/5」也可以左右滑動換股（≥ 40px 且以水平為主）。 */
 function SwipeCaption({ children, onStep }: { children: ComponentChildren; onStep: (step: 1 | -1) => void }) {
   const g = useRef<{ id: number; x: number; y: number } | null>(null);
   return (
@@ -183,7 +118,6 @@ function SwipeCaption({ children, onStep }: { children: ComponentChildren; onSte
   );
 }
 
-/** U-01：沒有個股檔（下市、長期停牌或代號錯誤）時的友善說明，不露出 HTTP 404。 */
 function NotFound({ code }: { code: string }) {
   const info = useAsync(loadInactive, []);
   if (!info.data) return null;
@@ -196,64 +130,53 @@ function NotFound({ code }: { code: string }) {
   );
 }
 
+interface AttnLite { count10?: number; active?: { start: string; end: string; interval: string | null } | null }
+
+/** 狀態標籤列（§5.3）：處置中、近 10 個營業日注意 n 次、融券最後回補 ≤ 10 營業日、除權息 ≤ 5 營業日。 */
+function StatusTags({ h, today, cal }: { h: StockHistory; today: string; cal: ReturnType<typeof makeCalendar> }) {
+  const a = h.attn as AttnLite | null | undefined;
+  const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
+  const tags: string[] = [];
+  if (a?.active) tags.push(`處置中 ${md(a.active.start)}–${md(a.active.end)}${a.active.interval ? `・每 ${a.active.interval}` : ''}`);
+  if (a?.count10) tags.push(`近 10 日注意 ${a.count10} 次`);
+  for (const t of statusTags(h, today, cal)) tags.push(t.text);
+  if (!tags.length) return null;
+  return <div class="sk-tags" role="group" aria-label="狀態" data-testid="status-tags">{tags.map((t) => <Tag key={t} tone="risk">{t}</Tag>)}</div>;
+}
+
 export default function Stock({ code }: { code: string }) {
   const hist = useStockData(code);
   const summary = useScoredSummary();
   const watched = useDb(() => isWatched(code), [code]);
   const portfolio = useDb(() => getSetting<PortfolioSettings>('portfolio', DEFAULT_PORTFOLIO));
-  const style = useInvestStyle();
-  // v3：鍵名改為 stock-v3-{風格}，讓預設期間（波段 1Y、長期 5Y）對既有使用者也生效（舊鍵可能存 1D）
-  const [period, setPeriod] = usePeriod(`stock-v3-${style}`, STYLE_PERIOD[style], STOCK_PERIODS);
-  const [advanced, setAdvanced] = useState(false);
-  const [sheet, setSheet] = useState<SheetKind>(null);
-  const [who, setWho] = useState<Who>('foreign');
-  const [seen, setSeen] = useState<number | null | undefined>(undefined);
-  // M5：價格基準（還原／原始）由頁面統一管理並記住（前後一檔的主角區同步）
+  const [period, setPeriod] = usePeriod('stock-v4', '1Y', STOCK_CHART_PERIODS);
   const [basis, setBasisState] = useState<RangeBasis>(getRangeBasis);
   const pickBasis = (b: RangeBasis) => { setBasisState(b); setRangeBasis(b); };
+  const [candle, setCandle] = useState(() => read(CHART_KEY, ['candle', 'line'] as const, 'candle') === 'candle');
+  const [advanced, setAdvanced] = useState(() => read(ADV_KEY, ['1', '0'] as const, '0') === '1');
+  const [seg, setSegState] = useState<SegId>(() => read(SEG_KEY, ['m', 'c', 'f', 'e'] as const, 'm'));
+  const setSeg = (s: SegId) => { setSegState(s); write(SEG_KEY, s); };
+  const [menu, setMenu] = useState(false);
+  const [score, setScore] = useState<CategoryId | null>(null);
   const pagerRef = useRef<PagerApi>(null);
-  // 首次繪製只畫前兩個區塊；其餘在捲動接近時（哨兵進入下一個畫面高度內）一次補一個，降低個股頁的主執行緒阻塞（TBT）。
-  // 返回時要還原捲動位置（restorePending）則直接畫出全部，頁面高度才夠。
-  const [shown, setShown] = useState(FIRST_SECTIONS);
-  const sentinel = useRef<HTMLDivElement>(null);
-  useEffect(() => { setShown(restorePending() ? SECTION_ORDER.swing.length : FIRST_SECTIONS); }, [code]);
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!hist.data || !el || shown >= SECTION_ORDER.swing.length) return;
-    if (restorePending()) { setShown(SECTION_ORDER.swing.length); return; }
-    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setShown((n) => n + 1); }, { rootMargin: '0px 0px 100% 0px' });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [code, !!hist.data, shown]);
-  const allSections = shown >= SECTION_ORDER.swing.length;
-  // 下方內容只在「換股之後」淡入；第一次開啟直接顯示（淡入會延後最大內容繪製 LCP）
   const firstCode = useRef(code);
   const row = summary.data?.byCode.get(code);
   const h = hist.data;
   const ctx = getListContext(code);
-
-  useEffect(() => { setSeen(undefined); heroSeen(`stock:${code}`).then(setSeen); setAdvanced(false); setSheet(null); }, [code]);
-  const adj = useMemo(() => (h ? adjClose(h) : []), [h]);
-  const win = windowFor(useHeroWindow(code, h, period), basis);
-  const dir = win ? change(win.values).dir : 'flat';
-  const latest = lastOf(adj);
-  useEffect(() => { if (seen !== undefined) commitHero(`stock:${code}`, latest); }, [seen, latest, code]);
-  const chip = (h?.chip as ChipBlock | null | undefined) ?? null;
-  const inst = useMemo(() => (h ? instInsight(h, who, chip) : null), [h, who, chip]);
-  // 各區塊自己的資料日要和最新交易日比較（「10/2 尚未公布」）；meta.json 已有快取
   const meta = useAsync(loadMeta, []);
-  const marketDate = meta.data?.market_date ?? h?.d[h.d.length - 1] ?? null;
-  // 「有統計證據的訊號觸發了嗎？」的一句結論與面板清單共用同一份資料
-  const signals = useSignalPanel(code);
+  const cal = useMemo(() => makeCalendar(meta.data?.calendar), [meta.data]);
+  const today = todayTpe();
+  const marketDate = meta.data?.market_date ?? null;
+  const asof = (d: string | null) => (d ? `資料日 ${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}${marketDate && d < marketDate ? `(${Number(marketDate.slice(5, 7))}/${Number(marketDate.slice(8, 10))} 尚未公布)` : ''}` : '無資料');
 
-  // 同一清單的上一檔／下一檔：左右滑動主角區（StockPager）或點頂列的 ‹ ›，兩者走同一個動畫
+  useEffect(() => { setScore(null); setMenu(false); }, [code]);
+
   function go(step: 1 | -1) {
     if (!ctx) return;
     if (pagerRef.current) { pagerRef.current.go(step); return; }
     const next = ctx.codes[ctx.index + step];
     if (next) navigate(`/stock/${next}`, true, step > 0 ? 'push' : 'pop');
   }
-  // M5：電腦版左右方向鍵換股；焦點在圖表（圖表用方向鍵查價）、輸入框或底部面板時不換股
   useEffect(() => {
     if (!ctx) return;
     const onKey = (e: KeyboardEvent) => {
@@ -261,7 +184,7 @@ export default function Stock({ code }: { code: string }) {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
       const t = e.target as HTMLElement | null;
       if (t?.closest?.('.chart-wrap, .chart-box, input, textarea, select, [contenteditable="true"], [role="slider"], [role="dialog"]')) return;
-      if (sheet) return;
+      if (menu || score) return;
       e.preventDefault();
       go(e.key === 'ArrowRight' ? 1 : -1);
     };
@@ -271,162 +194,17 @@ export default function Stock({ code }: { code: string }) {
   const nameOf = (c: string) => (summary.data?.byCode.get(c)?.name as string | undefined) ?? null;
   const statusOf = (c: string) => tradeStatusNote(summary.data?.byCode.get(c));
   const industryOf = (c: string) => (summary.data?.byCode.get(c)?.industry as string | undefined) ?? null;
-
-  const comp = (row?.composite as number | null | undefined) ?? h?.scores?.composite ?? null;
-  const cc = compositeCompleteness(h?.scores);
-  const credit = useMemo(() => creditSummary({
-    d: h?.d ?? [], adj, mb: h?.mb ?? [], sb: h?.sb ?? [], sbl: h?.sbl as (number | null)[] | undefined, qfii: h?.qfii as (number | null)[] | undefined,
-    marginUsage: (row?.margin_usage as number | null | undefined) ?? null,
-    lastCover: ((h?.short_halt as { last_cover_date?: string | null } | null | undefined)?.last_cover_date) ?? null,
-  }), [h, adj, row]);
-  const holders = (h?.holders as HolderBlock | null | undefined) ?? null;
-  const pePct = h ? lastOf((h.series as Record<string, unknown> | undefined)?.pe_percentile) : null;
-  const bb = useMemo(() => (h ? tally(evaluate(h)) : null), [h]);
-  const tech = useMemo(() => (h ? techFacts(h.h, h.l, h.c, h.af) : null), [h]);
-  const mom = useMemo(() => momentumFacts(adj, (h?.metrics ?? {}) as Record<string, unknown>, h?.d ?? []), [adj, h]);
-  const rev = useMemo(() => revenueFacts((h?.revenue as RevenueRow[] | undefined) ?? []), [h]);
-  const profit = useMemo(() => profitFacts((h?.quarters as QuarterRow[] | undefined) ?? []), [h]);
-  const metrics = (h?.metrics ?? {}) as Record<string, unknown>;
-  const verdict = h ? conclusionLine(style, {
-    mom, rev, profit, pePct, pv: credit.pv.label,
-    foreignStreak: Number(metrics.foreign_streak ?? 0) || 0, trustStreak: Number(metrics.trust_streak ?? 0) || 0,
-  }) : '';
-  const events = (h?.events as EventRow[] | undefined) ?? [];
-  const confs = (h?.conferences as Conference[] | undefined) ?? [];
-  const WHO_NAME = { foreign: '外資', trust: '投信', dealer: '自營商' } as const;
-
-  /** 各區塊：標題＝一個問題＋一句結論，細節在下方；順序見 lib/style.ts 的 SECTION_ORDER。 */
-  const sections: Record<SectionId, () => ComponentChildren> = !h ? {} as Record<SectionId, () => ComponentChildren> : {
-    conclusion: () => (
-      <Block id="sec-conclusion" question={`整體狀態如何？（${STYLE_NAME[style]}）`} answer={verdict}>
-        {row?.flags?.length ? (
-          <div class="row wrap" style={{ gap: 'var(--s-1)', marginTop: 'var(--s-2)' }} role="group" aria-label="風險旗標">
-            {row.flags.map((f) => <span key={f.id} class="tag risk" title={f.detail}>{f.label}</span>)}
-          </div>
-        ) : null}
-      </Block>
-    ),
-    signals: () => (
-      <Block id="sec-signals" question="有統計證據的訊號觸發了嗎？"
-        answer={signals.loading ? '統計中…' : signals.data ? signals.data.summary : '指標效度資料暫時無法取得'}>
-        <SignalPanel code={code} />
-      </Block>
-    ),
-    scores: () => (
-      <Block id="sec-scores" question="四環分數" answer={`綜合分 ${scoreOutOf(comp)}`}>
-        <div style={{ marginTop: 'var(--s-4)' }}>
-          <ScoreRings row={row} detail={h.scores} onPick={(id) => setSheet({ kind: 'score', id })} />
-        </div>
-        <button class="collapsed-row" style={{ marginTop: 'var(--s-3)' }} onClick={() => setSheet({ kind: 'score' })}>
-          <span data-testid="composite-row">綜合分 {scoreOutOf(comp)}（{completenessText(cc)}）・查看全部因子</span>
-          <IconChevron />
-        </button>
-        {bb ? (
-          <section class="sx-bb" aria-label="多空">
-            <p class="caption muted">多空條件：{bbTitle(bb)}</p>
-            <BullBearBar t={bb} />
-          </section>
-        ) : null}
-        <div class="list">
-          <a class="list-item brand" href={`#/stock/${code}/bullbear`}>
-            <span class="grow">多空對照<span class="caption muted tool-sub">基本面、籌碼面、量價面、技術面的多方與空方並排比較</span></span>
-            <span class="chev"><IconChevron /></span>
-          </a>
-        </div>
-      </Block>
-    ),
-    momentum: () => (
-      <Block id="sec-momentum" question="動能夠不夠強？" answer={momentumAnswer(mom)}>
-        <MomentumSection f={mom} t={tech ?? undefined} />
-        {/* M2（2026-10-03）：風險試算（ATR 停損距離 → 股數；連續跌停 1～3 日情境） */}
-        <RiskCalcCard price={lastOf(h.c)} t={tech} prefs={portfolio ?? DEFAULT_PORTFOLIO} />
-      </Block>
-    ),
-    institutional: () => (
-      <Block id="sec-institutional" question="法人在買還是賣？" answer={inst?.title}>
-        <AsOfLine date={latestValidDate(h.d, [h.fn, h.tn, h.dn])} marketDate={marketDate} reason="沒有三大法人資料" />
-        <div class="segmented" role="group" aria-label="法人" style={{ marginTop: 'var(--s-3)' }}>
-          {(['foreign', 'trust', 'dealer'] as const).map((w) => (
-            <button key={w} aria-pressed={who === w} onClick={() => setWho(w)}>{WHO_NAME[w]}</button>
-          ))}
-        </div>
-        {inst ? (
-          <>
-            <div style={{ marginTop: 'var(--s-5)' }}>
-              <NetBars values={inst.values} dates={inst.dates} caption={`${WHO_NAME[who]}每日淨買賣超（張）・近 ${inst.values.length} 個交易日`}
-                label={`${WHO_NAME[who]}近 ${inst.values.length} 日每日淨買賣超柱狀圖：${inst.title}`} />
-            </div>
-            <div class="card" data-testid="inst-insight">
-              <div class="body w6">白話重點・{WHO_NAME[who]}</div>
-              {inst.lines.map((l) => <p key={l} class="caption t1" style={{ marginTop: 'var(--s-1)' }}>{l}</p>)}
-              {inst.est ? <p class="caption t1" style={{ marginTop: 'var(--s-1)' }} data-testid="inst-cost">{inst.est}<span class="est">估</span></p> : null}
-              {!inst.lines.length && !inst.est ? <p class="caption muted">資料累積中。</p> : null}
-              <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>{COST_RULE_NOTE}{inst.definition ? `${inst.definition}。` : ''}</p>
-            </div>
-          </>
-        ) : null}
-        <ForeignHolding s={credit} />
-        {chip ? (
-          <>
-            <ChipStats block={chip} sharesOut={h.shares} />
-            <ChipDaily block={chip} code={code} name={h.name} market={h.market} />
-          </>
-        ) : <Accumulating what="每日籌碼明細" detail="需要至少兩個交易日的法人與融資融券資料。" />}
-        <div class="list">
-          <a class="list-item brand" href={`#/stock/${code}/institutional`}>
-            <span class="grow">法人買賣超報表<span class="caption muted tool-sub">近 3 個月逐日買張、賣張・外資／投信／自營商／三大法人</span></span>
-            <span class="chev"><IconChevron /></span>
-          </a>
-        </div>
-      </Block>
-    ),
-    credit: () => (
-      <Block id="sec-credit" question="融資與空方在做什麼？" answer={creditAnswer(credit)}>
-        <AsOfLine date={lastValidDate(h.d, h.mb)} marketDate={marketDate} reason="沒有融資資料（非信用交易標的）" />
-        <MarginCard s={credit} />
-        <ShortCard s={credit} />
-      </Block>
-    ),
-    structure: () => (
-      <Block id="sec-structure" question="大戶在增加還是減少？" answer={holders && holders.d.length ? structureSentence(holders) : '集保資料累積中'}>
-        <StructureBlock block={holders} d={h.d} c={h.c} name={h.name} code={code}
-          extra={style === 'long' ? <ForeignTrend d={h.d} qfii={h.qfii as (number | null)[] | undefined} /> : undefined} />
-      </Block>
-    ),
-    revenue: () => (
-      <Block id="sec-revenue" question={style === 'long' ? '營收有沒有在成長？' : '營收與基本面如何？'} answer={revenueAnswer(rev)}>
-        <RevenueSection f={rev} onMore={() => setSheet({ kind: 'more' })} />
-      </Block>
-    ),
-    profit: () => (
-      <Block id="sec-profit" question="獲利品質好不好？" answer={profitAnswer(profit)}>
-        <ProfitSection f={profit} />
-      </Block>
-    ),
-    valuation: () => (
-      <Block id="sec-valuation" question="現在貴不貴？" answer={valuationPhrase(pePct) ?? (h.fair ? '合理價區間（估）' : `本益比 ${orMissing(lastOf(h.pe), (v) => fmtNum(v), '虧損或未公布')}`)}>
-        <AsOfLine date={lastValidDate(h.d, h.pe)} marketDate={marketDate} reason="沒有本益比資料（虧損或未公布）" extra="本益比、淨值比、殖利率" />
-        <ValuationSection h={h} pePct={pePct} river={style === 'long'} />
-      </Block>
-    ),
-    events: () => (
-      <Block id="sec-events" question="最近有什麼事件？" answer={events.length || confs.length ? `近一年 ${events.length} 筆事件、${confs.length} 場法說會` : '近一年沒有事件紀錄'}>
-        <EventsList events={events} />
-        <Research code={code} name={h.name} market={h.market} conferences={confs} />
-      </Block>
-    ),
-  };
+  const prefs = portfolio ?? DEFAULT_PORTFOLIO;
 
   return (
     <div class="page stock-page">
-      <Ambient mood={win ? dir : 'neutral'} />
       <TopBar back="/mine" avatar={false}
         caption={ctx ? (
           <SwipeCaption onStep={go}>
-            <span class="row" style={{ justifyContent: 'center', gap: 'var(--s-1)' }}>
-              <button class="text-btn pager-arrow" disabled={ctx.index === 0} onClick={() => go(-1)} aria-label="上一檔">‹</button>
-              <span data-testid="list-position">{ctx.name} {ctx.index + 1} / {ctx.codes.length}</span>
-              <button class="text-btn pager-arrow" disabled={ctx.index === ctx.codes.length - 1} onClick={() => go(1)} aria-label="下一檔">›</button>
+            <span class="sk-pager ui-foot">
+              <button type="button" class="sk-pager-arrow" disabled={ctx.index === 0} onClick={() => go(-1)} aria-label="上一檔">‹</button>
+              <span data-testid="list-position">{ctx.name} {ctx.index + 1}/{ctx.codes.length}</span>
+              <button type="button" class="sk-pager-arrow" disabled={ctx.index === ctx.codes.length - 1} onClick={() => go(1)} aria-label="下一檔">›</button>
             </span>
           </SwipeCaption>
         ) : null}
@@ -435,41 +213,55 @@ export default function Stock({ code }: { code: string }) {
             <button class="icon-btn" aria-pressed={!!watched} aria-label={watched ? '從自選移除' : '加入自選'} onClick={() => (watched ? removeWatch(code) : addWatch(code))}>
               {watched ? <IconStarFill /> : <IconStar />}
             </button>
-            <button class="text-btn" aria-pressed={advanced} onClick={() => setAdvanced(!advanced)}>{advanced ? '簡潔' : '進階'}</button>
+            <button class="icon-btn" aria-label="更多" aria-haspopup="dialog" onClick={() => setMenu(true)} data-testid="stock-more"><IconMore /></button>
           </>
         } />
-      {ctx && !advanced ? (
+      {ctx ? (
         <StockPager apiRef={pagerRef} codes={ctx.codes} index={ctx.index}
           onCommit={(step) => navigate(`/stock/${ctx.codes[ctx.index + step]}`, true, 'none')}
-          renderPane={(c, current) => (
-            <StockHero code={c} fallbackName={nameOf(c)} fallbackIndustry={industryOf(c)} status={statusOf(c)} period={period} onPeriod={setPeriod}
-              seen={current ? seen ?? null : null} basis={basis} onBasis={pickBasis} swipe />
+          renderPane={(c) => (
+            <StockHero code={c} fallbackName={nameOf(c)} fallbackIndustry={industryOf(c)} status={statusOf(c)} period={period} onPeriod={setPeriod} basis={basis} candle={candle} swipe />
           )} />
       ) : (
         <StockHero code={code} fallbackName={row?.name as string | undefined} fallbackIndustry={row?.industry as string | undefined}
-          status={tradeStatusNote(row, h?.d[h.d.length - 1])} period={period} onPeriod={setPeriod} seen={seen ?? null} advanced={advanced}
-          basis={basis} onBasis={pickBasis} />
+          status={tradeStatusNote(row, h?.d[h.d.length - 1])} period={period} onPeriod={setPeriod} basis={basis} candle={candle} />
       )}
       {hist.error ? (isNotFound(hist.error) ? <NotFound code={code} /> : <ErrorState error={hist.error} title="這檔股票的資料暫時無法取得" />) : null}
 
       {h ? (
-        /* 換股後下方內容整段換成新的一檔（淡入）；頂列與主角區不重新載入 */
-        <div key={code} class={`stock-lower ${code !== firstCode.current ? 'fade-in' : ''}`} data-style={style}>
-          {/* U-02：資料狀態看市場最新交易日；這一檔無成交／停牌另在主角數字旁說明，不當成資料問題 */}
+        <div key={code} class={`stock-lower ${code !== firstCode.current ? 'fade-in' : ''}`}>
           <DataStatus uses={PAGE_SOURCES.stock} />
-          {SECTION_ORDER[style].slice(0, shown).map((id) => <Fragment key={id}>{sections[id]()}</Fragment>)}
-          {!allSections ? <div ref={sentinel} class="skeleton sections-placeholder" aria-hidden="true" /> : null}
-          <p class="caption muted style-note" data-testid="style-note">
-            區塊順序依投資風格「{STYLE_NAME[style]}」排列（{STYLE_DESC[style]}），可在 <a href="#/me/settings">設定</a> 變更。
-          </p>
-
-          <Sheet open={!!sheet} onClose={() => setSheet(null)} detent={sheet?.kind === 'score' && sheet.id ? 'half' : 'full'}
-            title={sheet?.kind === 'score' ? (sheet.id ? `${categoryName(sheet.id)}分數明細` : '分數明細') : '基本數據、營收、財報與事件'}>
-            {sheet?.kind === 'score' && h.scores ? <ScoreDetailView detail={h.scores} only={sheet.id} /> : null}
-            {sheet?.kind === 'more' ? <StockExtras h={h} /> : null}
+          <StatusTags h={h} today={today} cal={cal} />
+          <SummaryStats h={h} />
+          <SignalPanel code={code} />
+          <div class="sk-seg">
+            <Seg options={SEGS} value={seg} onChange={setSeg} label="個股分段" sticky testid="stock-seg" />
+          </div>
+          {seg === 'm' ? <MomentumPanel h={h} prefs={prefs} advanced={advanced} row={row} onScore={setScore} /> : null}
+          {seg === 'c' ? <ChipsPanel h={h} asof={asof} /> : null}
+          {seg === 'f' ? <FundamentalPanel h={h} asof={asof} /> : null}
+          {seg === 'e' ? <EventsPanel h={h} today={today} cal={cal} /> : null}
+          <Sheet open={!!score} onClose={() => setScore(null)} detent="half" title={score ? `${categoryName(score)}分數明細` : '分數明細'}>
+            {score && h.scores ? <ScoreDetailView detail={h.scores} only={score} /> : null}
           </Sheet>
         </div>
       ) : null}
+
+      <Sheet open={menu} onClose={() => setMenu(false)} title="顯示">
+        <div class="sk-menu">
+          <Seg options={[['adj', '還原價'], ['raw', '原始價']] as const} value={basis} onChange={pickBasis} label="價格基準" testid="basis-seg" />
+          <Seg options={[['candle', 'K 線'], ['line', '折線']] as const} value={candle ? 'candle' : 'line'}
+            onChange={(v) => { setCandle(v === 'candle'); write(CHART_KEY, v); }} label="圖表" testid="chart-kind" />
+          <List>
+            <Row label="進階" sub="分項分數、多空條件、KD、MACD" value={advanced ? '開' : '關'} testid="toggle-advanced"
+              onClick={() => { const v = !advanced; setAdvanced(v); write(ADV_KEY, v ? '1' : '0'); if (v) setSeg('m'); setMenu(false); }} />
+          </List>
+          <div class="ui-prose">
+            <p>還原價：除權息、分割、減資前的價格乘上還原因子，報酬含股利再投入；原始價：官方收盤價，只看價差。</p>
+            <p>走勢圖手勢：長按顯示十字線與開高低收；兩指（桌機：按住拖曳）看兩點間的區間報酬，放開後保留 2 秒。1D／1W 為 5 分 K（非官方來源），虛線為前一交易日收盤。</p>
+          </div>
+        </div>
+      </Sheet>
     </div>
   );
 }

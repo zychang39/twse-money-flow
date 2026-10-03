@@ -217,15 +217,15 @@ export function StockChart({ series, candle, period, onPeriod, periods, adjLabel
         <span class="sc-price" aria-live="off" data-testid="stock-price">{priceText}</span>
         {adjLabel ? <span class="ui-foot ui-muted" data-testid="basis-tag">還原</span> : null}
       </div>
-      <div class="sc-line ui-foot" data-testid="hero-change">
+      <p class="sc-line ui-foot" data-testid="hero-change">
         {dayChg ? <Signed v={dayChg.abs} digits={dayChg.abs !== 0 && Math.abs(dayChg.abs) < 100 ? 2 : 1} kind="arrow" /> : <span>—</span>}
         {dayChg && dayChg.pct !== null ? <Signed v={dayChg.pct} digits={2} unit="%" kind="sign" /> : null}
         <span class="ui-muted">{bar ? label(bar.t) : ''}</span>
-      </div>
-      <div class="sc-line ui-foot" data-testid="hero-period-change">
+      </p>
+      <p class="sc-line ui-foot" data-testid="hero-period-change">
         <span class="ui-muted">{period}{scrub !== null && bar ? ` 至 ${axisLabel(bar.t, intraday)}` : ''}</span>
         {perChg && perChg.pct !== null ? <Signed v={perChg.pct} digits={2} unit="%" kind="sign" /> : <span>—</span>}
-      </div>
+      </p>
       <div ref={wrapRef} class="sc-wrap chart-wrap" style={{ height: `${svgH / 16}rem` }} tabIndex={n ? 0 : -1} role="img"
         aria-label={`${summary}。長按或用左右鍵查看每根的開高低收。`} data-points={n}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onPointerLeave={onLeave} onKeyDown={onKey} onBlur={() => setScrub(null)}>
@@ -298,8 +298,8 @@ export function StockChart({ series, candle, period, onPeriod, periods, adjLabel
       </div>
       {series && (series.ma20.some((v) => v !== null) || series.baseLine) ? (
         <div class="sc-legend ui-foot ui-muted" aria-hidden="true">
-          {series.ma20.some((v) => v !== null) ? <><span class="sc-key ma20" />20 日線<span class="sc-key ma60" />60 日線</> : null}
-          {series.baseLine ? <><span class="sc-key base" />前收</> : null}
+          {series.ma20.some((v) => v !== null) ? <><span>20 日線</span><span class="sc-key ma20" /><span>60 日線</span><span class="sc-key ma60" /></> : null}
+          {series.baseLine ? <><span>前收</span><span class="sc-key base" /></> : null}
         </div>
       ) : null}
       <div class="sc-periods">
