@@ -162,7 +162,8 @@ export default function Screener() {
       <Section title="內建組合" info={<p>內建組合依對應指標的判定分級、再依 t 排序；標籤下方為指標判定（沒有對應指標的寫「未評估」）。</p>}>
         <SortMenu id="screener" value={presetSort} onChange={setPresetSort} />
         <div class="chips" role="group" aria-label="內建組合" data-testid="preset-chips">
-          {presetRows.map(({ p, r }) => (
+          {/* 指標評估載入完才畫：排序依判定分級，先畫再重排會讓按鈕在點擊瞬間換位置 */}
+          {ev.loading || evToday.loading ? null : presetRows.map(({ p, r }) => (
             <button key={p.id} class="chip" aria-pressed={id.presetId === p.id} onClick={() => load(p.id, p.label, p.conditions)} title={p.description}
               aria-label={`${p.label}（${r ? `${r.verdict}，10 日超額 ${pctSigned(r.mean_excess)}` : NO_EVIDENCE}）`}>
               <span class="chip-label">{p.label}</span><span class="chip-sub">{r ? r.verdict : '未評估'}</span>
