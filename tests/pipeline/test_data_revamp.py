@@ -179,17 +179,36 @@ def test_kbar_store_and_files(tmp_path):
     close = pd.DataFrame({"2330": [2480.0, 2510.0, 2500.0]}, index=dates)
     out = tmp_path / "out"
     rep = intraday.kbar_files(store, dates, close, {"2330", "9999"}, out)
-    assert rep == {"kbar_codes": 1, "kbar_date": "2026-10-02"}
+    assert rep == {"kbar_codes": 1, "kbar_no_trade": 0, "kbar_missing": 1, "kbar_date": "2026-10-02"}
     import json
 
     idx = json.loads((out / "intraday" / "index.json").read_text())
-    assert idx["codes"] == ["2330"] and "非官方" in idx["source"]
+    assert idx["codes"] == ["2330"] and idx["missing"] == ["9999"] and "非官方" in idx["source"]
     f = json.loads((out / "intraday" / "2330.json").read_text())
     last = f["days"][-1]
     assert last["date"] == "2026-10-02" and last["prev_close"] == 2510.0
     assert last["bars"][0][0] == "09:00" and last["bars"][0][5] is None and last["bars"][1][5] == 157180
     assert last["bars"][-1][:5] == ["13:30", 2500, 2500, 2500, 2500]
-    assert not (out / "intraday" / "9999.json").exists()
+    # M1.1：每一檔有個股頁的股票都有檔案；資料源沒有 K 棒的標 missing（1D／1W 一律可切換）
+    miss = json.loads((out / "intraday" / "9999.json").read_text())
+    assert miss["days"][-1]["missing"] is True and miss["days"][-1]["bars"] == []
+
+
+def test_kbar_no_trade(tmp_path):
+    """當日無成交（成交股數 0）：該日 no_trade、bars 空、prev_close 為前一日收盤。"""
+    from pipeline.core.store import DataStore
+    from pipeline.derive import intraday
+
+    store = DataStore(tmp_path / "data")
+    dates = ["2026-10-01", "2026-10-02"]
+    close = pd.DataFrame({"1234": [10.0, np.nan]}, index=dates)
+    volume = pd.DataFrame({"1234": [1000.0, 0.0]}, index=dates)
+    rep = intraday.kbar_files(store, dates, close, {"1234"}, tmp_path / "out", volume)
+    assert rep["kbar_no_trade"] == 1
+    import json
+
+    f = json.loads((tmp_path / "out" / "intraday" / "1234.json").read_text())
+    assert f["days"][-1] == {"date": "2026-10-02", "prev_close": 10.0, "bars": [], "no_trade": True}
 
 
 def test_kbar_priority():

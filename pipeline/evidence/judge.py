@@ -173,12 +173,16 @@ def max_adverse(eq: np.ndarray, window: int, dates: list[str] | None = None) -> 
     }
 
 
-def random_selection(book: Book, k: int, n: int, seed: int) -> dict[str, Any]:
-    """同一天觸發多於空位時改用隨機順序（每次重抽），其餘規則相同；固定種子可重現。回傳年化與最大回撤的分位數。"""
+def random_selection(book: Book, k: int, n: int, seed: int, paths: list[np.ndarray] | None = None) -> dict[str, Any]:
+    """同一天觸發多於空位時改用隨機順序（每次重抽），其餘規則相同；固定種子可重現。回傳年化與最大回撤的分位數。
+    paths 不是 None 時把每次的逐日權益存進去（期間檢視的隨機分位帶用，M1.5）。"""
     rng = np.random.default_rng(seed)
     cg, md = [], []
     for _ in range(n):
-        a, m = cagr_mdd(book.run(k, rng.random(book.e.size)))
+        eq = book.run(k, rng.random(book.e.size))
+        if paths is not None:
+            paths.append(eq)
+        a, m = cagr_mdd(eq)
         if a is not None and m is not None:
             cg.append(a)
             md.append(m)
@@ -476,8 +480,11 @@ def evaluate_one(
         "by_slots": lev,
     }
     rnd = j["random"]
+    rpaths: list[np.ndarray] = []
     out["random"] = (
-        random_selection(book, k5, int(rnd["n"]), int(rnd["seed"])) if with_random else {"n": 0, "skipped": True}
+        random_selection(book, k5, int(rnd["n"]), int(rnd["seed"]), rpaths)
+        if with_random
+        else {"n": 0, "skipped": True}
     )
     weekly = pd.Series(eq5, index=pd.to_datetime(sdates)).resample("W-FRI").last().dropna()
     wd = [x.date().isoformat() for x in weekly.index]
@@ -526,6 +533,27 @@ def evaluate_one(
     )
     out["triggers"] = recent_triggers(mask, uni, ev.dates, ev.codes, int(j["trigger_window"]))
     out["span_years"] = round((pd.Timestamp(ev.dates[-1]) - pd.Timestamp(start)).days / 365.25, 2)
+    # M1.5：期間檢視（全期間／自某年起／近 N 年／單一年份）→ strategy/{id}.json
+    exit_frames = (out.get("exits") or {}).pop("_frames", None)
+    if with_random:
+        from pipeline.evidence import periods
+
+        try:
+            out["_periods"] = periods.period_pack(
+                ctx,
+                mask,
+                start,
+                d,
+                trades,
+                book,
+                spec,
+                np.vstack(rpaths) if rpaths else np.zeros((0, 0)),
+                H,
+                k5,
+                exit_frames,
+            )
+        except Exception:  # 期間檢視失敗不影響判定卡
+            log.exception("期間檢視計算失敗")
     return out
 
 
@@ -574,6 +602,7 @@ def annotate(
     curves: dict[str, Any] = {}
     triggers: dict[str, dict[str, str]] = {}
     results: dict[str, dict[str, Any]] = {}
+    period_packs: dict[str, dict[str, Any]] = {}
     for s in lib["strategies"]:
         sid = s["id"]
         if s.get("kind") == "swing":
@@ -589,6 +618,8 @@ def annotate(
             log.exception("判定卡 %s 計算失敗", sid)
             continue
         results[sid] = r
+        if "_periods" in r:
+            period_packs[sid] = r.pop("_periods")
         log.info(
             "判定卡 %s：等權 %s%%（t %s）、0050 %s%%（t %s）、n=%s",
             sid,
@@ -713,7 +744,7 @@ def annotate(
         "counts": counts,
     }
     log.info("新分級：%s", "、".join(f"{LABELS[k]} {v}" for k, v in counts.items()))
-    return {"curves": curves, "triggers": triggers, "window": int(j["trigger_window"])}
+    return {"curves": curves, "triggers": triggers, "window": int(j["trigger_window"]), "periods": period_packs}
 
 
 def _pos(v: Any) -> bool:

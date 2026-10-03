@@ -27,14 +27,19 @@
 - [x] commit
 
 ### M1 資料與計算
-- [ ] 1.1 分鐘資料（指數 MI_5MINS_INDEX→1 分；個股 5 分 K 全部股票、每檔一檔案）
-- [ ] 1.2 族群三層（官方 › 細產業 › 自訂）＋題材種子＋族群統計＋走勢相近
-- [ ] 1.3 個股衍生指標
-- [ ] 1.4 簡報資料（成交金額合計＋倍數、三大法人官方金額）
-- [ ] 1.5 策略資料輸出（期間預算、漲停不成交查證）
-- [ ] 驗收＋commit
+- [x] 1.1 分鐘資料：原因＝PR #29 合併後尚未有交易日執行 kbar／指數盤中（data 分支沒有 raw）＋前端以 intraday/index.json 涵蓋才顯示 1D/1W。
+      已在 main 觸發 Actions：kbar（run 158）、twse_intraday_index 回補 9/24–10/2（run 159 成功）。kbar_files 改為每檔都輸出（no_trade／missing）。前端 1D/1W 永遠顯示 → M3。
+- [x] 1.2 sectors.py（三層、名次＋併入上層、等權指數、名次/寬度歷史、走勢相近）；config/sectors/{tpex_chain.csv,fine.yml,themes.yml}；涵蓋 2367/2367
+- [x] 1.3 trend.py（均線斜率/前值、間距、排列天數、ATR14/ATR%/百分位、乖離ATR倍數、52 週、60 日新高次數、對 0050/細產業）
+- [x] 1.4 法人「估」原因＝twse/tpex_insti_amount 從未抓取；已觸發回補 6/1–10/2（run 160）。成交金額 total/twse/tpex 已有。
+- [x] 1.5 evidence/periods.py → strategy/{id}.json（期間 all/from/last/year、四基準判定、多期間表、組合重模擬、隨機帶、曲線、逐筆、月度、滾動 3 年、出場逐筆、篩出/新觸發）；漲停：engine 已排除（limit_up_pct 9.5），流動性：universe 20 日均值 ≥ 5,000 萬 → 不需重算（寫入文件）
+- [x] 驗證腳本 `python -m pipeline validate-web`；分檔 write_json_split＋前端 lib/parts.ts（screen_days、bt/*）
+- [x] 驗收（docs/screens/restore-2026-10/m1/data-check.md：validate-web 0 錯誤、10/10 OHLC 一致、期間檢視＝判定卡）＋commit
 
-### M2 簡報頁與我的股票 — [ ]
+### M2 簡報頁與我的股票
+- [x] 簡報頁：IndexHero（無卡片、環境光）、分段 總覽/市場/資金/我的（useSegParam）、LevelAxis、BarSeries（法人 20 日、成交金額堆疊＋20 日線、20/60）、breadth_hist
+- [x] 我的股票：一行狀態、Seg 計數、RS 小進度條、無截斷、分頁器清單＝顯示順序（含無資料股票）
+- [ ] 截圖並排＋稽核＋commit
 ### M3 個股頁 — [ ]
 ### M4 探索、選股、族群、其他市場頁 — [ ]
 ### M5 策略庫與策略詳情 — [ ]

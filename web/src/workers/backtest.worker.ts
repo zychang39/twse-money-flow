@@ -2,6 +2,7 @@
 /** 自訂條件回測：在 Web Worker 下載精簡面板並計算（避免阻塞畫面）。 */
 import { buildReport, type Panel } from '../lib/backtest';
 import { screenerConfig, type Condition } from '../lib/config';
+import { assembleParts } from '../lib/parts';
 
 interface Meta { dates: string[]; codes: string[]; names: string[]; is_etf: boolean[]; bench: (number | null)[]; regime_up: boolean[]; fields: string[] }
 interface Prices { open: (number | null)[][]; high?: (number | null)[][] | null; low: (number | null)[][]; close: (number | null)[][]; tradable: number[][]; blocked: [number, number][] }
@@ -11,7 +12,8 @@ const ctx = self as unknown as DedicatedWorkerGlobalScope;
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url}：HTTP ${res.status}`);
-  return res.json() as Promise<T>;
+  // 超過 300KB 的面板分檔輸出（pipeline export.write_json_split）
+  return assembleParts<T>(url, await res.json(), (u) => getJson(u));
 }
 
 ctx.onmessage = async (e: MessageEvent<{ base: string; conditions: Condition[] }>) => {

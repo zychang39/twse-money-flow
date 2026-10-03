@@ -1,5 +1,6 @@
 /** 讀取 pipeline 產生的衍生資料（./data/*.json）。記憶體快取；離線時由 service worker 提供快取。 */
 import type { AiSummary, Health, Meta, StockHistory, StockRow, Summary } from './types';
+import { assembleParts } from '../lib/parts';
 
 const BASE = `${import.meta.env.BASE_URL}data/`;
 const cache = new Map<string, Promise<unknown>>();
@@ -19,7 +20,8 @@ async function getJson<T>(path: string): Promise<T> {
       if (!res.ok) throw new DataError(res.status === 404 ? '找不到資料檔' : `資料暫時無法取得（HTTP ${res.status}）`, res.status);
       // 開發伺服器與部分快取對不存在的檔案回傳 index.html（200）：視同不存在
       if ((res.headers.get('content-type') ?? '').includes('text/html')) throw new DataError('找不到資料檔', 404);
-      return res.json();
+      // F 節：超過 300KB 的檔案分檔輸出（主檔 parts＝k），讀回時接起來
+      return assembleParts(path, await res.json(), (p) => getJson(p));
     });
     p.then((v) => resolved.set(path, v), () => cache.delete(path));
     cache.set(path, p);
@@ -77,6 +79,12 @@ export const loadInactive = () =>
 export const loadIndex = () => getJson<import('./types').IndexData>('index.json');
 /** 首頁 1D 盤中走勢；舊版部署或當天尚未取得時為 null。 */
 export const loadIntraday = () => getJson<import('./types').IntradayData>('intraday.json').catch(() => null);
-/** 個股 5 分 K（stock 2026-10）：涵蓋清單與每檔一個小檔；取不到時回傳 null（個股頁不顯示 1D／1W）。 */
+/** 個股 5 分 K：涵蓋清單與每檔一個小檔（M1.1：每一檔有個股頁的股票都有檔案）；取不到時回傳 null（頁面顯示原因）。 */
 export const loadStockIntradayIndex = () => getJson<import('./types').StockIntradayIndex>('intraday/index.json').catch(() => null);
 export const loadStockIntraday = (code: string) => getJson<import('./types').StockIntraday>(`intraday/${encodeURIComponent(code)}.json`).catch(() => null);
+
+/** M1.2 族群三層：清單與統計（含每檔的細產業、題材與報酬，自訂族群在前端計算）。 */
+export const loadSectors = () => getJson<import('./types').SectorsIndex>('sectors.json');
+export const loadSector = (id: string) => getJson<import('./types').SectorDetail>(`sectors/${encodeURIComponent(id)}.json`);
+/** M1.5 策略期間檢視（逐筆訊號、期間判定與組合、篩出與新觸發）。 */
+export const loadStrategyPack = (id: string) => getJson<import('./types').StrategyPack>(`strategy/${encodeURIComponent(id)}.json`);

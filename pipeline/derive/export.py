@@ -115,6 +115,38 @@ def write_json(path: Path, obj: Any) -> int:
     return len(gzip.compress(payload.encode("utf-8")))
 
 
+MAX_GZIP = 300 * 1024
+ROWS = "_"  # 整個檔案就是一個陣列時，分檔後放在這個鍵
+
+
+def write_json_split(path: Path, obj: Any, row_keys: list[str] | None = None, limit: int = MAX_GZIP) -> int:
+    """F 節：單一資料檔壓縮後 ≤ 300KB。超過時把 row_keys 指定的陣列（obj 本身是陣列時整個陣列）依列切成 k 份：
+    主檔保留其他欄位並加上 parts＝k，分檔 {stem}-{i}.json 只有被切的陣列。前端 api.getJsonParts 讀回並依序接起來。"""
+    for f in path.parent.glob(f"{path.stem}-*.json"):
+        if f.stem[len(path.stem) + 1 :].isdigit():
+            f.unlink()
+    size = write_json(path, obj)
+    if size <= limit:
+        return size
+    data: dict[str, Any] = {ROWS: obj} if isinstance(obj, list) else dict(obj)
+    keys = [ROWS] if isinstance(obj, list) else [k for k in (row_keys or []) if isinstance(data.get(k), list)]
+    if not keys:
+        log.warning("%s 壓縮後 %dKB 超過上限，但沒有可切的陣列", path.name, size // 1024)
+        return size
+    k = size // int(limit * 0.85) + 1
+    n = max(len(data[key]) for key in keys)
+    step = -(-n // k)
+    base = {key: v for key, v in data.items() if key not in keys}
+    base["parts"] = k
+    base["part_keys"] = keys
+    total = write_json(path, base)
+    for i in range(k):
+        total += write_json(
+            path.parent / f"{path.stem}-{i}.json", {key: data[key][i * step : (i + 1) * step] for key in keys}
+        )
+    return total
+
+
 # ------------------------------------------------------------------ 健康頁
 def stale_warning(entry: dict[str, Any]) -> bool:
     wd, last = entry.get("format_warning_date"), entry.get("last_success")
@@ -266,6 +298,10 @@ def build_web(data_dir: Path, out: Path, *, demo: bool = False) -> dict[str, Any
         out, lab, dict(zip(ds.quotes["code"], ds.quotes["name"], strict=True))
     )
     report["evidence"] = evidence
+    # M1.2：族群「今日新觸發」檔數（需要 evidence_today.json）
+    from pipeline.derive.sectors import add_triggers
+
+    report["sector_triggers"] = add_triggers(out)
     meta.update(report.get("meta", {}))
     codes = sorted(p.stem for p in (out / "stocks").glob("*.json") if not p.stem.endswith(".hist"))
     report["long_history"] = history.write_long_history(full_quotes, ds, out, codes)

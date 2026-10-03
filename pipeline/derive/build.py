@@ -387,6 +387,13 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
     from pipeline.derive import momentum
 
     mom_ctx = momentum.build_context(p, mp)
+    # M1.2／M1.3：族群三層、走勢相近、個股衍生指標
+    from pipeline.derive import sectors as sectormod
+    from pipeline.derive import trend as trendmod
+
+    sec_layers = sectormod.build_layers(active, p.names, p.industries)
+    sec_res = sectormod.compute(p, sec_layers, mom_ctx.rs_now)
+    trend_ctx = trendmod.build_context(p)
     recent_from = p.dates[max(0, len(p.dates) - ADJ_RECENT_DAYS)]
     for code in active:
         m = stock_metrics(p, code)
@@ -458,12 +465,20 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
             "attn": stockdetail.attention_block(attn_src, code, p.dates),
             # stock 2026-10-03：報酬與全市場百分位、RS 20 日前、產業名次（需要橫斷面）
             "mom": momentum.mom_block(mom_ctx, code),
+            # M1.2：官方產業 › 細產業 › 題材（名次、3 個月中位數、本股在族群內名次）；走勢相近 10 檔
+            "sectors": sectormod.stock_block(sec_res, code, p.names),
+            "similar": [[c, p.names.get(c, c), r] for c, r in sec_res.similar.get(code, [])],
+            # M1.3：均線斜率、間距、排列、ATR、52 週、對 0050／細產業
+            "trend": trendmod.trend_block(
+                trend_ctx, code, sec_res, next(iter(sec_layers.fine_of.get(code) or []), None)
+            ),
             # D-01：還原事件（日期、因子、類型），前端換算持倉的進場價、停損價、股數
             "adj_events": [e for e in code_ev if idx and e[0] > idx[0]],
         }
         write_json(out / "stocks" / f"{code}.json", stock_file(p, code, m, extra_file))
         written += 1
     summary = {"date": last_date, "columns": cols, "rows": rows}
+    sector_report = sectormod.write_outputs(p, sec_res, out)
     inferred = p.events[p.events["source"] == "inferred"] if not p.events.empty else p.events
     meta_extra = {
         "adjust_events": len(p.events),
@@ -489,4 +504,10 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
     report_extra.update(signals_mod.tracking_signals(ds, p, mp, sc, out))
     # S2：週資料（集保大戶）的資料基準日與公布日，選股頁在條件含這些欄位時顯示
     meta_extra["weekly"] = signals_mod.weekly_asof(ds)
-    return {"stocks": written, "dates": len(p.dates), **report_extra, "meta": {"stocks": written, **meta_extra}}
+    return {
+        "stocks": written,
+        "dates": len(p.dates),
+        **report_extra,
+        **sector_report,
+        "meta": {"stocks": written, **meta_extra},
+    }

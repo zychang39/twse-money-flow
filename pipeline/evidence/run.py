@@ -760,6 +760,17 @@ def run_and_write(ev: EvData, out: Any = None, doc: Any = None) -> dict[str, Any
     rep = report.write(res, out, doc)
     if out is not None:
         rep["verdict_changes"] = notify_verdict_changes(res["rows"])
+        # M1.5：期間檢視（逐筆訊號、月度超額、各期間判定與組合、隨機分位帶、篩出與新觸發）
+        from pipeline.derive.export import write_json_split
+
+        listed_ids = {s["id"] for s in lib["strategies"] if s.get("enabled")}
+        for sid, pack in (jd.get("periods") or {}).items():
+            if sid not in listed_ids:
+                continue
+            sig = pack.pop("_signals", {})
+            write_json(out / "strategy" / f"{sid}.json", pack)
+            row_keys = [k for k, v in sig.items() if isinstance(v, list) and k != "exit_rules"]
+            write_json_split(out / "strategy" / f"{sid}-signals.json", sig, row_keys)
         for sid, det in sw["details"].items():
             write_json(out / "evidence" / f"{sid}.json", det)
         rep["strategies_bytes"] = write_json(out / "strategies.json", lib)
