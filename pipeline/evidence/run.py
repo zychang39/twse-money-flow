@@ -530,7 +530,7 @@ def evaluate(
                 int(c["stats"]["seed"]),
             )
             row["curve"] = curve_summary(detail["curve"])
-            # 峰值日固定出場：只用第一個 walk-forward 訓練窗的事件找峰值（不看全樣本）
+            # 第 N 日出場（訓練期峰值）：只用第一個 walk-forward 訓練窗的事件找峰值（不看全樣本）
             w0 = windows(start, end)[0]
             train = ded[ded["date"] < w0[1]] if len(windows(start, end)) > 1 else ded.iloc[: max(1, len(ded) * 2 // 3)]
             # 峰值日出場的 N 不超過出場上限（exits.max_days），所以訓練期曲線只看到第 max_days 日

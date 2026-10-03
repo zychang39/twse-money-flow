@@ -299,7 +299,7 @@ def section(d: dict[str, Any], H: str) -> list[str]:
             "",
             "相對等權：持有天數不固定，以同日等權 universe 的每日指數（前一日收盤到出場前一日收盤）近似。"
             + (
-                f"峰值日固定出場的 N＝第一個訓練窗（{pk['train'][0]}～{pk['train'][1]}）累積超額曲線的峰值日 {pk['day']}，不看全樣本。"
+                f"「第 N 日出場」的 N＝第一個訓練窗（{pk['train'][0]}～{pk['train'][1]}）累積超額曲線的峰值日 {pk['day']}，不看全樣本。"
                 if pk
                 else ""
             ),

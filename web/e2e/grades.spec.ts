@@ -41,7 +41,7 @@ function graded(): { strategies: Item[] } & Record<string, unknown> {
         train_end: '2021-12-31', oos_start: '2022-01-01', metric: '樣本內相對 0050 平均超額（扣成本）', min_events: 30, max_days: 60,
         rules: [
           { rule: 'fixed', param: '60', label: '固定 60 日', chosen: true, in_sample: { n: 2668, rel: { '0050': 2.35 } }, oos: { n: 3019, rel: { '0050': 0.66 } } },
-          { rule: 'peak', param: '57', label: '峰值日固定出場（第 57 日）', chosen: false, in_sample: { n: 2600, rel: { '0050': 2.1 } }, oos: { n: 3000, rel: { '0050': 0.5 } } },
+          { rule: 'peak', param: '57', label: '第 57 日出場（訓練期累積超額峰值）', chosen: false, in_sample: { n: 2600, rel: { '0050': 2.1 } }, oos: { n: 3000, rel: { '0050': 0.5 } } },
         ],
         chosen: { rule: 'fixed', param: '60', label: '固定 60 日', basis: 'in_sample' }, note: null,
       },

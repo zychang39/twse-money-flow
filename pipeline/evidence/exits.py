@@ -217,7 +217,7 @@ RULE_LABELS = {
     "atr": "ATR 移動停損（最高收盤回落 {p} 倍 ATR14）",
     "entry_low": "收盤跌破進場日最低價",
     "exhaust": "動能衰竭（量縮 3 日且漲跌 ≤ ±2%）",
-    "peak": "峰值日固定出場（第 {p} 日）",
+    "peak": "第 {p} 日出場（訓練期累積超額峰值）",
 }
 
 
@@ -231,7 +231,7 @@ def compare(
 ) -> dict[str, Any]:
     """每種出場的全參數表＋walk-forward 選參數（依訓練期期望值）與驗證期表現。
 
-    peak：v3 M3-4「峰值日固定出場」的 N＝訓練期（第一個 walk-forward 訓練窗）累積超額曲線的峰值日，不看全樣本。
+    peak：v3 M3-4「第 N 日出場（訓練期峰值）」的 N＝訓練期（第一個 walk-forward 訓練窗）累積超額曲線的峰值日，不看全樣本。
     """
     res = run_rules(mk, cand, ev, cfg)
     if peak:
@@ -280,7 +280,7 @@ def compare(
 
 def run_one(mk: Market, cand: pd.DataFrame, ev: Any, cfg: dict[str, Any], rule: str, param: str) -> pd.DataFrame:
     """單一出場規則（策略庫用）：與 run_rules 同樣的規則與參數格式。"""
-    if rule in ("fixed", "peak"):  # 峰值日固定出場＝固定 N 日（N＝訓練期峰值日）
+    if rule in ("fixed", "peak"):  # 第 N 日出場（訓練期峰值）＝固定 N 日（N＝訓練期峰值日）
         x = cfg["exits"]
         p = Paths(mk, cand["e"].to_numpy(), cand["c"].to_numpy(), int(x["max_days"]), {})
         return rule_fixed(p, int(param))

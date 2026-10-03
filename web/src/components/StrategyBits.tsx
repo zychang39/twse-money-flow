@@ -4,6 +4,7 @@
  * - JudgeInfo：兩個基準的差別、校正後 t 的唯一定義、分級規則、多重檢定 M 與 t ≥ 3.0 的理由（文字來自 strategies.json）。
  */
 import { Tag } from './ui';
+import '../styles/strategy.css';
 import { type Grade, type JudgeMeta, type MultiTest, type StrategyItem, GRADE_LABEL, gradeOf, gradeTone } from '../lib/strategies';
 
 export function GradeTag({ s, grade }: { s?: Pick<StrategyItem, 'grade' | 'enabled'>; grade?: Grade }) {

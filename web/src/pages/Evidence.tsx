@@ -86,18 +86,14 @@ function HindsightCard({ h }: { h: Hindsight }) {
 }
 
 /** v3 M0-3：千張大戶資料的每週涵蓋率（universe 內有資料的比例）。 */
-export function CoverageChart({ weeks, backfill }: { weeks: WeeklyCoverage[]; backfill?: string | null }) {
+export function CoverageChart({ weeks }: { weeks: WeeklyCoverage[] }) {
   if (!weeks.length) return null;
   const last = weeks[weeks.length - 1];
   const best = weeks.reduce((a, b) => (b.ratio > a.ratio ? b : a), weeks[0]);
   return (
     <Card>
-      <p class="ui-foot ui-muted">
-        最新一週（{md(last.date)}）{ratioPct(last.ratio)}（每日平均 {fmtCount(last.included)}／{fmtCount(last.universe)} 檔）；期間最高 {ratioPct(best.ratio)}（{md(best.date)}）。
-        分母＝當週 universe（上市櫃普通股、20 日均成交值 ≥ 5,000 萬、股價 ≥ 10 元、非處置）的每日平均檔數。低於 50% 標示「樣本範圍受限」、50–90% 標示「部分涵蓋」。
-      </p>
-      {backfill ? <p class="ui-foot ui-muted">{backfill}</p> : null}
-      <div class="chart-wrap"><LineChart
+      <p class="ui-foot ui-muted">最新 {md(last.date)} {ratioPct(last.ratio)}・最高 {ratioPct(best.ratio)}（{md(best.date)}）</p>
+      <LineChart
         ariaLabel={`千張大戶資料每週涵蓋率，最新 ${ratioPct(last.ratio)}`}
         dates={weeks.map((w) => w.date)}
         format={(v) => `${v.toFixed(0)}%`}
@@ -106,8 +102,20 @@ export function CoverageChart({ weeks, backfill }: { weeks: WeeklyCoverage[]; ba
           { label: '90%', values: weeks.map(() => 90), tone: 'tertiary', dash: '4 3' },
           { label: '50%', values: weeks.map(() => 50), tone: 'tertiary', dash: '1 3' },
         ]}
-      /></div>
+      />
     </Card>
+  );
+}
+
+/** 涵蓋率的說明（ⓘ）：分母定義、門檻、回補進度。 */
+function coverageInfo(weeks: WeeklyCoverage[], backfill?: string | null) {
+  const last = weeks[weeks.length - 1];
+  return (
+    <>
+      <p>每週涵蓋率＝universe 內有千張大戶資料的檔數 ÷ universe 檔數（每日平均）。最新一週 {last ? `${fmtCount(last.included)}／${fmtCount(last.universe)} 檔` : '—'}。</p>
+      <p>分母＝當週 universe（上市櫃普通股、20 日均成交值 ≥ 5,000 萬、股價 ≥ 10 元、非處置）。低於 50% 標示「樣本範圍受限」、50–90% 標示「部分涵蓋」。</p>
+      {backfill ? <p>{backfill}</p> : null}
+    </>
   );
 }
 
@@ -258,7 +266,7 @@ function DetailPanel({ row, horizon, bench, grade }: { row: EvidenceRow; horizon
                 <thead><tr><th scope="col">出場</th><th scope="col">相對{BENCH_LABEL[bench]}</th><th scope="col">絕對勝率</th><th scope="col">持有日</th></tr></thead>
                 <tbody>
                   {d.data.exits.rules.filter((r) => r.chosen || r.label.startsWith('固定')).map((r) => (
-                    <tr key={r.label}><th scope="row" class="ev-wrap">{r.label.replace(/峰值日固定出場（第 (\d+) 日）/, '第 $1 日出場（訓練窗峰值）')}<span class="th-unit">MAE {pctSigned(r.mae)}・鎖死 {r.locked}</span></th><td>{pctSigned(bench === 'tr' ? r.exc_idx : r.rel?.[bench])}</td><td>{pctPlain(r.win)}</td><td>{r.hold === null ? '—' : r.hold.toFixed(1)}</td></tr>
+                    <tr key={r.label}><th scope="row" class="ev-wrap">{r.label}<span class="th-unit">MAE {pctSigned(r.mae)}・鎖死 {r.locked}</span></th><td>{pctSigned(bench === 'tr' ? r.exc_idx : r.rel?.[bench])}</td><td>{pctPlain(r.win)}</td><td>{r.hold === null ? '—' : r.hold.toFixed(1)}</td></tr>
                   ))}
                 </tbody>
               </table>
@@ -369,8 +377,8 @@ export default function Evidence() {
             ) : null}
           </Section>
           {meta?.coverage_weekly?.whale?.length ? (
-            <Section title="千張大戶涵蓋率">
-              <CoverageChart weeks={meta.coverage_weekly.whale} backfill={meta.coverage_backfill ?? null} />
+            <Section title="千張大戶涵蓋率" info={coverageInfo(meta.coverage_weekly.whale, meta.coverage_backfill ?? null)}>
+              <CoverageChart weeks={meta.coverage_weekly.whale} />
             </Section>
           ) : null}
           <Section title="指標" aside={`${shown.length} 項`} info={<p>列的副資訊為等權 {horizon} 日扣成本超額、校正後 t 與樣本；切換基準時改為相對該基準的超額與超額勝率（{BENCH_LONG[bench]}）。點列看依據。</p>}>
