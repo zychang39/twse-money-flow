@@ -442,11 +442,17 @@ def evaluate(
         # 近期表現（策略健康度用）：最近 recent_days 個交易日內已完成的訊號 vs 全期間
         mf = res["main_frames"]
         recent = None
+        t_corr = None
         if mf is not None:
             d_all = engine.dedupe(mf[int(H)])
             cut = len(ev.dates) - 1 - int(H) - int(c.get("recent_days", 60))
             recent = stats.brief(d_all[d_all["t"] >= cut], c)
             recent["since"] = ev.dates[max(cut, 0)]
+            # 2026-10-03：全站統一的校正後 t（指標效度頁顯示用；指標判定仍以日曆時間法 t 為門檻）
+            from pipeline.evidence import audit
+
+            pdays = int((np.asarray(ev.dates) >= start).sum())
+            t_corr = audit.corrected_t(d_all, int(H), period_days=pdays)["t_corr"] if len(d_all) else None
         main_mask = test.variants["main"][1]
         keep[test.id] = {"mask": main_mask, "start": start, "basis": test.basis}
         # 月營收一個月只觸發一次：近 25 個交易日；其他指標為判定用的持有天數
@@ -458,6 +464,7 @@ def evaluate(
             "raw": res["variants"]["main"]["raw"],
             "t": main.get("t"),
             "t_nw": main.get("t_nw"),
+            "t_corr": t_corr,
             "mean_excess": main.get("mean_excess"),
             "ci": main.get("ci"),
             "win": main.get("win"),

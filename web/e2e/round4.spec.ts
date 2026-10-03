@@ -27,10 +27,10 @@ const center = async (page: Page, sel: string) => {
 
 // ---------------------------------------------------------------- 1. 底部導覽
 test.describe('1. 底部導覽', () => {
-  test('5 個分頁的順序：今晚、我的股票、探索、搜尋（第 4 格）、紀律；選取膠囊在目前分頁底下', async ({ page }) => {
+  test('5 個分頁的順序：簡報、我的股票、探索、搜尋（第 4 格）、流程；選取膠囊在目前分頁底下', async ({ page }) => {
     await page.goto('#/');
     const labels = await page.locator('.tabbar a').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
-    expect(labels).toEqual(['今晚', '我的股票', '探索', '搜尋代號或名稱', '紀律']);
+    expect(labels).toEqual(['簡報', '我的股票', '探索', '搜尋代號或名稱', '流程']);
     for (const [i, hash] of [[2, '#/explore'], [4, '#/discipline'], [1, '#/mine'], [0, '#/']] as const) {
       await page.locator('.tabbar a').nth(i).click();
       await expect(page).toHaveURL(new RegExp(`${hash.replace('/', '\\/')}$`));

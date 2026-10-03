@@ -61,9 +61,7 @@ def issuer_of(name: str, issuers: dict[str, dict[str, Any]]) -> str | None:
     return None
 
 
-def _frame(
-    rows: list[tuple[Any, Any, Any, Any]], etf: str, d: date, units: float | None = None
-) -> pd.DataFrame:
+def _frame(rows: list[tuple[Any, Any, Any, Any]], etf: str, d: date, units: float | None = None) -> pd.DataFrame:
     """units：該 ETF 當日受益權單位數（> 0 才保留，其餘記為空值）。"""
     u = units if units is not None and units > 0 else None
     out = []

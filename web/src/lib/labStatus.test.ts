@@ -20,7 +20,7 @@ describe('探索頁功能卡的即時數字（v3 M5-1；2026-10-02 健檢改用�
     const s = labStatus(ev, strategies)!;
     expect(s.today).toBe(3); // 2330、2317、1101（停用的 9999 不算；資料不足區的 2454 另計）
     expect(s.todayExcluded).toBe(1);
-    expect(s.grades).toEqual({ valid: 1, watch: 2, off: 1, listed: 3, total: 4 });
+    expect(s.grades).toEqual({ valid: 1, sig_only: 0, watch: 2, invalid: 1, listed: 3, total: 4 });
     expect(s.valid).toBe(1);
     expect(s.env).toBe(1);
     expect(s.updated).toBe('9/30 16:20');

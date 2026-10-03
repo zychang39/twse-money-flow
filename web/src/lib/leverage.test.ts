@@ -13,7 +13,7 @@ describe('槓桿風險計算（手算）', () => {
     expect(r.limitedBy).toBe('drawdown');
     expect(r.loan).toBe(0);
     expect(r.scenarios[0].loss).toBeCloseTo(200_000); // 50 萬 × 40%
-    expect(r.scenarios[1].loss).toBeCloseTo(19_000); // 50 萬 ÷ 5 × 19%
+    expect(r.scenarios[1].loss).toBeCloseTo(19_000); // 50 萬 ÷ 5 × 19%（沒有不利波動資料時只有回撤與跌停情境）
     expect(r.scenarios[2].loss).toBeCloseTo(95_000);
     expect(r.scenarios[0].maintenance).toBeNull();
   });
@@ -46,8 +46,9 @@ describe('槓桿風險計算（手算）', () => {
   it('回撤斷路器：帳戶或策略回撤超過門檻', () => {
     expect(leverage({ ...base, accountDd: 12 }, { mdd: -20 }, {}, rules).breaker).toBe(true);
     expect(leverage(base, { mdd: -20, current_dd: -15 }, {}, rules).breakerReason).toContain('策略');
+    expect(leverage({ ...base, accountDd: 12 }, { mdd: -20 }, {}, rules).breakerReason).not.toMatch(/你/);
     expect(leverage(base, { mdd: -20, current_dd: -5 }, {}, rules).breaker).toBe(false);
-    expect(BREAKER_TEXT).toBe('依你的規則，槓桿應降至 1 倍');
+    expect(BREAKER_TEXT).toBe('回撤斷路器：依設定的規則，槓桿倍數為 1 倍');
   });
   it('最接近的模擬組合', () => {
     expect(nearestSlots(4, [1, 3, 5, 10])).toBe(3);
@@ -55,10 +56,17 @@ describe('槓桿風險計算（手算）', () => {
   });
 });
 
-describe('最大不利波動限制', () => {
-  it('K=5、單筆 MAE 第 99 百分位 60% → 20% × 5 ÷ 60% = 1.67 倍，小於回撤法的 2 倍', () => {
-    const r = leverage(base, { mdd: -10, mu_ann: 80, vol_ann: 20 }, { mae_p99: 60 }, rules);
-    expect(r.lDd).toBeCloseTo(1.67, 2);
-    expect(r.multiple).toBeCloseTo(1.67, 2);
+describe('組合層級風險（2026-10-03）', () => {
+  it('組合最大回撤優先於組合資料的 mdd；最大不利波動 30%、回撤 50% → L_dd = min(20/50, 20/30) = 0.4', () => {
+    const r = leverage(base, { mdd: -10, mu_ann: 80, vol_ann: 20 }, { port_mdd: -50, port_max_adverse: -30, window: 40 }, rules);
+    expect(r.lDd).toBeCloseTo(0.4, 2);
+    expect(r.scenarios[0].label).toContain('組合最大回撤');
+    expect(r.scenarios[0].loss).toBeCloseTo(200_000); // 40 萬 × 50%
+    expect(r.scenarios[1].label).toContain('40 日內最大不利波動');
+    expect(r.scenarios[1].loss).toBeCloseTo(120_000); // 40 萬 × 30%
+  });
+  it('只有最大不利波動時用它限制倍數：20% ÷ 10% = 2 倍', () => {
+    const r = leverage(base, { mu_ann: 80, vol_ann: 20 }, { port_max_adverse: -10 }, rules);
+    expect(r.lDd).toBeCloseTo(2, 2);
   });
 });

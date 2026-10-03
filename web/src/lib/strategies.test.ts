@@ -13,28 +13,33 @@ describe('觸發依據（v3 M5-5）', () => {
   });
 });
 
-describe('分級（2026-10-02）', () => {
-  it('舊資料沒有 grade 時由 enabled 推回；標籤語氣', async () => {
-    const { gradeOf, gradeTone, judgeHold, netExcess, allowedTests, gradeByTest } = await import('./strategies');
-    expect(gradeOf({ grade: '有效', enabled: true })).toBe('有效');
-    expect(gradeOf({ enabled: true })).toBe('觀察中');
-    expect(gradeOf({ enabled: false })).toBe('停用');
-    expect(gradeTone('有效')).toBe('strong');
-    expect(gradeTone('觀察中')).toBe('plain');
-    expect(gradeTone('停用')).toBe('muted');
+describe('分級（2026-10-03 四級）', () => {
+  it('物件、舊字串、enabled 都能換算；單一標籤與語氣', async () => {
+    const { gradeOf, gradeLabel, gradeNotes, gradeTone, judgeHold, netExcess, allowedTests, gradeByTest, healthLong } = await import('./strategies');
+    expect(gradeOf({ grade: { id: 'sig_only', label: '訊號顯著・未勝 0050', notes: [] }, enabled: true })).toBe('sig_only');
+    expect(gradeLabel({ grade: { id: 'sig_only', label: '', notes: [] }, enabled: true })).toBe('訊號顯著・未勝 0050');
+    expect(gradeOf({ grade: '有效', enabled: true })).toBe('valid');
+    expect(gradeOf({ grade: '停用', enabled: false })).toBe('invalid');
+    expect(gradeOf({ enabled: true })).toBe('watch');
+    expect(gradeOf({ enabled: false })).toBe('invalid');
+    expect(gradeNotes({ grade: { id: 'watch', label: '觀察中', notes: ['樣本不足'] } })).toEqual(['樣本不足']);
+    expect(gradeNotes({ grade: '有效' })).toEqual([]);
+    expect(gradeTone('valid')).toBe('strong');
+    expect(gradeTone('watch')).toBe('neutral');
     expect(judgeHold({})).toBe(40);
-    expect(judgeHold({ swing: { hold: 20, params: {}, segments: {}, gates: { checks: {}, labels: {}, passed: false } } })).toBe(20);
+    expect(healthLong({ status: '', recent: 1, recent_n: 1, recent_t: null, since: null, long: { excess: 1.68 } })).toBe(1.68);
+    expect(healthLong({ status: '', recent: 1, recent_n: 1, recent_t: null, since: null, long: 1.2 })).toBe(1.2);
     const base = { id: 'a', test: 'ta', label: 'A', subtitle: '', verdict: '有效', enabled: true, reasons: [], env: null };
     expect(netExcess({ ...base, excess_h: { '40': 1.2, '20': 0.5 }, mean_excess: 9 })).toBe(1.2);
     expect(netExcess({ ...base, h: { '40': { mean_excess: 0.7 } }, mean_excess: 9 })).toBe(0.7);
     expect(netExcess({ ...base, mean_excess: 9 })).toBe(9);
     const list = [
-      { ...base, grade: '有效' as const, grade_label: '有效・待前瞻驗證' },
-      { ...base, id: 'b', test: 'tb', grade: '停用' as const },
+      { ...base, grade: { id: 'valid' as const, label: '有效', notes: [] } },
+      { ...base, id: 'b', test: 'tb', grade: { id: 'invalid' as const, label: '無效', notes: [] } },
       { ...base, id: 'c', test: 'tc', enabled: true },
     ];
     expect([...allowedTests(list)!]).toEqual(['ta', 'tc']);
-    expect(gradeByTest(list)!.get('ta')).toEqual({ grade: '有效', label: '有效・待前瞻驗證' });
+    expect(gradeByTest(list)!.get('ta')).toEqual({ grade: 'valid', label: '有效' });
     expect(allowedTests(null)).toBeNull();
   });
 });

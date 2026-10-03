@@ -604,13 +604,6 @@ def coverage(
     }
 
 
-def covered_issuers_text() -> str:
-    """已實作的投信（config 的 active_etf.issuers 中 status=verified），例：「野村、群益… 9 家投信」。"""
-    issuers = _issuers()
-    labels = [str(c["label"]).removesuffix("投信") for c in issuers.values() if c.get("status") == "verified"]
-    return f"{'、'.join(labels)} {len(labels)} 家投信（共 {len(issuers)} 家發行主動式 ETF）"
-
-
 def coverage_text(cov: dict[str, Any]) -> str:
     """ⓘ 用的涵蓋說明：有資料的檔數與投信家數、已實作的投信家數與檔數分開寫。"""
     names = "、".join(n.removesuffix("投信") for n in cov.get("issuer_names", []))

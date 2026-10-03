@@ -366,3 +366,13 @@ def test_rows_without_units_are_refetched_for_issuers_that_disclose_units(tmp_pa
     ctx.client.calls.clear()  # type: ignore[attr-defined]
     tasks_advanced.run_etf_holdings(ctx, date(2026, 9, 24), days=[date(2026, 9, 24)])
     assert not any("SearchDate=2026-09-24" in c for c in ctx.client.calls)  # type: ignore[attr-defined]
+
+
+def test_backfill_stops_after_consecutive_empty_days(tmp_path):
+    """回補由近到遠，同一檔連續 10 個交易日查無資料（早於掛牌）就不再往前請求。"""
+    ctx = _ctx(tmp_path, {"GetFundAssets": sample("etf_nomura_nodata.json")})
+    days = ctx.calendar.trading_days(date(2026, 8, 1), date(2026, 9, 24))[::-1]
+    assert len(days) > 30
+    tasks_advanced.run_etf_holdings(ctx, days[0], days=days)
+    calls = ctx.client.calls  # type: ignore[attr-defined]
+    assert len([c for c in calls if "GetFundAssets" in c]) == tasks_advanced.BACKFILL_EMPTY_STOP

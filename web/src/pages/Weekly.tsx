@@ -53,8 +53,8 @@ export default function Weekly() {
     <div class="page">
       <TopBar back="/discipline" />
       <PageTitle title="週報" sub={summary.data ? `新風險旗標 ${newFlags.length}・下週事件 ${upcoming.length}` : undefined} />
-      {flow ? <WeekFlow flow={flow} day={date ?? ''} /> : null}
       <DataStatus date={date} uses={PAGE_SOURCES.weekly} />
+      {flow ? <WeekFlow flow={flow} day={date ?? ''} /> : null}
       {summary.loading ? <Loading /> : null}
       <Section title="自選與持股" aside="法人 5 日">
         {rows.length ? (

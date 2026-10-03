@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 // 冒煙測試：逐一載入每個頁面（新資訊架構），確認沒有 JS 錯誤、有頁面標題、頁尾免責聲明與 4 個圖示 Tab。
 const PAGES: { hash: string; title?: RegExp }[] = [
-  { hash: '#/', title: /今晚|資金/ }, // 資料載入前是「今晚的盤後簡報」，載入後是結論句（後半句一定是資金環境）
+  { hash: '#/', title: /盤後簡報/ }, // 2026-10 改版：頁首固定「盤後簡報」＋日期
   { hash: '#/mine' },
   { hash: '#/mine?seg=watch' },
   { hash: '#/stock/2330', title: /台積電/ },
@@ -51,7 +51,7 @@ for (const p of PAGES) {
     await expect(page.getByText('僅供研究參考，非投資建議')).toBeVisible();
     const nav = page.getByRole('navigation', { name: '主要分頁' });
     await expect(nav).toBeVisible();
-    await expect(nav.getByRole('link')).toHaveCount(5); // 今晚、我的股票、探索、搜尋、紀律
+    await expect(nav.getByRole('link')).toHaveCount(5); // 簡報、我的股票、探索、搜尋、流程
     expect(errors).toEqual([]);
   });
 }
@@ -59,7 +59,7 @@ for (const p of PAGES) {
 test('Tab 只有圖示、以 aria-label 提供名稱', async ({ page }) => {
   await page.goto('#/');
   const nav = page.getByRole('navigation', { name: '主要分頁' });
-  for (const name of ['今晚', '我的股票', '探索', '搜尋代號或名稱', '紀律']) await expect(nav.getByRole('link', { name })).toBeVisible();
+  for (const name of ['簡報', '我的股票', '探索', '搜尋代號或名稱', '流程']) await expect(nav.getByRole('link', { name })).toBeVisible();
   await expect(nav).toHaveText('');
 });
 
@@ -98,7 +98,7 @@ test('方法說明由設定產生（含介面呈現規則）', async ({ page }) 
   await page.goto('#/me/methodology');
   await expect(page.getByText('外資連買天數')).toBeVisible();
   await expect(page.getByText(/線性：-5 → 0 分/).first()).toBeVisible();
-  await expect(page.getByText(/遊戲化只獎勵紀律行為/)).toBeVisible();
+  await expect(page.getByText(/遊戲化只獎勵流程/)).toBeVisible();
 });
 
 test('設定：外觀、環境光與遊戲化開關', async ({ page }) => {
@@ -111,7 +111,8 @@ test('設定：外觀、環境光與遊戲化開關', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-ambient', 'off');
   await page.getByRole('switch', { name: '遊戲化' }).click();
   await page.goto('#/discipline/badges');
-  await expect(page.getByRole('heading', { name: '遊戲化已關閉' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '成就' })).toBeVisible();
+  await expect(page.getByText('遊戲化已關閉')).toBeVisible();
 });
 
 test('回測：預設組合顯示統計與可信度；自訂條件在 Web Worker 計算', async ({ page }) => {
@@ -152,15 +153,17 @@ test('日誌：冷靜卡 → 新增持倉前檢查表 → 新增持倉 → 平�
   await expect(page.getByRole('button', { name: /持倉\s*1/ })).toBeVisible();
   await page.getByRole('button', { name: '平倉', exact: true }).click();
   await page.getByRole('button', { name: '追高' }).click();
+  await expect(page.getByRole('button', { name: '請選擇出場原因' })).toBeDisabled();
+  await page.getByTestId('close-reason').selectOption('stop');
   await page.getByRole('button', { name: '確認平倉' }).click();
   await page.goto('#/discipline/stats');
   await expect(page.getByText('追高').first()).toBeVisible();
 });
 
-test('備份：匯出按鈕存在並說明包含紀律紀錄', async ({ page }) => {
+test('備份：匯出按鈕存在並說明包含流程紀錄', async ({ page }) => {
   await page.goto('#/me/backup');
   await expect(page.getByRole('button', { name: '匯出全部資料（JSON）' })).toBeVisible();
-  await expect(page.getByText(/紀律紀錄 \d+ 筆（含遊戲化資料）/)).toBeVisible();
+  await expect(page.getByText(/流程紀錄 \d+ 筆（含遊戲化資料）/)).toBeVisible();
 });
 
 test('產業資金輪動：熱力圖可點進產業個股清單', async ({ page }) => {

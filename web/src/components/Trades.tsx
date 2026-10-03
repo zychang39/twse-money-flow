@@ -3,7 +3,7 @@
  * 流程紀錄：檢查表、停損、計畫風險與檢討時間存在交易紀錄（db.saveTrade 自動補 v5 欄位）；平倉時記出場原因。
  * 檢查表可由網址帶入參考價、停損價、股數（個股頁風險試算 → #/discipline/checklist?code=&price=&stop=&shares=）。
  */
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Sheet } from './Sheet';
 import { StockSearch } from './StockSearch';
 import { Signed } from './Change';
@@ -73,12 +73,18 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
   const [row, setRow] = useState<StockRow | undefined>(preset);
   const [ack, setAck] = useState(false);
   const [f, setF] = useState(EMPTY);
-  const carried = { ...(prefill?.stop ? { stop: prefill.stop } : {}), ...(prefill?.shares ? { shares: prefill.shares } : {}) };
-  useEffect(() => { if (open) { setRow(preset); setAck(false); setF({ ...EMPTY, ...carried }); } }, [open, preset?.code, prefill?.entry, prefill?.stop, prefill?.shares]);
+  const carried = { ...(prefill?.entry ? { entry: prefill.entry } : {}), ...(prefill?.stop ? { stop: prefill.stop } : {}), ...(prefill?.shares ? { shares: prefill.shares } : {}) };
+  // 只在開啟的那一刻重設（避免頁面重新繪製時把已勾選的冷靜卡、已填的欄位清掉）；開啟後才載入到的帶入股票另外補上
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpen.current) { setRow(preset); setAck(false); setF({ ...EMPTY, ...carried }); }
+    wasOpen.current = open;
+  }, [open]);
+  useEffect(() => { if (open && preset && !row) setRow(preset); }, [preset?.code]);
   useEffect(() => {
     if (!row) return;
     const auto = autoChecklist(row);
-    const entry = preset && row.code === preset.code && prefill?.entry ? prefill.entry : String(row.close ?? '');
+    const entry = prefill?.entry && (!prefill.code || row.code === prefill.code) ? prefill.entry : String(row.close ?? '');
     setF((x) => ({ ...x, ...Object.fromEntries(Object.entries(auto).filter(([, v]) => v)), entry }));
   }, [row]);
   const env = market.data ? envInfo(market.data.env?.lights) : null;

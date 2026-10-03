@@ -114,13 +114,19 @@ test('清單列：長按（右鍵）叫出快速預覽；左滑露出移除', as
   await expect(page.getByRole('button', { name: /鴻海 2317/ })).toHaveCount(0);
 });
 
-test('今晚的紀律：捲到簡報底部即完成第一環', async ({ page }) => {
+test('流程：捲到簡報底部即完成簡報環（簡報頁底部一列 0/1 → 1/1）', async ({ page, request }) => {
+  // 三環依交易日計算：把時間固定在資料日 20:00（台北），簡報環對應的就是這份資料
+  const { date } = await (await request.get('data/summary.json')).json() as { date: string };
+  await page.clock.setFixedTime(new Date(`${date}T20:00:00+08:00`));
   await page.goto('#/');
-  const panel = page.getByRole('group', { name: /今晚的紀律/ });
-  await expect(panel).toContainText('捲到底即完成');
-  await page.getByRole('region', { name: '我該記錄或檢討什麼？' }).scrollIntoViewIfNeeded();
-  await page.mouse.wheel(0, 4000);
-  await expect(panel).toContainText('已完成', { timeout: 5000 });
+  const row = page.getByTestId('flow-brief-row');
+  await expect(row).toContainText('0/1');
+  await row.scrollIntoViewIfNeeded();
+  await page.mouse.wheel(0, 20000);
+  await expect(row).toContainText('1/1', { timeout: 5000 });
+  await row.click();
+  await expect(page).toHaveURL(/#\/discipline$/);
+  await expect(page.getByTestId('ring-brief')).toContainText('已完成');
 });
 
 test('環境光：今晚頁代表資金環境（示範資料為保守 → 琥珀）；減少動態效果時退回純黑', async ({ page }) => {

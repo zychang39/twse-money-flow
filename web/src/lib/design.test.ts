@@ -254,11 +254,12 @@ describe('共用版面樣式（styles/*.css）', () => {
     // 卡片容器用 clip：hidden 會讓裡面的 sticky 表頭黏不住（與 .ev-list、.cd-wrap 同一個做法）
     expect(global).toContain('.card.flush { overflow: clip; }');
   });
-  it('累積超額曲線的無障礙說明：沒有峰值或耗盡日時寫原因，不輸出「第 — 日」', () => {
+  it('累積超額曲線的無障礙說明：沒有峰值時寫原因，不輸出「第 — 日」；2026-10-03 移除 alpha 耗盡、標示峰值在窗邊界', () => {
     const ac = readFileSync(new URL('../components/AlphaCurve.tsx', import.meta.url), 'utf8');
     expect(ac).not.toContain("峰值第 ${line.peak ?? '—'} 日");
     expect(ac).toContain("missing('曲線資料累積中')");
-    expect(ac).toContain('60 日內沒有 alpha 耗盡');
+    expect(ac).not.toContain('耗盡');
+    expect(ac).toContain('EDGE_TEXT');
   });
   it('柱狀圖有日期軸列（11px 下限）；BenchSwitch 不再用玻璃', () => {
     expect(rule(global, '.nb-dates')).toContain('font-size: var(--fs-micro)');

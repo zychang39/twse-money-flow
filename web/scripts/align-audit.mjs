@@ -51,7 +51,6 @@ function measure() {
     return `${el.tagName.toLowerCase()}${cls ? `.${cls}` : ''}「${t}」`;
   };
   const scrollY = window.scrollY;
-  const abs = (r) => ({ left: r.left, right: r.right, top: r.top + scrollY, bottom: r.bottom + scrollY, width: r.width, height: r.height });
   const page = document.querySelector('.page');
   if (!page) return [{ rule: 'page', msg: '找不到 .page' }];
   const cardOf = (el) => el.closest('.ui-card, .ui-list, .card, .list, .ui-table, .sheet-body');

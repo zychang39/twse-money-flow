@@ -1,10 +1,13 @@
 /**
  * 槓桿風險計算（M2；METHODOLOGY §11.3）。純函式，只做風險計算、不是建議。
  *
- * 策略的歷史數字（最大回撤、年化報酬與波動、最大不利波動、跌停鎖死發生率）由 pipeline 以「同時持有 K 檔」的組合預先模擬
- * （strategies.json → portfolio[K]、trades）。這裡依使用者輸入計算：
- * - 波動目標法倍數 L_dd ＝ min(最大可承受回撤 ÷ 組合歷史最大回撤, 最大可承受回撤 × K ÷ 單筆最大不利波動第 99 百分位)：
- *   前者讓歷史回撤放大 L 倍剛好等於可承受回撤；後者讓「1 檔遇到最差 1% 的不利波動」時，帳戶損失不超過可承受回撤。
+ * 策略的歷史數字由 pipeline 以「同時持有 K 檔、固定 40 日出場」的組合預先模擬（strategies.json → portfolio[K]、
+ * leverage.by_slots[K]）。2026-10-03 起風險只用組合層級的兩個數字：
+ * - 組合最大回撤 port_mdd：權益從歷史高點的最大跌幅；
+ * - 組合最大不利波動 port_max_adverse：從任一交易日起 40 個交易日內權益相對起點的最大跌幅。
+ * 這裡依使用者輸入計算：
+ * - 波動目標法倍數 L_dd ＝ min(最大可承受回撤 ÷ 組合最大回撤, 最大可承受回撤 ÷ 組合最大不利波動)：
+ *   兩種歷史跌幅放大 L 倍後都不超過可承受回撤。
  * - 半凱利倍數 L_k ＝ 0.5 ×（年化平均報酬 − 融資年利率）÷ 年化變異數（≤ 0 時為 0）。
  * - 倍數 L ＝ min(L_dd, L_k, 天花板 2.5)；< 0 以 0 計。
  * - 融資：自有資金 C、總部位 V＝C×L；超過自有資金的部分以融資買進（融資成數 60%）：融資買進市值 F＝C(L−1)÷0.6、融資金額＝C(L−1)。
@@ -27,6 +30,13 @@ export interface TradeStats {
   mae_p90?: number | null;
   mae_p99?: number | null;
   lock_rate?: number | null;
+}
+
+/** 組合層級風險（%，負數）：最大回撤與 window 個交易日內最大不利波動。 */
+export interface PortRisk {
+  port_mdd?: number | null;
+  port_max_adverse?: number | null;
+  window?: number;
 }
 
 export interface LeverageRules {
@@ -71,13 +81,14 @@ export interface LeverageResult {
 const fin = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v);
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
-export function leverage(input: LeverageInput, p: PortfolioStats, tr: TradeStats, rules: LeverageRules): LeverageResult {
+export function leverage(input: LeverageInput, p: PortfolioStats, risk: PortRisk, rules: LeverageRules): LeverageResult {
   const C = Math.max(0, input.capital);
-  const mdd = fin(p.mdd) ? Math.abs(p.mdd) / 100 : null;
-  const K0 = Math.max(1, input.slots);
-  const maePart = fin(tr.mae_p99) && tr.mae_p99 > 0 ? ((input.maxDd / 100) * K0) / (tr.mae_p99 / 100) : null;
+  const pm = fin(risk.port_mdd) ? risk.port_mdd : p.mdd;
+  const mdd = fin(pm) ? Math.abs(pm) / 100 : null;
+  const adv = fin(risk.port_max_adverse) ? Math.abs(risk.port_max_adverse) / 100 : null;
+  const advPart = adv && adv > 0 ? (input.maxDd / 100) / adv : null;
   const ddPart = mdd && mdd > 0 ? (input.maxDd / 100) / mdd : null;
-  const lDd = ddPart === null ? maePart : maePart === null ? ddPart : Math.min(ddPart, maePart);
+  const lDd = ddPart === null ? advPart : advPart === null ? ddPart : Math.min(ddPart, advPart);
   const mu = fin(p.mu_ann) ? p.mu_ann / 100 : null;
   const vol = fin(p.vol_ann) ? p.vol_ann / 100 : null;
   const lKelly = mu !== null && vol && vol > 0 ? Math.max(0, (0.5 * (mu - input.interest / 100)) / (vol * vol)) : null;
@@ -97,7 +108,8 @@ export function leverage(input: LeverageInput, p: PortfolioStats, tr: TradeStats
     return { label, loss: lossOnBook, equity: C - lossOnBook, maintenance: m === null ? null : round2(m), call: m !== null && m < rules.maintenance_call };
   };
   const scenarios: Scenario[] = [];
-  if (mdd !== null) scenarios.push(sc(`歷史最大回撤（${pctPlain(mdd * 100)}）重演`, V * mdd, F * mdd));
+  if (mdd !== null) scenarios.push(sc(`組合最大回撤 ${pctPlain(mdd * 100)} 重演`, V * mdd, F * mdd));
+  if (adv !== null) scenarios.push(sc(`${risk.window ?? 40} 日內最大不利波動 ${pctPlain(adv * 100)} 重演`, V * adv, F * adv));
   scenarios.push(sc(`1 檔連續 ${rules.lock_days} 日跌停鎖死`, (V / K) * lock, (F / K) * lock));
   scenarios.push(sc(`全部持股連續 ${rules.lock_days} 日跌停鎖死`, V * lock, F * lock));
   const annRet = fin(p.ann_return) ? p.ann_return : null;
@@ -105,8 +117,8 @@ export function leverage(input: LeverageInput, p: PortfolioStats, tr: TradeStats
   const acct = fin(input.accountDd) ? Math.abs(input.accountDd) : null;
   const strat = fin(p.current_dd) ? Math.abs(p.current_dd) : null;
   let breakerReason: string | null = null;
-  if (acct !== null && acct >= input.breaker) breakerReason = `你的帳戶自高點回撤 ${pctPlain(acct)}，超過你設定的 ${pctPlain(input.breaker)}`;
-  else if (strat !== null && strat >= input.breaker) breakerReason = `這個策略的模擬組合目前自高點回撤 ${pctPlain(strat)}，超過你設定的 ${pctPlain(input.breaker)}`;
+  if (acct !== null && acct >= input.breaker) breakerReason = `帳戶自高點回撤 ${pctPlain(acct)}，超過設定的 ${pctPlain(input.breaker)}`;
+  else if (strat !== null && strat >= input.breaker) breakerReason = `策略模擬組合目前自高點回撤 ${pctPlain(strat)}，超過設定的 ${pctPlain(input.breaker)}`;
   return {
     lDd: lDd === null ? null : round2(lDd),
     lKelly: lKelly === null ? null : round2(lKelly),
@@ -127,4 +139,4 @@ export function nearestSlots(slots: number, available: number[]): number {
   return available.reduce((a, b) => (Math.abs(b - slots) < Math.abs(a - slots) ? b : a), available[0] ?? 1);
 }
 
-export const BREAKER_TEXT = '依你的規則，槓桿應降至 1 倍';
+export const BREAKER_TEXT = '回撤斷路器：依設定的規則，槓桿倍數為 1 倍';

@@ -1,72 +1,56 @@
 /**
- * 個股頁「有效訊號面板」（M3）：只列策略庫分級為「有效」或「觀察中」（上架）的策略對應的指標（依 t 排序；沒有策略庫資料時退回判定為有效／環境依賴），
- * 顯示這一檔目前的狀態（觸發／接近觸發／未觸發）與該指標歷史超額報酬；點開看依據。
- * 2026-10-02 健檢：每列用策略庫的名字（lib/names.displayName：主標＝策略名、副標＝指標名），並同時標出兩套狀態詞彙
- * 「指標判定」與「策略分級」；區塊標題的一句結論由 lib/signalSummary 與 pages/Stock.tsx 共用，範圍說明放在清單下方。
- * 不使用買賣字眼：狀態只描述條件是否成立。
+ * 個股頁「策略訊號」（2026-10-03 改版）。
+ *
+ * 用法（個股頁只要放一行，區塊標題與 ⓘ 由這個元件自己畫）：
+ *   <SignalPanel code={code} />
+ * 會輸出 `<Section title="策略訊號" info={…}>` ＋ 一張 List；每個上架策略（分級不是無效）一列：
+ *   名稱＋單一分級標籤｜副資訊「0050 +1.24%（t 1.30）｜等權 +1.68%（t 3.43）」（40 日扣成本超額與校正後 t）｜
+ *   右側「觸發 9/10」（近 40 個交易日內最近一次觸發）或「未觸發」。
+ * 說明（兩個基準、t 的定義、分級、觸發視窗）都在 ⓘ；不使用買賣字眼，狀態只描述條件是否成立。
  */
-import { useState } from 'preact/hooks';
-import { STATE_TEXT, pctSigned, tText, verdictNote } from '../lib/evidence';
-import { SIGNAL_SCOPE_NOTE, useSignalPanel } from '../lib/signalSummary';
-import { gradeTone } from '../lib/strategies';
-import { GRADE_NAME, VERDICT_NAME } from '../lib/status';
-import { displayName } from '../lib/names';
-import { fmtCount, md } from '../lib/format';
-import { IconChevron } from './Icons';
-import '../styles/evidence.css';
+import { EmptyRow, List, Row, Section } from './ui';
+import { GradeTag, JudgeInfo } from './StrategyBits';
+import { useAsync } from '../hooks';
+import { loadJson } from '../data/api';
+import { type SignalItem, useSignalPanel } from '../lib/signalSummary';
+import type { StrategiesFile } from '../lib/strategies';
+import { md, pctSigned, tText } from '../lib/format';
+
+/** 「0050 +1.24%(t 1.30)｜等權 +1.68%(t 3.43)」：與數字相鄰的括號用半形，整句一行。 */
+export function signalSub(it: Pick<SignalItem, 'opp' | 'ew'>): string {
+  return `0050 ${pctSigned(it.opp.excess)}(t ${tText(it.opp.t)})｜等權 ${pctSigned(it.ew.excess)}(t ${tText(it.ew.t)})`;
+}
 
 export function SignalPanel({ code }: { code: string }) {
   const d = useSignalPanel(code);
-  const [open, setOpen] = useState<string | null>(null);
-  if (d.loading) return <div class="skeleton sp-skel" aria-hidden="true" />;
-  if (d.error || !d.data) return <p class="caption muted">指標效度資料暫時無法取得。</p>;
-  const { items, horizon: h, grades } = d.data;
+  const meta = useAsync(() => loadJson<StrategiesFile>('strategies.json').catch(() => null), []);
+  const file = meta.data ?? undefined;
+  const win = d.data?.window ?? 40;
+  const horizon = d.data?.horizon ?? 40;
+  const info = (
+    <>
+      <p>每個上架策略（分級不是無效）一列。右側為這一檔近 {win} 個交易日內最近一次符合條件的日期；沒有則為「未觸發」。</p>
+      <p>副資訊為策略的歷史 {horizon} 日扣成本超額（相對 0050 含息、相對同日等權）與校正後 t，不是這一檔的預估。</p>
+      <JudgeInfo meta={file?.judge_meta} multi={file?.multi_test} />
+    </>
+  );
   return (
-    <div class="sp" data-testid="signal-panel">
-      <div class="list ev-list">
-        {items.map((it) => {
-          const isOpen = open === it.row.id;
-          const name = displayName(it.row.id, it.row.label);
-          const g = grades?.get(it.row.id);
-          const tone = g ? gradeTone(g.grade) : 'plain';
-          return (
-            <div key={it.row.id} class={`ev-item${isOpen ? ' open' : ''}`}>
-              <button class="ev-row" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : it.row.id)}>
-                <span class="ev-main">
-                  <span class="ev-label">{name.label}</span>
-                  {name.sub ? <span class="ev-sub">{name.sub}</span> : null}
-                  <span class="ev-sub">歷史 {h} 日超額 {pctSigned(it.excess)}・t {tText(it.row.t)}</span>
-                  <span class="row wrap" style={{ gap: 'var(--s-1)', marginTop: 'var(--s-1)' }}>
-                    <span class="tag ev-verdict" data-testid="verdict-tag">{VERDICT_NAME} {it.row.verdict}</span>
-                    {g ? <span class={`tag ev-verdict${tone === 'strong' ? ' strong' : tone === 'muted' ? ' muted' : ''}`} data-testid="grade-tag">{GRADE_NAME} {g.label}</span> : null}
-                  </span>
-                </span>
-                <span class="ev-tags">
-                  <span class={`sp-state ${it.state}`}>{STATE_TEXT[it.state]}{it.date ? <span class="sp-date"> {md(it.date)}</span> : null}</span>
-                </span>
-              </button>
-              {isOpen ? (
-                <div class="ev-detail">
-                  <p class="caption">{it.row.definition}</p>
-                  <p class="caption"><b>{VERDICT_NAME}「{it.row.verdict}」</b>：{verdictNote(it.row)}</p>
-                  {g ? <p class="caption"><b>{GRADE_NAME}「{g.label}」</b>：依校正後 t、扣成本超額、每月觸發數與樣本年數分級（門檻見策略庫）。</p> : null}
-                  <p class="caption muted">
-                    {it.state === 'triggered' ? `這一檔在 ${md(it.date)} 觸發（近 ${h} 個交易日內）。` : it.state === 'near' ? '這一檔目前接近觸發條件。' : '這一檔目前沒有觸發。'}
-                    樣本 {fmtCount(it.row.n)} 筆、訊號期間 {it.row.signal_start ?? '—（沒有起始日）'} 起。
-                  </p>
-                  <a class="list-item brand" href="#/explore/evidence">
-                    <span class="grow">指標效度表<span class="caption muted tool-sub">逐年、樣本外、大盤環境與參數表</span></span>
-                    <span class="chev"><IconChevron /></span>
-                  </a>
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-      <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>
-        {grades ? SIGNAL_SCOPE_NOTE : '只列指標判定為有效或環境依賴的指標（沒有策略庫資料）'}・超額＝歷史 {h} 日、相對同日全市場（扣成本）・{VERDICT_NAME}看單一指標，{GRADE_NAME}看整套策略。
-      </p>
-    </div>
+    <Section title="策略訊號" info={info} testid="signal-panel" aside={d.data ? d.data.summary : undefined}>
+      {d.loading ? <List><EmptyRow>載入中</EmptyRow></List> : null}
+      {!d.loading && (d.error || !d.data) ? <List><EmptyRow>策略資料暫時無法取得</EmptyRow></List> : null}
+      {d.data ? (
+        <List>
+          {d.data.items.length ? d.data.items.map((it) => (
+            <Row
+              key={it.id}
+              testid={`signal-${it.id}`}
+              label={<>{it.label}<GradeTag grade={it.grade} /></>}
+              sub={signalSub(it)}
+              value={it.date ? `觸發 ${md(it.date)}` : '未觸發'}
+            />
+          )) : <EmptyRow>無上架策略</EmptyRow>}
+        </List>
+      ) : null}
+    </Section>
   );
 }
