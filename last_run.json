@@ -1,21 +1,14 @@
 {
- "task": "kbar",
- "at": "2026-10-04T05:24:55+08:00",
- "requests": 0,
+ "task": "holders_backfill",
+ "at": "2026-10-04T05:36:23+08:00",
+ "requests": 563,
  "ok": 1,
  "failed": [],
  "pending": [],
- "kbar_target": "2026-10-02",
- "fetched": 0,
- "rows": 0,
- "covered": 2335,
- "total": 2367,
- "remaining": 5,
- "progressed": false,
- "pruned": 0,
- "by_tier": {
-  "1": 0,
-  "2": 0,
-  "3": 0
- }
+ "remaining": 51824,
+ "progressed": true,
+ "by_source": {
+  "tdcc_full": 51824
+ },
+ "chained": true
 }
