@@ -178,8 +178,11 @@ export default function Stock({ code }: { code: string }) {
     if (!meta.data || !marketDate) return null;
     const { phase, lag } = dataPhase(marketDate, cal);
     const failed = affectedFor(PAGE_SOURCES.stock, meta.data.sources_affected ?? meta.data.sources_failed).length;
-    if (phase === 'stale') return `資料停在 ${Number(marketDate.slice(5, 7))}/${Number(marketDate.slice(8, 10))}，落後 ${lag} 個交易日`;
-    return failed ? `${failed} 個資料源異常` : null;
+    const parts = [
+      phase === 'stale' ? `資料停在 ${Number(marketDate.slice(5, 7))}/${Number(marketDate.slice(8, 10))}，落後 ${lag} 個交易日` : '',
+      failed ? `${failed} 個資料源異常` : '',
+    ].filter(Boolean);
+    return parts.length ? parts.join('・') : null;
   })();
   const asof = (d: string | null) => (d ? `資料日 ${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}${marketDate && d < marketDate ? `(${Number(marketDate.slice(5, 7))}/${Number(marketDate.slice(8, 10))} 尚未公布)` : ''}` : '無資料');
 

@@ -103,7 +103,7 @@ export default function Disposition() {
                 rows={data.watch.slice(0, 100)}
                 rowKey={(r) => r.code}
                 onRow={(r) => navigate(`/stock/${r.code}`)}
-                sticky
+                sticky={Math.min(data.watch.length, 100) >= 10}
               />
               </Card>
             ) : <List><EmptyRow>無</EmptyRow></List>}

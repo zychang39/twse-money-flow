@@ -11,7 +11,8 @@ import { ASOF_LABEL, type AsofKey } from '../lib/asof';
 import { expectedDate, tpeNow } from '../lib/dataStatus';
 import { envConclusion, envCounts, envInfo, LIGHT_LABEL, type EnvValidation } from '../lib/envState';
 import { fillForward, intradayWindow, sliceWindow, TONIGHT_PERIODS, type Period, type Window } from '../lib/periods';
-import { makeCalendar, type TradingCalendar } from '../lib/tradingCalendar';
+import { dataPhase, makeCalendar, type TradingCalendar } from '../lib/tradingCalendar';
+import { PAGE_SOURCES, affectedFor } from '../lib/health';
 import { fmtNum } from '../lib/format';
 
 const WD = '日一二三四五六';
@@ -45,22 +46,35 @@ export function laggingDatasets(meta: Meta, cal: TradingCalendar, now = tpeNow()
   return out;
 }
 
-/** 狀態列（單行 Footnote）：「休市・資料至 10/2（五）・18:11 更新」；只有資料集落後時多一行橘色警示。 */
+/**
+ * 狀態列（單行 Footnote）：「休市・資料至 10/2（五）・18:11 更新」；交易日尚未更新時「今天的資料尚未更新・…」。
+ * 只有資料集落後（或真的落後超過 2 個交易日、本頁用到的資料源異常）時多一行橘色警示。
+ */
 export function BriefStatus({ meta }: { meta: Meta | null }) {
   const cal = useMemo(() => (meta ? makeCalendar(meta.calendar) : null), [meta]);
-  if (!meta || !cal) return <p class="ui-foot ui-muted" aria-hidden="true">&nbsp;</p>;
-  const now = tpeNow();
-  const closed = !cal.isTradingDay(now.today);
+  if (!meta || !cal) return <p class="ui-foot ui-muted meta-line" aria-hidden="true">&nbsp;</p>;
   const hm = hmTpe(meta.generated_at);
-  const lag = laggingDatasets(meta, cal, now);
+  const d = meta.market_date;
+  const { phase } = d ? dataPhase(d, cal) : { phase: 'ok' as const };
+  const failed = affectedFor(PAGE_SOURCES.tonight, meta.sources_affected ?? meta.sources_failed).length;
   return (
     <>
-      <p class="ui-foot ui-muted" data-testid="brief-status">
-        {closed ? '休市・' : ''}資料至 {mdw(meta.market_date)}{hm ? `・${hm} 更新` : ''}{meta.demo ? '・示範資料' : ''}
+      <p class="ui-foot ui-muted meta-line" data-testid="brief-status">
+        {phase === 'holiday' ? '休市・' : phase === 'pending' ? '今天的資料尚未更新・' : ''}
+        <a class="meta-link" href="#/me/data">資料至 {mdw(d)}</a>{hm ? `・${hm} 更新` : ''}{meta.demo ? '・示範資料' : ''}
+        {failed ? <>・<a class="meta-alert" href="#/me/health">{failed} 個資料源異常</a></> : null}
       </p>
-      {lag.length ? <Warn testid="brief-lag">{lag.join('・')}</Warn> : null}
     </>
   );
+}
+
+/** 狀態列下方的一行橘色警示：真的落後超過 2 個交易日，或有資料集未到應有日；沒有就不顯示。 */
+export function BriefWarn({ meta }: { meta: Meta | null }) {
+  const cal = useMemo(() => (meta ? makeCalendar(meta.calendar) : null), [meta]);
+  if (!meta || !cal || !meta.market_date) return null;
+  const { phase, lag } = dataPhase(meta.market_date, cal);
+  const warn = phase === 'stale' ? [`資料可能過期：落後 ${lag} 個交易日`] : laggingDatasets(meta, cal, tpeNow());
+  return warn.length ? <Warn testid="brief-lag">{warn.join('・')}</Warn> : null;
 }
 
 // ---------------------------------------------------------------- 加權指數

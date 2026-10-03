@@ -642,7 +642,7 @@ def annotate(
             "delisted_stocks": r.get("delisted_stocks", 0),
             "delisted_events": r.get("delisted_events", 0),
         }
-        s["health"] = {**(s.get("health") or {}), **r["health"]}
+        s["health"] = {**(s.get("health") or {}), **(r.get("health") or {})}
         s["leverage"] = r.get("leverage")
         # 舊欄位（前端第二階段前仍在用）：組合、交易統計、出場規則改為與判定同一個固定 40 日
         for k in ("compare", "portfolio", "trades"):

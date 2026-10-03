@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
 import { ErrorState } from '../components/DataStatus';
-import { BriefStatus, EnvCard, FlowsCard, IndexCard, TurnoverCard, mdw } from '../components/Brief';
+import { BriefStatus, BriefWarn, EnvCard, FlowsCard, IndexCard, TurnoverCard, mdw } from '../components/Brief';
 import { List, Num, PageTitle, Row, Section, Signed, Tag } from '../components/ui';
 import { FlowBriefRow } from '../components/Ritual';
 import { IconChevronDown } from '../components/Icons';
@@ -107,7 +107,7 @@ export default function Tonight() {
             onClick={() => openStock(a.trade.code, '持倉', alerts.map((x) => x.trade.code))} />
         ))}
         {calm.length ? (
-          <Row label={risky.length ? `其餘 ${calm.length} 檔無警示` : `${calm.length} 檔無警示`} onClick={() => setShowCalm(!showCalm)} noChev
+          <Row label={risky.length ? `其餘 ${calm.length} 檔無警示` : `${calm.length} 檔無警示`} onClick={() => setShowCalm(!showCalm)} noChev expanded={showCalm}
             tag={<span class="ui-row-toggle" aria-hidden="true"><IconChevronDown /></span>} testid="holdings-calm" />
         ) : null}
         {showCalm ? calm.map((a) => a.row ? (
@@ -123,6 +123,7 @@ export default function Tonight() {
     <div class="page brief-page">
       <TopBar />
       <PageTitle title="盤後簡報" aside={day ? mdw(day) : undefined} sub={<BriefStatus meta={meta.data ?? null} />} />
+      <BriefWarn meta={meta.data ?? null} />
 
       <div class="ui-sec">
         <IndexCard index={index.data ?? null} intraday={intraday.data?.d ?? null} intradayFailed={!!intraday.data?.failed}
@@ -150,7 +151,7 @@ export default function Tonight() {
               onClick={() => openStock(c.code, '自選股異動', changes.map((x) => x.code))} />
           ))}
           {quiet.length ? (
-            <Row label={sig.length ? `其餘 ${quiet.length} 檔未達門檻` : `${quiet.length} 檔未達門檻`} onClick={() => setShowQuiet(!showQuiet)} noChev
+            <Row label={sig.length ? `其餘 ${quiet.length} 檔未達門檻` : `${quiet.length} 檔未達門檻`} onClick={() => setShowQuiet(!showQuiet)} noChev expanded={showQuiet}
               tag={<span class="ui-row-toggle" aria-hidden="true"><IconChevronDown /></span>} testid="watch-quiet" />
           ) : null}
           {showQuiet ? quiet.map((c) => (

@@ -54,8 +54,13 @@ for name, t in (("light", light), ("dark", dark)):
     bgs["surface-row on surface-1"] = over(P["surface-row"], P["surface-1"])
     bgs["glass-strong on bg"] = over(P["glass-strong"], P["bg"])
     worst = 99.0
+    # 2026-10 改版：彩色文字（漲跌、風險、可點）只放在背景與卡片上（不放在次層 surface-2、按壓底色、玻璃上）；
+    # 主文字與次文字對所有底色都要 ≥ 4.5:1
+    colored_bgs = {"bg", "surface-1"} | {k for k in bgs if k.startswith("glow-")}
     for fg in ("text-1", "text-2", "up", "down", "risk", "brand"):
         for bk, b in bgs.items():
+            if fg not in ("text-1", "text-2") and bk not in colored_bgs:
+                continue
             f = P[fg]
             r = ratio(over(f, b) if f[3] < 1 else f, b)
             worst = min(worst, r)
@@ -68,9 +73,9 @@ for name, t in (("light", light), ("dark", dark)):
             worst = min(worst, r)
             if r < 4.5:
                 failed.append((name, fg, f"{tint} on {base}", round(r, 2)))
-    # 已選取的常用門檻（藍字、淡藍底，疊在卡片上）
+    # 淡藍底上的主文字（已選取的常用門檻）
     for base in ("surface-1", "surface-2"):
-        r = ratio(P["brand"], over(P["brand-tint"], P[base]))
+        r = ratio(P["text-1"], over(P["brand-tint"], P[base]))
         worst = min(worst, r)
         if r < 4.5:
             failed.append((name, "brand", f"brand-tint on {base}", round(r, 2)))

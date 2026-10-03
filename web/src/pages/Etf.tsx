@@ -48,7 +48,7 @@ export function sortItems(items: EtfItem[], metric: EtfSortMetric): EtfItem[] {
 
 /** 頁首一列：「涵蓋 16/32 檔・持股日 10/2」。 */
 export function coverageLine(cov: EtfCoverage | undefined | null): string {
-  if (!cov) return '持股資料累積中';
+  if (!cov || !cov.total || !cov.holdings_date) return '持股資料累積中';
   return `涵蓋 ${cov.covered}/${cov.total} 檔・持股日 ${md(cov.holdings_date, '無持股資料')}`;
 }
 

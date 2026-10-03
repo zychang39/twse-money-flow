@@ -95,7 +95,7 @@
   --ink-1: #1c1c1e;
   --ink-2: #48484a;
   --ink-3: #636366;
-  --ink-4: #7c7c80;
+  --ink-4: #848488;
   --up: #c4271c;
   --down: #12763a;
   --up-tint: rgba(255, 59, 48, 0.10);
@@ -104,7 +104,7 @@
   --risk-fill: #ff9500;        /* 點、條等非文字元素 */
   --risk-tint: rgba(255, 149, 0, 0.14);
   --brand: #0062d6;
-  --brand-fill: #007aff;
+  --brand-fill: #0066d6;   /* 白字填色按鈕（白字 5.4:1）；連結文字用 --brand */
   --on-brand: #ffffff;
   --brand-tint: rgba(0, 122, 255, 0.10);
   --ring-1: #007aff;           /* 簡報環 */
@@ -164,19 +164,19 @@
     --text-3: rgba(235, 235, 245, 0.3);
     --ink-1: #ffffff;
     --ink-2: #c7c7cc;
-    --ink-3: #8e8e93;
-    --ink-4: #636366;
+    --ink-3: #98989d;
+    --ink-4: #78787d;
     --up: #ff453a;
     --down: #30d158;
-    --up-tint: rgba(255, 69, 58, 0.16);
+    --up-tint: rgba(255, 69, 58, 0.10);
     --down-tint: rgba(48, 209, 88, 0.14);
     --risk: #ff9f0a;
     --risk-fill: #ff9f0a;
     --risk-tint: rgba(255, 159, 10, 0.16);
     --brand: #0a84ff;
-    --brand-fill: #0a84ff;
+    --brand-fill: #0066d6;
     --on-brand: #ffffff;
-    --brand-tint: rgba(10, 132, 255, 0.16);
+    --brand-tint: rgba(10, 132, 255, 0.10);
     --ring-1: #0a84ff;
     --ring-2: #64d2ff;
     --ring-3: #5e5ce6;
@@ -214,19 +214,19 @@
   --text-3: rgba(235, 235, 245, 0.3);
   --ink-1: #ffffff;
   --ink-2: #c7c7cc;
-  --ink-3: #8e8e93;
-  --ink-4: #636366;
+  --ink-3: #98989d;
+  --ink-4: #78787d;
   --up: #ff453a;
   --down: #30d158;
-  --up-tint: rgba(255, 69, 58, 0.16);
+  --up-tint: rgba(255, 69, 58, 0.10);
   --down-tint: rgba(48, 209, 88, 0.14);
   --risk: #ff9f0a;
   --risk-fill: #ff9f0a;
   --risk-tint: rgba(255, 159, 10, 0.16);
   --brand: #0a84ff;
-  --brand-fill: #0a84ff;
+  --brand-fill: #0066d6;
   --on-brand: #ffffff;
-  --brand-tint: rgba(10, 132, 255, 0.16);
+  --brand-tint: rgba(10, 132, 255, 0.10);
   --ring-1: #0a84ff;
   --ring-2: #64d2ff;
   --ring-3: #5e5ce6;

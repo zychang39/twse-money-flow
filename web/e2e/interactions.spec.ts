@@ -128,12 +128,10 @@ test('流程：捲到簡報底部即完成簡報環（簡報頁底部一列 0/1 
   await expect(page.getByTestId('ring-brief')).toContainText('已完成');
 });
 
-test('環境光：今晚頁代表資金環境（示範資料為保守 → 琥珀）；減少動態效果時退回純黑', async ({ page }) => {
+test('環境光停用（2026-10 改版）：深色背景純黑、內容卡片不透明，沒有頁首漸層', async ({ page }) => {
   await page.goto('#/');
-  await expect(page.locator('.ambient')).toHaveAttribute('data-mood', 'risk');
-  await expect(page.locator('.ambient')).toBeVisible();
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await expect(page.locator('.ambient')).toBeHidden();
-  await page.goto('#/explore');
-  await expect(page.locator('.ambient')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '盤後簡報' })).toBeVisible();
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(0, 0, 0)');
+  const visibleGlow = await page.evaluate(() => [...document.querySelectorAll('.ambient')].some((e) => getComputedStyle(e).display !== 'none'));
+  expect(visibleGlow).toBe(false);
 });

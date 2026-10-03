@@ -45,7 +45,7 @@ test.describe('1. 底部導覽列', () => {
     expect(Math.round(dock.y + dock.height)).toBe(H); // 固定元素本身 bottom: 0
   });
 
-  test('內容底部保留剛好等於導覽列的高度，頁尾免責聲明不被遮住（兩種模式）', async ({ page }) => {
+  test('內容底部留白＝分頁列高＋safe-area＋16，頁尾免責聲明不被遮住（兩種模式）', async ({ page }) => {
     for (const standalone of [false, true]) {
       if (standalone) await simulateStandalone(page);
       await page.goto('#/me/methodology');
@@ -57,7 +57,8 @@ test.describe('1. 底部導覽列', () => {
       await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
       const pad = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.app')!).paddingBottom));
       const dock = await box(page, '.dock');
-      expect(Math.round(pad)).toBe(Math.round(dock.height));
+      // 2026-10 改版：底部 padding＝分頁列高＋env(safe-area-inset-bottom)＋16（dock 高度＝分頁列＋safe-area）
+      expect(Math.round(pad)).toBe(Math.round(dock.height) + 16);
       const footer = await box(page, '.footer');
       const tab = await box(page, '.tabbar');
       expect(footer.y + footer.height).toBeLessThanOrEqual(tab.y + 0.5);
@@ -261,8 +262,9 @@ test.describe('4. 資料源異常的呈現', () => {
     await expect(page.locator('.meta-line').first()).toBeVisible();
     await expect(page.locator('a.meta-alert')).toHaveCount(0); // 今晚頁沒用到集保
     await page.goto('#/stock/2330');
-    const alert = page.locator('a.meta-alert');
-    await expect(alert).toHaveText('1 個資料源異常');
+    // 2026-10 改版：個股頁只在異常時顯示一行橘色警示（.ui-warn）
+    const alert = page.getByText(/1 個資料源異常/);
+    await expect(alert).toBeVisible();
     const [color, risk, brand] = await alert.evaluate((el) => {
       const probe = (v: string) => { const d = document.createElement('span'); d.style.color = `var(${v})`; document.body.appendChild(d); const c = getComputedStyle(d).color; d.remove(); return c; };
       return [getComputedStyle(el).color, probe('--risk'), probe('--brand')];

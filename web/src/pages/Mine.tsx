@@ -28,8 +28,7 @@ import type { StockRow } from '../data/types';
 import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
 import { DEFAULT_COSTS, type CostSettings } from '../lib/costs';
 import { holdingsSeries } from '../lib/portfolioSeries';
-import { PERIOD_LABEL, change, sliceWindow } from '../lib/periods';
-import { holdConclusion, mineConclusion } from '../lib/conclusion';
+import { change, sliceWindow } from '../lib/periods';
 import { uiConfig } from '../lib/config';
 import { PAGE_SOURCES } from '../lib/health';
 import { diffAll, makeSnapshot, type Snapshot } from '../lib/changes';
@@ -289,9 +288,6 @@ export default function Mine() {
   const latestValue = series ? series.values[series.values.length - 1] : null;
   useEffect(() => { if (seen !== undefined) commitHero('portfolio', latestValue); }, [seen, latestValue]);
 
-  const conclusion = seg === 'watch'
-    ? mineConclusion({ watchCount: watch.length, watchChanges: watchSig, holdings: holdCodes.length, alerts: risky.size })
-    : holdConclusion({ holdings: holdCodes.length, alerts: risky.size, dir, periodName: PERIOD_LABEL[period] });
   const setSeg = (s: Seg) => navigate(s === 'hold' ? '/mine?seg=hold' : '/mine', true);
   const sample = uiConfig.sample_watchlist;
   const sampleNames = sample.codes.map((c) => byCode?.get(c)?.name ?? c).join('、');
@@ -351,7 +347,7 @@ export default function Mine() {
       <TopBar caption="我的股票" actions={
         <button class="icon-btn" aria-label={seg === 'hold' ? '新增持倉（新增持倉前檢查表）' : '加入自選股'} onClick={() => setAdding(true)}><IconPlus /></button>
       } />
-      <PageTitle title="我的股票" sub={user && summary.data ? conclusion : undefined} />
+      <PageTitle title="我的股票" sub={user && summary.data ? (seg === 'watch' ? `自選 ${watch.length} 檔・異動 ${watchSig} 檔` : `持倉 ${holdCodes.length} 檔・警示 ${risky.size} 檔`) : undefined} />
       <DataStatus date={summary.data?.date} uses={PAGE_SOURCES.mine} asof={['quotes', 'insti', 'credit']} />
       {summary.error ? <ErrorState error={summary.error} /> : null}
 

@@ -91,6 +91,8 @@ export interface RowProps {
   extra?: Kids;
   /** 可點但不顯示 ›（例：展開／收合列） */
   noChev?: boolean;
+  /** 展開／收合列的狀態（aria-expanded） */
+  expanded?: boolean;
   value?: Kids;
   /** 數值下方的第二行（例：漲跌幅） */
   value2?: Kids;
@@ -105,7 +107,7 @@ export interface RowProps {
 }
 
 /** 一列：名稱｜數值｜標籤｜›（欄寬由 List 決定）。有 href／onClick 時整列可點（44 以上）。 */
-export function Row({ label, sub, subWide, value, value2, tag, extra, icon, href, onClick, testid, strong, ariaLabel, noChev }: RowProps) {
+export function Row({ label, sub, subWide, value, value2, tag, extra, icon, href, onClick, testid, strong, ariaLabel, noChev, expanded }: RowProps) {
   const inner = (
     <>
       {icon ? <span class="ui-row-icon" aria-hidden="true">{icon}</span> : null}
@@ -125,7 +127,7 @@ export function Row({ label, sub, subWide, value, value2, tag, extra, icon, href
   );
   const cls = `ui-row ${icon ? 'has-icon' : ''} ${href || onClick ? 'ui-tap' : ''}`;
   if (href) return <a class={cls} href={href} onClick={onClick} data-testid={testid} aria-label={ariaLabel}>{inner}</a>;
-  if (onClick) return <button type="button" class={cls} onClick={onClick} data-testid={testid} aria-label={ariaLabel}>{inner}</button>;
+  if (onClick) return <button type="button" class={cls} onClick={onClick} data-testid={testid} aria-label={ariaLabel} aria-expanded={expanded}>{inner}</button>;
   return <div class={cls} data-testid={testid} aria-label={ariaLabel}>{inner}</div>;
 }
 

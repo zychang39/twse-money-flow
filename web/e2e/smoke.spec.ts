@@ -11,7 +11,7 @@ const PAGES: { hash: string; title?: RegExp }[] = [
   { hash: '#/explore/backtest', title: /回測/ },
   { hash: '#/explore/sectors' },
   { hash: '#/explore/etf', title: /主動式 ETF/ },
-  { hash: '#/explore/market', title: /資金環境/ },
+  { hash: '#/explore/market', title: /市場溫度/ },
   { hash: '#/explore/calendar' },
   { hash: '#/explore/disposition', title: /處置/ },
   { hash: '#/discipline' },
@@ -56,11 +56,11 @@ for (const p of PAGES) {
   });
 }
 
-test('Tab 只有圖示、以 aria-label 提供名稱', async ({ page }) => {
+test('分頁列：圖示＋文字標籤，以 aria-label 提供名稱', async ({ page }) => {
   await page.goto('#/');
   const nav = page.getByRole('navigation', { name: '主要分頁' });
   for (const name of ['簡報', '我的股票', '探索', '搜尋代號或名稱', '流程']) await expect(nav.getByRole('link', { name })).toBeVisible();
-  await expect(nav).toHaveText('');
+  await expect(nav).toHaveText('簡報我的股票探索搜尋流程');
 });
 
 test('舊網址轉址到新位置', async ({ page }) => {
@@ -176,17 +176,18 @@ test('產業資金輪動：熱力圖可點進產業個股清單', async ({ page 
   await page.getByRole('button', { name: '20 日' }).click();
   await tile.click();
   await expect(page.locator('h1')).toHaveText('半導體業');
-  await expect(page.getByRole('button', { name: /台積電/ })).toBeVisible();
+  // 2026-10：產業內個股改為可點的列（連結）
+  await expect(page.getByRole('link', { name: /台積電/ })).toBeVisible();
 });
 
-test('今晚：加入自選後出現在「自選股的新變化」區塊', async ({ page }) => {
+test('簡報頁：加入自選後出現在「自選股異動」區塊', async ({ page }) => {
   await addWatch(page, '1101');
   await page.goto('#/');
-  const section = page.getByRole('region', { name: '自選股出現了什麼新變化？' });
+  const section = page.getByRole('region', { name: '自選股異動' });
   await expect(section).toBeVisible();
   // 等區塊內容畫好：台泥這一列直接出現，或收在「低於門檻」底下（切換分頁不再等整頁轉場，內容可能晚一點才到）
   const row = section.getByRole('button', { name: /台泥 1101/ });
-  const expand = section.getByRole('button', { name: /低於門檻/ });
+  const expand = section.getByRole('button', { name: /未達門檻/ });
   await expect(row.or(expand).first()).toBeVisible();
   if (await expand.isVisible() && (await expand.getAttribute('aria-expanded')) !== 'true') await expand.click();
   await expect(row).toBeVisible();
