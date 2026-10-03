@@ -30,7 +30,9 @@ test.describe('E-02 休市狀態依交易日曆', () => {
   test('9/28 教師節：顯示「今天休市」，沒有「尚未更新」或琥珀色過期警示', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-09-28T10:00:00+08:00'));
     await page.goto('#/stock/2330');
-    await expect(page.locator('.stock-lower .meta-line')).toContainText('今天休市');
+    // 2026-10 改版：個股頁不重複狀態列；資料時間一行在圖表下方，休市不是風險（不出現橘色警示）
+    await expect(page.getByTestId('data-time')).toContainText('資料至 9/24');
+    await expect(page.getByTestId('stock-stale')).toHaveCount(0);
     await expect(page.getByText('今天的資料尚未更新')).toHaveCount(0);
     await expect(page.getByText('資料可能過期')).toHaveCount(0);
   });
@@ -70,7 +72,7 @@ test.describe('U-02 無成交／停牌不是「今日」漲跌', () => {
     const row = page.locator('.srow', { hasText: '鴻海' });
     await expect(row.locator('.pill')).toHaveText('今日無成交');
     await row.click();
-    await expect(page.getByTestId('trade-note')).toHaveText('今日無成交・最後成交 9/23');
+    await expect(page.locator('.ui-head-sub')).toContainText('今日無成交・最後成交 9/23');
     await expect(page.getByText('資料可能過期')).toHaveCount(0);
   });
 });
@@ -100,6 +102,6 @@ test.describe('U-01 下市或停牌的持股不消失；404 用友善文字', ()
     await expect(page).toHaveURL(/#\/stock\/00980A$/);
     await expect(page.getByText('找不到代號 00980A')).toBeVisible();
     await expect(page.getByText(/HTTP/)).toHaveCount(0);
-    await expect(page.locator('.page-head .eyebrow')).not.toContainText('上市');
+    await expect(page.locator('.ui-head-sub')).not.toContainText('上市');
   });
 });

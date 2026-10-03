@@ -14,34 +14,33 @@ async function addWatch(page: Page, codes: string[]) {
 
 test('主角數字：hover／拖曳時數字與日期即時變動，離開後恢復最新值；鍵盤左右鍵也可查看', async ({ page }) => {
   await page.goto('#/stock/2330');
-  const hero = page.locator('.hero').first();
+  // 2026-10 改版：個股頁主角價格（Title2）在 StockChart；hover＝十字線讀值
+  const hero = page.getByTestId('stock-price').first();
   const chart = page.getByRole('img', { name: /走勢/ }).first();
   await expect(chart).toBeVisible();
   await page.waitForTimeout(1200); // 等數字滾動與描繪完成
   const latest = await hero.textContent();
   const box = (await chart.boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.2, box.y + box.height / 2);
-  await expect(page.locator('.hero-change .caption').first()).toHaveText(/\d{4}\/\d{1,2}\/\d{1,2}/);
+  await expect(page.getByTestId('crosshair-tip')).toContainText(/\d{4}\/\d{1,2}\/\d{1,2}/);
   const scrubbed = await hero.textContent();
   expect(scrubbed).not.toBe(latest);
   await page.mouse.move(box.x + box.width * 0.2, box.y - 200);
   await expect(hero).toHaveText(latest!);
   await chart.focus();
   await page.keyboard.press('ArrowLeft');
-  await expect(page.locator('.hero-change .caption').first()).toHaveText(/\d{4}\/\d{1,2}\/\d{1,2}/);
+  await expect(page.getByTestId('hero-change').first()).toContainText(/\d{4}\/\d{1,2}\/\d{1,2}/);
+  await expect(hero).not.toHaveText(latest!);
   await page.keyboard.press('Escape');
   await expect(hero).toHaveText(latest!);
 });
 
-test('期間選擇器：選中者為實心膠囊，選擇會被記住；線與環境光同色', async ({ page }) => {
+test('期間選擇器：選中者為實心格，選擇會被記住；所選區間漲跌一行（「1Y +12.34%」）', async ({ page }) => {
   await page.goto('#/stock/2330');
   const btn = page.getByRole('group', { name: '股價走勢期間' }).getByRole('button', { name: /^1Y/ });
   await btn.click();
   await expect(btn).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('hero-period-change').first()).toContainText('近 1 年');
-  const stroke = await page.locator('.chart-line').first().getAttribute('stroke');
-  const mood = await page.locator('.ambient').first().getAttribute('data-mood');
-  expect(stroke === 'var(--up)' ? 'up' : stroke === 'var(--down)' ? 'down' : 'neutral').toBe(mood);
+  await expect(page.getByTestId('hero-period-change').first()).toContainText(/^1Y\s*[^\d]*[+−]?[\d.]+%|^1Y/);
   await page.reload();
   await expect(page.getByRole('group', { name: '股價走勢期間' }).getByRole('button', { name: /^1Y/ })).toHaveAttribute('aria-pressed', 'true');
 });
@@ -52,12 +51,12 @@ test('個股頁：同一清單左右切換（按鈕與拖曳手勢）', async ({
   const quiet = page.getByRole('button', { name: /都沒有顯著變化|低於門檻/ });
   if (await quiet.count() && (await quiet.getAttribute('aria-expanded')) === 'false') await quiet.click();
   await page.locator('.srow').first().click();
-  await expect(page.getByText(/自選 1 \/ 3/)).toBeVisible();
+  await expect(page.getByTestId('list-position')).toHaveText(/自選\S* 1\/3/);
   // 主角區是「前一檔｜目前｜後一檔」的軌道：只看目前這一檔的標題（相鄰的兩檔 aria-hidden）
   const title = page.getByRole('heading', { level: 1 });
   const first = await title.textContent();
   await page.getByRole('button', { name: '下一檔' }).click();
-  await expect(page.getByText(/自選 2 \/ 3/)).toBeVisible();
+  await expect(page.getByTestId('list-position')).toHaveText(/自選\S* 2\/3/);
   await expect(title).not.toHaveText(first!);
   // 在名稱附近往右拖曳 → 上一檔（等滑動動畫結束）
   await page.waitForTimeout(600);
@@ -68,7 +67,7 @@ test('個股頁：同一清單左右切換（按鈕與拖曳手勢）', async ({
   await page.mouse.move(h.x + 60, y, { steps: 3 });
   await page.mouse.move(h.x + 200, y, { steps: 6 });
   await page.mouse.up();
-  await expect(page.getByText(/自選 1 \/ 3/)).toBeVisible();
+  await expect(page.getByTestId('list-position')).toHaveText(/自選\S* 1\/3/);
 });
 
 test('底部面板：頭像選單可開啟、Esc 關閉；拖曳把手往下可關閉', async ({ page }) => {

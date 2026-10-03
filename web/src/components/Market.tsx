@@ -28,7 +28,9 @@ export function fmtRatioPct(v: number | null | undefined, sign = true): string {
 /** 燈號列的副資訊：detail（外資期貨另加近 250 日百分位）。 */
 export function lightSub(l: MarketLight): string {
   const pct = l.pct250 !== null && l.pct250 !== undefined ? `近 250 日百分位 ${l.pct250.toFixed(0)}` : '';
-  return [l.detail ?? l.value, pct].filter(Boolean).join('・');
+  // 副資訊只有一行：ISO 日期縮成「10/2」
+  const detail = (l.detail ?? l.value).replace(/\b\d{4}-(\d{2})-(\d{2})\b/g, (_m, mm: string, dd: string) => `${Number(mm)}/${Number(dd)}`);
+  return [detail, pct].filter(Boolean).join('・');
 }
 
 /** 燈號清單：名稱｜短數值｜標籤（只有「風險」用琥珀）；副資訊一行。 */

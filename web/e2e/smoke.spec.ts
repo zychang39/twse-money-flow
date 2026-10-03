@@ -122,8 +122,9 @@ test('回測：預設組合顯示統計與可信度；自訂條件在 Web Worker
   await expect(page.getByText('訊號衰減曲線')).toBeVisible();
   const c = encodeURIComponent(JSON.stringify([{ field: 'composite', op: '>=', value: 50 }]));
   await page.goto(`#/explore/backtest?c=${c}&name=test`);
-  await expect(page.getByRole('rowheader', { name: '勝率' })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/訊號 \d+ 筆 · 範圍：成交值前/)).toBeVisible();
+  // 只換 hash 時預設組合的報告可能還在畫面上：先等自訂條件的結果（範圍文字只有自訂條件才有）
+  await expect(page.getByText(/訊號 [\d,]+ 筆 · 範圍：成交值前/)).toBeVisible({ timeout: 40_000 });
+  await expect(page.getByRole('rowheader', { name: '勝率' })).toBeVisible();
 });
 
 test('日誌：冷靜卡 → 新增持倉前檢查表 → 新增持倉 → 平倉 → 統計出現錯誤標籤', async ({ page }) => {

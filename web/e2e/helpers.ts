@@ -38,3 +38,15 @@ export async function seed(page: Page, stores: Record<string, unknown[]>): Promi
     req.onerror = () => reject(req.error);
   }), stores);
 }
+
+/** 個股頁（2026-10 改版）：切到 sticky 分段「動能｜籌碼｜基本面｜事件」的某一段。 */
+export async function gotoStockSeg(page: Page, hash: string, seg: '動能' | '籌碼' | '基本面' | '事件'): Promise<void> {
+  await gotoStock(page, hash);
+  await page.getByRole('group', { name: '個股分段' }).getByRole('button', { name: seg, exact: true }).click();
+}
+
+/** 每日明細子頁（2026-10 改版：個股頁「籌碼 → 每日明細」推到子頁）。 */
+export async function gotoDaily(page: Page, code = '2330'): Promise<void> {
+  await page.goto(`#/stock/${code}/daily`);
+  await expect(page.locator('section.chip-daily')).toBeVisible({ timeout: 15_000 });
+}
