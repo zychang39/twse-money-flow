@@ -40,7 +40,7 @@ describe('期貨與選擇權走勢的數字格式', () => {
 });
 
 describe('主動式 ETF 頁（SPEC §7）', async () => {
-  const { sortItems, coverageLine, unverifiedLine, itemSub } = await import('../pages/Etf');
+  const { sortItems, coverageLine, unverifiedLine, itemSub, itemKind } = await import('../pages/Etf');
   const item = (o: Partial<import('../data/types').EtfItem>): import('../data/types').EtfItem => ({
     code: '2330', name: '台積電', dir: 'add', kind: 'add', value_yi: 1, pct_avg20: 1, pct_mcap: 0.01, etfs_same_dir: 1, etfs: [], ...o,
   });
@@ -59,8 +59,9 @@ describe('主動式 ETF 頁（SPEC §7）', async () => {
   });
   it('副資訊：不重複「加碼／減碼」，只標新增、剔除；同向檔數、佔市值', () => {
     expect(itemSub(item({ etfs_same_dir: 2, pct_mcap: 0.0449 }))).toBe('同向 2 檔・佔市值 0.04%');
-    expect(itemSub(item({ kind: 'new', pct_mcap: 0.2303 }))).toBe('新增・同向 1 檔・佔市值 0.23%');
-    expect(itemSub(item({ dir: 'reduce', kind: 'exit', pct_mcap: -0.5 }))).toBe('剔除・同向 1 檔・佔市值 0.50%');
+    expect(itemSub(item({ kind: 'new', pct_mcap: 0.2303 }))).toBe('同向 1 檔・佔市值 0.23%');
+    expect(itemSub(item({ dir: 'reduce', kind: 'exit', pct_mcap: -0.5 }))).toBe('同向 1 檔・佔市值 0.50%');
+    expect([itemKind(item({ kind: 'new' })), itemKind(item({ kind: 'exit' })), itemKind(item({ kind: 'add' })), itemKind(item({ kind: 'reduce' }))]).toEqual(['新增', '剔除', undefined, undefined]);
     expect(itemSub(item({ pct_mcap: null }))).toBe('同向 1 檔');
   });
 });

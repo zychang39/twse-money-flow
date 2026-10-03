@@ -95,7 +95,7 @@
 .sv.down { color: var(--down); }
 .sv.flat, .sv.plain { color: inherit; }
 .sv-in { white-space: nowrap; }
-.sv-a { display: inline-block; font-size: 0.75em; margin-right: var(--s-1); vertical-align: 0.0625em; }
+.sv-a { display: inline-block; font-size: max(0.75em, var(--fs-cap)); margin-right: var(--s-1); vertical-align: 0.0625em; }
 
 /* ---------- 標籤 ---------- */
 .ui-tag {

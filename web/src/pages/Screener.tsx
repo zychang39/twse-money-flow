@@ -1,8 +1,13 @@
+/**
+ * 選股（2026-10-03 套用共用元件）：內建組合／我的組合 → 條件（全部成立）→ 結果（全部符合｜今日新觸發）。
+ * 依規則產生，非推薦；說明與定義在 ⓘ。結果依 RS 百分位排序。
+ */
 import { useMemo, useState } from 'preact/hooks';
 import { SortMenu } from '../components/SortMenu';
 import { type SortState, loadSort, saveSort, sortItems } from '../lib/sorting';
-import { type EvidenceFile, type EvidenceToday, pctSigned, tText } from '../lib/evidence';
-import { PageHead, TopBar } from '../components/Chrome';
+import { type EvidenceFile, type EvidenceToday, pctSigned } from '../lib/evidence';
+import { TopBar } from '../components/Chrome';
+import { Card, EmptyRow, List, PageTitle, Row, Section, Seg } from '../components/ui';
 import { StockMiniRow } from '../components/StockRow';
 import { setListContext } from '../lib/listContext';
 import { navigate } from '../router';
@@ -29,7 +34,7 @@ function ConditionEditor({ c, onChange, onRemove }: { c: Condition; onChange: (c
   const isBetween = c.op === 'between';
   const [lo, hi] = isBetween ? (c.value as [number, number]) : [c.value as number, c.value as number];
   return (
-    <div class="card" style={{ padding: 'var(--s-3)' }}>
+    <div class="card">
       <div class="row wrap">
         <select class="select" style={{ flex: '1 1 10rem' }} aria-label="欄位" value={c.field} onChange={(e) => onChange({ ...c, field: (e.target as HTMLSelectElement).value })}>
           {groups.map((g) => (
@@ -105,7 +110,7 @@ export default function Screener() {
   }, [summary.data, conditions]);
   const matched = useMemo(() => (summary.data ? screen(summary.data.rows as unknown as Record<string, unknown>[], conditions) : []), [summary.data, conditions]);
   const fresh = useMemo(() => (days.data ? newTriggerCodes(days.data, conditions) : null), [days.data, conditions]);
-  // 今日新觸發：以兩日欄位檔判斷，列表仍用 summary 的列（排序依綜合分）
+  // 今日新觸發：以兩日欄位檔判斷，列表仍用 summary 的列（依 RS 百分位排序）
   const results = useMemo(() => {
     if (mode !== 'new') return matched;
     if (!fresh || !summary.data) return [];
@@ -136,78 +141,87 @@ export default function Screener() {
     load(item.id, item.name, conditions);
   }
 
+  const headSub = summary.data ? <span data-testid="screen-head">{title}：{mode === 'new' ? `今日新觸發 ${results.length} 檔` : `${results.length} 檔符合`}・依規則產生，非推薦</span> : '依規則產生，非推薦';
+  const modeInfo = (
+    <>
+      <p>全部符合＝{summary.data?.date ? md(summary.data.date) : '最新交易日'}收盤後全部條件成立的股票（含前幾天就已符合的）。</p>
+      <p>今日新觸發＝當日全部條件成立、前一交易日不成立（回測的「訊號」用同一個定義）。</p>
+      <p>結果依 RS 百分位排序，最多列 100 檔。條件：{conditions.map((c) => describeCondition(c, label, unit)).join('；') || '無'}。結果為規則篩選，非推薦。</p>
+    </>
+  );
   return (
     <div class="page">
       <TopBar back="/explore" actions={<a class="btn small" href={backtestHref}>一鍵回測</a>} />
-      <PageHead title="選股" sub={summary.data ? `${title}・${mode === 'new' ? `今日新觸發 ${results.length} 檔` : `${results.length} 檔符合`}・依規則產生，非推薦` : undefined} />
+      <PageTitle title="選股" sub={headSub} />
       <DataStatus date={summary.data?.date} uses={PAGE_SOURCES.screener} />
-      <a class="list-item st-entry" href="#/explore/strategies">
-        <span class="grow"><span class="body w6">策略庫</span><span class="caption muted" style={{ display: 'block' }}>指標效度評估通過的策略・今日新觸發・槓桿風險計算</span></span>
-      </a>
-      <h2 class="section-title">內建組合</h2>
-      <SortMenu id="screener" value={presetSort} onChange={setPresetSort} />
-      <div class="chips" role="group" aria-label="內建組合" data-testid="preset-chips">
-        {presetRows.map(({ p, r }) => (
-          <button key={p.id} class="chip" aria-pressed={id.presetId === p.id} onClick={() => load(p.id, p.label, p.conditions)} title={p.description}
-            aria-label={`${p.label}（${r ? `${r.verdict}，t ${tText(r.t)}，10 日超額 ${pctSigned(r.mean_excess)}` : NO_EVIDENCE}）`}>
-            <span class="chip-label">{p.label}</span><span class="chip-sub">{r ? r.verdict : NO_EVIDENCE}</span>
-          </button>
-        ))}
-      </div>
+      <Section title="策略庫">
+        <List chev>
+          <Row label="策略庫" sub="分級、判定卡、新觸發、槓桿風險" href="#/explore/strategies" />
+        </List>
+      </Section>
+      <Section title="內建組合" info={<p>內建組合依對應指標的判定分級、再依 t 排序；標籤下方為指標判定（沒有對應指標的寫「未評估」）。</p>}>
+        <SortMenu id="screener" value={presetSort} onChange={setPresetSort} />
+        <div class="chips" role="group" aria-label="內建組合" data-testid="preset-chips">
+          {presetRows.map(({ p, r }) => (
+            <button key={p.id} class="chip" aria-pressed={id.presetId === p.id} onClick={() => load(p.id, p.label, p.conditions)} title={p.description}
+              aria-label={`${p.label}（${r ? `${r.verdict}，10 日超額 ${pctSigned(r.mean_excess)}` : NO_EVIDENCE}）`}>
+              <span class="chip-label">{p.label}</span><span class="chip-sub">{r ? r.verdict : '未評估'}</span>
+            </button>
+          ))}
+        </div>
+      </Section>
       {saved.length ? (
-        <>
-          <h2 class="section-title">我的組合</h2>
+        <Section title="我的組合">
           <div class="chips" role="group" aria-label="我的組合">
             {saved.map((s) => (
               <button key={s.id} class="chip" aria-pressed={id.savedId === s.id && !id.modifiedFrom} onClick={() => load(s.id, s.name, s.conditions as Condition[])}>{savedDisplayName(s.name, s.conditions as Condition[], presets)}</button>
             ))}
           </div>
-        </>
+        </Section>
       ) : null}
-      <p class="small muted" data-testid="screen-desc">{id.presetId ? (() => { const p = screenerConfig.presets.find((x) => x.id === id.presetId)!; return <><b class="t1">{p.subtitle}</b>：{p.description}</>; })() : id.modifiedFrom ? `由「${id.modifiedFrom}」修改；和任何內建組合都不同。` : id.savedId ? name : '自訂條件：和任何內建組合都不同。'}</p>
+      <Section title="條件" aside="全部成立" info={id.presetId ? (() => { const p = screenerConfig.presets.find((x) => x.id === id.presetId)!; return <p><b>{p.subtitle}</b>：{p.description}</p>; })() : undefined}>
+        <Card>
+          <p class="ui-foot ui-muted" data-testid="screen-desc">{id.presetId ? screenerConfig.presets.find((x) => x.id === id.presetId)!.subtitle : id.modifiedFrom ? `由「${id.modifiedFrom}」修改；和任何內建組合都不同` : id.savedId ? name : '自訂條件：和任何內建組合都不同'}</p>
+        </Card>
+        {conditions.map((c, i) => (
+          <ConditionEditor key={i} c={c} onChange={(nc) => setConditions(conditions.map((x, j) => (j === i ? nc : x)))} onRemove={() => setConditions(conditions.filter((_, j) => j !== i))} />
+        ))}
+        <List chev>
+          <Row label="新增條件" onClick={() => setConditions([...conditions, { field: 'rs_percentile', op: '>=', value: 80 }])} />
+          <Row label="儲存組合" onClick={save} />
+          <Row label="設為追蹤策略" href={id.presetId ? `#/discipline/tracking?preset=${id.presetId}` : `#/discipline/tracking?c=${encodeConditions(conditions)}&name=${encodeURIComponent(id.name)}`} />
+          {id.savedId ? <Row label="刪除組合" onClick={() => deleteScreen(id.savedId!)} /> : null}
+        </List>
+      </Section>
 
-      <h2 class="section-title">條件（全部成立）</h2>
-      {conditions.map((c, i) => (
-        <ConditionEditor key={i} c={c} onChange={(nc) => setConditions(conditions.map((x, j) => (j === i ? nc : x)))} onRemove={() => setConditions(conditions.filter((_, j) => j !== i))} />
-      ))}
-      <div class="row wrap">
-        <button class="btn" onClick={() => setConditions([...conditions, { field: 'rs_percentile', op: '>=', value: 80 }])}>新增條件</button>
-        <button class="btn" onClick={save}>儲存組合</button>
-        <a class="btn" href={id.presetId ? `#/discipline/tracking?preset=${id.presetId}` : `#/discipline/tracking?c=${encodeConditions(conditions)}&name=${encodeURIComponent(id.name)}`}>設為追蹤策略</a>
-        {id.savedId ? <button class="btn danger" onClick={() => deleteScreen(id.savedId!)}>刪除組合</button> : null}
-      </div>
-
-      <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>結果 {summary.data ? <span class="muted caption">{results.length} 檔</span> : null}</h2>
-      <div class="segmented" role="group" aria-label="結果範圍" style={{ marginTop: 'var(--s-2)' }}>
-        <button aria-pressed={mode === 'all'} onClick={() => setMode('all')}>全部符合</button>
-        <button aria-pressed={mode === 'new'} onClick={() => setMode('new')}>今日新觸發</button>
-      </div>
-      <p class="caption muted" data-testid="screen-mode-note" style={{ marginTop: 'var(--s-2)' }}>
-        {mode === 'new'
-          ? days.data ? `今日新觸發＝${md(days.data.dates[1])} 全部條件成立、${md(days.data.dates[0])} 不成立（回測的「訊號」用同一個定義）。${fresh === null ? '有條件欄位無法判斷前一日，無法計算新觸發。' : ''}` : days.error ? '新觸發資料暫時無法取得（資料源待處理）。' : '載入前一交易日資料…'
-          : `全部符合＝${summary.data?.date ? md(summary.data.date) : '最新交易日'}收盤後全部條件成立的股票（含前幾天就已經符合的）。`}
-        {weekly ? <><br /><span data-testid="weekly-note">{weekly}</span></> : null}
-      </p>
-      {summary.error ? <ErrorState error={summary.error} /> : null}
-      {summary.loading && !summary.data ? <Loading /> : null}
-      {summary.data && !results.length ? (
-        <div class="empty">
-          <p>{sparse.length ? `「${sparse.join('、')}」目前多數股票還沒有資料（資料累積中），所以沒有股票符合。` : '目前沒有股票同時符合所有條件。'}</p>
-          <button class="btn" onClick={() => setConditions(conditions.slice(0, -1))} disabled={!conditions.length}>移除最後一個條件</button>
+      <Section title="結果" aside={summary.data ? `${results.length} 檔` : undefined} info={modeInfo}>
+        <Seg options={[['all', '全部符合'], ['new', '今日新觸發']] as const} value={mode} onChange={setMode} label="結果範圍" />
+        <p class="ui-foot ui-muted st-notes" data-testid="screen-mode-note">
+          {mode === 'new'
+            ? days.data ? `今日新觸發＝${md(days.data.dates[1])} 全部條件成立、${md(days.data.dates[0])} 不成立${fresh === null ? '；有條件欄位無法判斷前一日' : ''}` : days.error ? '新觸發資料源待處理' : '載入前一交易日資料'
+            : `全部符合＝${summary.data?.date ? md(summary.data.date) : '最新交易日'}收盤後全部條件成立`}
+          {weekly ? <><br /><span data-testid="weekly-note">{weekly}</span></> : null}
+        </p>
+        {summary.error ? <ErrorState error={summary.error} /> : null}
+        {summary.loading && !summary.data ? <Loading /> : null}
+        {summary.data && !results.length ? (
+          <List chev>
+            <EmptyRow>{sparse.length ? `「${sparse.join('、')}」資料累積中，無符合的股票` : '無符合全部條件的股票'}</EmptyRow>
+            {conditions.length ? <Row label="移除最後一個條件" onClick={() => setConditions(conditions.slice(0, -1))} /> : null}
+          </List>
+        ) : sparse.length ? <p class="ui-foot ui-muted">「{sparse.join('、')}」資料累積中，結果可能偏少。</p> : null}
+        <div class="stock-list">
+          {results.slice(0, 100).map((r) => {
+            const row = r as unknown as import('../data/types').StockRow;
+            return (
+              <StockMiniRow key={row.code} row={row} risk={!!row.flags?.length}
+                text={row.flags?.length ? row.flags.map((f) => f.label).join('、') : conditions.map((c) => `${label(c.field)} ${fmtNum(r[c.field] as number, 1)}`).join('・')}
+                onOpen={() => { setListContext({ name: '選股結果', codes: results.slice(0, 100).map((x) => (x as { code: string }).code) }); navigate(`/stock/${row.code}`); }} />
+            );
+          })}
         </div>
-      ) : sparse.length ? <p class="caption muted">「{sparse.join('、')}」資料累積中，結果可能偏少。</p> : null}
-      <div class="stock-list">
-        {results.slice(0, 100).map((r) => {
-          const row = r as unknown as import('../data/types').StockRow;
-          return (
-            <StockMiniRow key={row.code} row={row} risk={!!row.flags?.length}
-              text={row.flags?.length ? row.flags.map((f) => f.label).join('、') : conditions.map((c) => `${label(c.field)} ${fmtNum(r[c.field] as number, 1)}`).join('・')}
-              onOpen={() => { setListContext({ name: '選股結果', codes: results.slice(0, 100).map((x) => (x as { code: string }).code) }); navigate(`/stock/${row.code}`); }} />
-          );
-        })}
-      </div>
-      {results.length > 100 ? <p class="small muted">僅顯示前 100 檔（依綜合分排序）。</p> : null}
-      <p class="tiny muted">條件：{conditions.map((c) => describeCondition(c, label, unit)).join('；') || '無'}。結果為規則篩選，非推薦。</p>
+        {results.length > 100 ? <p class="ui-foot ui-muted">前 100 檔（依 RS 百分位）</p> : null}
+      </Section>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import { fmtCount, fmtNum, missing, orMissing, pctPlain, pctSigned } from '../lib/format';
 import type { Stats } from '../lib/backtest';
 import { uiConfig } from '../lib/config';
+import { Card, Section } from './ui';
 import '../styles/evidence.css';
 
 /** 回測可信度：依樣本數（門檻見 config/ui.yml）。 */
@@ -128,7 +129,6 @@ export function ExitCompare({ r, h }: { r: BacktestResult; h: string }) {
           </div>
         ))}
       </div>
-      <p class="tiny muted">持有 {h} 日。停損：盤中觸及即以停損價出場（跳空低開以開盤價）；跌破均線：收盤跌破，隔日開盤出場；三種都以持有 {h} 日為上限。絕對勝率＝報酬 &gt; 0 的比例。</p>
     </div>
   );
 }
@@ -206,13 +206,16 @@ export function BacktestReport({ r }: { r: BacktestResult }) {
         {view === 'in_sample' || view === 'out_of_sample' ? <p class="tiny muted">樣本內／外分界：{typeof oosCut === 'string' && oosCut ? ymd(oosCut) : missing('沒有樣本')}（依訊號日期的期間前 2/3、後 1/3）。</p> : null}
         <p class="caption muted">報酬已扣手續費、證交稅與滑價（買賣各 0.1%）；出場日跌停鎖死順延到下一個可成交日；超額報酬相對加權報酬指數；MAE 為持有期間最大不利波動；絕對勝率＝報酬 &gt; 0 的比例。可信度依樣本數：&lt; {uiConfig.backtest_confidence.low_below} 筆為低、≥ {uiConfig.backtest_confidence.high_from} 筆為高。</p>
       </div>
-      <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>出場規則比較</h2>
-      <div class="card"><ExitCompare r={r} h={String(r.detail_horizon)} /></div>
-      <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>訊號衰減曲線</h2>
-      <div class="card"><DecayChart decay={r.decay} /><p class="tiny muted">進場後第 1–{r.decay.length} 個交易日收盤的平均報酬（扣成本）。</p></div>
-      <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>排除的樣本</h2>
-      <div class="card small">開盤即漲停 {fmtCount(ex.limit_up ?? 0)} 筆 · 停牌 {fmtCount(ex.suspended ?? 0)} 筆 · 處置期間 {fmtCount(ex.disposition ?? 0)} 筆 · 尚無後續資料 {fmtCount(ex.no_future ?? 0)} 筆 · 出場日跌停鎖死順延 {fmtCount(ex.locked_exit ?? 0)} 筆</div>
-      <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>逐筆明細（持有 {r.detail_horizon} 日，最近 {fmtCount(r.trades.length)} 筆）</h2>
+      <Section title="出場規則比較" info={<p>持有 {r.detail_horizon} 日。停損：盤中觸及即以停損價出場（跳空低開以開盤價）；跌破均線：收盤跌破，隔日開盤出場；三種都以持有 {r.detail_horizon} 日為上限。絕對勝率＝報酬 &gt; 0 的比例。</p>}>
+        <Card><ExitCompare r={r} h={String(r.detail_horizon)} /></Card>
+      </Section>
+      <Section title="訊號衰減曲線" info={<p>進場後第 1–{r.decay.length} 個交易日收盤的平均報酬（扣成本）。</p>}>
+        <Card><DecayChart decay={r.decay} /></Card>
+      </Section>
+      <Section title="排除的樣本">
+        <Card><p class="ui-foot">開盤即漲停 {fmtCount(ex.limit_up ?? 0)} 筆・停牌 {fmtCount(ex.suspended ?? 0)} 筆・處置期間 {fmtCount(ex.disposition ?? 0)} 筆・尚無後續資料 {fmtCount(ex.no_future ?? 0)} 筆・出場日跌停鎖死順延 {fmtCount(ex.locked_exit ?? 0)} 筆</p></Card>
+      </Section>
+      <Section title="逐筆明細" aside={`持有 ${r.detail_horizon} 日・最近 ${fmtCount(r.trades.length)} 筆`} info={<p>限制：回補起點以前已下市的股票不在資料內；歷史資料以公開資料重建，可能與實際成交有差異；過去績效不代表未來。</p>}>
       {/* M3：5 欄以內（訊號日與 MAE 寫在股票名稱下方），不左右滑動 */}
       <div class="card flush">
         <table class="ev-table bt-trades" aria-label="逐筆明細">
@@ -231,7 +234,7 @@ export function BacktestReport({ r }: { r: BacktestResult }) {
           </tbody>
         </table>
       </div>
-      <p class="tiny muted">限制：回補起點以前已下市的股票不在資料內；歷史資料以公開資料重建，可能與實際成交有差異；過去績效不代表未來。</p>
+      </Section>
     </>
   );
 }

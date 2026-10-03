@@ -90,7 +90,7 @@ test('選股：切換預設組合、新增條件、一鍵回測連結', async ({
   await page.getByRole('button', { name: '近高點放量' }).click();
   await expect(page.getByRole('heading', { name: /結果/ })).toBeVisible();
   await page.getByRole('button', { name: '新增條件' }).click();
-  await expect(page.getByLabel('欄位').last()).toHaveValue('composite');
+  await expect(page.getByLabel('欄位').last()).toHaveValue('rs_percentile'); // 2026-10-03：綜合分移除，新增條件預設 RS 百分位
   await expect(page.getByRole('link', { name: '一鍵回測' })).toHaveAttribute('href', /#\/explore\/backtest\?c=/);
 });
 
@@ -120,7 +120,7 @@ test('回測：預設組合顯示統計與可信度；自訂條件在 Web Worker
   await expect(page.getByRole('rowheader', { name: '勝率' })).toBeVisible(); // M3：指標為列、持有天數為欄（不左右滑動）
   await expect(page.getByText(/可信度(低|中|高)/).first()).toBeVisible();
   await expect(page.getByText('訊號衰減曲線')).toBeVisible();
-  const c = encodeURIComponent(JSON.stringify([{ field: 'composite', op: '>=', value: 50 }]));
+  const c = encodeURIComponent(JSON.stringify([{ field: 'rs_percentile', op: '>=', value: 80 }]));
   await page.goto(`#/explore/backtest?c=${c}&name=test`);
   await expect(page.getByRole('rowheader', { name: '勝率' })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(/訊號 \d+ 筆 · 範圍：成交值前/)).toBeVisible();
@@ -213,7 +213,7 @@ test('主動式 ETF：頁首一列涵蓋檔數與持股日，投信與方法在 
   await page.goto('#/explore/etf');
   // SPEC §7：頁首「涵蓋 8/32 檔・持股日 10/2」；投信家數與已實作家數分開寫在 ⓘ
   await expect(page.getByTestId('etf-coverage')).toHaveText(/^(涵蓋 \d+\/\d+ 檔・持股日 \d+\/\d+|持股資料累積中)$/);
-  await page.getByTestId('etf-info').click();
+  await page.getByTestId('etf-moves').getByRole('button', { name: /說明/ }).click();
   await expect(page.getByRole('dialog').getByText(/來自 \d+ 家投信/)).toBeVisible();
   await expect(page.getByRole('dialog').getByText(/已實作 \d+ 家投信、\d+ 檔/)).toBeVisible();
 });

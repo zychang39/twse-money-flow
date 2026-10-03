@@ -38,11 +38,13 @@ test('S2 選股：「今日新觸發」切換；條件含千張大戶時顯示�
   await page.goto('#/explore/screener');
   await page.getByRole('group', { name: '內建組合' }).getByRole('button', { name: '三方同買' }).click();
   await expect(page.getByTestId('weekly-note')).toHaveText(/^大戶資料：\d+\/\d+ 持股・\d+\/\d+ 公布/);
-  const all = Number((await page.getByRole('heading', { level: 1 }).textContent())!.match(/(\d+) 檔符合/)![1]);
+  // 2026-10-03：頁首標題為「選股」，組合名稱與檔數在頁首副資訊
+  const head = page.getByTestId('screen-head');
+  const all = Number((await head.textContent())!.match(/(\d+) 檔符合/)![1]);
   await page.getByRole('group', { name: '結果範圍' }).getByRole('button', { name: '今日新觸發' }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toContainText(/三方同買：今日新觸發 \d+ 檔/);
+  await expect(head).toContainText(/三方同買：今日新觸發 \d+ 檔/);
   await expect(page.getByTestId('screen-mode-note')).toContainText(/今日新觸發＝\d+\/\d+ 全部條件成立、\d+\/\d+ 不成立/);
-  const fresh = Number((await page.getByRole('heading', { level: 1 }).textContent())!.match(/今日新觸發 (\d+) 檔/)![1]);
+  const fresh = Number((await head.textContent())!.match(/今日新觸發 (\d+) 檔/)![1]);
   expect(fresh).toBeLessThanOrEqual(all);
   await expect(page.getByRole('link', { name: '設為追蹤策略' })).toHaveAttribute('href', '#/discipline/tracking?preset=chip_concentration');
 });
@@ -67,8 +69,10 @@ test('S3 訊號追蹤：啟用日之後的觸發 → 等待進場／持有中／
   await page.goto('#/discipline/tracking');
   const card = page.getByTestId('track-strategy');
   await expect(card.getByTestId('track-position').first()).toBeVisible({ timeout: 10_000 });
-  const tags = await card.locator('.tag').allTextContents();
-  expect(tags.some((t) => t === '已出場')).toBe(true);
+  // 最新的 8 筆可能都還在持有；展開全部後應有已出場的紀錄（狀態在每列數值下方）
+  if (await card.getByTestId('track-more').count()) await card.getByTestId('track-more').click();
+  const states = await card.getByTestId('track-position').locator('.ui-v2').allTextContents();
+  expect(states.some((t) => t === '已出場')).toBe(true);
   const signals = await card.getByTestId('track-position').allTextContents();
   for (const s of signals) {
     const m = s.match(/訊號 (\d+)\/(\d+)/)!;

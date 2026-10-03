@@ -188,13 +188,13 @@ test('#11 選股：刪掉內建組合的條件後改稱「自訂條件」，回�
   const presetName = (await first.locator('.chip-label').textContent())!.trim();
   await first.click();
   await expect(first).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('heading', { level: 1 })).toContainText(`${presetName}：`);
+  await expect(page.getByTestId('screen-head')).toContainText(`${presetName}：`);
   // 內建組合原樣帶到回測：直接看預先計算的全市場結果
   await expect(page.getByRole('link', { name: '一鍵回測' })).toHaveAttribute('href', /#\/explore\/backtest\?preset=/);
   // 刪除兩個條件
   await page.getByRole('button', { name: /^刪除條件/ }).nth(1).click();
   await page.getByRole('button', { name: /^刪除條件/ }).nth(1).click();
-  await expect(page.getByRole('heading', { level: 1 })).toContainText(/^自訂條件：\d+ 檔符合/);
+  await expect(page.getByTestId('screen-head')).toContainText(/^自訂條件：\d+ 檔符合/);
   await expect(first).toHaveAttribute('aria-pressed', 'false');
   await expect(page.getByTestId('screen-desc')).toContainText(`由「${presetName}」修改`);
   const link = page.getByRole('link', { name: '一鍵回測' });

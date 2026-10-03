@@ -64,7 +64,7 @@ export default function Sectors({ industry }: { industry?: string }) {
         }>
           <Seg options={[['1', '1 日'], ['5', '5 日'], ['20', '20 日']] as const} value={String(period) as '1' | '5' | '20'} onChange={(v) => setPeriod(Number(v) as 1 | 5 | 20)} label="期間" />
           <Seg options={[['net', '法人淨買超'], ['ret', '漲跌幅']] as const} value={metric} onChange={setMetric} label="指標" />
-          <div class="heat">
+          <div class="heat" data-audit-skip>
             {m.sectors.map((s) => {
               const v = s[`${metric}_${period}`] as number | null;
               const r = s[`ret_${period}`] as number | null;

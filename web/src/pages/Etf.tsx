@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
 import { ErrorState, Loading } from '../components/DataStatus';
-import { Card, CardLabel, EmptyRow, Info, List, Num, PageTitle, Row, Section, Seg, Signed, Table } from '../components/ui';
+import { Card, CardLabel, EmptyRow, List, Num, PageTitle, Row, Section, Seg, Signed, Table } from '../components/ui';
 import { useAsync } from '../hooks';
 import { loadMarket } from '../data/api';
 import { ETF_KINDS, ETF_KIND_LABEL, type EtfCoverage, type EtfItem, type EtfKind, type EtfMove, type EtfSortMetric, type EtfValidation } from '../data/types';
@@ -60,10 +60,14 @@ export function unverifiedLine(v: EtfValidation | undefined | null): string | nu
   return `排序口徑未驗證（樣本 ${fmtNum(v.n, 0)} 筆${a && b ? `、${ymd(a)}–${ymd(b)}` : ''}）`;
 }
 
-/** 副資訊：「新增・同向 2 檔・佔市值 0.04%」（加碼／減碼不重複標示，只標新增、剔除）。 */
+/** 副資訊：「同向 2 檔・佔市值 0.04%」。 */
+/** 金額下方的分類：只標新增、剔除（加碼／減碼已由區塊表示，不重複）。 */
+export function itemKind(x: EtfItem): string | undefined {
+  return x.kind === 'new' || x.kind === 'exit' ? ETF_KIND_LABEL[x.kind] : undefined;
+}
+
 export function itemSub(x: EtfItem): string {
   const parts: string[] = [];
-  if (x.kind === 'new' || x.kind === 'exit') parts.push(ETF_KIND_LABEL[x.kind]);
   parts.push(`同向 ${x.etfs_same_dir} 檔`);
   if (x.pct_mcap !== null && Number.isFinite(x.pct_mcap)) parts.push(`佔市值 ${fmtNum(Math.abs(x.pct_mcap), 2)}%`);
   return parts.join('・');
@@ -92,6 +96,7 @@ function MoveList({ title, items, testid }: { title: string; items: EtfItem[]; t
               label={<>{x.name} <span class="ui-muted">{x.code}</span></>}
               sub={itemSub(x)}
               value={<Signed v={x.value_yi} digits={2} unit="億" kind="sign" label={x.dir === 'add' ? '加碼金額' : '減碼金額'} />}
+              value2={itemKind(x) ? <span class="ui-muted" data-testid="etf-kind">{itemKind(x)}</span> : undefined}
               extra={<span class="ui-v ui-foot"><Num v={x.pct_avg20 === null ? null : Math.abs(x.pct_avg20)} digits={1} unit="%" /></span>} />
           ))}
         </List>
@@ -108,7 +113,7 @@ function ValidationTable({ v }: { v: EtfValidation }) {
     e: v.rows.find((r) => r.metric === m && r.h === h && r.vs === 'ew'),
   })));
   const cell = (r?: { excess: number | null; t: number | null }) => (r && r.excess !== null
-    ? <><Signed v={r.excess} digits={2} unit="%" tone="plain" /> <span class="ui-muted">t {fmtNum(r.t, 2)}</span></>
+    ? <><Signed v={r.excess} digits={2} unit="%" tone="plain" /> <span class="ui-muted">t {fmtNum(r.t, 2).replace('-', '−')}</span></>
     : '—');
   return (
     <Table caption="排序口徑驗證" rowKey={(r) => `${r.m}-${r.h}`} rows={rows} cols={[
@@ -168,13 +173,15 @@ export default function Etf() {
     <div class="page">
       <TopBar back="/explore" />
       <PageTitle title="主動式 ETF"
-        aside={m ? <Info title="主動式 ETF 持股變動" testid="etf-info"><EtfInfo cov={cov} method={rk?.method} v={rk?.validation} kinds={kinds} /></Info> : undefined}
         sub={m ? <><div data-testid="etf-coverage">{coverageLine(cov)}</div>{warn ? <div data-testid="etf-unverified">{warn}</div> : null}</> : undefined} />
       {market.error ? <ErrorState error={market.error} /> : null}
       {market.loading ? <Loading /> : null}
       {m ? (
         <>
-          <Seg options={SORT_OPTIONS} value={sort} onChange={pick} label="排序口徑" testid="etf-sort" />
+          <Section title="持股變動" testid="etf-moves" aside={cov ? `${cov.issuers} 家投信` : undefined}
+            info={<EtfInfo cov={cov} method={rk?.method} v={rk?.validation} kinds={kinds} />} infoTitle="主動式 ETF 持股變動">
+            <Seg options={SORT_OPTIONS} value={sort} onChange={pick} label="排序口徑" testid="etf-sort" />
+          </Section>
           <MoveList title="加碼" items={add} testid="etf-add" />
           <MoveList title="減碼" items={reduce} testid="etf-reduce" />
           <Section title="清單" aside={`${list.length} 檔・依 20 日均成交值`} testid="etf-list">

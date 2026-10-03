@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
-import { PageHead, TopBar } from '../components/Chrome';
+import { TopBar } from '../components/Chrome';
+import { Card, List, EmptyRow, PageTitle, Row, Section } from '../components/ui';
 import { logActivity } from '../db/db';
 import { loadSummary } from '../data/api';
 import { ErrorState, Loading } from '../components/DataStatus';
@@ -53,10 +54,9 @@ export default function Backtest() {
   return (
     <div class="page">
       <TopBar back="/explore" />
-      <PageHead title="回測">
-        <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>T 日收盤後訊號、T+1 開盤進場、持有 N 日開盤出場；已扣手續費、證交稅與滑價。</p>
-      </PageHead>
+      <PageTitle title="回測" sub="T+1 開盤進場・扣成本・依規則產生，非推薦" />
       {index.error ? <ErrorState error={index.error} /> : null}
+      <Section title="回測對象" info={<p>T 日收盤後訊號、T+1 開盤進場、持有 N 日開盤出場；已扣手續費、證交稅與滑價。內建組合為預先計算的全市場結果；自訂條件在瀏覽器內計算（成交值前 600 檔、最近約 2 年；首次需下載數 MB 資料）。</p>}>
       <div class="chips" role="group" aria-label="回測對象">
         {custom ? <button class="chip" aria-pressed={!!showCustom} onClick={() => setSel('custom')}>{customName}</button> : null}
         {index.data?.presets.map((p) => (
@@ -66,16 +66,16 @@ export default function Backtest() {
         ))}
       </div>
       {showCustom ? (
-        <>
-          <p class="caption muted" style={{ marginTop: 'var(--s-3)' }}>條件：{custom!.map((c) => describeCondition(c, label, unit)).join('；')}。自訂條件在瀏覽器內計算（範圍：成交值前 600 檔、最近約 2 年；首次需下載數 MB 資料）。</p>
-          <CustomRun conditions={custom!} own={own} />
-        </>
+        <Card><p class="ui-foot ui-muted">條件：{custom!.map((c) => describeCondition(c, label, unit)).join('；')}（自訂條件，瀏覽器內計算）</p></Card>
       ) : preset.data ? (
-        <>
-          <p class="caption muted" style={{ marginTop: 'var(--s-3)' }}>{preset.data.subtitle ? <b class="t1">{preset.data.subtitle}。</b> : null}{preset.data.description} 條件：{preset.data.conditions.map((c) => describeCondition(c, label, unit)).join('；')}（預先計算，全市場）。</p>
-          <BacktestReport r={preset.data} />
-        </>
-      ) : preset.loading || index.loading ? <Loading /> : <div class="empty"><p>尚無回測資料（資料源待處理）。</p><a class="btn" href="#/explore/screener">前往選股建立條件</a></div>}
+        <Card><p class="ui-foot ui-muted">{preset.data.subtitle ? `${preset.data.subtitle}・` : ''}條件：{preset.data.conditions.map((c) => describeCondition(c, label, unit)).join('；')}（預先計算，全市場）</p></Card>
+      ) : null}
+      </Section>
+      {showCustom ? (
+        <CustomRun conditions={custom!} own={own} />
+      ) : preset.data ? (
+        <BacktestReport r={preset.data} />
+      ) : preset.loading || index.loading ? <Loading /> : <List chev><EmptyRow>回測資料源待處理</EmptyRow><Row label="選股" sub="建立條件" href="#/explore/screener" /></List>}
     </div>
   );
 }

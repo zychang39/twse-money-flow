@@ -23,9 +23,9 @@ export function md(iso: string | null | undefined): string {
   return `${Number(m)}/${Number(d)}`;
 }
 
-/** 處置列的副資訊：「10/1–10/12・第一次處置・連續三次」 */
+/** 處置列的副資訊（一行）：「10/1–10/12・第一次處置」；處置條件放在列的無障礙說明與個股頁。 */
 export function dispositionSub(r: Data['disposition'][number]): string {
-  return [`${md(r.start)}–${md(r.end)}`, r.measure, r.reason].filter(Boolean).join('・');
+  return [`${md(r.start)}–${md(r.end)}`, r.measure].filter(Boolean).join('・');
 }
 
 const RULES = (
@@ -74,7 +74,8 @@ export default function Disposition() {
             <List chev>
               {data.disposition.length ? data.disposition.map((r) => (
                 <Row key={`${r.code}-${r.start}`} label={<>{r.name} <span class="ui-muted">{r.code}</span></>}
-                  sub={dispositionSub(r)} value={<Num v={r.interval_minutes} unit="分鐘" />} href={`#/stock/${r.code}`} />
+                  sub={dispositionSub(r)} value={<Num v={r.interval_minutes} unit="分鐘" />} href={`#/stock/${r.code}`}
+                  ariaLabel={`${r.name} ${r.code}：${dispositionSub(r)}${r.reason ? `・${r.reason}` : ''}${r.interval_minutes ? `・約每 ${r.interval_minutes} 分鐘撮合` : ''}`} />
               )) : <EmptyRow>無</EmptyRow>}
             </List>
           </Section>

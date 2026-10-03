@@ -15,6 +15,14 @@ const CAL_INFO = (
 
 export interface CalEvent { date: string; type: string; code: string | null; name: string | null; text: string }
 
+/** 事件副資訊一行：過長的說明（法說會內容等）只留第一個子句（最多 22 字）；完整內容在個股頁事件。 */
+export function eventSub(text: string, max = 22): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max).search(/[，。；、（(]/);
+  return cut > 4 ? t.slice(0, cut) : t.slice(0, max);
+}
+
 export function filterEvents(events: CalEvent[], mine: Set<string>, all: boolean): CalEvent[] {
   return events.filter((e) => all || e.code === null || mine.has(e.code));
 }
@@ -39,7 +47,7 @@ export default function CalendarPage() {
           info={i === 0 ? CAL_INFO : undefined}>
           <List tags>
             {evs.map((e, j) => (
-              <Row key={j} label={e.code ? <>{e.name} <span class="ui-muted">{e.code}</span></> : e.text} sub={e.code ? e.text : undefined}
+              <Row key={j} label={e.code ? <>{e.name} <span class="ui-muted">{e.code}</span></> : e.text} sub={e.code ? eventSub(e.text) : undefined}
                 tag={<Tag>{e.type}</Tag>} href={e.code ? `#/stock/${e.code}` : undefined} noChev />
             ))}
           </List>
