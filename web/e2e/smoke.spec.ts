@@ -81,10 +81,11 @@ test('我的股票：加入自選後出現清單列，點擊進入個股頁', as
   await row.click();
   await expect(page.locator('h1')).toHaveText(/台積電/);
   await expect(page.getByRole('img', { name: /走勢/ })).toBeVisible();
-  // 2026-10 改版：日 K 是預設；「進階」在 ⋯ 內，顯示分項分數、多空條件、KD、MACD
-  await page.getByTestId('stock-more').click();
-  await page.getByTestId('toggle-advanced').click();
-  await expect(page.getByTestId('sec-advanced')).toContainText('KD');
+  // M3：總覽有四環與綜合分；動能的「趨勢」詳情有 KD、MACD
+  await expect(page.getByTestId('score-rings')).toBeVisible();
+  await page.getByTestId('stock-seg').getByRole('button', { name: '動能', exact: true }).click();
+  await page.getByTestId('mom-trend').click();
+  await expect(page.getByTestId('sec-tech')).toContainText('KD');
 });
 
 test('選股：切換預設組合、新增條件、一鍵回測連結', async ({ page }) => {

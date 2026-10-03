@@ -143,11 +143,15 @@ export function Metric({ term, label, value, graphic, interp, alert = false, ale
 /**
  * 摘要卡（E 節）：標題＋結論行＋小圖形＋解讀行，點擊推入詳情頁（共用元素過渡：標題與數值）。
  */
-export function SummaryCard({ title, conclusion, graphic, interp, href, onClick, children, testid, vt }: {
+export function SummaryCard({ title, conclusion, graphic, interp, alert, alertTerm, href, onClick, children, testid, vt }: {
   title: Kids;
   conclusion?: Kids;
   graphic?: Kids;
   interp?: Kids;
+  /** 超過提醒門檻（B3／B4）：解讀行轉橘；精簡模式在結論旁顯示橘點 */
+  alert?: boolean;
+  /** 橘點點開的名詞 */
+  alertTerm?: string;
   href?: string;
   onClick?: () => void;
   children?: Kids;
@@ -161,10 +165,10 @@ export function SummaryCard({ title, conclusion, graphic, interp, href, onClick,
         <span class="sum-title" style={vt ? { viewTransitionName: `${vt}-title` } as JSX.CSSProperties : undefined}>{title}</span>
         {href || onClick ? <span class="sum-chev" aria-hidden="true"><IconChevron /></span> : null}
       </span>
-      {conclusion ? <span class="sum-concl" style={vt ? { viewTransitionName: `${vt}-value` } as JSX.CSSProperties : undefined}>{conclusion}</span> : null}
+      {conclusion ? <span class="sum-concl" style={vt ? { viewTransitionName: `${vt}-value` } as JSX.CSSProperties : undefined}>{conclusion}{alert && alertTerm ? <RiskDot term={alertTerm} show /> : null}</span> : null}
       {graphic ? <span class="sum-graphic">{graphic}</span> : null}
       {children}
-      {interp ? <Interp>{interp}</Interp> : null}
+      {interp ? <Interp alert={alert}>{interp}</Interp> : null}
     </>
   );
   if (href) return <a class="sum-card ui-tap" href={href} data-testid={testid}>{inner}</a>;
@@ -344,9 +348,9 @@ export function DataState({ phase, reason, stale, onRetry, skeleton, children, t
 }
 
 /** 資料落後提示（沿用改版前「資料可能過期」的橘色提示樣式）：點進資料健康頁看原因。 */
-export function StaleNote({ children, lead = '資料落後' }: { children?: Kids; lead?: string }) {
+export function StaleNote({ children, lead = '資料落後', testid }: { children?: Kids; lead?: string; testid?: string }) {
   return (
-    <a class="stale-note" href="#/me/health" data-testid="stale-note">
+    <a class="stale-note" href="#/me/health" data-testid={testid ?? 'stale-note'}>
       <span class="stale-text"><span class="stale-lead">{lead}</span>{' '}{children ?? '部分資料集未更新'}</span>
       <IconChevron />
     </a>

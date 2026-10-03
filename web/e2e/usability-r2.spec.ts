@@ -35,7 +35,7 @@ test('#3 個股頁頁首的當日漲跌：切換任何期間（含週 K、長歷
   const group = page.getByTestId('stock-periods').first();
   const today = page.getByTestId('hero-change').first();
   const dateLabel = page.getByTestId('hero-change-date').first();
-  await expect(dateLabel).toHaveText(/^\d{4}\/\d{1,2}\/\d{1,2}$/);
+  await expect(dateLabel).toHaveText(/^\d{1,2}\/\d{1,2}$/);
   const dateText = await dateLabel.textContent();
   const base = await today.textContent();
   const names = await group.getByRole('button').allTextContents();
@@ -63,9 +63,9 @@ test.describe('#4／#5 個股頁區塊樣式（2026-10 改版：共用元件）'
     expect(stock).toContain('.sk-tags');
   });
 
-  test('直接開啟個股頁：趨勢表的數字欄靠右、列沒有瀏覽器預設縮排', async ({ page }) => {
-    await gotoStock(page, '#/stock/2330');
-    const table = page.locator('.ui-sec', { hasText: '趨勢' }).locator('table.ui-table');
+  test('直接開啟趨勢詳情：均線表的數字欄靠右、列沒有瀏覽器預設縮排', async ({ page }) => {
+    await page.goto('#/stock/2330/m/trend');
+    const table = page.getByTestId('ma-table');
     await table.scrollIntoViewIfNeeded();
     expect(await table.evaluate((el) => getComputedStyle(el).marginLeft)).toBe('0px');
     const cells = table.locator('tbody td.r');
@@ -73,17 +73,13 @@ test.describe('#4／#5 個股頁區塊樣式（2026-10 改版：共用元件）'
     expect(await cells.first().evaluate((el) => getComputedStyle(el).textAlign)).toBe('right');
   });
 
-  test('外資持股比：標籤左、數值右（同一條右緣），20 日變化以百分點表示', async ({ page }) => {
+  test('外資持股比（M3）：摘要卡列出比例與 20 日變化（百分點）', async ({ page }) => {
     await gotoStock(page, '#/stock/2330');
     await page.getByTestId('stock-seg').getByRole('button', { name: '籌碼', exact: true }).click();
-    const sec = page.locator('.ui-sec', { hasText: '外資持股比' });
+    const sec = page.getByTestId('sec-qfii');
     await sec.scrollIntoViewIfNeeded();
-    const rows = sec.locator('.ui-row');
-    await expect(rows).toHaveCount(2);
-    await expect(rows.nth(1)).toContainText(/百分點|—/);
-    const r = await rows.evaluateAll((els) => els.map((e) => [e.querySelector('.ui-row-label')!.getBoundingClientRect().x, e.querySelector('[data-a="v"]')!.getBoundingClientRect().right]));
-    expect(r[0][0]).toBeLessThan(r[0][1]);
-    expect(Math.abs(r[0][1] - r[1][1])).toBeLessThanOrEqual(0.5);
+    await expect(sec.locator('.sum-concl')).toContainText(/%/);
+    await expect(sec.getByTestId('interp')).toContainText(/個百分點/);
   });
 });
 

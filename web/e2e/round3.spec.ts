@@ -102,7 +102,7 @@ test('M2：點一列打開當天完整籌碼（含四個法人的買張、賣張
 // ---------------------------------------------------------------- M3 籌碼結構（v3：全站統一分級，移除可調門檻）
 test('M3（v3）：個股頁有「15 級完整分布」入口；分級定義固定並顯示在畫面上；沒有可調門檻', async ({ page }) => {
   await gotoStockSeg(page, '#/stock/2330', '籌碼');
-  await page.getByRole('link', { name: /15 級分布/ }).click();
+  await page.getByTestId('sec-holders').click(); // M3：股權分散摘要卡推入「籌碼結構」（趨勢與 15 級分布）
   await expect(page).toHaveURL(/#\/stock\/2330\/holders$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('籌碼結構');
   await expect(page.getByTestId('tool-summary')).toHaveText(/^千張大戶/);
@@ -148,12 +148,10 @@ for (const width of [375, 393]) {
 }
 
 // ---------------------------------------------------------------- M4 多空對照
-test('M4：多空條件計數在「進階」（⋯ → 進階）；多空對照並排列出四個面向的多方與空方', async ({ page }) => {
+test('M4：多空條件計數在 ⋯ 選單（M3）；多空對照並排列出四個面向的多方與空方', async ({ page }) => {
   await gotoStock(page, '#/stock/2330');
   await page.getByTestId('stock-more').click();
-  await page.getByTestId('toggle-advanced').click();
-  const block = page.getByTestId('sec-advanced');
-  const row = block.getByRole('link', { name: /多空條件/ });
+  const row = page.getByTestId('to-bullbear');
   await expect(row).toContainText(/多方 \d+ 項、空方 \d+ 項/);
   await row.click();
   await expect(page).toHaveURL(/#\/stock\/2330\/bullbear$/);

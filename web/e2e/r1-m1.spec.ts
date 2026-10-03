@@ -102,6 +102,6 @@ test.describe('U-01 下市或停牌的持股不消失；404 用友善文字', ()
     await expect(page).toHaveURL(/#\/stock\/00980A$/);
     await expect(page.getByText('找不到代號 00980A')).toBeVisible();
     await expect(page.getByText(/HTTP/)).toHaveCount(0);
-    await expect(page.locator('.ui-head-sub')).not.toContainText('上市');
+    await expect(page.getByTestId('stock-crumb')).not.toContainText('上市');
   });
 });

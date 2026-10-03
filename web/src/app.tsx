@@ -40,6 +40,9 @@ const Institutional = lazy(() => import('./pages/Institutional'));
 const Holders = lazy(() => import('./pages/Holders'));
 const BullBear = lazy(() => import('./pages/BullBear'));
 const StockDaily = lazy(() => import('./pages/StockDaily'));
+const StockMomentum = lazy(() => import('./pages/StockMomentum'));
+const StockScores = lazy(() => import('./pages/StockScores'));
+const StockChipDetail = lazy(() => import('./pages/StockChipDetail'));
 const Evidence = lazy(() => import('./pages/Evidence'));
 const Strategies = lazy(() => import('./pages/Strategies'));
 const Leverage = lazy(() => import('./pages/Leverage'));
@@ -47,7 +50,7 @@ const Glossary = lazy(() => import('./pages/Glossary'));
 const Gallery = lazy(() => import('./pages/Gallery'));
 
 function Page({ parts }: { parts: string[] }) {
-  const [a, b, c] = parts;
+  const [a, b, c, d] = parts;
   switch (a) {
     case undefined: return <Tonight />;
     case 'mine': return <Mine />;
@@ -64,6 +67,9 @@ function Page({ parts }: { parts: string[] }) {
         case 'holders': return <Holders code={code} />;
         case 'bullbear': return <BullBear code={code} />;
         case 'daily': return <StockDaily code={code} />;
+        case 'm': return <StockMomentum code={code} card={d ?? 'returns'} />;
+        case 'scores': return <StockScores code={code} />;
+        case 'c': return <StockChipDetail code={code} card={d ?? 'qfii'} />;
         default: return <Placeholder title="找不到頁面" back={`/stock/${b}`} />;
       }
     }

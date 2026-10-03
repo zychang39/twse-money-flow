@@ -162,8 +162,10 @@ export function Num({ v, digits = 0, unit, fallback = '—' }: { v: number | str
  * - tone='updown'（預設）：紅漲綠跌；'plain'：中性色（例：超額報酬、百分位變化，不是價格或買賣超）。
  * - 三角形大小、與數字的間距、垂直位置全站一致（.sv-a）。
  */
-export function Signed({ v, digits = 2, unit, kind = 'sign', tone = 'updown', fallback = '—', label }: {
+export function Signed({ v, digits = 2, unit, kind = 'sign', tone = 'updown', fallback = '—', label, pct }: {
   v: number | null | undefined;
+  /** 價格漲跌的百分比：顯示成「▲ 12.5 (1.34%)」（半形括號，A7） */
+  pct?: number | null;
   digits?: number;
   unit?: string;
   kind?: 'arrow' | 'sign';
@@ -180,12 +182,13 @@ export function Signed({ v, digits = 2, unit, kind = 'sign', tone = 'updown', fa
   const word = kind === 'arrow' ? (d === 'up' ? '上漲' : d === 'down' ? '下跌' : '持平') : (d === 'up' ? '正' : d === 'down' ? '負' : '');
   const cls = `sv ${tone === 'updown' ? d : 'plain'}`;
   return (
-    <span class={cls} role="img" aria-label={`${label ?? ''}${word} ${abs}${unit ?? ''}`.trim()}>
+    <span class={cls} role="img" aria-label={`${label ?? ''}${word} ${abs}${unit ?? ''}${pct !== undefined && pct !== null && Number.isFinite(pct) ? `，${numberFormat(2).format(Math.abs(pct))}%` : ''}`.trim()}>
       <span aria-hidden="true" class="sv-in">
         {kind === 'arrow'
           ? <>{d !== 'flat' ? <span class="sv-a">{d === 'up' ? '▲' : '▼'}</span> : null}{abs}</>
           : <>{d === 'up' ? '+' : d === 'down' ? MINUS : ''}{abs}</>}
         {unit ? <Unit u={unit} /> : null}
+        {pct !== undefined ? ` (${pct === null || !Number.isFinite(pct) ? '—' : `${numberFormat(2).format(Math.abs(pct))}%`})` : null}
       </span>
     </span>
   );
@@ -277,11 +280,13 @@ export interface Col<R> {
 }
 
 /** 表格：表頭與儲存格同一對齊；欄寬固定（table-layout: fixed）；數字欄用 tabular-nums 靠右。 */
-export function Table<R>({ cols, rows, rowKey, onRow, caption, testid, sticky = false }: {
+export function Table<R>({ cols, rows, rowKey, onRow, caption, testid, sticky = false, selectedKey }: {
   cols: Col<R>[];
   rows: R[];
   rowKey: (r: R, i: number) => string;
   onRow?: (r: R) => void;
+  /** 標亮的列（例：和上方圖表的選取同步） */
+  selectedKey?: string | null;
   caption?: string;
   testid?: string;
   /** 表頭黏在導覽列下方（長表） */
@@ -296,7 +301,8 @@ export function Table<R>({ cols, rows, rowKey, onRow, caption, testid, sticky = 
       </thead>
       <tbody>
         {rows.map((r, ri) => (
-          <tr key={rowKey(r, ri)} class={onRow ? 'ui-tap' : undefined} onClick={onRow ? () => onRow(r) : undefined}
+          <tr key={rowKey(r, ri)} class={`${onRow ? 'ui-tap' : ''} ${selectedKey !== undefined && selectedKey !== null && rowKey(r, ri) === selectedKey ? 'sel' : ''}`.trim() || undefined}
+            aria-selected={selectedKey !== undefined ? rowKey(r, ri) === selectedKey : undefined} onClick={onRow ? () => onRow(r) : undefined}
             tabIndex={onRow ? 0 : undefined} onKeyDown={onRow ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRow(r); } } : undefined}>
             {cols.map((c, i) => <td key={c.key} class={(c.align ?? (i === 0 ? 'l' : 'r')) === 'r' ? 'r' : 'l'}>{c.render(r, ri)}</td>)}
           </tr>

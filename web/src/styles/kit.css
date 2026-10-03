@@ -11,6 +11,10 @@
   /* 點擊區域擴到 44 高：行內元素的上下內距不影響排版（負邊距抵銷） */
   padding: calc((var(--tap) - 1lh) / 2) 0; margin: calc((var(--tap) - 1lh) / -2) 0;
 }
+.term { position: relative; }
+/* 短名詞（佔量、年增）：橫向也擴到 44 寬（不影響排版）；靠右的表頭往左擴，不超出儲存格 */
+.term::before { content: ''; position: absolute; top: 0; bottom: 0; left: min(0px, calc(50% - var(--tap) / 2)); right: min(0px, calc(50% - var(--tap) / 2)); }
+.r .term::before, th.r .term::before { right: 0; left: min(0px, calc(100% - var(--tap))); }
 .term:active { opacity: 0.6; }
 
 /* ---------- 說明面板 ---------- */
@@ -220,3 +224,8 @@ button.ring2 { cursor: pointer; }
 
 /* 頁首狀態列的連結：44pt 點擊區域（行內上下內距，負邊距抵銷） */
 .meta-line .meta-link, .meta-line .meta-alert { display: inline-block; padding: calc((var(--tap) - 1lh) / 2) 0; margin: calc((var(--tap) - 1lh) / -2) 0; }
+/* 表格儲存格內的第二行（例：斜率下方的「加快／放慢」） */
+.cell-sub { display: block; font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); }
+/* 策略訊號列的兩個資訊塊（M3）：各自不斷行 */
+.sig-blks { display: flex; flex-wrap: wrap; column-gap: var(--s-3); }
+.sig-blk { white-space: nowrap; }

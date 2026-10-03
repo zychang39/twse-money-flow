@@ -40,6 +40,24 @@ class TrendContext:
     atr_pct: pd.DataFrame
 
 
+def wilder(tr: np.ndarray, n: int = 14) -> np.ndarray:
+    """(T, C) ATR（docs/METHODOLOGY.md ATR14）：前 n 筆有效 TR 的簡單平均起算，之後 (ATR₋₁ × (n − 1) + TR) ÷ n；
+    缺值日跳過（沿用前值、不計入）；不足 n 筆為 NaN。與前端 lib/technical.ts atrLast 同一定義。"""
+    out = np.full(tr.shape, np.nan)
+    prev = np.full(tr.shape[1], np.nan)
+    csum = np.zeros(tr.shape[1])
+    cnt = np.zeros(tr.shape[1])
+    for t in range(tr.shape[0]):
+        v = tr[t]
+        ok = ~np.isnan(v)
+        cnt += ok
+        csum += np.where(ok, v, 0.0)
+        prev = np.where(ok & (cnt == n), csum / n, prev)
+        prev = np.where(ok & (cnt > n), (prev * (n - 1) + np.where(ok, v, 0.0)) / n, prev)
+        out[t] = np.where(cnt >= n, prev, np.nan)
+    return out
+
+
 def build_context(p: Panels) -> TrendContext:
     af = p.af.iloc[-TAIL:]
     c = (p.close.iloc[-TAIL:] * af).ffill(limit=5)
@@ -51,7 +69,7 @@ def build_context(p: Panels) -> TrendContext:
         index=c.index,
         columns=c.columns,
     )
-    atr = tr.rolling(14, min_periods=14).mean()
+    atr = pd.DataFrame(wilder(tr.to_numpy(), 14), index=c.index, columns=c.columns)
     ma = {n: c.rolling(n, min_periods=n).mean() for n in MAS}
     return TrendContext(dates=list(c.index), close=c, ma=ma, atr=atr, atr_pct=atr / c * 100)
 

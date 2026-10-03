@@ -180,3 +180,14 @@ def test_period_keys():
     assert d["year:2017"] == ("2017-03-01", "2017-12-31")  # 起點不早於訊號起點
     assert d["last:1"] == ("2025-10-02", "2026-10-02")
     assert d["year:2026"] == ("2026-01-01", "2026-10-02")
+
+
+def test_wilder_atr_matches_methodology():
+    # 前 14 筆簡單平均起算，之後 (前值 × 13 + TR) ÷ 14；缺值日沿用前值
+    tr = np.array([[float(i)] for i in range(1, 17)] + [[np.nan], [20.0]])
+    out = trend.wilder(tr, 14)[:, 0]
+    assert np.isnan(out[12]) and out[13] == pytest.approx(7.5)
+    assert out[14] == pytest.approx((7.5 * 13 + 15) / 14)
+    a15 = (out[14] * 13 + 16) / 14
+    assert out[15] == pytest.approx(a15) and out[16] == pytest.approx(a15)
+    assert out[17] == pytest.approx((a15 * 13 + 20) / 14)

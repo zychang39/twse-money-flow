@@ -75,11 +75,11 @@ function axisLabel(iso: string): string {
   return iso.length > 10 ? iso.slice(11, 16) : shortDate(iso);
 }
 
-export function PeriodSelector({ value, onChange, label = '期間', periods = PERIODS }: { value: Period; onChange: (p: Period) => void; label?: string; periods?: Period[] }) {
+export function PeriodSelector({ value, onChange, label = '期間', periods = PERIODS, testid }: { value: Period; onChange: (p: Period) => void; label?: string; periods?: Period[]; testid?: string }) {
   return (
-    <div class="periods" role="group" aria-label={label}>
+    <div class="periods" role="group" aria-label={label} data-testid={testid}>
       {periods.map((p) => (
-        <button key={p} aria-pressed={value === p} aria-label={`${p}（${PERIOD_LABEL[p]}）`} onClick={() => onChange(p)}>{p}</button>
+        <button key={p} aria-pressed={value === p} aria-description={PERIOD_LABEL[p]} onClick={() => onChange(p)}>{p}</button>
       ))}
     </div>
   );
@@ -118,8 +118,13 @@ const PRESS_RANGE_MS = 450; // 觸控：按住不動這麼久之後拖曳＝選�
 
 export function HeroChart({
   label, win, period, onPeriod, format, formatDelta, seen, height = 176, area = false, caption, emptyText = '資料累積中', periodsLabel,
-  periods = PERIODS, heroChange = 'period', holdToScrub = false, range: rangeOn = true, basis, onBasis,
+  periods = PERIODS, heroChange = 'period', holdToScrub = false, range: rangeOn = true, basis, onBasis, heroTestid, periodsTestid, fallback,
 }: {
+  /** 走勢沒有資料（例：1D 當日沒有分鐘資料）時，主角數字與當日漲跌改用這組日資料（圖表區說明原因） */
+  fallback?: { value: number; abs: number; pct: number | null; date: string } | null;
+  /** 主角數字與期間選擇器的 data-testid（個股頁沿用 stock-price／stock-periods） */
+  heroTestid?: string;
+  periodsTestid?: string;
   label: ComponentChildren;
   win: Window | null;
   period: Period;
@@ -254,7 +259,8 @@ export function HeroChart({
   const dir: Dir = range ? range.dir : 'flat';
   const color = dirColor(dir);
   const rolled = useRoll(latest, seen ?? (win ? (win.base ?? win.values[0]) : null), format);
-  const heroText = scrub !== null && win ? format(win.values[scrub]) : rolled;
+  const fb = !win && fallback ? fallback : null;
+  const heroText = scrub !== null && win ? format(win.values[scrub]) : fb ? format(fb.value) : rolled;
   // M1-3：主角數字旁的日漲跌標「資料日 10/2」而不是「今日」——休市或尚未更新時這個日期本身就說明了基準
   const dataDate = win ? (win.daily?.dates[win.daily.dates.length - 1] ?? win.dates[last]) : null;
   const seenDelta = seen !== null && seen !== undefined && latest !== null && Math.abs(latest - seen) > 1e-9 ? latest - seen : null;
@@ -389,7 +395,8 @@ export function HeroChart({
   };
   const onDown = (e: PointerEvent) => {
     if (rangeDown(e)) { clearPress(); return; }
-    if (rangeOn && e.pointerType !== 'mouse' && touches.current.size === 1) {
+    // 單指按住再拖曳＝區間：只在沒有「長按查價」時（holdToScrub 的頁面長按是查價，區間用兩指；D4）
+    if (rangeOn && !holdToScrub && e.pointerType !== 'mouse' && touches.current.size === 1) {
       clearPress();
       const id = e.pointerId;
       const anchor = idxFromEvent(e);
@@ -455,6 +462,9 @@ export function HeroChart({
   const hiPt = geo ? geo.pts[geo.hi] : null;
   const loPt = geo ? geo.pts[geo.lo] : null;
   const showHiLo = !!geo && win && win.values.length >= 2 && geo.hi !== geo.lo;
+  // 起始價標籤在左端：最高／最低點就是起點附近、數值又和起始價一樣時，只留起始價標籤（不重疊）
+  const baseV = win ? (win.base ?? win.values[0]) : 0;
+  const nearBase = (i: number) => !!geo && !!win && geo.pts[i][0] < 140 && Math.abs(win.values[i] - baseV) <= Math.abs(baseV) * 0.003;
   const svgH = height + DATE_GUTTER;
   const summary = win && latest !== null && chg
     ? `${typeof label === 'string' ? label : ''}${PERIOD_LABEL[period]}走勢：${dateLabel(win.dates[0])}到${dateLabel(win.dates[last])}，最新 ${format(latest)}，${dir === 'up' ? '上漲' : dir === 'down' ? '下跌' : '持平'} ${fd(Math.abs(fromBase(last)?.abs ?? 0))}`
@@ -464,10 +474,10 @@ export function HeroChart({
     <div class="hero-block">
       <div class="hero-label">{label}</div>
       <div class="hero-row">
-        <div class="hero" aria-live="off">{heroText}</div>
+        <div class="hero" aria-live="off" data-testid={heroTestid}>{heroText}</div>
         {basis ? <span class="basis-tag" data-testid="basis-tag" title={RANGE_BASIS_NAME[basis]}>{basis === 'adj' ? '還原' : '原始'}</span> : null}
       </div>
-      <div class="hero-change">
+      <div class="hero-change" data-testid={heroTestid ? 'hero-change' : undefined}>
         {chg && win ? (
           <>
             <span class={chg.dir} role="img" aria-label={`${chg.dir === 'up' ? '上漲' : chg.dir === 'down' ? '下跌' : '持平'} ${fd(Math.abs(chg.abs))}`}>
@@ -478,9 +488,16 @@ export function HeroChart({
               <span class="delta-tag" aria-label={`較上次查看${seenDelta > 0 ? '增加' : '減少'} ${fd(Math.abs(seenDelta))}`}>較上次查看 {arrow(seenDelta)} {fd(Math.abs(seenDelta))}</span>
             ) : null}
           </>
-        ) : win && (daily || both) ? <span class="caption">{dateLabel(win.dates[at])}</span> : <span class="caption">{emptyText}</span>}
+        ) : win && (daily || both) ? <span class="caption">{dateLabel(win.dates[at])}</span> : fb ? (
+          <>
+            <span class={fb.abs > 0 ? 'up' : fb.abs < 0 ? 'down' : 'flat'} role="img" aria-label={`${fb.abs > 0 ? '上漲' : fb.abs < 0 ? '下跌' : '持平'} ${fd(Math.abs(fb.abs))}`}>
+              <span aria-hidden="true">{arrow(fb.abs)} {fd(Math.abs(fb.abs))} ({fb.pct === null ? '—' : `${Math.abs(fb.pct).toFixed(2)}%`})</span>
+            </span>
+            <span class="caption" data-testid="hero-change-date">{md(fb.date)}</span>
+          </>
+        ) : <span class="caption">{emptyText}</span>}
       </div>
-      {both && win ? (
+      {both && win && period !== '1D' ? (
         <div class="hero-change second" data-testid="hero-period-change">
           {periodChg ? (
             <>
@@ -522,8 +539,8 @@ export function HeroChart({
             <path ref={lineRef} class="chart-line" stroke={color} pathLength={1} />
             {showHiLo && hiPt && loPt && win ? (
               <g class="chart-hilo" data-testid="chart-hilo" style={LABEL_STYLE}>
-                <text x={hiPt[0]} y={Math.max(10, hiPt[1] - 6)} text-anchor={labelAnchor(hiPt[0])}>最高 {format(win.values[geo!.hi])}</text>
-                <text x={loPt[0]} y={Math.min(height - 2, loPt[1] + 13)} text-anchor={labelAnchor(loPt[0])}>最低 {format(win.values[geo!.lo])}</text>
+                {nearBase(geo!.hi) ? null : <text x={hiPt[0]} y={Math.max(10, hiPt[1] - 6)} text-anchor={labelAnchor(hiPt[0])}>最高 {format(win.values[geo!.hi])}</text>}
+                {nearBase(geo!.lo) ? null : <text x={loPt[0]} y={Math.min(height - 2, loPt[1] + 13)} text-anchor={labelAnchor(loPt[0])}>最低 {format(win.values[geo!.lo])}</text>}
               </g>
             ) : null}
             {win && win.dates.length >= 2 ? (
@@ -581,7 +598,7 @@ export function HeroChart({
       {caption || win?.truncated ? (
         <div class="chart-caption" data-testid="hero-coverage">{win?.truncated ? `${windowCoverageNote(win)}。` : ''}{caption}</div>
       ) : null}
-      <PeriodSelector value={period} onChange={onPeriod} label={periodsLabel ?? '走勢期間'} periods={periods} />
+      <PeriodSelector value={period} onChange={onPeriod} label={periodsLabel ?? '走勢期間'} periods={periods} testid={periodsTestid} />
       {onBasis && basis ? (
         <div class="range-basis" data-testid="range-basis">
           <span class="caption muted">{''}</span>

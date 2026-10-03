@@ -3,12 +3,21 @@ import { gotoDaily, gotoStockSeg } from './helpers';
 
 // 個股籌碼：區間統計卡、每日籌碼（預設展開、一排控制列、三種檢視、不需左右滑動、底部面板、收合偏好、卡片版面、⋯ 選單）、法人柱狀圖。
 
-test('法人表（2026-10 改版）：期間 5／20／60 日切換後數字跟著變；列＝外資／投信／自營商／合計；欄＝買賣超｜佔量｜連續；點列開明細', async ({ page }) => {
+test('法人表（M3）：期間 5／20／60 日切換後數字跟著變；列＝外資／投信／自營商／合計；欄＝買賣超｜佔量｜（發散橫條）｜連續；點列開明細', async ({ page }) => {
   await gotoStockSeg(page, '#/stock/2330', '籌碼');
   const table = page.getByTestId('insti-table');
   await expect(table).toBeVisible({ timeout: 15_000 });
-  await expect(table.locator('thead th')).toHaveText(['法人', '買賣超', '佔量', '連續']);
+  await expect(table.locator('thead th')).toHaveText(['法人', '買賣超', '佔量', '', '連續']);
+  await expect(table.locator('.dbar')).toHaveCount(4);
   await expect(table.locator('tbody th, tbody td:first-child')).toHaveText(['外資', '投信', '自營商', '合計']);
+  // 每日原始資料表緊接在每日買賣超圖之下（M3）：列數＝所選期間（超過 5 列先收合）；點列與長條互相標亮
+  const daily = page.getByTestId('insti-daily');
+  await expect(daily.locator('tbody tr')).toHaveCount(5);
+  await page.getByTestId('insti-daily-more').click();
+  await expect(daily.locator('tbody tr')).toHaveCount(20);
+  await daily.locator('tbody tr').nth(2).click();
+  await expect(daily.locator('tbody tr').nth(2)).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('insti-bars').getByTestId('bars-readout')).toBeVisible();
   const before = await table.locator('tbody').innerText();
   await page.getByTestId('insti-period').getByRole('button', { name: '60 日' }).click();
   await expect.poll(() => table.locator('tbody').innerText()).not.toBe(before);
@@ -195,22 +204,22 @@ test('單位名稱沒有「估成交量」錯字（全站）', async ({ page }) 
   }
 });
 
-test('法人柱狀圖：座標軸帶單位（張），拖曳或 hover 時顯示日期、數值與單位；圖例說明紅綠', async ({ page }) => {
+test('法人柱狀圖（M3：BarSeries）：座標軸帶單位（張），拖曳或點長條時上方顯示日期與數值；圖例說明紅綠', async ({ page }) => {
   await gotoStockSeg(page, '#/stock/2330', '籌碼');
-  const fig = page.locator('figure.netbars').first();
+  const fig = page.getByTestId('insti-bars');
   await expect(fig).toBeVisible({ timeout: 15_000 });
-  await expect(fig.locator('.nb-axes')).toContainText(/張/);
+  await expect(fig.locator('.sc2-grid')).toContainText(/張/);
   await expect(fig).toContainText('紅色＝淨買超');
   await expect(fig).toContainText('綠色＝淨賣超');
-  const bars = fig.locator('.nb-bars');
-  await bars.scrollIntoViewIfNeeded();
-  const box = (await bars.boundingBox())!;
-  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2);
-  const tip = fig.locator('.nb-tip');
+  const plot = fig.locator('.sc2-plot');
+  await plot.scrollIntoViewIfNeeded();
+  const box = (await plot.boundingBox())!;
+  await page.mouse.click(box.x + box.width * 0.5, box.y + box.height / 2);
+  const tip = fig.getByTestId('bars-readout');
   await expect(tip).toBeVisible();
-  await expect(tip).toContainText(/\d{4}-\d{2}-\d{2}/);
-  await expect(tip).toContainText(/(淨買超|淨賣超) [\d,.]+ (萬張|張)|無資料|^.*0 張/);
-  await bars.focus();
+  await expect(tip).toContainText(/\d{1,2}\/\d{1,2}/);
+  await expect(tip).toContainText(/張|—/);
+  await plot.focus();
   await page.keyboard.press('ArrowLeft');
   await expect(tip).toBeVisible();
 });

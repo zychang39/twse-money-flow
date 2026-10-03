@@ -4,7 +4,7 @@
  * 用法（個股頁只要放一行，區塊標題與 ⓘ 由這個元件自己畫）：
  *   <SignalPanel code={code} />
  * 會輸出 `<Section title="策略訊號" info={…}>` ＋ 一張 List；每個上架策略（分級不是無效）一列：
- *   名稱＋單一分級標籤｜副資訊「0050 +1.24%（t 1.30）｜等權 +1.68%（t 3.43）」（40 日扣成本超額與校正後 t）｜
+ *   名稱＋單一分級標籤｜兩個資訊塊「0050 +1.24%・t 1.30」「等權 +1.68%・t 3.43」（40 日扣成本超額與校正後 t）｜
  *   右側「觸發 9/10」（近 40 個交易日內最近一次觸發）或「未觸發」。
  * 說明（兩個基準、t 的定義、分級、觸發視窗）都在 ⓘ；不使用買賣字眼，狀態只描述條件是否成立。
  */
@@ -16,9 +16,14 @@ import { type SignalItem, useSignalPanel } from '../lib/signalSummary';
 import type { StrategiesFile } from '../lib/strategies';
 import { md, pctSigned, tText } from '../lib/format';
 
-/** 「0050 +1.24%(t 1.30)｜等權 +1.68%(t 3.43)」：與數字相鄰的括號用半形，整句一行。 */
-export function signalSub(it: Pick<SignalItem, 'opp' | 'ew'>): string {
-  return `0050 ${pctSigned(it.opp.excess)}(t ${tText(it.opp.t)})｜等權 ${pctSigned(it.ew.excess)}(t ${tText(it.ew.t)})`;
+/** 兩個資訊塊「0050 +1.24%・t 1.30」「等權 +1.68%・t 3.40」（M3）：各自不斷行，窄螢幕時第二塊換到下一行。 */
+export function signalSub(it: Pick<SignalItem, 'opp' | 'ew'>) {
+  return (
+    <span class="sig-blks">
+      <span class="sig-blk">0050 {pctSigned(it.opp.excess)}・t {tText(it.opp.t)}</span>
+      <span class="sig-blk">等權 {pctSigned(it.ew.excess)}・t {tText(it.ew.t)}</span>
+    </span>
+  );
 }
 
 export function SignalPanel({ code }: { code: string }) {

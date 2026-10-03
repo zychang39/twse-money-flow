@@ -40,7 +40,15 @@
 - [x] 簡報頁：IndexHero（無卡片、環境光）、分段 總覽/市場/資金/我的（useSegParam）、LevelAxis、BarSeries（法人 20 日、成交金額堆疊＋20 日線、20/60）、breadth_hist
 - [x] 我的股票：一行狀態、Seg 計數、RS 小進度條、無截斷、分頁器清單＝顯示順序（含無資料股票）
 - [x] 截圖並排＋稽核＋commit（#335–338；docs/screens/restore-2026-10/m2；稽核 16 頁 0 違反；e2e 全過）
-### M3 個股頁 — [ ]
+### M3 個股頁
+- [x] 頁首路徑（族群可點）、收盤價（還原）、主角 56、折線預設／K 線選項（日／週／月 K，記住）、1D～ALL 一律顯示（無分 K 說明原因＋日資料 fallback）、狀態標籤、黏性分段 ?seg=
+- [x] 總覽：四環（跳分段）＋綜合分、六指標＋解讀行／橘點、策略訊號（components/stock/Overview.tsx、lib/stockInterp.ts）
+- [x] 動能：五張摘要卡 → #/stock/{code}/m/{card}（components/stock/Momentum.tsx、pages/StockMomentum.tsx）；分數明細 #/stock/{code}/scores
+- [x] 籌碼（components/stock/Chips.tsx）、基本面、事件：結論行＋圖在上表格在下
+- [x] pipeline ATR14 改 Wilder（trend.wilder）；webdata3 重建、validate-web 0 錯誤
+- [x] 依規格原文補齊（總覽六格含千張大戶、族群卡＋走勢相近、籌碼圖上表下、內容區滑動換股；#343–346、#350）
+- [x] 截圖並排＋稽核＋e2e＋commit（docs/screens/restore-2026-10/m3；#339–350）
+- 規格原文：docs/design/RESTORE_SPEC_2026-10.md（M4–M7 細節以此為準）
 ### M4 探索、選股、族群、其他市場頁 — [ ]
 ### M5 策略庫與策略詳情 — [ ]
 ### M6 流程、遊戲化、名詞內容、設定 — [ ]

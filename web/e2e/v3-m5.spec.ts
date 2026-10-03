@@ -36,11 +36,11 @@ async function withLongHistory(page: Page) {
   return () => histRequests;
 }
 
-test('期間選項 1M～ALL（2026-10 改版：移除 10Y；沒有分 K 檔時沒有 1D／1W）；5Y／ALL 載入長歷史，ALL 週線取樣；1Y 以內不載入', async ({ page }) => {
+test('期間選項 1D～ALL 一律顯示（D3；沒有 10Y）；5Y／ALL 載入長歷史，ALL 週線取樣；1Y 以內不載入', async ({ page }) => {
   const count = await withLongHistory(page);
   await page.goto('#/stock/2330');
   const group = page.getByTestId('stock-periods').first();
-  await expect(group.getByRole('button')).toHaveText(['1M', '3M', 'YTD', '1Y', '5Y', 'ALL']);
+  await expect(group.getByRole('button')).toHaveText(['1D', '1W', '1M', '3M', 'YTD', '1Y', '5Y', 'ALL']);
   const chart = page.locator('.chart-wrap').first();
   await expect(chart).toHaveAttribute('data-points', /\d+/);
   await page.waitForTimeout(300);

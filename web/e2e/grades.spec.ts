@@ -165,7 +165,7 @@ test.describe('策略庫（2026-10-03）', () => {
     await expect(rows).toHaveCount(6);
     await expect(panel.getByTestId('grade-tag')).toHaveCount(6);
     await expect(panel.getByTestId('signal-near_high')).toContainText('觸發 9/10');
-    await expect(panel.getByTestId('signal-near_high')).toContainText('0050 +1.24%(t 1.30)｜等權 +1.68%(t 4.00)');
+    await expect(panel.getByTestId('signal-near_high').locator('.sig-blk')).toHaveText(['0050 +1.24%・t 1.30', '等權 +1.68%・t 4.00']);
     await expect(panel.getByTestId('signal-top_decile')).toContainText('未觸發');
     await expect(panel).not.toContainText('指標判定');
   });

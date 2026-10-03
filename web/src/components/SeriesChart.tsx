@@ -221,7 +221,8 @@ export function SeriesChart({
           <div class="sc2-readout focus" role="status">{series.find((s) => s.id === focus)?.name}</div>
         ) : null}
       </div>
-      <div class="sc2-legend" role="group" aria-label={`${label}：圖例（點一下顯示或隱藏，長按單獨突顯）`}>
+      {/* 只有一條線、沒有帶狀區時不放圖例（線尾標籤已標名稱） */}
+      {series.filter((s) => !s.noLegend).length > 1 || band ? <div class="sc2-legend" role="group" aria-label={`${label}：圖例（點一下顯示或隱藏，長按單獨突顯）`}>
         {series.filter((s) => !s.noLegend).map((s) => (
           <button type="button" key={s.id} class={`sc2-chip ${hidden.has(s.id) ? 'off' : ''} ${focus === s.id ? 'focus' : ''}`} aria-pressed={!hidden.has(s.id)}
             onPointerDown={() => legendDown(s.id)} onPointerUp={() => legendUp(s.id)} onPointerLeave={() => { if (press.current) { clearTimeout(press.current.timer); press.current = null; } }}
@@ -230,7 +231,7 @@ export function SeriesChart({
           </button>
         ))}
         {band ? <span class="sc2-chip static"><i class="band" style={{ background: band.color }} />{band.name}</span> : null}
-      </div>
+      </div> : null}
     </div>
   );
 }
@@ -322,7 +323,14 @@ export function BarChart({ labels, series, format, height = 180, label, testid, 
  * 日資料長條圖（簡報資金分段）：堆疊（例：上市＋上櫃成交金額）或單一帶號序列（例：三大法人合計買賣超，正紅負綠），
  * 可疊一條線（例：20 日均線）。按住拖曳或點單根讀值，讀值面板固定在圖上緣；選中的長條以外淡化。
  */
-export function BarSeries({ dates, stacks, signed = false, line, format, readout, height = 160, label, testid, dateFormat = (d) => d.slice(5).replace('-', '/') }: {
+export function BarSeries({ dates, stacks, signed = false, words, unit, line, format, readout, height = 160, label, testid, dateFormat = (d) => d.slice(5).replace('-', '/'), selected, onSelect }: {
+  /** 受控的選取（例：和下方原始資料表互相標亮）；undefined＝元件自己管理 */
+  selected?: number | null;
+  onSelect?: (i: number | null) => void;
+  /** signed：圖例說明紅綠（例：['淨買超', '淨賣超']） */
+  words?: [string, string];
+  /** 軸的單位（標在最上方刻度旁，例：張） */
+  unit?: string;
   dates: string[];
   stacks: { id: string; name: string; color: string; values: (number | null)[] }[];
   /** 單一序列依正負上色（紅漲綠跌） */
@@ -338,7 +346,13 @@ export function BarSeries({ dates, stacks, signed = false, line, format, readout
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(360);
-  const [sel, setSel] = useState<number | null>(null);
+  const [selS, setSelS] = useState<number | null>(null);
+  const sel = selected !== undefined ? selected : selS;
+  const setSel = (v: number | null | ((s: number | null) => number | null)) => {
+    const next = typeof v === 'function' ? v(sel) : v;
+    if (onSelect) onSelect(next);
+    if (selected === undefined) setSelS(next);
+  };
   const drag = useRef(false);
   useLayoutEffect(() => {
     const el = wrapRef.current;
@@ -380,7 +394,7 @@ export function BarSeries({ dates, stacks, signed = false, line, format, readout
         }}>
         <svg width={w} height={height} viewBox={`0 0 ${w} ${height}`} aria-hidden="true">
           <g class="sc2-grid">
-            {ax.ticks.map((t) => <g key={t}><line x1={0} x2={pw} y1={y(t)} y2={y(t)} /><text x={w} y={y(t) + 4} text-anchor="end">{format(t)}</text></g>)}
+            {ax.ticks.map((t, k) => <g key={t}><line x1={0} x2={pw} y1={y(t)} y2={y(t)} /><text x={w} y={y(t) + 4} text-anchor="end">{format(t)}{unit && k === ax.ticks.length - 1 ? ` ${unit}` : ''}</text></g>)}
           </g>
           {dates.map((d, i) => {
             let acc = 0;
@@ -417,9 +431,10 @@ export function BarSeries({ dates, stacks, signed = false, line, format, readout
           </div>
         ) : null}
       </div>
-      {stacks.length > 1 || line ? (
+      {stacks.length > 1 || line || (signed && words) ? (
         <div class="sc2-legend">
-          {stacks.map((st) => <span key={st.id} class="sc2-chip static"><i style={{ background: st.color }} />{st.name}</span>)}
+          {signed && words ? <><span class="sc2-chip static"><i style={{ background: 'var(--up)' }} />紅色＝{words[0]}</span><span class="sc2-chip static"><i style={{ background: 'var(--down)' }} />綠色＝{words[1]}</span></> : null}
+          {signed ? null : stacks.map((st) => <span key={st.id} class="sc2-chip static"><i style={{ background: st.color }} />{st.name}</span>)}
           {line ? <span class="sc2-chip static"><i class="band" style={{ background: line.color, height: '2px', opacity: 1 }} />{line.name}</span> : null}
         </div>
       ) : null}

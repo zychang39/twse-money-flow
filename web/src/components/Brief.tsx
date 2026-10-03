@@ -316,7 +316,7 @@ function FlowsSection({ flows, flow, sum20, source }: { flows: MarketData['flows
             <div key={k} class="flow-cell"><span class="metric-l">{k}</span><span class="flow-v" data-a="bl"><Signed v={v ?? null} digits={1} unit="億" label={k} /></span></div>
           ))}
         </div>
-        <BarSeries testid="flows-bars" label="近 20 日三大法人合計買賣超（億元）" dates={f20.map((f) => f.date)} signed height={140}
+        <BarSeries testid="flows-bars" label="近 20 日三大法人合計買賣超（億元）" dates={f20.map((f) => f.date)} signed words={['淨買超', '淨賣超']} unit="億" height={140}
           stacks={[{ id: 'total', name: '合計', color: 'var(--up)', values: f20.map((f) => flowTotal(f)) }]}
           format={(v) => `${fmtNum(v, 0)}`}
           readout={(i) => (

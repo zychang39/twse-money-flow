@@ -35,9 +35,15 @@ for (const width of [375, 393]) {
       await page.goto('#/stock/2330');
       await revealAllSections(page);
       expect(await smallTargets(page)).toEqual([]);
-      // ::before 擴大的範圍真的可以點到：點在分段按鈕視覺範圍上方 3px 仍命中該按鈕
+      // ::before 擴大的範圍真的可以點到：點在分段按鈕視覺範圍上方 3px 仍命中該按鈕（M3：風險試算在「動能 → 波動與部位」詳情頁）
+      await page.goto('#/stock/2330/m/risk');
+      expect(await smallTargets(page)).toEqual([]);
       const seg = page.getByTestId('risk-calc').getByRole('button', { name: '3 倍 ATR' });
-      await seg.scrollIntoViewIfNeeded();
+      // 捲到畫面中間（scrollIntoViewIfNeeded 可能停在透明導覽列底下）；先等換頁的捲動位置還原結束
+      await expect(seg).toBeVisible();
+      await page.waitForTimeout(500);
+      await seg.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await page.waitForTimeout(100);
       const b = (await seg.boundingBox())!;
       expect(b.height).toBeLessThan(44);
       await page.mouse.click(b.x + b.width / 2, b.y - 3);
@@ -54,9 +60,14 @@ for (const width of [375, 393]) {
       await gotoStockSeg(page, '#/stock/2330', '籌碼');
       await expect(page.getByTestId('insti-table')).toBeVisible();
       const heads = await page.locator('.ui-table th').evaluateAll((ths) => ths.map((th) => {
-        const range = document.createRange();
-        range.selectNodeContents(th);
-        const tops = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+        // 只量文字本身的行（名詞按鈕上下擴大的點擊區不算一行）
+        const tops = new Set<number>();
+        const tw = document.createTreeWalker(th, NodeFilter.SHOW_TEXT);
+        for (let n = tw.nextNode(); n; n = tw.nextNode()) {
+          const range = document.createRange();
+          range.selectNodeContents(n);
+          for (const r of range.getClientRects()) if (r.width > 0) tops.add(Math.round(r.top));
+        }
         return { text: (th.textContent ?? '').trim(), lines: tops.size, clipped: th.scrollWidth > th.clientWidth + 1 };
       }).filter((x) => x.text));
       expect(heads.length).toBeGreaterThan(8);

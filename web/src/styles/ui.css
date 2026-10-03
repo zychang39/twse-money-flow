@@ -215,3 +215,6 @@
 .ui-head + .ui-seg { margin-top: var(--s-4); }
 .ui-seg + .ui-seg, .ui-seg + .heat, .ui-stats + .ui-seg, .ui-card > .ui-seg { margin-top: var(--s-3); }
 .ui-sec > .ui-list + .ui-btn { margin-top: var(--s-3); }
+/* 和圖表選取同步標亮的列 */
+.ui-table tbody tr.sel td { background: var(--surface-row); }
+.ui-table tbody tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--brand); }

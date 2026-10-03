@@ -14,7 +14,7 @@ async function addWatch(page: Page, codes: string[]) {
 
 test('主角數字：hover／拖曳時數字與日期即時變動，離開後恢復最新值；鍵盤左右鍵也可查看', async ({ page }) => {
   await page.goto('#/stock/2330');
-  // 2026-10 改版：個股頁主角價格（Title2）在 StockChart；hover＝十字線讀值
+  // M3（恢復環境光）：個股頁預設發光折線（HeroChart）；hover／長按＝主角數字與日期跟著變（D4）
   const hero = page.getByTestId('stock-price').first();
   const chart = page.getByRole('img', { name: /走勢/ }).first();
   await expect(chart).toBeVisible();
@@ -22,7 +22,7 @@ test('主角數字：hover／拖曳時數字與日期即時變動，離開後恢
   const latest = await hero.textContent();
   const box = (await chart.boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.2, box.y + box.height / 2);
-  await expect(page.getByTestId('crosshair-tip')).toContainText(/\d{4}\/\d{1,2}\/\d{1,2}/);
+  await expect(page.getByTestId('hero-change').first()).toContainText(/\d{4}\/\d{1,2}\/\d{1,2}/);
   const scrubbed = await hero.textContent();
   expect(scrubbed).not.toBe(latest);
   await page.mouse.move(box.x + box.width * 0.2, box.y - 200);
@@ -35,12 +35,12 @@ test('主角數字：hover／拖曳時數字與日期即時變動，離開後恢
   await expect(hero).toHaveText(latest!);
 });
 
-test('期間選擇器：選中者為實心格，選擇會被記住；所選區間漲跌一行（「1Y +12.34%」）', async ({ page }) => {
+test('期間選擇器：選中者為實心膠囊，選擇會被記住；所選區間漲跌一行（「▲ 123 (12.34%) 近 1 年」）', async ({ page }) => {
   await page.goto('#/stock/2330');
   const btn = page.getByRole('group', { name: '股價走勢期間' }).getByRole('button', { name: /^1Y/ });
   await btn.click();
   await expect(btn).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('hero-period-change').first()).toContainText(/^1Y\s*[^\d]*[+−]?[\d.]+%|^1Y/);
+  await expect(page.getByTestId('hero-period-change').first()).toContainText(/[\d.]+%\)\s*近 1 年/);
   await page.reload();
   await expect(page.getByRole('group', { name: '股價走勢期間' }).getByRole('button', { name: /^1Y/ })).toHaveAttribute('aria-pressed', 'true');
 });

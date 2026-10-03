@@ -49,23 +49,27 @@ test.describe('M2-1 每日籌碼表', () => {
 });
 
 test.describe('M2-2 信用交易（2026-10 改版）', () => {
-  test('融資／融券／借券賣出的餘額與 5 日、20 日變化並列；使用率、券資比、融券最後回補日；不下敘事結論', async ({ page }) => {
+  test('融資餘額圖＋每日原始資料表；使用率、券資比、融券最後回補日；不下敘事結論', async ({ page }) => {
     await gotoStockSeg(page, '#/stock/2330', '籌碼');
     const block = page.getByTestId('sec-credit');
     await block.scrollIntoViewIfNeeded();
-    await expect(block.locator('thead th')).toHaveText(['項目', '餘額', '5 日', '20 日']);
-    await expect(block.locator('tbody td.l')).toHaveText(['融資', '融券', '借券賣出']);
+    // M3：融資餘額圖下方是每日原始資料表（融資、融券的餘額與當日增減、借券賣出、當沖率）
+    await expect(block.getByTestId('credit-daily').locator('thead th')).toHaveText(['日期', '融資', '融券', '借券賣出', '當沖率']);
     for (const t of ['融資使用率', '券資比', '融券最後回補日']) await expect(block.getByText(t, { exact: true })).toBeVisible();
     await expect(block).not.toContainText(/買進|建議|(?<!借券)賣出|價漲資增|價跌資增|軋空/);
-    await block.getByRole('button', { name: '信用交易的說明' }).click();
+    await block.getByRole('button', { name: '信用與借券當沖的說明' }).click();
     await expect(page.getByRole('dialog')).toContainText('券資比＝融券餘額 ÷ 融資餘額');
   });
 
   test('外資持股比與 20 日變化（百分點）在籌碼分段', async ({ page }) => {
     await gotoStockSeg(page, '#/stock/2330', '籌碼');
-    const sec = page.locator('.ui-sec', { hasText: '外資持股比' });
-    await expect(sec).toContainText('20 日變化');
-    await expect(sec).toContainText(/百分點|—/);
+    // M3：外資持股比是摘要卡，推入詳情頁（走勢圖）
+    const sec = page.getByTestId('sec-qfii');
+    await expect(sec).toContainText('%');
+    await expect(sec).toContainText(/個百分點|資料累積中|%/);
+    await sec.click();
+    await expect(page).toHaveURL(/#\/stock\/2330\/c\/qfii$/);
+    await expect(page.getByTestId('qfii-detail')).toBeVisible();
   });
 
   test('券資比照實顯示數值（35%）', async ({ page }) => {
@@ -83,17 +87,14 @@ test.describe('M2-2 信用交易（2026-10 改版）', () => {
 });
 
 test.describe('M2-3 股權分散', () => {
-  test('四級比例與週變化、千張大戶連續週數、資料日；分級定義在 ⓘ；入口到趨勢與 15 級分布', async ({ page }) => {
+  test('股權分散摘要卡（M3）：千張大戶比例、連續週數、資料日；點進趨勢與 15 級分布頁', async ({ page }) => {
     await gotoStockSeg(page, '#/stock/2330', '籌碼');
-    const block = page.getByTestId('sec-holders');
-    await block.scrollIntoViewIfNeeded();
-    await expect(block.locator('.ui-sec-aside')).toHaveText(/^資料日 \d+\/\d+$/);
-    await expect(block.locator('tbody td.l')).toHaveText(['散戶', '中實戶', '大戶', '千張大戶']);
-    await expect(block.locator('.ui-row', { hasText: '千張大戶' })).toContainText(/連 \d+ 週(增加|減少)|持平/);
-    await block.getByRole('button', { name: '股權分散的說明' }).click();
-    await expect(page.getByRole('dialog')).toContainText('散戶 ≤ 5 張、中實戶 5–400 張、大戶 400–1,000 張、千張大戶 ≥ 1,000 張');
-    await page.keyboard.press('Escape');
-    await block.getByRole('link', { name: /趨勢與 15 級分布/ }).click();
+    const card = page.getByTestId('sec-holders');
+    await card.scrollIntoViewIfNeeded();
+    await expect(card).toContainText(/千張大戶/);
+    await expect(card).toContainText(/連 \d+ 週(增加|減少)|週持平/);
+    await expect(card).toContainText(/資料日 \d+\/\d+/);
+    await card.click();
     await expect(page).toHaveURL(/#\/stock\/2330\/holders$/);
   });
 

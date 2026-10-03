@@ -324,7 +324,7 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 .hero-block { position: relative; }
 .hero-label { display: flex; align-items: center; gap: var(--s-2); min-height: var(--lh-caption); color: var(--text-2); font-size: var(--fs-caption); line-height: var(--lh-caption); }
 .hero-change { display: flex; align-items: center; flex-wrap: wrap; font-weight: var(--fw-medium); min-height: var(--lh-body); }
-.hero-change.second { margin-top: 2px; }
+.hero-change.second { margin-top: 0; }
 .hero-change .caption { color: var(--text-2); margin-left: var(--s-2); font-weight: var(--fw-regular); }
 .chart-wrap { position: relative; margin-top: var(--s-4); touch-action: pan-y; cursor: crosshair; user-select: none; -webkit-user-select: none; }
 .netbars { margin: 0; }

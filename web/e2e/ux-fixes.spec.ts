@@ -262,8 +262,9 @@ test.describe('4. 資料源異常的呈現', () => {
     await expect(page.locator('.meta-line').first()).toBeVisible();
     await expect(page.locator('a.meta-alert')).toHaveCount(0); // 今晚頁沒用到集保
     await page.goto('#/stock/2330');
-    // 2026-10 改版：個股頁只在異常時顯示一行橘色警示（.ui-warn）
-    const alert = page.getByText(/1 個資料源異常/);
+    // M3：個股頁只在異常時顯示資料落後提示（改版前樣式：橘色標題＋說明，可點進資料健康頁）
+    await expect(page.getByTestId('stock-stale')).toContainText(/1 個資料源異常/);
+    const alert = page.getByTestId('stock-stale').locator('.stale-lead');
     await expect(alert).toBeVisible();
     const [color, risk, brand] = await alert.evaluate((el) => {
       const probe = (v: string) => { const d = document.createElement('span'); d.style.color = `var(${v})`; document.body.appendChild(d); const c = getComputedStyle(d).color; d.remove(); return c; };
