@@ -199,8 +199,9 @@ test('處置預警、行事曆、週報顯示資料', async ({ page }) => {
 
 test('市場溫度：資金環境燈號與市場溫度', async ({ page }) => {
   await page.goto('#/explore/market');
-  await expect(page.getByText('外資台指期淨未平倉')).toBeVisible();
-  await expect(page.getByText('散戶多空比（小台）')).toBeVisible();
+  // M2（2026-10-03）：市場溫度頁另有同名的走勢列與鍵值列，這裡只確認燈號列存在
+  await expect(page.getByText('外資台指期淨未平倉', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('散戶多空比（小台）').first()).toBeVisible();
 });
 
 test('主動式 ETF：持股標示部分涵蓋與來源投信', async ({ page }) => {
