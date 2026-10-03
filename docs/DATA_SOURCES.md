@@ -106,7 +106,7 @@
 | taifex_pc | 臺指選擇權 Put/Call 比（成交量比率、未平倉量比率 %） | POST `www.taifex.com.tw/cht/3/pcRatioDown`（表單 `queryStartDate`／`queryEndDate`，Big5 CSV，每列結尾多一個逗號；欄位 `日期, 賣權成交量, 買權成交量, 買賣權成交量比率%, 賣權未平倉量, 買權未平倉量, 買賣權未平倉量比率%`） | 約 15:00；與其他期交所區間查詢一起以月為單位抓取 | ✅ 本機實測 2026-10-03（樣本 `taifex_pcRatio.csv`）；只作市場溫度頁的走勢資訊，不設門檻、不進燈號（DECISIONS #241） |
 | fx_usdtwd | 美元兌台幣 | POST `www.taifex.com.tw/cht/3/dailyFXRateDown`（Big5 CSV） | 每日 | ✅ |
 | financials | 季財報（上市＋上櫃） | MOPS `ajax_t163sb04`（綜合損益彙總）、`ajax_t163sb05`（資產負債彙總），GET 帶 `TYPEK=sii/otc&year=民國年&season=季`；一次涵蓋一般業、金融、證券、保險等所有格式 | 法定期限後 | ✅（Actions 實測；OpenAPI t187ap06／07 只有最新一季且依產業分檔，改用 MOPS） |
-| active_etf | 主動式 ETF 每日持股 | 各發行投信官網的持股揭露／申購買回清單（PCF），逐家實作（見下方「主動式 ETF 持股」） | 每日（多為當晚或次一營業日） | 🟡 部分涵蓋：9 家投信、17／32 檔（DECISIONS #22、#242；2026-10-03 新增台新、凱基、聯博、第一金、復華） |
+| active_etf | 主動式 ETF 每日持股 | 各發行投信官網的持股揭露／申購買回清單（PCF），逐家實作（見下方「主動式 ETF 持股」） | 每日（多為當晚或次一營業日） | 🟡 部分涵蓋：已實作 9 家投信（對應 17／32 檔）；實際有持股資料的檔數與投信家數依每日抓取結果（市場頁「涵蓋 N/32 檔」、資料健康頁）；2026-10-03 起同時保存受益權單位數（聯博未揭露）（DECISIONS #22、#242；2026-10-03 新增台新、凱基、聯博、第一金、復華） |
 
 其他：`twse_insider`／`tpex_insider`（內部人轉讓事前申報，OpenAPI t187ap12_L／mopsfin_t187ap12_O）列為選配資料並用於風險旗標。
 
@@ -155,7 +155,23 @@
 
 實作細節（`pipeline/sources/etf_holdings.py`、`pipeline/tasks_advanced.py::run_etf_holdings`；投信清單與狀態在 `config/sources.yml` 的 `active_etf.issuers`）：
 
-- 欄位：`date`（持股日＝淨值日）、`etf`、`code`、`name`、`shares`（股）、`weight`（%）；存成 `raw/etf_holdings/{YYYY}/{YYYYMM01}.csv.gz`（月檔），同一檔 ETF 同一天整批取代。
+- 欄位：`date`（持股日＝淨值日）、`etf`、`code`、`name`、`shares`（股）、`weight`（%）、`units`（該 ETF 當日已發行／在外流通受益權單位數，每列相同；2026-10-03 起）；存成 `raw/etf_holdings/{YYYY}/{YYYYMM01}.csv.gz`（月檔），同一檔 ETF 同一天整批取代。
+- 受益權單位數（SPEC §3.4，2026-10-03 以真實回應逐家確認；每家都以「淨資產 ÷ 單位數 ＝ 每單位淨值」對照，確認與持股同一個淨值日）：
+
+  | 投信 | 股數 | 權重 | 受益權單位數 | 來源欄位 |
+  |---|---|---|---|---|
+  | 野村 | ✅ | ✅ | ✅ | `Entries.Data.FundAsset.Units`（Aum 20,193,219,739 ÷ 786,230,000 ＝ 25.68） |
+  | 群益 | ✅ | ✅ | ✅ | `data.pcf.totUnit`（nav ÷ totUnit ＝ pUnit；對應 `date2` 持股日） |
+  | 元大 | ✅ | ✅ | ✅ | `PCF.osunit`（totalav ÷ osunit ＝ nav；`preunit` 是下一日預估，不用） |
+  | 富邦 | ✅ | ✅ | ✅ | 頁面「基金在外流通單位數(單位)」（歷史日期查詢也有；2026-09-24 的舊樣本裁切時沒保留此區塊，新增樣本 `etf_fubon_00405A_20261002.html`） |
+  | 台新 | ✅ | ✅ | ✅ | 頁面「已發行受益權單位總數」 |
+  | 凱基 | ✅ | ✅ | ✅ | 頁面「已發行受益權單位總數」 |
+  | 第一金 | ✅ | ✅ | ✅（另一個請求） | `Get_hd` 沒有；同一公告日的 `WebAPI.aspx/Get_BuySellA`（申購買回清單摘要）「已發行受益權單位總數-台幣交易」（`config` 的 `units_url`；樣本 `etf_fsitc_pcf_183.json`）；每個持股日多 1 次請求 |
+  | 復華 | ✅ | ✅ | ✅ | xlsx 摘要區「基金在外流通單位數」的下一列 |
+  | 聯博 | ✅ | ✅ | ❌ 未揭露 | `holdings` 只有各段資產市值與比例；`/investor/{ISIN}` 基金資訊沒有單位數；試過 `/pcf`、`/overview`、`/prices` 皆 404。加減碼判定改用共同持股股數比的中位數估計單位數變化（METHODOLOGY §8） |
+  | 國泰（跳過） | ✅ | ✅ | ❌ 未揭露 | `GetETFDetailStockList` 只有持股列 |
+
+  改版前存的持股沒有 `units`；有揭露單位數的投信，回補（`backfill --source active_etf`）時把這些持股日視為缺漏重抓，聯博不重抓。
 - 只保留台灣掛牌證券（4–6 碼，可帶 1 碼英文）；期貨、現金、海外持股不列入。
 - 日期定義以「淨值 ÷ 收盤價」對照驗證：各家的持股日欄位都與當日收盤價對應（例：國泰 00400A 淨值 15.53／15.66／15.74 對應 9/22–9/24 收盤 15.49／15.57／15.66）。2026-10-03 新增的五家以回應本身的日期欄位為持股日（聯博 `asOfDate`、第一金 `sdate`、復華「日期」、凱基與台新的淨值日標籤），尚未以收盤價對照（本環境連不到證交所）；凱基與台新同一份 10/05 清單的淨值日都是 10/02，彼此一致。
 - 每日任務：最近 3 個交易日缺的持股日各試一次；第一次看到的 ETF 若不到兩天，最多往回 20 個交易日取得第二天（計算加碼／減碼需要）。同一投信出現 HTTP 4xx 或基金清單取不到，本輪就不再請求該投信。回補：`python -m pipeline backfill --source active_etf --start … --end …`。

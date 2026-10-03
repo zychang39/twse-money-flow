@@ -20,8 +20,9 @@ export const isCross = (e: EtfMove): boolean => (e.cross === undefined ? e.etfs 
 /**
  * 涵蓋說明：pipeline 的 coverage 字串優先；否則「12／20 檔有持股資料」；covered／total 任一缺少時寫 missing，不輸出「—／— 檔」這種半句。
  */
-export function coverageText(rk: { coverage?: string; covered?: number; total?: number }): string {
-  if (rk.coverage) return rk.coverage;
+export function coverageText(rk: { coverage?: string | object; coverage_text?: string; covered?: number; total?: number }): string {
+  if (typeof rk.coverage === 'string' && rk.coverage) return rk.coverage;
+  if (rk.coverage_text) return rk.coverage_text;
   if (rk.covered !== undefined && rk.total !== undefined) return `${rk.covered}／${rk.total} 檔有持股資料`;
   return missing('沒有持股資料');
 }

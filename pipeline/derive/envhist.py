@@ -201,7 +201,7 @@ def validate(states: pd.Series, tr: pd.Series) -> dict[str, Any]:
     show = share_c <= MAX_CONSERVATIVE_SHARE and all(sig[h] for h in HORIZONS)
     reasons = []
     if share_c > MAX_CONSERVATIVE_SHARE:
-        reasons.append(f"保守占比 {share_c:.0%} 超過 {MAX_CONSERVATIVE_SHARE:.0%}")
+        reasons.append(f"保守占比 {share_c:.1%} 超過 {MAX_CONSERVATIVE_SHARE:.0%}")
     for h in HORIZONS:
         if not sig[h]:
             best = sorted(diffs.get(h, []), key=lambda d: d[2])
@@ -210,7 +210,7 @@ def validate(states: pd.Series, tr: pd.Series) -> dict[str, Any]:
     reason = (
         "；".join(reasons)
         if reasons
-        else f"保守占比 {share_c:.0%}；保守後 20、40 日報酬皆顯著低於其他狀態（Newey-West t ≤ −{T_THRESHOLD:g}）"
+        else f"保守占比 {share_c:.1%}；保守後 20、40 日報酬皆顯著低於其他狀態（Newey-West t ≤ −{T_THRESHOLD:g}）"
     )
     return {
         "period": [str(st.index[0]), str(st.index[-1])],

@@ -186,6 +186,14 @@ export type EtfKind = 'new' | 'add' | 'reduce' | 'exit';
 export const ETF_KIND_LABEL: Record<EtfKind, string> = { new: '新增', add: '加碼', reduce: '減碼', exit: '剔除' };
 export const ETF_KINDS: EtfKind[] = ['new', 'add', 'reduce', 'exit'];
 export interface EtfMove { code: string; name: string; etfs: number; net_shares: number; net_value: number | null; detail: string; /** 兩檔以上同向才算跨檔 */ cross?: boolean; /** 同向的 ETF 全是新增 → new、全是剔除 → exit，否則 add／reduce；舊版資料沒有 */ kind?: EtfKind }
+/** §7（etf 2026-10-03）：主動式 ETF 跨檔排行的新契約 */
+export type EtfSortMetric = 'value' | 'pct_avg20' | 'pct_mcap';
+export interface EtfCoverage { covered: number; total: number; holdings_date: string | null; issuers: number; issuer_names?: string[]; etf_codes?: string[]; implemented_issuers?: number; implemented_etfs?: number; lagging?: { code: string; date: string }[]; units_missing?: string[] }
+export interface EtfItemEtf { code: string; name: string; /** 扣除申購買回後的超額股數 */ d_shares: number | null; d_shares_raw?: number | null; /** 權重變化（百分點） */ d_weight: number | null; kind?: EtfKind; date?: string; value_yi?: number | null }
+/** value_yi／pct_avg20／pct_mcap 帶正負號（減碼為負）；已過濾 |value_yi| < 0.3 */
+export interface EtfItem { code: string; name: string; dir: 'add' | 'reduce'; kind: EtfKind; value_yi: number | null; pct_avg20: number | null; pct_mcap: number | null; etfs_same_dir: number; etfs: EtfItemEtf[] }
+export interface EtfValidationRow { metric: EtfSortMetric; h: number; vs: '0050' | 'ew'; excess: number | null; t: number | null; n: number; days?: number }
+export interface EtfValidation { verified: boolean; metric: EtfSortMetric | null; n: number; period: [string | null, string | null]; rows: EtfValidationRow[]; reason?: string; rule?: string; holdings_days?: number }
 export interface TurnoverCell { value: number | null; ma20_ratio: number | null }
 export interface TurnoverDay { date: string; total: TurnoverCell; twse: TurnoverCell; tpex: TurnoverCell }
 export interface MarketData {
@@ -203,7 +211,7 @@ export interface MarketData {
   env?: { summary: string; lights: MarketLight[]; futures_series?: { date: string; net: number | null }[]; validation?: import('../lib/envState').EnvValidation | null };
   /** retail：小台（mtx）與微台（tmf）散戶多空比 %；pc_series（M2 2026-10-03）：臺指選擇權 P/C 比 %（pc＝未平倉量比、vol＝成交量比），只呈現不判定 */
   temperature?: { lights: MarketLight[]; retail?: { date: string; mtx: number | null; tmf: number | null }[]; pc_series?: { date: string; pc: number | null; vol: number | null }[] };
-  etf_ranking?: { date: string | null; add: EtfMove[]; reduce: EtfMove[]; status?: string; coverage?: string; covered?: number; total?: number; /** 變動分類筆數（ETF × 股票；M2 2026-10-03） */ kinds?: Partial<Record<EtfKind, number>> };
+  etf_ranking?: { date: string | null; add: EtfMove[]; reduce: EtfMove[]; status?: string; /** §7 起為物件；舊資料為字串 */ coverage?: string | EtfCoverage; coverage_text?: string; covered?: number; total?: number; /** 變動分類筆數（ETF × 股票；M2 2026-10-03；§7 起為扣除申購買回後的判定） */ kinds?: Partial<Record<EtfKind, number>>; /** 修正前（只看股數增減）的筆數 */ kinds_raw?: Partial<Record<EtfKind, number>>; items?: EtfItem[]; sort_default?: EtfSortMetric; validation?: EtfValidation; unverified_label?: string | null; method?: string };
   active_etfs?: { code: string; name: string; close: number; value_million_20d: number | null; has_holdings?: boolean; change_pct?: number | null }[];
 }
 

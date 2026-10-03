@@ -295,7 +295,7 @@ def test_validate_rules():
     # 保守占比 > 60% → 不顯示結論
     lab2 = np.where(np.arange(n) % 10 < 8, "conservative", "neutral")
     out2 = envhist.validate(pd.Series(lab2, index=dates), tr)
-    assert out2["show_conclusion"] is False and "保守占比 80%" in out2["reason"]
+    assert out2["show_conclusion"] is False and "保守占比 80.0%" in out2["reason"]
     assert out2["period"] == [dates[0], dates[-1]] and out2["days"] == n
 
 

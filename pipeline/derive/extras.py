@@ -23,9 +23,10 @@ TAIEX_TR = "發行量加權股價報酬指數"
 
 
 def index_series(ds: Any, name: str, dates: list[str]) -> pd.Series:
-    if ds.index.empty:
+    idx = getattr(ds, "index", None)  # 測試用的簡化 ds 可能沒有指數表 → 全部缺值
+    if idx is None or idx.empty:
         return pd.Series(np.nan, index=dates)
-    s = ds.index[ds.index["name"] == name].drop_duplicates("date", keep="last").set_index("date")["close"]
+    s = idx[idx["name"] == name].drop_duplicates("date", keep="last").set_index("date")["close"]
     return s.reindex(dates).astype(float)
 
 
