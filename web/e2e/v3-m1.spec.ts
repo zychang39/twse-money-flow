@@ -56,7 +56,7 @@ test.describe('M1-1 圖表資料不足', () => {
     });
     await page.goto('#/stock/2330');
     const chart = page.locator('.chart-wrap').first();
-    await expect(chart.locator('svg circle').first()).toBeVisible();
+    await expect(chart.locator('svg rect').first()).toBeVisible();
     await expect(page.getByTestId('hero-coverage').first()).toContainText('資料累積中：目前只有 1 個交易日');
   });
 });
@@ -85,7 +85,7 @@ test.describe('M1-2 返回保持捲動位置與狀態', () => {
     expect(idx).toBeGreaterThanOrEqual(0);
     await page.locator('.srow').nth(idx).click();
     await expect(page).toHaveURL(/#\/stock\//);
-    await expect(page.locator('.hero').first()).toBeVisible();
+    await expect(page.getByTestId('stock-price').first()).toBeVisible();
     await page.waitForTimeout(400);
   }
 
@@ -164,16 +164,17 @@ test.describe('M1-4 深淺色', () => {
 });
 
 test.describe('M1-5 個股頁期間', () => {
-  test('沒有 1D、預設 1Y；主角數字下方有「資料日（M/D）」與「所選期間」兩行', async ({ page }) => {
+  test('沒有分 K 檔時沒有 1D／1W、沒有 10Y；預設 1Y；主角數字下方有「當日漲跌＋資料日」與「所選期間」兩行', async ({ page }) => {
     await page.goto('#/stock/2330');
     const group = page.getByRole('group', { name: '股價走勢期間' }).first();
     await expect(group.getByRole('button', { name: /^1D/ })).toHaveCount(0);
     await expect(group.getByRole('button', { name: /^1Y/ })).toHaveAttribute('aria-pressed', 'true');
-    const hero = page.locator('.hero-block').first();
-    // 2026-10-02 健檢：第一行的標籤是資料日（M/D），不再是「今日」字樣
-    await expect(hero.getByTestId('hero-change-date').first()).toHaveText(/^\d{1,2}\/\d{1,2}$/);
-    await expect(hero.getByTestId('hero-period-change')).toContainText('近 1 年');
+    await expect(group.getByRole('button', { name: /^1W/ })).toHaveCount(0);
+    await expect(group.getByRole('button', { name: /^10Y/ })).toHaveCount(0);
+    const hero = page.locator('.sc').first();
+    await expect(hero.getByTestId('hero-change-date').first()).toHaveText(/^\d{4}\/\d{1,2}\/\d{1,2}$/);
+    await expect(hero.getByTestId('hero-period-change')).toContainText(/^1Y/);
     await group.getByRole('button', { name: /^3M/ }).click();
-    await expect(hero.getByTestId('hero-period-change')).toContainText('近 3 個月');
+    await expect(hero.getByTestId('hero-period-change')).toContainText(/^3M/);
   });
 });

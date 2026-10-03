@@ -135,20 +135,21 @@ describe('持股組合走勢與結論句', () => {
     expect(text).toBe('持股\u00a02\u00a0檔需要注意，資金環境偏保守。');
     expect(text).not.toMatch(/買進|賣出/);
   });
-  it('我的股票結論以自選為主，有持股時再加上持股狀況', () => {
-    expect(mineConclusion({ watchCount: 8, watchChanges: 2, holdings: 0, alerts: 0 })).toBe('自選\u00a08\u00a0檔，其中\u00a02\u00a0檔有顯著變化。');
-    expect(mineConclusion({ watchCount: 8, watchChanges: 2, holdings: 3, alerts: 1 })).toBe('自選\u00a02\u00a0檔有顯著變化，持股\u00a01\u00a0檔需要注意。');
-    expect(mineConclusion({ watchCount: 0, watchChanges: 0, holdings: 0, alerts: 0 })).toBe('還沒有自選股。');
-    expect(holdConclusion({ holdings: 2, alerts: 0, dir: 'up', periodName: '近 3 個月' })).toBe('持股近 3 個月上漲，沒有需要注意的。');
+  it('我的股票頁首副資訊以數字陳述（2026-10-03：不寫敘事句）', () => {
+    expect(mineConclusion({ watchCount: 8, watchChanges: 2, holdings: 0, alerts: 0 })).toBe('自選\u00a08\u00a0檔・異動\u00a02\u00a0檔');
+    expect(mineConclusion({ watchCount: 8, watchChanges: 2, holdings: 3, alerts: 1 })).toBe('自選\u00a08\u00a0檔・異動\u00a02\u00a0檔・持倉\u00a03\u00a0檔・警示\u00a01\u00a0檔');
+    expect(mineConclusion({ watchCount: 0, watchChanges: 0, holdings: 0, alerts: 0 })).toBe('無自選股');
+    expect(holdConclusion({ holdings: 2, alerts: 0, dir: 'up', periodName: '近 3 個月' })).toBe('持倉\u00a02\u00a0檔・近 3 個月上漲・警示\u00a00\u00a0檔');
+    expect(holdConclusion({ holdings: 0, alerts: 0, dir: 'flat', periodName: '' })).toBe('無持倉');
   });
   it('結論句每個子句不超過 12 個全形字寬（手機寬度最多兩行）', () => {
     const width = (s: string) => [...s].reduce((w, ch) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(ch) ? 1 : 0.55), 0);
     const all = [
       tonightConclusion({ holdings: 3, alerts: 12, env: 'conservative', watchChanges: 1 }),
       tonightConclusion({ holdings: 0, alerts: 0, env: 'unknown', watchChanges: 12 }),
-      mineConclusion({ watchCount: 88, watchChanges: 12, holdings: 0, alerts: 0 }),
-      mineConclusion({ watchCount: 88, watchChanges: 12, holdings: 3, alerts: 12 }),
     ];
+    // 我的股票的副資訊是一行 Footnote（寬約 27 個全形字）
+    for (const s of [mineConclusion({ watchCount: 88, watchChanges: 12, holdings: 3, alerts: 12 })]) expect(width(s)).toBeLessThanOrEqual(27);
     for (const s of all) {
       const clauses = s.split(/(?<=[，。])/);
       expect(clauses.length).toBeLessThanOrEqual(2);

@@ -13,7 +13,7 @@ test.describe('資料狀態頁', () => {
     const quotes = page.getByTestId('ds-quotes');
     await expect(quotes).toContainText('最新');
     await expect(quotes).toContainText('應有');
-    const text = await page.locator('.ds-item').allTextContents();
+    const text = await page.locator('[data-testid^="ds-"]').allTextContents();
     for (const t of text) expect(t).not.toMatch(/—(?!（)/);
     // 首頁的「資料至」連到資料狀態頁
     await page.goto('./#/');

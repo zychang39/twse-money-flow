@@ -18,7 +18,8 @@ import { Sheet } from '../components/Sheet';
 import { List, PageTitle, Row, Seg, Tag, Warn } from '../components/ui';
 import { IconCloudOff, IconMore, IconStar, IconStarFill } from '../components/Icons';
 import { lazyPick } from '../lazy';
-import { useAsync, useDb, useStockData } from '../hooks';
+import { useAsync, useDb, useInvestStyle, useStockData } from '../hooks';
+import { STYLE_PERIOD } from '../lib/style';
 import { useScoredSummary } from '../data/useSummary';
 import { addWatch, getSetting, isWatched, removeWatch } from '../db/db';
 import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
@@ -27,7 +28,8 @@ import type { Period } from '../lib/periods';
 import { usePeriod } from '../components/HeroChart';
 import { type RangeBasis, getRangeBasis, setRangeBasis } from '../lib/rangeReturn';
 import { isNotFound, loadInactive, loadLongHistory, loadMeta, loadStockIntraday, loadStockIntradayIndex } from '../data/api';
-import { INTRADAY_PERIODS, STOCK_CHART_PERIODS, adjDiffers, dailySeries, intradaySeries } from '../lib/stockChart';
+import { INTRADAY_PERIODS, STOCK_CHART_PERIODS, adjDiffers, dailyChange, dailySeries, intradaySeries } from '../lib/stockChart';
+import { windowCoverageNote } from '../lib/series';
 import { statusTags } from '../lib/stockFacts';
 import { dataPhase, makeCalendar } from '../lib/tradingCalendar';
 import { todayTpe } from '../lib/dates';
@@ -81,9 +83,11 @@ function StockHero({ code, fallbackName, fallbackIndustry, status, period, onPer
   const industry = h?.industry ?? fallbackIndustry ?? null;
   const sub = `${code}${market ? `・${market === 'tpex' ? '上櫃' : '上市'}` : ''}${industry ? `・${industry}` : ''}`;
   const last = series?.bars[series.bars.length - 1];
-  const foot = !series || !last ? null
+  const coverage = series?.truncated ? windowCoverageNote({ dates: series.bars.map((b) => b.t), truncated: true, span: series.span }) : null;
+  const foot0 = !series || !last ? null
     : series.kind === 'intraday' ? `5 分 K・${mdw(last.t)} ${last.t.slice(11, 16)}・${intra.data?.source ?? ''}`
       : `資料至 ${mdw(last.t)} 收盤${series.kind === 'weekly' ? '・週 K' : series.kind === 'close' ? '・收盤折線' : ''}${basis === 'raw' ? '・原始價' : ''}`;
+  const foot = coverage ? <><span data-testid="hero-coverage">{coverage}</span>{foot0 ? `・${foot0}` : ''}</> : foot0;
   return (
     <>
       <div class={swipe ? 'swipe-zone' : ''} data-swipe={swipe ? '' : undefined}>
@@ -92,7 +96,7 @@ function StockHero({ code, fallbackName, fallbackIndustry, status, period, onPer
       {h ? (
         <StockChart series={series} candle={candle} period={eff} onPeriod={onPeriod} periods={periods}
           adjLabel={basis === 'adj' && !intraOn && adjDiffers(h, eff)} footnote={foot}
-          loading={(intraOn && intra.loading) || (needLong && long.loading)}
+          loading={(intraOn && intra.loading) || (needLong && long.loading)} today={dailyChange(h, basis)}
           emptyText={intraOn ? '盤中資料暫時無法取得' : '資料累積中'} />
       ) : error ? null : <Loading hero />}
     </>
@@ -149,12 +153,14 @@ export default function Stock({ code }: { code: string }) {
   const summary = useScoredSummary();
   const watched = useDb(() => isWatched(code), [code]);
   const portfolio = useDb(() => getSetting<PortfolioSettings>('portfolio', DEFAULT_PORTFOLIO));
-  const [period, setPeriod] = usePeriod('stock-v4', '1Y', STOCK_CHART_PERIODS);
+  // 投資風格（設定）只決定預設期間（波段 1Y、長期 5Y）與第一次開啟的分段（長期＝基本面）；各自記住
+  const style = useInvestStyle();
+  const [period, setPeriod] = usePeriod(`stock-v4-${style}`, STYLE_PERIOD[style], STOCK_CHART_PERIODS);
   const [basis, setBasisState] = useState<RangeBasis>(getRangeBasis);
   const pickBasis = (b: RangeBasis) => { setBasisState(b); setRangeBasis(b); };
   const [candle, setCandle] = useState(() => read(CHART_KEY, ['candle', 'line'] as const, 'candle') === 'candle');
   const [advanced, setAdvanced] = useState(() => read(ADV_KEY, ['1', '0'] as const, '0') === '1');
-  const [seg, setSegState] = useState<SegId>(() => read(SEG_KEY, ['m', 'c', 'f', 'e'] as const, 'm'));
+  const [seg, setSegState] = useState<SegId>(() => read(SEG_KEY, ['m', 'c', 'f', 'e'] as const, style === 'long' ? 'f' : 'm'));
   const setSeg = (s: SegId) => { setSegState(s); write(SEG_KEY, s); };
   const [menu, setMenu] = useState(false);
   const [score, setScore] = useState<CategoryId | null>(null);

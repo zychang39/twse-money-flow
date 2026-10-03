@@ -44,6 +44,8 @@ export interface ChartSeries {
   dayStarts: number[];
   /** 區間資料不足（個股上市不到所選期間） */
   truncated: boolean;
+  /** 視窗實際涵蓋的交易日數與起日（週 K、週線取樣前） */
+  span?: { days: number; since: string };
 }
 
 export const STOCK_CHART_PERIODS: Period[] = ['1D', '1W', '1M', '3M', 'YTD', '1Y', '5Y', 'ALL'];
@@ -114,7 +116,8 @@ export function dailySeries(h: Pick<StockHistory, 'd' | 'o' | 'h' | 'l' | 'c' | 
     }
     if (idx.length < 2) return null;
     const bars: Bar[] = idx.map((i, k) => ({ t: long.d[i], o: null, h: null, l: null, c: closes[i] as number, v: null, prev: k > 0 ? (closes[idx[k - 1]] as number) : null }));
-    return { kind: 'close', bars, base: bars[0].c, baseLine: false, ma20: bars.map(() => null), ma60: bars.map(() => null), ohlc: false, hasVolume: false, dayStarts: [], truncated };
+    const days = long.d.length - start;
+    return { kind: 'close', bars, base: bars[0].c, baseLine: false, ma20: bars.map(() => null), ma60: bars.map(() => null), ohlc: false, hasVolume: false, dayStarts: [], truncated, span: { days, since: long.d[start] } };
   }
   const f = (i: number) => (basis === 'adj' ? h.af[i] ?? 1 : 1);
   const sc = (a: N[], i: number) => (ok(a[i]) ? (a[i] as number) * f(i) : null);
@@ -136,13 +139,14 @@ export function dailySeries(h: Pick<StockHistory, 'd' | 'o' | 'h' | 'l' | 'c' | 
     }
     prev = c;
   }
-  if (bars.length < 2) return null;
+  if (!bars.length) return null;
   const base = bars[0].c;
+  const span = { days: bars.length, since: bars[0].t };
   if (bars.length > MAX_DAILY_BARS) {
     const w = weeklyAggregate(bars, m20, m60);
-    return { kind: 'weekly', bars: w.bars, base, baseLine: false, ma20: w.ma20, ma60: w.ma60, ohlc: true, hasVolume: true, dayStarts: [], truncated };
+    return { kind: 'weekly', bars: w.bars, base, baseLine: false, ma20: w.ma20, ma60: w.ma60, ohlc: true, hasVolume: true, dayStarts: [], truncated, span };
   }
-  return { kind: 'daily', bars, base, baseLine: false, ma20: m20, ma60: m60, ohlc: true, hasVolume: true, dayStarts: [], truncated };
+  return { kind: 'daily', bars, base, baseLine: false, ma20: m20, ma60: m60, ohlc: true, hasVolume: true, dayStarts: [], truncated, span };
 }
 
 /** 1D／1W 盤中 5 分 K。 */
@@ -208,4 +212,16 @@ export function adjDiffers(h: Pick<StockHistory, 'd' | 'af'>, period: Period): b
   const { start } = periodStart(h.d, period);
   for (let i = Math.max(0, start); i < h.af.length; i++) if (Math.abs((h.af[i] ?? 1) - 1) > 1e-9) return true;
   return false;
+}
+
+/** 個股檔最後兩個有收盤的交易日：「當日漲跌」一律用日資料（週 K、週線取樣的相鄰兩點相隔一週）。 */
+export function dailyChange(h: Pick<StockHistory, 'd' | 'c' | 'af'>, basis: RangeBasis): { abs: number; pct: number | null; date: string } | null {
+  let i = h.c.length - 1;
+  while (i >= 0 && !ok(h.c[i])) i--;
+  let j = i - 1;
+  while (j >= 0 && !ok(h.c[j])) j--;
+  if (i < 0 || j < 0) return null;
+  const f = (k: number) => (basis === 'adj' ? h.af[k] ?? 1 : 1);
+  const a = (h.c[i] as number) * f(i), b = (h.c[j] as number) * f(j);
+  return { abs: a - b, pct: b ? ((a - b) / b) * 100 : null, date: h.d[i] };
 }

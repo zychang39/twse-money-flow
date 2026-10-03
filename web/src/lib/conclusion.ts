@@ -27,17 +27,16 @@ export function tonightConclusion(o: { holdings: number; alerts: number; env: En
   return `${first}，${ENV_TEXT[o.env]}。`;
 }
 
-/** 我的股票：以自選為主；有持股時再加上持股狀況。 */
+/** 我的股票頁首副資訊（2026-10-03：以數字陳述，不寫敘事句）：「自選 8 檔・異動 2 檔・持倉 3 檔・警示 1 檔」。 */
 export function mineConclusion(o: { watchCount: number; watchChanges: number; holdings: number; alerts: number }): string {
-  const hold = o.alerts > 0 ? `持股${n(o.alerts)}檔需要注意` : '持股沒有需要注意的事';
-  if (!o.watchCount) return o.holdings ? `還沒有自選，${hold}。` : '還沒有自選股。';
-  if (o.holdings) return `${o.watchChanges ? `自選${n(o.watchChanges)}檔有顯著變化` : '自選沒有顯著變化'}，${hold}。`;
-  return o.watchChanges ? `自選${n(o.watchCount)}檔，其中${n(o.watchChanges)}檔有顯著變化。` : `自選${n(o.watchCount)}檔都沒有顯著變化。`;
+  const hold = o.holdings ? `・持倉${n(o.holdings)}檔・警示${n(o.alerts)}檔` : '';
+  if (!o.watchCount) return `無自選股${hold}`;
+  return `自選${n(o.watchCount)}檔・異動${n(o.watchChanges)}檔${hold}`;
 }
 
-/** 持股分段的結論（組合在所選期間的漲跌）。 */
+/** 持股分段的頁首副資訊：「持倉 2 檔・近 3 個月上漲・警示 0 檔」。 */
 export function holdConclusion(o: { holdings: number; alerts: number; dir: 'up' | 'down' | 'flat'; periodName: string }): string {
-  if (!o.holdings) return '還沒有持倉。';
+  if (!o.holdings) return '無持倉';
   const move = o.dir === 'up' ? '上漲' : o.dir === 'down' ? '下跌' : '持平';
-  return `持股${o.periodName}${move}，${o.alerts ? `${o.alerts}${NB}檔需要注意` : '沒有需要注意的'}。`;
+  return `持倉${n(o.holdings)}檔・${o.periodName}${move}・警示${n(o.alerts)}檔`;
 }

@@ -1,5 +1,7 @@
-/** 方法說明：直接讀取 /config（與 pipeline 相同的設定）自動產生，設定改了這頁就跟著改。 */
-import { PageHead, TopBar } from '../components/Chrome';
+/** 方法說明：直接讀取設定（與 pipeline 相同）自動產生，設定改了這頁就跟著改。2026-10-03 套用共用元件。 */
+import { TopBar } from '../components/Chrome';
+import { Card, PageTitle, Section as UiSection } from '../components/ui';
+import '../styles/strategy.css';
 import { CATEGORY_IDS, costsConfig, scoresConfig, thresholds, uiConfig, type Mapping } from '../lib/config';
 
 function mappingText(m: Mapping, unit: string): string {
@@ -19,10 +21,9 @@ function mappingText(m: Mapping, unit: string): string {
 
 function Section({ title, children }: { title: string; children: preact.ComponentChildren }) {
   return (
-    <section>
-      <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>{title}</h2>
-      <div class="card">{children}</div>
-    </section>
+    <UiSection title={title}>
+      <Card><div class="md-body">{children}</div></Card>
+    </UiSection>
   );
 }
 
@@ -35,9 +36,7 @@ export default function Methodology() {
   return (
     <div class="page">
       <TopBar back="/" avatar={false} />
-      <PageHead title="方法說明">
-        <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>依設定檔自動產生；所有報酬、均線、RS、回測使用還原價。</p>
-      </PageHead>
+      <PageTitle title="方法說明" sub="依設定自動產生・報酬、均線、RS、回測一律使用還原價" />
       <Section title="分項分數（進階）">
         <p class="small">籌碼、動能、基本面、估值四個分項分數只在個股頁「進階」顯示；不合成綜合分（未經驗證的加權平均已移除）。分項分數＝可用因子子分數依權重平均（缺資料的因子不計）。</p>
       </Section>
@@ -48,8 +47,8 @@ export default function Methodology() {
           <Section key={cid} title={cat.label}>
             <p class="small">{cat.description}</p>
             {cat.factors.map((f) => (
-              <div key={f.id} style={{ padding: '0.5rem 0', }}>
-                <div class="row between"><span class="bold small">{f.label}</span><span class="badge">權重 {f.weight}</span></div>
+              <div key={f.id} class="md-item">
+                <div class="row between"><span class="bold small">{f.label}</span><span class="ui-foot ui-muted">權重 {f.weight}</span></div>
                 <div class="small">{f.description}</div>
                 <div class="tiny muted">{mappingText(f.mapping, f.unit === '%' || f.unit === '百分點' ? (f.unit === '%' ? '%' : 'pp') : '')}</div>
               </div>
@@ -60,7 +59,7 @@ export default function Methodology() {
 
       <Section title="風險旗標（不併入分數）">
         {Object.entries(rf).map(([id, f]) => (
-          <div key={id} style={{ padding: '0.375rem 0', }}>
+          <div key={id} class="md-item">
             <div class="bold small">{f.label}</div>
             <div class="small">{f.description}</div>
             <div class="tiny muted">
@@ -72,7 +71,7 @@ export default function Methodology() {
       </Section>
 
       <Section title="指標">
-        <ul class="small" style={{ paddingLeft: '1.25rem', margin: 0 }}>
+        <ul class="small md-list">
           <li>還原價：除權息、減資、面額變更、ETF 分割以「參考價 ÷ 前收」為因子向後調整；官方表未涵蓋的價格跳空（±35%）以推估處理並列在資料健康頁。</li>
           <li>RS：近 {ind.rs.windows.join('、')} 個交易日還原報酬，權重 {ind.rs.weights.map((x: number) => x * 100).join('/')}，換算成全市場普通股百分位。</li>
           <li>估值百分位：本益比與淨值比在自身近 {ind.valuation_percentile.lookback_days} 個交易日中的百分位（至少 {ind.valuation_percentile.min_observations} 日）；虧損時不計本益比。</li>
@@ -80,17 +79,17 @@ export default function Methodology() {
           <li>散戶多空比（小台，微台另算）：散戶多單 = 全市場未平倉 − 法人多方未平倉；散戶空單 = 全市場未平倉 − 法人空方未平倉；多空比 = (多 − 空) ÷ 全市場未平倉。</li>
           <li>月營收：年增率、月增率、累計年增率、是否創 12 個月新高、連續成長月數。</li>
           <li>法人成本線（估算）：外資、投信的淨買超股數 × 當日均價（成交金額 ÷ 成交股數），{ind.cost_line_windows.join('／')} 日視窗，只納入淨買超日。</li>
-          <li>個股籌碼明細（近 {uiConfig.chip.days} 日）：外資＝外陸資＋外資自營商；自營商拆自行買賣／避險；三大法人合計用官方數字；單位可切換張、億元（以當日均價估算，標「估」）、佔當日成交量 %；區間合計先以股數相加再換算。區間統計的估計成本只計淨買超日（還原均價加權），淨賣超時不顯示。</li>
+          <li>個股籌碼明細（近 {uiConfig.chip.days} 日）：外資＝外陸資＋外資自營商；自營商拆自行買賣／避險；三大法人合計用官方數字；金額以當日均價估算時標「估」；區間合計先以股數相加再換算。估計成本只計淨買超日（還原均價加權），淨賣超時不顯示。</li>
           <li>相關性：近 {ind.correlation.window} 日還原日報酬（至少 {ind.correlation.min_observations} 日）。</li>
         </ul>
       </Section>
 
-      <Section title="合理價區間">
-        <ul class="small" style={{ paddingLeft: '1.25rem', margin: 0 }}>
-          <li>本益比河流：近四季 EPS × 自身 3 年本益比第 {fv.pe_quantiles.join('／')} 百分位 → 便宜／合理／昂貴。</li>
-          <li>殖利率法：近 {fv.dividend_years} 年平均現金股利 × {fv.yield_multiples.join('／')} 倍 → 便宜／合理／昂貴。</li>
-          <li>淨值比法：每股淨值 × 自身 3 年淨值比第 {fv.pb_quantiles.join('／')} 百分位。</li>
-          <li>綜合區間為各方法平均；股價位置 = (股價 − 便宜價) ÷ (昂貴價 − 便宜價)。</li>
+      <Section title="估值">
+        <ul class="small md-list">
+          <li>本益比：近四季 EPS 計算；與自身近 3 年本益比比較，顯示所在百分位（虧損時不計）。</li>
+          <li>淨值比：股價 ÷ 每股淨值，與自身近 3 年比較的百分位。</li>
+          <li>殖利率：近 {fv.dividend_years} 年平均現金股利 ÷ 股價。</li>
+          <li>只顯示數值與百分位，不換算價格區間。</li>
         </ul>
       </Section>
 
@@ -99,7 +98,7 @@ export default function Methodology() {
       </Section>
 
       <Section title="部位大小與期望值">
-        <ul class="small" style={{ paddingLeft: '1.25rem', margin: 0 }}>
+        <ul class="small md-list">
           <li>張數 = 無條件捨去(總資金 × 單筆風險% ÷ (進場價 − 停損價) ÷ 1000)；可切換零股（股數）。</li>
           <li>風險報酬比 = (目標價 − 進場價) ÷ (進場價 − 停損價)，低於 1:{th.portfolio.min_reward_risk} 警告。</li>
           <li>期望值 = 勝率 × 平均獲利 − 敗率 × 平均虧損，以 R 倍數與金額呈現。</li>
@@ -107,7 +106,7 @@ export default function Methodology() {
       </Section>
 
       <Section title="回測規則">
-        <ul class="small" style={{ paddingLeft: '1.25rem', margin: 0 }}>
+        <ul class="small md-list">
           <li>T 日收盤後依已公布資料產生訊號，T+1 開盤進場，持有 N 日後開盤出場（N = {bt.horizons.join('／')}）。</li>
           <li>月營收以實際公布日生效，取不到保守假設次月 {bt.revenue_fallback_day} 日；財報以法定期限生效（Q1 {bt.financial_deadlines.Q1}、Q2 {bt.financial_deadlines.Q2}、Q3 {bt.financial_deadlines.Q3}、年報 {bt.financial_deadlines.Q4}）。</li>
           <li>排除：進場日開盤漲幅 ≥ {bt.limit_up_pct}%（開盤即漲停）、停牌、處置期間；並統計排除筆數。</li>
@@ -117,7 +116,7 @@ export default function Methodology() {
       </Section>
 
       <Section title="介面呈現規則（不影響計算）">
-        <ul class="small" style={{ paddingLeft: '1.25rem', margin: 0 }}>
+        <ul class="small md-list">
           <li>變化優先：以「上次查看」的快照為基準（第一次使用以前一交易日為基準）。顯著門檻：漲跌 ≥ {uiConfig.significance.price_pct}%、外資或投信新達到連買／連賣 {uiConfig.significance.inst_streak_days} 日、法人淨買賣超 ≥ 成交量 {uiConfig.significance.inst_volume_pct}%、融資變化 ≥ {uiConfig.significance.margin_pct}%、新的風險旗標；低於門檻的預設收合。</li>
           <li>資金環境燈號：任一指標為風險（紅燈）→ 保守；沒有風險且 ≥ {uiConfig.env_state.aggressive_min_green} 項有利 → 積極；其餘為中性。</li>
           <li>持股警示：收盤 ≤ 停損價為「觸及停損」；距停損 ≤ {uiConfig.significance.near_stop_pct}% 為「接近停損」；新的或嚴重的風險旗標。</li>

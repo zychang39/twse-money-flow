@@ -46,3 +46,9 @@
 /* 列名後面的分級標籤（策略清單、個股頁策略訊號）：與名稱同一行、基線對齊 */
 .ui-row-label > .st-gtag { margin-left: var(--s-2); }
 .st-gtag { display: inline-flex; vertical-align: baseline; }
+
+/* 方法說明頁：卡片內的段落與清單 */
+.md-body > * + * { margin-top: var(--s-2); }
+.md-item { padding: var(--s-2) 0; }
+.md-list { margin: 0; padding-left: var(--s-5); }
+.md-list li + li { margin-top: var(--s-1); }

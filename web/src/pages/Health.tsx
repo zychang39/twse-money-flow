@@ -3,7 +3,8 @@
  * 狀態點：正常＝實心；相容模式或等待＝空心；只有影響最新資料的異常用琥珀（不使用 emoji）。
  */
 import { AppVersion } from '../components/AppVersion';
-import { PageHead, TopBar } from '../components/Chrome';
+import { TopBar } from '../components/Chrome';
+import { Card, List, PageTitle, Row, Section } from '../components/ui';
 import { AsOf, ErrorState, Loading } from '../components/DataStatus';
 import { useAsync } from '../hooks';
 import { loadHealth, loadMeta } from '../data/api';
@@ -36,25 +37,27 @@ export default function Health() {
   return (
     <div class="page">
       <TopBar back="/" avatar={false} />
-      <PageHead title="資料健康" sub={health.data ? healthConclusion(health.data.sources) : undefined}>
-        {/* M1-4：各資料集各自的資料日（頁首「市場最新交易日」只是收盤行情的日期） */}
-        <AsOf keys={['quotes', 'insti', 'credit', 'valuation', 'tdcc', 'etf_holdings', 'revenue', 'financials', 'taifex']} />
-      </PageHead>
+      <PageTitle title="資料健康" sub={health.data ? healthConclusion(health.data.sources) : undefined} />
+      {/* 各資料集各自的資料日（「市場最新交易日」只是收盤行情的日期） */}
+      <AsOf keys={['quotes', 'insti', 'credit', 'valuation', 'tdcc', 'etf_holdings', 'revenue', 'financials', 'taifex']} />
       {health.error ? <ErrorState error={health.error} /> : null}
       {health.loading ? <Loading /> : null}
       {health.data ? (
         <>
-          <div class="card">
-            <div class="row between"><span>市場最新交易日</span><span class="num bold">{health.data.market_date ?? '—'}</span></div>
-            <div class="row between small muted"><span>歷史資料</span><span>{health.data.first_date ?? '—'} 起，共 {health.data.trading_days} 個交易日</span></div>
-            <div class="row between small muted"><span>衍生資料產生時間</span><span>{meta.data?.generated_at?.replace('T', ' ').slice(0, 16) ?? '—'}</span></div>
-            <div class="small muted"><AppVersion /></div>
-            <a class="list-item small" href="#/me/data" style={{ minHeight: 'var(--tap)', padding: 'var(--s-2) 0' }}>資料狀態：每個資料集的最新日、應有日、涵蓋率、回補進度</a>
-            {health.data.closed_days.length ? <div class="small muted">臨時休市（無行情）：{health.data.closed_days.join('、')}</div> : null}
-          </div>
+          <Section title="總覽">
+            <List>
+              <Row label="市場最新交易日" value={health.data.market_date ?? '—'} />
+              <Row label="歷史資料" sub={`${health.data.first_date ?? '—'} 起`} value={`${health.data.trading_days.toLocaleString('zh-TW')} 個交易日`} />
+              <Row label="衍生資料產生" value={meta.data?.generated_at?.replace('T', ' ').slice(5, 16) ?? '—'} />
+              {health.data.closed_days.length ? <Row label="臨時休市" sub={health.data.closed_days.join('、')} /> : null}
+            </List>
+            <List chev>
+              <Row label="資料狀態" sub="最新日、應有日、涵蓋率、回補進度" href="#/me/data" ariaLabel="資料狀態：每個資料集的最新日、應有日、涵蓋率、回補進度" />
+            </List>
+            <Card><div class="ui-foot ui-muted"><AppVersion /></div></Card>
+          </Section>
           {(['core', 'advanced', 'optional'] as const).map((tier) => (
-            <section key={tier}>
-              <h2 class="section-title">{TIER_LABEL[tier]}資料</h2>
+            <Section key={tier} title={`${TIER_LABEL[tier]}資料`}>
               <div class="list">
                 {health.data!.sources.filter((s) => s.tier === tier).map((s) => {
                   const d = describeSource(s);
@@ -75,10 +78,10 @@ export default function Health() {
                   );
                 })}
               </div>
-            </section>
+            </Section>
           ))}
           <InferredEvents events={meta.data?.adjust_inferred} total={meta.data?.adjust_events} />
-          <h2 class="section-title">最近執行</h2>
+          <Section title="最近執行">
           <div class="list">
             {health.data.runs.map((r) => (
               <div key={r.at} class="list-item" style={{ alignItems: 'flex-start' }}>
@@ -95,6 +98,7 @@ export default function Health() {
               </div>
             ))}
           </div>
+          </Section>
         </>
       ) : null}
     </div>

@@ -36,36 +36,32 @@ async function withLongHistory(page: Page) {
   return () => histRequests;
 }
 
-test('5Y／10Y 期間選項；個股檔不夠長時載入長歷史，10Y 週線取樣；1Y 以內不載入', async ({ page }) => {
+test('期間選項 1M～ALL（2026-10 改版：移除 10Y；沒有分 K 檔時沒有 1D／1W）；5Y／ALL 載入長歷史，ALL 週線取樣；1Y 以內不載入', async ({ page }) => {
   const count = await withLongHistory(page);
   await page.goto('#/stock/2330');
-  const group = page.getByRole('group', { name: '股價走勢期間' }).first();
-  for (const p of ['1W', '1M', '3M', 'YTD', '1Y', '5Y', '10Y', 'ALL']) await expect(group.getByRole('button', { name: new RegExp(`^${p}`) })).toBeVisible();
+  const group = page.getByTestId('stock-periods').first();
+  await expect(group.getByRole('button')).toHaveText(['1M', '3M', 'YTD', '1Y', '5Y', 'ALL']);
   const chart = page.locator('.chart-wrap').first();
   await expect(chart).toHaveAttribute('data-points', /\d+/);
   await page.waitForTimeout(300);
   expect(count()).toBe(0);
-  // 5Y：日線（約 5 × 245 點），從 5 年前開始
-  await group.getByRole('button', { name: /^5Y/ }).click();
+  // 5Y：長歷史收盤（約 5 × 245 點），從 5 年前開始
+  await group.getByRole('button', { name: '5Y', exact: true }).click();
   await expect.poll(async () => Number(await chart.getAttribute('data-points'))).toBeGreaterThan(1100);
   expect(count()).toBe(1);
   const from5 = (await chart.getAttribute('data-from'))!;
   expect(Number(from5.slice(0, 4))).toBeLessThanOrEqual(2021);
   await expect(page.getByTestId('hero-coverage')).toHaveCount(0);
-  // 10Y：週線取樣（約 520 點，而不是約 2,450 個交易日）
-  await group.getByRole('button', { name: /^10Y/ }).click();
-  await expect.poll(async () => Number(await chart.getAttribute('data-points'))).toBeLessThan(600);
-  expect(Number(await chart.getAttribute('data-points'))).toBeGreaterThan(450);
-  expect(Number((await chart.getAttribute('data-from'))!.slice(0, 4))).toBeLessThanOrEqual(2016);
-  await expect(page.getByTestId('hero-period-change')).toContainText('近 10 年');
-  // ALL：也是週線
-  await group.getByRole('button', { name: /^ALL/ }).click();
+  await expect(page.getByTestId('data-time')).toContainText('收盤折線');
+  // ALL：週線取樣
+  await group.getByRole('button', { name: 'ALL', exact: true }).click();
   await expect.poll(async () => Number(await chart.getAttribute('data-points'))).toBeLessThan(700);
+  expect(Number((await chart.getAttribute('data-from'))!.slice(0, 4))).toBeLessThanOrEqual(2016);
   expect(count()).toBe(1); // 快取：只載入一次
 });
 
 test('沒有長歷史檔的部署：5Y 用現有資料並說明資料累積中', async ({ page }) => {
   await page.goto('#/stock/2330');
-  await page.getByRole('group', { name: '股價走勢期間' }).first().getByRole('button', { name: /^5Y/ }).click();
+  await page.getByTestId('stock-periods').first().getByRole('button', { name: '5Y', exact: true }).click();
   await expect(page.getByTestId('hero-coverage').first()).toContainText(/資料累積中：目前只有 \d+ 個交易日/);
 });

@@ -20,7 +20,7 @@ function DatasetSection({ r }: { r: DatasetRow }) {
     <Section title={r.label} testid={`ds-${r.key}`} aside={<Tag tone={risk ? 'risk' : 'neutral'}>{STATE_TEXT[r.state]}</Tag>}>
       <List>
         <Row label="來源" sub={r.sources.length ? r.sources.join('、') : '未登錄來源'} />
-        <Row label="最新日" value={r.latest ?? '—'} />
+        <Row label="最新日" value={r.latest ?? '尚未取得'} />
         <Row label="應有日" sub={r.lagText ?? undefined} value={r.expected} />
         {r.coverage ? <Row label="涵蓋率" sub={r.coverage} /> : null}
         {r.backfill ? <Row label="回補進度" sub={r.backfill} /> : null}

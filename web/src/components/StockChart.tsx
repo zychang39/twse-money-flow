@@ -37,7 +37,7 @@ function axisLabel(t: string, intraday: boolean): string {
   return intraday && t.length > 10 ? `${Number(t.slice(5, 7))}/${Number(t.slice(8, 10))}` : shortDate(t.slice(0, 10));
 }
 
-export function StockChart({ series, candle, period, onPeriod, periods, adjLabel, footnote, emptyText = '資料累積中', loading = false }: {
+export function StockChart({ series, candle, period, onPeriod, periods, adjLabel, footnote, emptyText = '資料累積中', loading = false, today }: {
   series: ChartSeries | null;
   /** K 線（true）或折線 */
   candle: boolean;
@@ -49,6 +49,8 @@ export function StockChart({ series, candle, period, onPeriod, periods, adjLabel
   footnote?: ComponentChildren;
   emptyText?: string;
   loading?: boolean;
+  /** 未查價時的「當日漲跌」（個股檔日資料；週 K、長歷史的相鄰兩點不是一天） */
+  today?: { abs: number; pct: number | null; date: string } | null;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(370);
@@ -94,7 +96,7 @@ export function StockChart({ series, candle, period, onPeriod, periods, adjLabel
   const last = n - 1;
   const at = scrub ?? last;
   const bar = series && n ? series.bars[at] : null;
-  const dayChg = series && n ? barChange(series, at) : null;
+  const dayChg = scrub === null && today && series?.kind !== 'intraday' ? today : series && n ? barChange(series, at) : null;
   const perChg = series && n ? periodChangeAt(series, at) : null;
   const intraday = series?.kind === 'intraday';
   const lineDir = series && n ? (series.bars[last].c > series.base ? 'up' : series.bars[last].c < series.base ? 'down' : 'flat') : 'flat';
@@ -225,14 +227,14 @@ export function StockChart({ series, candle, period, onPeriod, periods, adjLabel
       <p class="sc-line ui-foot" data-testid="hero-change">
         {dayChg ? <Signed v={dayChg.abs} digits={priceDigits(bar?.c ?? 0)} kind="arrow" /> : <span>—</span>}
         {dayChg && dayChg.pct !== null ? <Signed v={dayChg.pct} digits={2} unit="%" kind="sign" /> : null}
-        <span class="ui-muted">{bar ? label(bar.t) : ''}</span>
+        <span class="ui-muted" data-testid="hero-change-date">{scrub === null && today && series?.kind !== 'intraday' ? label(today.date) : bar ? label(bar.t) : ''}</span>
       </p>
       <p class="sc-line ui-foot" data-testid="hero-period-change">
         <span class="ui-muted">{period}{scrub !== null && bar ? ` 至 ${axisLabel(bar.t, intraday)}` : ''}</span>
         {perChg && perChg.pct !== null ? <Signed v={perChg.pct} digits={2} unit="%" kind="sign" /> : <span>—</span>}
       </p>
       <div ref={wrapRef} class="sc-wrap chart-wrap" style={{ height: `${svgH / 16}rem` }} tabIndex={n ? 0 : -1} role="img"
-        aria-label={`${summary}。長按或用左右鍵查看每根的開高低收。`} data-points={n}
+        aria-label={`${summary}。長按或用左右鍵查看每根的開高低收。`} data-points={n} data-from={series?.bars[0]?.t}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onPointerLeave={onLeave} onKeyDown={onKey} onBlur={() => setScrub(null)}>
         {series && geo && n ? (
           <svg viewBox={`0 0 ${w} ${svgH}`} width={w} height={svgH} aria-hidden="true" class="sc-svg">

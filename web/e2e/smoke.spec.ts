@@ -81,8 +81,10 @@ test('我的股票：加入自選後出現清單列，點擊進入個股頁', as
   await row.click();
   await expect(page.locator('h1')).toHaveText(/台積電/);
   await expect(page.getByRole('img', { name: /走勢/ })).toBeVisible();
-  await page.getByRole('button', { name: '進階' }).click();
-  await expect(page.getByRole('img', { name: /K 線圖/ })).toBeVisible({ timeout: 15_000 });
+  // 2026-10 改版：日 K 是預設；「進階」在 ⋯ 內，顯示分項分數、多空條件、KD、MACD
+  await page.getByTestId('stock-more').click();
+  await page.getByTestId('toggle-advanced').click();
+  await expect(page.getByTestId('sec-advanced')).toContainText('KD');
 });
 
 test('選股：切換預設組合、新增條件、一鍵回測連結', async ({ page }) => {
@@ -164,7 +166,7 @@ test('日誌：冷靜卡 → 新增持倉前檢查表 → 新增持倉 → 平�
 test('備份：匯出按鈕存在並說明包含流程紀錄', async ({ page }) => {
   await page.goto('#/me/backup');
   await expect(page.getByRole('button', { name: '匯出全部資料（JSON）' })).toBeVisible();
-  await expect(page.getByText(/流程紀錄 \d+ 筆（含遊戲化資料）/)).toBeVisible();
+  await expect(page.getByText('流程紀錄', { exact: true })).toBeVisible(); // 2026-10-03：匯出前列出各類資料筆數（含流程紀錄）
 });
 
 test('產業資金輪動：熱力圖可點進產業個股清單', async ({ page }) => {

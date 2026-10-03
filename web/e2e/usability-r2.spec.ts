@@ -30,26 +30,26 @@ test.describe('#1 版本字串與 service worker 更新', () => {
   });
 });
 
-test('#3 個股頁頁首的資料日漲跌：切換任何期間（含週線取樣的 10Y、ALL）都不變', async ({ page }) => {
+test('#3 個股頁頁首的當日漲跌：切換任何期間（含週 K、長歷史收盤）都不變', async ({ page }) => {
   await page.goto('#/stock/2330');
-  const group = page.getByRole('group', { name: '股價走勢期間' }).first();
-  const today = page.locator('.hero-change:not(.second)').first();
-  // 2026-10-02 健檢：標籤是資料日（M/D），不再是「今日」字樣
+  const group = page.getByTestId('stock-periods').first();
+  const today = page.getByTestId('hero-change').first();
   const dateLabel = page.getByTestId('hero-change-date').first();
-  await expect(dateLabel).toHaveText(/^\d{1,2}\/\d{1,2}$/);
+  await expect(dateLabel).toHaveText(/^\d{4}\/\d{1,2}\/\d{1,2}$/);
   const dateText = await dateLabel.textContent();
   const base = await today.textContent();
-  for (const p of ['1W', '1M', '3M', 'YTD', '1Y', '5Y', '10Y', 'ALL']) {
-    await group.getByRole('button', { name: new RegExp(`^${p}`) }).click();
+  const names = await group.getByRole('button').allTextContents();
+  expect(names).not.toContain('10Y');
+  for (const p of names) {
+    await group.getByRole('button', { name: p, exact: true }).click();
     await page.waitForTimeout(150);
     await expect(today, p).toHaveText(base!);
-    // 週線取樣的 10Y／ALL 也不能把資料日換成取樣週的日期
     await expect(dateLabel, p).toHaveText(dateText!);
   }
 });
 
-test.describe('#4／#5 個股頁區塊樣式', () => {
-  test('build 後：使用 .sx-*／.cr-* 的分塊自己帶到含這些規則的 CSS（不依賴工具頁先載入）', () => {
+test.describe('#4／#5 個股頁區塊樣式（2026-10 改版：共用元件）', () => {
+  test('build 後：個股頁分塊自己帶到走勢圖樣式（不依賴其他頁先載入）', () => {
     type Chunk = { file: string; css?: string[]; imports?: string[] };
     const manifest = JSON.parse(readFileSync('dist/.vite/manifest.json', 'utf8')) as Record<string, Chunk>;
     const cssOf = (key: string, seen = new Set<string>()): string => {
@@ -58,41 +58,32 @@ test.describe('#4／#5 個股頁區塊樣式', () => {
       const c = manifest[key];
       return (c.css ?? []).map((f) => readFileSync(`dist/${f}`, 'utf8')).join('\n') + (c.imports ?? []).map((k) => cssOf(k, seen)).join('\n');
     };
-    const sections = cssOf('src/components/StockSections.tsx');
-    expect(sections).toContain('.sx-facts');
-    expect(sections).toContain('.sx-ma');
-    const credit = cssOf('src/components/Credit.tsx');
-    expect(credit).toContain('.cr-row');
-    expect(credit).toContain('.cr-inline');
+    const stock = cssOf('src/pages/Stock.tsx');
+    expect(stock).toContain('.sc-wrap');
+    expect(stock).toContain('.sk-tags');
   });
 
-  test('直接開啟個股頁：動能事實沒有瀏覽器預設的縮排，均線列沒有項目符號，標籤與數值有間距', async ({ page }) => {
+  test('直接開啟個股頁：趨勢表的數字欄靠右、列沒有瀏覽器預設縮排', async ({ page }) => {
     await gotoStock(page, '#/stock/2330');
-    const facts = page.getByTestId('momentum-facts');
-    await facts.scrollIntoViewIfNeeded();
-    expect(await facts.evaluate((el) => getComputedStyle(el).marginLeft)).toBe('0px');
-    expect(await facts.evaluate((el) => getComputedStyle(el).display)).toBe('grid');
-    expect(await facts.locator('dd').first().evaluate((el) => getComputedStyle(el).marginLeft)).toBe('0px');
-    const ma = page.locator('ul.sx-ma');
-    expect(await ma.evaluate((el) => getComputedStyle(el).listStyleType)).toBe('none');
-    const li = ma.locator('li').first();
-    const [label, value] = await Promise.all([li.locator('span').nth(0).boundingBox(), li.locator('span').nth(1).boundingBox()]);
-    expect(value!.x - (label!.x + label!.width)).toBeGreaterThanOrEqual(8);
+    const table = page.locator('.ui-sec', { hasText: '趨勢' }).locator('table.ui-table');
+    await table.scrollIntoViewIfNeeded();
+    expect(await table.evaluate((el) => getComputedStyle(el).marginLeft)).toBe('0px');
+    const cells = table.locator('tbody td.r');
+    expect(await cells.count()).toBeGreaterThanOrEqual(6);
+    expect(await cells.first().evaluate((el) => getComputedStyle(el).textAlign)).toBe('right');
   });
 
-  test('外資持股比：標籤左、數值右，變化與數值同一行並留間距', async ({ page }) => {
+  test('外資持股比：標籤左、數值右（同一條右緣），20 日變化以百分點表示', async ({ page }) => {
     await gotoStock(page, '#/stock/2330');
-    const row = page.getByTestId('foreign-hold');
-    await row.scrollIntoViewIfNeeded();
-    expect(await row.locator('.cr-row').evaluate((el) => getComputedStyle(el).display)).toBe('flex');
-    expect(await row.locator('dd').evaluate((el) => getComputedStyle(el).marginLeft)).toBe('0px');
-    const chg = row.getByTestId('foreign-hold-change');
-    await expect(chg).toHaveText(/^(▲|▼)\d+\.\d{2} 百分點$|^持平$|^變化：資料累積中$/);
-    const val = row.locator('dd > span').first();
-    const [a, b] = [await val.boundingBox(), await chg.boundingBox()];
-    expect(b!.x - (a!.x + a!.width)).toBeGreaterThanOrEqual(8);
-    const dt = await row.locator('dt').boundingBox();
-    expect(dt!.x).toBeLessThan(a!.x);
+    await page.getByTestId('stock-seg').getByRole('button', { name: '籌碼', exact: true }).click();
+    const sec = page.locator('.ui-sec', { hasText: '外資持股比' });
+    await sec.scrollIntoViewIfNeeded();
+    const rows = sec.locator('.ui-row');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(1)).toContainText(/百分點|—/);
+    const r = await rows.evaluateAll((els) => els.map((e) => [e.querySelector('.ui-row-label')!.getBoundingClientRect().x, e.querySelector('[data-a="v"]')!.getBoundingClientRect().right]));
+    expect(r[0][0]).toBeLessThan(r[0][1]);
+    expect(Math.abs(r[0][1] - r[1][1])).toBeLessThanOrEqual(0.5);
   });
 });
 
@@ -119,18 +110,13 @@ test.describe('#8 清單列的說明不截斷', () => {
   }
 });
 
-test('#9 「資料累積中」：5Y、10Y（週線取樣）的交易日數相同，日期帶年份；ALL 不顯示', async ({ page }) => {
+test('#9 「資料累積中」：5Y（資料不足 5 年）在圖表下方說明交易日數與起日；1Y 以內不顯示', async ({ page }) => {
   await page.goto('#/stock/2330');
-  const group = page.getByRole('group', { name: '股價走勢期間' }).first();
-  const notes: string[] = [];
-  for (const p of ['5Y', '10Y']) {
-    await group.getByRole('button', { name: new RegExp(`^${p}`) }).click();
-    const note = page.getByTestId('hero-coverage').first();
-    await expect(note).toContainText(/資料累積中：目前只有 \d+ 個交易日（自 \d{4}\/\d{1,2}\/\d{1,2} 起）/);
-    notes.push((await note.textContent())!.match(/目前只有 (\d+) 個交易日/)![1]);
-  }
-  expect(new Set(notes).size).toBe(1);
-  await group.getByRole('button', { name: /^ALL/ }).click();
+  const group = page.getByTestId('stock-periods').first();
+  await group.getByRole('button', { name: '5Y', exact: true }).click();
+  const note = page.getByTestId('hero-coverage').first();
+  await expect(note).toContainText(/資料累積中：目前只有 \d+ 個交易日（自 \d{4}\/\d{1,2}\/\d{1,2} 起）/);
+  await group.getByRole('button', { name: '3M', exact: true }).click();
   await expect(page.getByTestId('hero-coverage')).toHaveCount(0);
 });
 
@@ -237,7 +223,7 @@ test('#12 從清單底部進入個股頁時在頂端；按返回回到清單原�
 
 test('#13 自選為空：主要按鈕「搜尋並加入股票」→ 搜尋 2330 → 加入 → 清單出現台積電；之後右上角「＋」開同一個面板', async ({ page }) => {
   await page.goto('#/mine');
-  const welcome = page.getByRole('region', { name: '先追蹤幾檔股票' });
+  const welcome = page.getByRole('region', { name: '無自選股' });
   const main = welcome.getByRole('button', { name: '搜尋並加入股票' });
   await expect(main).toHaveClass(/primary/);
   await expect(welcome.getByRole('button', { name: '加入範例自選' })).not.toHaveClass(/primary/);
