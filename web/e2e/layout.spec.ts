@@ -46,7 +46,7 @@ const PAGES: { name: string; hash: string; prepare?: (page: Page) => Promise<voi
   { name: '市場溫度', hash: '#/explore/market' },
   { name: '行事曆', hash: '#/explore/calendar' },
   { name: '處置', hash: '#/explore/disposition' },
-  { name: '指標效度表', hash: '#/explore/evidence', prepare: async (p) => { await p.getByRole('button', { name: /RS 百分位站上 90/ }).click(); await expect(p.getByRole('table', { name: /各持有天數/ })).toBeVisible(); } },
+  { name: '指標效度表', hash: '#/explore/evidence', prepare: async (p) => { await p.getByTestId('ev-row-rs90').click(); await expect(p.getByRole('table', { name: /各持有天數/ })).toBeVisible(); } },
   { name: '策略庫', hash: '#/explore/strategies', prepare: async (p) => { await expect(p.getByText('近一年高點').first()).toBeVisible(); } },
   { name: '策略頁', hash: '#/explore/strategies/near_high', prepare: async (p) => { await expect(p.getByRole('heading', { name: '健康度' })).toBeVisible(); await expect(p.getByRole('heading', { name: '出場規則' })).toBeVisible(); } },
   { name: '策略頁（三方同買：樣本與成本、新觸發）', hash: '#/explore/strategies/three_buyers', prepare: async (p) => { await expect(p.getByTestId('st-sample')).toBeVisible(); await expect(p.getByTestId('st-today')).toBeVisible(); } },

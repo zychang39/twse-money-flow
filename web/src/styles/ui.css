@@ -132,7 +132,7 @@
   white-space: nowrap; overflow: hidden;
 }
 /* 點擊區域上下擴到 44 */
-.ui-seg button::after { content: ''; position: absolute; left: 0; right: 0; top: calc(-1 * var(--s-1)); bottom: calc(-1 * var(--s-1)); }
+.ui-seg button::before { content: ''; position: absolute; left: 0; right: 0; top: calc(-1 * var(--s-1)); bottom: calc(-1 * var(--s-1)); }
 .ui-seg button[aria-pressed='true'] { background: var(--surface-3); color: var(--text-1); font-weight: var(--fw-semibold); }
 .ui-seg-sticky {
   position: sticky; top: calc(var(--safe-top) + var(--navbar-h)); z-index: 5;
