@@ -304,3 +304,38 @@ def test_env_state_rule():
     assert envhist.env_state(pd.Series(["green", "green", "green", "yellow", None])) == "aggressive"
     assert envhist.env_state(pd.Series(["green", "yellow", None, None, None])) == "neutral"
     assert envhist.env_state(pd.Series([None] * 5)) is None
+
+
+# ------------------------------------------------------------------ 處置與注意頁：不預測
+def test_disposition_watchlist_facts_only():
+    from pipeline.derive.flags import disposition_watchlist
+
+    dates = [f"2026-09-{d:02d}" for d in range(1, 31)]
+    att = pd.DataFrame(
+        {
+            "date": ["2026-09-28", "2026-09-29", "2026-09-30", "2026-09-10"],
+            "code": ["1101", "1101", "1101", "2330"],
+            "reason": ["a", "b", "c", "d"],
+        }
+    )
+    dis = pd.DataFrame(
+        {
+            "code": ["3016"],
+            "name": ["嘉晶"],
+            "start": ["2026-09-29"],
+            "end": ["2026-10-06"],
+            "reason": ["連續三次"],
+            "measure": ["第一次處置"],
+            "interval_minutes": [2.0],
+        }
+    )
+    accum = pd.DataFrame({"code": ["2330"], "situation": ["連續二次"]})
+    ds = SimpleNamespace(attention=att, disposition=dis, attention_accum=accum)
+    p = SimpleNamespace(dates=dates, names={"1101": "台泥", "2330": "台積電", "3016": "嘉晶"})
+    out = disposition_watchlist(ds, p)
+    assert set(out) == {"date", "watch", "disposition", "official"}
+    w = {r["code"]: r for r in out["watch"]}
+    assert "risk" not in w["1101"] and w["1101"]["consecutive"] == 3 and w["1101"]["in10"] == 3
+    assert [r["code"] for r in out["watch"]] == ["1101", "2330"]  # 依近 10 日次數排序
+    assert out["disposition"][0]["interval_minutes"] == 2.0
+    assert out["official"] == [{"code": "2330", "name": "台積電", "situation": "連續二次"}]

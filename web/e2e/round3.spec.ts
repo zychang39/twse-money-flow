@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { gotoStock } from './helpers';
+import { gotoStock, gotoStockSeg } from './helpers';
 
 // 第三輪修正（docs/design/ROUND3.md）：M1 新版本提示、M2 法人買賣超報表、M3 大戶／散戶門檻、M4 多空對照、M5 參考連結。
 
@@ -25,10 +25,12 @@ const noHScroll = async (page: import('@playwright/test').Page) => {
 };
 
 test('M2：個股頁有入口；報表一次列出四個法人的區間合計，Tab 切換走勢圖與逐日明細', async ({ page }) => {
-  await gotoStock(page, '#/stock/2330');
+  // 2026-10 改版：入口在「籌碼」分段的明細列；頁面標題是名詞（法人買賣超報表），數字結論在下一行
+  await gotoStockSeg(page, '#/stock/2330', '籌碼');
   await page.getByRole('link', { name: /法人買賣超報表/ }).click();
   await expect(page).toHaveURL(/#\/stock\/2330\/institutional$/);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^外資近\s60\s日(買超|賣超|買賣超持平)/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('法人買賣超報表');
+  await expect(page.getByTestId('tool-summary')).toHaveText(/^外資近 60 日(買超|賣超|買賣超持平)/);
   const sum = page.locator('table.ir-sum').first();
   await expect(sum.getByRole('row')).toHaveCount(5);
   for (const name of ['外資', '投信', '自營商', '三大法人']) await expect(sum.getByRole('button', { name: new RegExp(`^${name}：`) })).toBeVisible();
@@ -41,15 +43,15 @@ test('M2：個股頁有入口；報表一次列出四個法人的區間合計，
   await expect(page.locator('.ir-table tbody tr')).toHaveCount(61);
   // 切到投信：標題、圖、明細一起換
   await page.getByRole('group', { name: '法人' }).getByRole('button', { name: '投信' }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^投信近\s60\s日/);
+  await expect(page.getByTestId('tool-summary')).toHaveText(/^投信近 60 日/);
   await expect(page.getByRole('img', { name: /投信買賣超走勢/ })).toBeVisible();
   // 點區間合計的一列也能切換
   await sum.getByRole('button', { name: /^自營商：/ }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^自營商近\s60\s日/);
+  await expect(page.getByTestId('tool-summary')).toHaveText(/^自營商近 60 日/);
   // 期間 1 個月＝20 日
   await page.getByRole('group', { name: '期間' }).getByRole('button', { name: '1 個月' }).click();
   await expect(page.locator('.ir-table tbody tr')).toHaveCount(21);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^自營商近\s20\s日/);
+  await expect(page.getByTestId('tool-summary')).toHaveText(/^自營商近 20 日/);
 });
 
 for (const width of [375, 393]) {
@@ -99,10 +101,11 @@ test('M2：點一列打開當天完整籌碼（含四個法人的買張、賣張
 
 // ---------------------------------------------------------------- M3 籌碼結構（v3：全站統一分級，移除可調門檻）
 test('M3（v3）：個股頁有「15 級完整分布」入口；分級定義固定並顯示在畫面上；沒有可調門檻', async ({ page }) => {
-  await gotoStock(page, '#/stock/2330');
-  await page.getByRole('link', { name: /15 級完整分布/ }).click();
+  await gotoStockSeg(page, '#/stock/2330', '籌碼');
+  await page.getByRole('link', { name: /15 級分布/ }).click();
   await expect(page).toHaveURL(/#\/stock\/2330\/holders$/);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^千張大戶本週/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('籌碼結構');
+  await expect(page.getByTestId('tool-summary')).toHaveText(/^千張大戶/);
   await expect(page.getByTestId('hd-definition')).toHaveText('分級（四段互斥，加總 100%）：散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 400–1,000 張｜千張大戶 ≥ 1,000 張。回測與選股固定使用 1,000 張。');
   await expect(page.getByRole('slider')).toHaveCount(0);
   await expect(page.getByText(/超過 100 張/)).toHaveCount(0);
@@ -145,15 +148,17 @@ for (const width of [375, 393]) {
 }
 
 // ---------------------------------------------------------------- M4 多空對照
-test('M4：個股頁的多空區塊有比例條與入口；多空對照並排列出四個面向的多方與空方', async ({ page }) => {
+test('M4：多空條件計數在「進階」（⋯ → 進階）；多空對照並排列出四個面向的多方與空方', async ({ page }) => {
   await gotoStock(page, '#/stock/2330');
-  // M3：多空比例條在「四環分數」區塊（結論 → 有效訊號面板 → 四環分數）
-  const block = page.getByRole('region', { name: /^四環分數/ });
-  await expect(block.getByRole('region', { name: '多空' })).toContainText(/多空條件：多方 \d+ 項、空方 \d+ 項/);
-  await expect(block.getByRole('img', { name: /^多方 \d+ 項、中性 \d+ 項、空方 \d+ 項$/ })).toBeVisible();
-  await block.getByRole('link', { name: /多空對照/ }).click();
+  await page.getByTestId('stock-more').click();
+  await page.getByTestId('toggle-advanced').click();
+  const block = page.getByTestId('sec-advanced');
+  const row = block.getByRole('link', { name: /多空條件/ });
+  await expect(row).toContainText(/多方 \d+ 項、空方 \d+ 項/);
+  await row.click();
   await expect(page).toHaveURL(/#\/stock\/2330\/bullbear$/);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^多方\s\d+\s項、空方\s\d+\s項$/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('多空對照');
+  await expect(page.getByTestId('tool-summary')).toHaveText(/^多方 \d+ 項、空方 \d+ 項$/);
   const cards = page.locator('.bb-card');
   await expect(cards).toHaveCount(4);
   for (const [i, name] of ['基本面', '籌碼面', '量價面', '技術面'].entries()) {
@@ -184,20 +189,13 @@ for (const width of [375, 393]) {
 }
 
 // ---------------------------------------------------------------- M5 研究參考
-test('M5：個股頁列出近一年法說會（含主辦／邀請券商）與研究參考連結；第三方連結清楚標示', async ({ page }) => {
-  await gotoStock(page, '#/stock/2330');
-  // v3：研究參考併入「最近有什麼事件？」區塊
-  const block = page.getByRole('region', { name: '最近有什麼事件？' });
-  await expect(block.getByRole('heading', { level: 2 })).toHaveText(/^近一年 \d+ 筆事件、\d+ 場法說會$/);
-  await expect(block).toContainText('主辦／邀請券商：BofA、元大證券');
-  await expect(block.locator('.rs-item')).toHaveCount(4);
-  const official = block.getByRole('link', { name: /公開資訊觀測站・法人說明會一覽表/ });
-  await expect(official).toHaveAttribute('href', 'https://mopsov.twse.com.tw/mops/web/t100sb02_1');
-  for (const name of [/新聞搜尋/, /鉅亨網/, /Yahoo 股市/]) {
-    const link = block.getByRole('link', { name });
-    await expect(link).toHaveAttribute('target', '_blank');
-    await expect(link).toHaveAttribute('rel', /noopener/);
-    await expect(link).toContainText('第三方');
-  }
-  await expect(block).toContainText('券商研究報告多為付費或只提供給客戶');
+test('M5（2026-10 改版）：「事件」分段列出近一年法說會（主辦／邀請券商）；即將發生置頂', async ({ page }) => {
+  await gotoStockSeg(page, '#/stock/2330', '事件');
+  const titles = page.locator('.ui-sec-title');
+  await expect(titles).toContainText(['即將發生', '注意／處置紀錄', '近一年法說會']);
+  const conf = page.getByTestId('sec-conf');
+  await expect(conf).toContainText('BofA');
+  await expect(conf).toContainText('元大證券');
+  await expect(page.getByTestId('sec-upcoming')).toContainText('營收公布期限');
+  await expect(page.locator('main, .page').first()).not.toContainText(/買進|賣出|建議/);
 });

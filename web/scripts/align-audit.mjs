@@ -167,7 +167,7 @@ function measure() {
     const p = n.parentElement;
     if (!p || p.closest('svg, .sr-only, [data-audit-skip], .sheet, .dock, .chart-wrap') || !visible(p)) continue;
     const block = p.closest('p, li, td, th, h1, h2, h3, .ui-row-label, .ui-row-sub, .ui-v, .ui-stat-v, .ui-stat-l, div, span');
-    const blockRoot = p.closest('button, .ui-sec-head, .nb-dates span, p, li, td, th, h1, h2, h3, .ui-row-main, .ui-row-value, .ui-row-subwide, .ui-row-tag, .ui-row-extra, .ui-stat, .ui-head, .ui-empty, .ui-warn');
+    const blockRoot = p.closest('button, .ui-sec-head, .nb-dates span, p, li, td, th, h1, h2, h3, .ui-row-label, .ui-row-sub, .ui-row-main, .ui-row-value, .ui-row-subwide, .ui-row-tag, .ui-row-extra, .ui-stat, .ui-head, .ui-empty, .ui-warn');
     if (blockRoot !== prevBlock) { prevTop = null; prevChar = ''; prevBlock = blockRoot; }
     const text = n.textContent;
     const rg = document.createRange();

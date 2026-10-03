@@ -52,7 +52,10 @@ const PAGES: { name: string; hash: string; prepare?: (page: Page) => Promise<voi
   { name: '策略頁（三方同買：樣本與成本、新觸發）', hash: '#/explore/strategies/three_buyers', prepare: async (p) => { await expect(p.getByTestId('st-sample')).toBeVisible(); await expect(p.getByTestId('st-today')).toBeVisible(); } },
   { name: '指標效度表（排序選單開啟、0050 基準）', hash: '#/explore/evidence', prepare: async (p) => { await p.getByTestId('bench-switch').getByRole('button', { name: '0050' }).click(); await p.getByRole('button', { name: '排序', exact: true }).click(); await expect(p.getByRole('menu', { name: '排序方式' })).toBeVisible(); } },
   { name: '槓桿計算', hash: leverageHash(), prepare: async (p) => { await expect(p.getByText('波動目標法')).toBeVisible(); } },
-  { name: '個股頁（每日籌碼、區間統計、有效訊號面板）', hash: '#/stock/2330', prepare: async (p) => { await revealAllSections(p); await expect(p.getByTestId('signal-panel')).toBeVisible(); await p.getByRole('group', { name: '明細期間' }).getByRole('button', { name: '60 日' }).click(); } },
+  // 2026-10 改版：個股頁四個分段各檢查一次；每日明細推到子頁
+  ...(['動能', '籌碼', '基本面', '事件'] as const).map((seg) => ({ name: `個股頁・${seg}`, hash: '#/stock/2330', prepare: async (p: Page) => { await revealAllSections(p); await expect(p.getByTestId('signal-panel')).toBeVisible(); await p.getByTestId('stock-seg').getByRole('button', { name: seg, exact: true }).click(); } })),
+  { name: '個股頁・上櫃', hash: '#/stock/6488' },
+  { name: '每日明細（60 日）', hash: '#/stock/2330/daily', prepare: async (p) => { await p.getByRole('group', { name: '明細期間' }).getByRole('button', { name: '60 日' }).click(); } },
   { name: '法人報表', hash: '#/stock/2330/institutional' },
   { name: '籌碼結構', hash: '#/stock/2330/holders' },
   { name: '多空對照', hash: '#/stock/2330/bullbear' },

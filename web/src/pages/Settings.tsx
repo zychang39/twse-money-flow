@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
-import { PageHead, ThemeSwitch, TopBar } from '../components/Chrome';
+import { ThemeSwitch, TopBar } from '../components/Chrome';
+import { Card, PageTitle, Section, Seg } from '../components/ui';
 import { useDb, useInvestStyle } from '../hooks';
 import { STYLE_DESC, STYLE_NAME, setStyle } from '../lib/style';
 import { getSetting, setSetting } from '../db/db';
@@ -24,46 +25,41 @@ export default function Settings() {
   const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS);
   const style = useInvestStyle();
   useEffect(() => { if (stored) setWeights(stored.weights); }, [stored?.weights]);
-  if (!stored) return <div class="page"><TopBar back="/" avatar={false} /><PageHead title="設定" /></div>;
+  if (!stored) return <div class="page"><TopBar back="/" avatar={false} /><PageTitle title="設定" /></div>;
   const total = CATEGORY_IDS.reduce((s, c) => s + weights[c], 0) || 1;
 
   return (
     <div class="page">
       <TopBar back="/" avatar={false} />
-      <PageHead title="設定" />
+      <PageTitle title="設定" sub="資料只存在這台裝置" />
 
-      <h2 class="section-title">投資風格</h2>
-      <div class="card">
-        <div class="segmented" role="group" aria-label="投資風格">
-          {(['swing', 'long'] as const).map((v) => (
-            <button key={v} aria-pressed={style === v} onClick={() => setStyle(v)}>{STYLE_NAME[v]}</button>
-          ))}
-        </div>
-        <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>{STYLE_DESC[style]}。決定個股頁區塊順序、預設期間與一句話結論的側重點；不影響分數計算。</p>
-      </div>
+      <Section title="投資風格" info={<p>{STYLE_DESC[style]}。決定個股頁區塊順序、預設期間與摘要的側重點；不影響分數計算。</p>}>
+        <Seg options={(['swing', 'long'] as const).map((v) => [v, STYLE_NAME[v]] as const)} value={style} onChange={(v) => setStyle(v)} label="投資風格" />
+      </Section>
 
-      <h2 class="section-title">外觀</h2>
-      <div class="card">
-        <ThemeSwitch />
-        <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>預設深色，不跟隨系統；也可以從右上角頭像選單的第一列切換。</p>
-        <div class="switch-row" style={{ marginTop: 'var(--s-3)' }}>
-          <span><span class="body" style={{ display: 'block' }}>環境光</span><span class="caption muted">頁首柔和光暈：今晚頁代表資金環境（有風險偏琥珀），我的股票與個股頁跟著所選期間的漲跌。關閉即為純黑的「夜間簡報」樣式；系統開啟減少透明度或減少動態效果時會自動關閉。</span></span>
-          <label class="switch"><input type="checkbox" role="switch" aria-label="環境光" checked={stored.ambient} onChange={(e) => setSetting('ambient', (e.target as HTMLInputElement).checked)} /><span /></label>
-        </div>
-      </div>
+      <Section title="外觀" info={<><p>預設深色，不跟隨系統；也可以從右上角頭像選單的第一列切換。</p><p>環境光：頁首柔和光暈，簡報頁代表資金環境（有風險偏琥珀），我的股票與個股頁跟著所選期間的漲跌。關閉即為純黑樣式；系統開啟減少透明度或減少動態效果時自動關閉。</p></>}>
+        <Card>
+          <ThemeSwitch />
+          <div class="switch-row st-notes">
+            <span class="ui-body">環境光</span>
+            <label class="switch"><input type="checkbox" role="switch" aria-label="環境光" checked={stored.ambient} onChange={(e) => setSetting('ambient', (e.target as HTMLInputElement).checked)} /><span /></label>
+          </div>
+        </Card>
+      </Section>
 
       <WhaleTierSetting />
 
-      <h2 class="section-title">遊戲化</h2>
-      <div class="card">
-        <div class="switch-row">
-          <span><span class="body" style={{ display: 'block' }}>流程三環、連續、等級與成就</span><span class="caption muted">只獎勵流程（簡報、檢查表、停損、檢討、備份），不因交易次數、獲利或開啟次數給予獎勵；沒有扣分。關閉後只顯示文字狀態；紀錄仍保存在本機並納入備份。</span></span>
-          <label class="switch"><input type="checkbox" role="switch" aria-label="遊戲化" checked={stored.gamification} onChange={(e) => setSetting('gamification', (e.target as HTMLInputElement).checked)} /><span /></label>
-        </div>
-      </div>
+      <Section title="流程顯示" info={<p>流程頁的三環、連續、等級與成就只獎勵流程（簡報、檢查表、停損、檢討、備份），不因交易次數、獲利或開啟次數給予獎勵；沒有扣分。關閉後只顯示文字狀態；紀錄仍保存在本機並納入備份。</p>}>
+        <Card>
+          <div class="switch-row">
+            <span class="ui-body">三環、連續、等級與成就</span>
+            <label class="switch"><input type="checkbox" role="switch" aria-label="遊戲化" checked={stored.gamification} onChange={(e) => setSetting('gamification', (e.target as HTMLInputElement).checked)} /><span /></label>
+          </div>
+        </Card>
+      </Section>
 
-      <h2 class="section-title">綜合分權重</h2>
-      <div class="card">
+      <Section title="分項權重" info={<p>四個分項分數加總時的權重（只用在「進階」區）；不建議依回測結果反覆調整（過度擬合）。</p>}>
+      <Card>
         {CATEGORY_IDS.map((c) => (
           <label key={c} class="field">
             <span>{scoresConfig.categories[c].label}：{weights[c]}（{((weights[c] / total) * 100).toFixed(0)}%）</span>
@@ -74,11 +70,11 @@ export default function Settings() {
           </label>
         ))}
         <button class="btn small" onClick={() => { setWeights(DEFAULT_WEIGHTS); setSetting('weights', DEFAULT_WEIGHTS); }}>恢復預設（等權重）</button>
-        <p class="caption muted">權重只影響綜合分的加總方式；不建議依回測結果反覆調整（過度擬合）。</p>
-      </div>
+      </Card>
+      </Section>
 
-      <h2 class="section-title">交易成本</h2>
-      <div class="card">
+      <Section title="交易成本" info={<p>個人試算用的券商手續費折扣與最低手續費；策略回測固定用牌告手續費 0.1425%、證交稅 0.3%、滑價 0.1%。</p>}>
+      <Card>
         <label class="field">
           <span>手續費折扣（0.6 = 六折）</span>
           <input class="input" type="number" step="0.05" min="0.1" max="1" inputMode="decimal" value={stored.costs.discount}
@@ -88,10 +84,11 @@ export default function Settings() {
           <input type="checkbox" checked={stored.costs.minimumEnabled} onChange={(e) => setSetting('costs', { ...stored.costs, minimumEnabled: (e.target as HTMLInputElement).checked })} />
           最低手續費 20 元
         </label>
-      </div>
+      </Card>
+      </Section>
 
-      <h2 class="section-title">資金與風控</h2>
-      <div class="card">
+      <Section title="資金與風控" info={<p>風險試算與檢查表用的本金與每筆風險上限。</p>}>
+      <Card>
         <label class="field">
           <span>總資金（元）</span>
           <input class="input" type="number" inputMode="numeric" value={stored.portfolio.capital}
@@ -104,18 +101,18 @@ export default function Settings() {
         </label>
         <label class="check">
           <input type="checkbox" checked={stored.portfolio.oddLot} onChange={(e) => setSetting('portfolio', { ...stored.portfolio, oddLot: (e.target as HTMLInputElement).checked })} />
-          以零股（股數）計算建議部位
+          以零股（股數）計算部位
         </label>
-      </div>
+      </Card>
+      </Section>
 
-      <h2 class="section-title">盤中到價提醒</h2>
-      <AlertExport />
+      <Section title="盤中到價提醒">
+        <AlertExport />
+      </Section>
 
-      <h2 class="section-title">版本</h2>
-      <div class="card">
-        <AppVersion withCheck />
-        <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>新版本上線後，開啟 App 時會自動更新；正在操作時只在畫面下方提示，不會打斷正在填寫的內容。</p>
-      </div>
+      <Section title="版本" info={<p>新版本上線後，開啟 App 時自動更新；操作中只在畫面下方提示，不打斷正在填寫的內容。</p>}>
+        <Card><AppVersion withCheck /></Card>
+      </Section>
     </div>
   );
 }
@@ -124,14 +121,8 @@ export default function Settings() {
 function WhaleTierSetting() {
   const v = useWhaleTier();
   return (
-    <>
-      <h2 class="section-title">大戶門檻（顯示）</h2>
-      <div class="card">
-        <div class="segmented" role="group" aria-label="大戶門檻">
-          {WHALE_TIERS.map((t) => <button key={t} aria-pressed={v === t} onClick={() => setWhaleTier(t)}>{t.toLocaleString('zh-TW')} 張</button>)}
-        </div>
-        <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>個股頁「籌碼結構」最上面一段的門檻。回測、選股與指標效度評估固定使用 {BACKTEST_WHALE.toLocaleString('zh-TW')} 張。</p>
-      </div>
-    </>
+    <Section title="大戶門檻" aside="顯示用" info={<p>個股頁股權分散最上面一段的門檻。回測、選股與指標效度評估固定使用 {BACKTEST_WHALE.toLocaleString('zh-TW')} 張。</p>}>
+      <Seg options={WHALE_TIERS.map((t) => [String(t), `${t.toLocaleString('zh-TW')} 張`] as const)} value={String(v)} onChange={(x) => setWhaleTier(Number(x) as typeof v)} label="大戶門檻" />
+    </Section>
   );
 }
