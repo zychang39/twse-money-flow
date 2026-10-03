@@ -59,8 +59,8 @@ test('S3 訊號追蹤：新增策略只記錄啟用之後的觸發；有觸發�
   await sheet.getByRole('button', { name: '開始追蹤' }).click();
   const card = page.getByTestId('track-strategy');
   await expect(card).toContainText('三方同買');
-  await expect(card).toContainText('持有 5 個交易日');
-  await expect(card).toContainText('還沒有新觸發');
+  await expect(card).toContainText('持有 5 日');
+  await expect(card).toContainText('之後無新觸發');
   await expect(card.getByTestId('track-compare')).toContainText('回測');
 });
 

@@ -132,7 +132,7 @@ function EtfInfo({ cov, method, v, kinds }: { cov?: EtfCoverage; method?: string
         <p>
           持股日 {md(cov.holdings_date, '無')} 有持股資料的主動式 ETF {cov.covered} 檔（全部 {cov.total} 檔），
           來自 {cov.issuers} 家投信{cov.issuer_names?.length ? `（${cov.issuer_names.map((n) => n.replace(/投信$/, '')).join('、')}）` : ''}的官網揭露。
-          已實作 {cov.implemented_issuers ?? '—'} 家投信、{cov.implemented_etfs ?? '—'} 檔；其餘投信因反爬、導向循環、驗證機制或尚未找到端點而未涵蓋。
+          {cov.implemented_issuers !== undefined && cov.implemented_etfs !== undefined ? `已實作 ${cov.implemented_issuers} 家投信、${cov.implemented_etfs} 檔；` : ''}其餘投信因反爬、導向循環、驗證機制或尚未找到端點而未涵蓋。
           {cov.lagging?.length ? ` 持股日較晚：${cov.lagging.map((l) => `${l.code} ${md(l.date)}`).join('、')}。` : ''}
         </p>
       ) : null}

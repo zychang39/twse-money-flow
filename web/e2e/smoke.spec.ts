@@ -120,7 +120,7 @@ test('回測：預設組合顯示統計與可信度；自訂條件在 Web Worker
   await expect(page.getByRole('rowheader', { name: '勝率' })).toBeVisible(); // M3：指標為列、持有天數為欄（不左右滑動）
   await expect(page.getByText(/可信度(低|中|高)/).first()).toBeVisible();
   await expect(page.getByText('訊號衰減曲線')).toBeVisible();
-  const c = encodeURIComponent(JSON.stringify([{ field: 'rs_percentile', op: '>=', value: 80 }]));
+  const c = encodeURIComponent(JSON.stringify([{ field: 'composite', op: '>=', value: 50 }]));
   await page.goto(`#/explore/backtest?c=${c}&name=test`);
   await expect(page.getByRole('rowheader', { name: '勝率' })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(/訊號 \d+ 筆 · 範圍：成交值前/)).toBeVisible();

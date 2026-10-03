@@ -172,12 +172,12 @@ export default function Tracking() {
       <TopBar back="/discipline" actions={<button class="btn small" onClick={() => setAdding(true)} disabled={!latest}>新增追蹤</button>} />
       <PageTitle title="訊號追蹤" sub="只記錄、不下單・依規則產生，非推薦" />
       <Section title="追蹤策略" info={<><p>把選股條件或策略設為追蹤：每個交易日記錄新觸發的股票，隔天開盤紙上進場、持有 N 日後開盤出場，與回測並排比較（前瞻驗證）。</p><p>資料存在這台裝置（納入備份）。</p></>}>
-        <List><EmptyRow>{strategies ? `追蹤 ${strategies.length} 個條件` : '載入中'}</EmptyRow></List>
+        <List chev>
+          {strategies ? <EmptyRow>{strategies.length ? `追蹤 ${strategies.length} 個條件` : '無追蹤策略'}</EmptyRow> : null}
+          <Row label="新增追蹤策略" onClick={latest ? () => setAdding(true) : undefined} />
+        </List>
       </Section>
       {!strategies || views.loading && !views.data ? <Loading /> : null}
-      {strategies && !strategies.length ? (
-        <List chev><Row label="新增追蹤策略" onClick={latest ? () => setAdding(true) : undefined} /></List>
-      ) : null}
       {views.data?.map((v) => <StrategyCard key={v.strategy.id} st={v.strategy} ps={v.positions} />)}
       {latest ? <AddSheet open={adding} onClose={() => setAdding(false)} latest={latest} initial={initial} /> : null}
     </div>

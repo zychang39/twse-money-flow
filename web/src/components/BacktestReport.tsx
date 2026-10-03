@@ -94,11 +94,13 @@ export function CoverageNote({ r }: { r: BacktestResult }) {
 export function SignalDefinition({ r }: { r: BacktestResult }) {
   if (!r.signal_definition) return null;
   return (
-    <p class="caption muted" data-testid="bt-definition">
-      訊號＝<b class="t1">今日新觸發</b>：T 日收盤後全部條件成立、上一個交易日不成立（與選股頁「今日新觸發」相同；資料剛開始的第一天不算）。
-      T+1 開盤進場。同一檔在持有期間內再次觸發時，「全部訊號」照算、「不重疊」略過。
-      {r.signals_level !== undefined ? `每天符合都算的話共 ${fmtCount(r.signals_level)} 筆（新觸發 ${fmtCount(r.signals ?? 0)} 筆），統計列在下方對照。` : ''}
-    </p>
+    <Card testid="bt-definition">
+      <p class="ui-foot ui-muted">
+        訊號＝今日新觸發：T 日收盤後全部條件成立、上一個交易日不成立（與選股頁「今日新觸發」相同；資料第一天不算）；T+1 開盤進場。
+        同一檔在持有期間內再次觸發時，「全部訊號」照算、「不重疊」略過。
+        {r.signals_level !== undefined ? `每天符合都算共 ${fmtCount(r.signals_level)} 筆（新觸發 ${fmtCount(r.signals ?? 0)} 筆），統計列在出場規則比較。` : ''}
+      </p>
+    </Card>
   );
 }
 
