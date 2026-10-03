@@ -317,3 +317,112 @@ export function BarChart({ labels, series, format, height = 180, label, testid, 
     </div>
   );
 }
+
+/**
+ * 日資料長條圖（簡報資金分段）：堆疊（例：上市＋上櫃成交金額）或單一帶號序列（例：三大法人合計買賣超，正紅負綠），
+ * 可疊一條線（例：20 日均線）。按住拖曳或點單根讀值，讀值面板固定在圖上緣；選中的長條以外淡化。
+ */
+export function BarSeries({ dates, stacks, signed = false, line, format, readout, height = 160, label, testid, dateFormat = (d) => d.slice(5).replace('-', '/') }: {
+  dates: string[];
+  stacks: { id: string; name: string; color: string; values: (number | null)[] }[];
+  /** 單一序列依正負上色（紅漲綠跌） */
+  signed?: boolean;
+  line?: { name: string; color: string; values: (number | null)[] };
+  format: (v: number) => string;
+  /** 讀值面板內容（預設列出每個序列） */
+  readout?: (i: number) => ComponentChildren;
+  height?: number;
+  label: string;
+  testid?: string;
+  dateFormat?: (d: string) => string;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(360);
+  const [sel, setSel] = useState<number | null>(null);
+  const drag = useRef(false);
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((es) => setW(Math.max(200, Math.round(es[0].contentRect.width))));
+    ro.observe(el);
+    setW(Math.max(200, Math.round(el.getBoundingClientRect().width)));
+    return () => ro.disconnect();
+  }, []);
+  const n = dates.length;
+  const totals = dates.map((_, i) => stacks.reduce((s, st) => s + (st.values[i] ?? 0), 0));
+  const all = [...totals, ...(line?.values.filter((v): v is number => v !== null) ?? []), 0];
+  const ax = linearAxis(all);
+  const plotH = height - PAD_TOP - PAD_BOTTOM;
+  const y = (v: number) => PAD_TOP + (1 - axisPos(v, ax)) * plotH;
+  const gutter = 40; // 右側刻度欄（不壓到長條）
+  const pw = Math.max(120, w - gutter);
+  const slot = pw / Math.max(1, n);
+  const bw = Math.max(2, Math.min(18, slot * 0.66));
+  const y0 = y(0);
+  const idxAt = (clientX: number) => {
+    const r = wrapRef.current?.getBoundingClientRect();
+    if (!r || !n) return null;
+    return Math.max(0, Math.min(n - 1, Math.floor((clientX - r.left) / slot)));
+  };
+  const linePath = line ? smoothD(line.values.map((v, i) => (v === null ? null : [slot * i + slot / 2, y(v)] as [number, number])).filter((p): p is [number, number] => !!p)) : '';
+  return (
+    <div class="sc2" data-testid={testid} role="group" aria-label={label}>
+      <div ref={wrapRef} class="sc2-plot" style={{ height: `${height / 16}rem` }} tabIndex={0}
+        aria-label={`${label}：按住拖曳或點長條讀值，左右鍵逐日`}
+        onPointerDown={(e) => { drag.current = true; setSel(idxAt(e.clientX)); }}
+        onPointerMove={(e) => { if (drag.current || e.pointerType === 'mouse') { const i = idxAt(e.clientX); if (drag.current) setSel(i); } }}
+        onPointerUp={() => { drag.current = false; }}
+        onPointerCancel={() => { drag.current = false; }}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowLeft') { e.preventDefault(); setSel((s) => Math.max(0, (s ?? n) - 1)); }
+          if (e.key === 'ArrowRight') { e.preventDefault(); setSel((s) => Math.min(n - 1, (s ?? -1) + 1)); }
+          if (e.key === 'Escape') setSel(null);
+        }}>
+        <svg width={w} height={height} viewBox={`0 0 ${w} ${height}`} aria-hidden="true">
+          <g class="sc2-grid">
+            {ax.ticks.map((t) => <g key={t}><line x1={0} x2={pw} y1={y(t)} y2={y(t)} /><text x={w} y={y(t) + 4} text-anchor="end">{format(t)}</text></g>)}
+          </g>
+          {dates.map((d, i) => {
+            let acc = 0;
+            const x = slot * i + (slot - bw) / 2;
+            return (
+              <g key={d} class={`sc2-bar-g ${sel !== null && sel !== i ? 'dim' : ''}`}>
+                {stacks.map((st) => {
+                  const v = st.values[i];
+                  if (v === null || !Number.isFinite(v)) return null;
+                  const a = y(acc + Math.max(0, v)), b = y(acc + Math.min(0, v));
+                  if (!signed) acc += v;
+                  const color = signed ? (v >= 0 ? 'var(--up)' : 'var(--down)') : st.color;
+                  return <rect key={st.id} x={x} y={Math.min(a, b, y0)} width={bw} height={Math.max(1, Math.abs((signed ? y(v) : b) - (signed ? y0 : a)))} fill={color} rx={1.5} />;
+                })}
+              </g>
+            );
+          })}
+          <line class="sc2-zero" x1={0} x2={pw} y1={y0} y2={y0} />
+          {line && linePath ? <path d={linePath} fill="none" stroke={line.color} stroke-width={1.5} class="sc2-ma" /> : null}
+          {sel !== null ? <line class="sc2-cross" x1={slot * sel + slot / 2} x2={slot * sel + slot / 2} y1={PAD_TOP} y2={height - PAD_BOTTOM} /> : null}
+          {n >= 2 ? (
+            <g class="sc2-dates">
+              <text x={0} y={height - 6}>{dateFormat(dates[0])}</text>
+              <text x={pw} y={height - 6} text-anchor="end">{dateFormat(dates[n - 1])}</text>
+            </g>
+          ) : null}
+        </svg>
+        {sel !== null ? (
+          <div class="sc2-readout" role="status" data-testid="bars-readout" onClick={() => setSel(null)}>
+            <span class="sc2-r-date">{dateFormat(dates[sel])}</span>
+            {readout ? readout(sel) : stacks.map((st) => (
+              <span key={st.id} class="sc2-r-item"><i style={{ background: st.color }} />{st.name} {st.values[sel] === null ? '—' : format(st.values[sel] as number)}</span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      {stacks.length > 1 || line ? (
+        <div class="sc2-legend">
+          {stacks.map((st) => <span key={st.id} class="sc2-chip static"><i style={{ background: st.color }} />{st.name}</span>)}
+          {line ? <span class="sc2-chip static"><i class="band" style={{ background: line.color, height: '2px', opacity: 1 }} />{line.name}</span> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}

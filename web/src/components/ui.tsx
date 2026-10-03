@@ -9,7 +9,7 @@
  *   data-a="v"＝列的右側數值（同卡片右緣一致）、data-a="bl"＝同列需同基線的元素。
  */
 import type { ComponentChildren, JSX } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Sheet } from './Sheet';
 import { IconChevron, IconInfo } from './Icons';
 import { numberFormat } from '../lib/format';
@@ -243,7 +243,25 @@ export function Seg<T extends string>({ options, value, onChange, label, sticky 
       ))}
     </div>
   );
-  return sticky ? <div class="ui-seg-sticky">{el}</div> : el;
+  return sticky ? <StickySeg>{el}</StickySeg> : el;
+}
+
+/** 黏在導覽列下方的分段列：真的黏住（捲到導覽列下）才出現玻璃底，平常透明（頁面不出現橫帶）。 */
+function StickySeg({ children }: { children: Kids }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => {
+      const top = parseFloat(getComputedStyle(el).top) || 0;
+      setStuck(el.getBoundingClientRect().top <= top + 0.5 && window.scrollY > 0);
+    };
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    return () => window.removeEventListener('scroll', check);
+  }, []);
+  return <div ref={ref} class={`ui-seg-sticky ${stuck ? 'stuck' : ''}`}>{children}</div>;
 }
 
 // ---------------------------------------------------------------- 表格

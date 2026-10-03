@@ -182,10 +182,10 @@ test('產業資金輪動：熱力圖可點進產業個股清單', async ({ page 
   await expect(page.getByRole('link', { name: /台積電/ })).toBeVisible();
 });
 
-test('簡報頁：加入自選後出現在「自選股異動」區塊', async ({ page }) => {
+test('簡報頁：加入自選後出現在「我的」分段的「自選異動」區塊', async ({ page }) => {
   await addWatch(page, '1101');
-  await page.goto('#/');
-  const section = page.getByRole('region', { name: '自選股異動' });
+  await page.goto('#/?seg=mine');
+  const section = page.getByRole('region', { name: '自選異動' });
   await expect(section).toBeVisible();
   // 等區塊內容畫好：台泥這一列直接出現，或收在「低於門檻」底下（切換分頁不再等整頁轉場，內容可能晚一點才到）
   const row = section.getByRole('button', { name: /台泥 1101/ });
@@ -202,7 +202,7 @@ test('處置與注意、行事曆、週報顯示資料', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '注意次數' })).toBeVisible();
   await expect(page.getByText('可能進入處置')).toHaveCount(0);
   await page.goto('#/explore/calendar');
-  await page.getByRole('button', { name: '全部' }).click();
+  await page.getByRole('button', { name: '全部', exact: true }).click();
   await expect(page.getByText(/融券最後回補日/)).toBeVisible();
   await page.goto('#/discipline/weekly');
   await expect(page.getByRole('heading', { name: '下週事件' })).toBeVisible();

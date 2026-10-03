@@ -121,6 +121,8 @@ button.ring2 { cursor: pointer; }
 .page > .ui-sec:nth-of-type(4), .seg-pane > .ui-sec:nth-of-type(4) { animation-delay: 120ms; }
 .page > .ui-sec:nth-of-type(5), .seg-pane > .ui-sec:nth-of-type(5) { animation-delay: 160ms; }
 .page > .ui-sec:nth-of-type(n+6), .seg-pane > .ui-sec:nth-of-type(n+6) { animation-delay: 200ms; }
+/* 含黏性分段列的區塊不做位移動畫（transform 會讓黏性元素與點擊後的焦點捲動跳動） */
+.page > .ui-sec:has(.ui-seg-sticky), .seg-pane > .ui-sec:has(.ui-seg-sticky) { animation: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .pbar i, .rbar-m, .dbar-fill, .ring2-arc, .ui-tap, .sum-card, .ui-btn, .ring2 { transition: none; }
@@ -177,3 +179,44 @@ button.ring2 { cursor: pointer; }
 .sc2-chip.static { cursor: default; }
 .sc2-chip i.band { width: 0.875rem; border-radius: 0.125rem; opacity: 0.5; }
 @media (prefers-reduced-motion: reduce) { .sc2-line, .sc2-end, .sc2-band, .sc2-chip, .sc2-bar-g { transition: none; } }
+
+/* ---------- 價格軸（LevelAxis） ---------- */
+.laxis { --tiers: 1; position: relative; height: calc(3rem + var(--tiers) * 2.5rem); margin: var(--s-2) var(--s-6); }
+.laxis-track { position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; border-radius: 1px; background: var(--track); }
+.laxis-m { position: absolute; top: 50%; width: 0; transition: opacity var(--dur-grow) var(--ease-out); }
+.laxis-m > i { position: absolute; left: -0.3125rem; top: -0.3125rem; width: 0.625rem; height: 0.625rem; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px var(--surface-1); }
+.laxis-m.main > i { left: -0.4375rem; top: -0.4375rem; width: 0.875rem; height: 0.875rem; box-shadow: 0 0 0 2px var(--surface-1), 0 0 10px var(--c); }
+.laxis-l { position: absolute; left: 0; transform: translateX(-50%); white-space: nowrap; font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-1); font-variant-numeric: tabular-nums; }
+.laxis-n { color: var(--text-2); }
+.laxis-m.edge-l .laxis-l { transform: translateX(-1.5rem); }
+.laxis-m.edge-r .laxis-l { transform: translateX(calc(-100% + 1.5rem)); }
+.laxis-m { --lv: 0; }
+.laxis-m.above .laxis-l { bottom: calc(var(--s-3) + var(--lv) * 1.25rem); }
+.laxis-m.below .laxis-l { top: calc(var(--s-3) + var(--lv) * 1.25rem); }
+.sc2-ma { stroke-dasharray: none; }
+@media (prefers-reduced-motion: reduce) { .laxis-m { transition: none; } }
+
+/* ---------- 簡報頁（M2） ---------- */
+.hero-plain { margin-top: var(--s-4); }
+.index-ohlc-line { margin: var(--s-2) 0 0; font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.index-ohlc-line .ui-num { color: var(--text-1); }
+.brief-stale { margin-top: var(--s-3); }
+.sum-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); margin-top: var(--s-2); }
+.sum-grid .sum-card + .sum-card { margin-top: 0; }
+.sum-grid .sum-concl { font-size: var(--fs-concl); }
+.seg-pane { padding-top: var(--s-2); }
+.seg-pane > .ui-sec:first-child { margin-top: var(--s-6); }
+.flow-cells { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); }
+.flow-cell { display: flex; flex-direction: column; min-width: 0; }
+.flow-v { margin-top: var(--s-1); font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); white-space: nowrap; }
+.key-line { display: flex; align-items: baseline; gap: var(--s-4); }
+.key-v, .key-v2 { font-size: var(--fs-key); line-height: var(--lh-key); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.key-v2 { color: var(--text-1); }
+.key-line + .interp { margin-bottom: var(--s-3); }
+.breadth-line { padding: var(--s-1) 0; }
+.breadth-line .mini { width: 100%; }
+.ui-card > .ui-seg { margin-top: var(--s-3); }
+.ui-card > .sc2 { margin-top: var(--s-3); }
+
+/* 頁首狀態列的連結：44pt 點擊區域（行內上下內距，負邊距抵銷） */
+.meta-line .meta-link, .meta-line .meta-alert { display: inline-block; padding: calc((var(--tap) - 1lh) / 2) 0; margin: calc((var(--tap) - 1lh) / -2) 0; }

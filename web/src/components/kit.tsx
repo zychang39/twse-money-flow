@@ -8,7 +8,7 @@
  * - 解讀行只在「新手」說明層級顯示；「精簡」只在超過提醒門檻時於數值旁亮橘點，點橘點開說明。
  */
 import type { ComponentChildren, JSX } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Sheet } from './Sheet';
 import { IconChevron } from './Icons';
 import { fillExample, findTerm, type Term as TermDef } from '../lib/glossary';
@@ -344,10 +344,10 @@ export function DataState({ phase, reason, stale, onRetry, skeleton, children, t
 }
 
 /** 資料落後提示（沿用改版前「資料可能過期」的橘色提示樣式）：點進資料健康頁看原因。 */
-export function StaleNote({ children }: { children?: Kids }) {
+export function StaleNote({ children, lead = '資料落後' }: { children?: Kids; lead?: string }) {
   return (
     <a class="stale-note" href="#/me/health" data-testid="stale-note">
-      <span class="stale-text"><span class="stale-lead">資料落後</span>{' '}{children ?? '部分資料集未更新'}</span>
+      <span class="stale-text"><span class="stale-lead">{lead}</span>{' '}{children ?? '部分資料集未更新'}</span>
       <IconChevron />
     </a>
   );
@@ -381,4 +381,65 @@ export function RollNum({ value, format, from, testid, label }: { value: number 
   const text = shown === null ? '—' : format(shown);
   const final = value === null || value === undefined ? '—' : format(value);
   return <span class="roll" data-testid={testid} aria-label={label ? `${label} ${final}` : final}><span aria-hidden="true">{text}</span></span>;
+}
+
+/**
+ * 價格軸（簡報市場分段的趨勢卡）：一條水平軸標出各均線與現值的位置；標籤上下交錯、互不重疊，不壓到軸。
+ */
+export function LevelAxis({ levels, format, label, testid }: {
+  levels: { name: string; v: number | null | undefined; color: string; main?: boolean }[];
+  format: (v: number) => string;
+  label: string;
+  testid?: string;
+}) {
+  const on = useGrow();
+  const box = useRef<HTMLDivElement>(null);
+  // 標籤位置：先量實際寬度，再依序放進「上 1、下 1、上 2、下 2」中第一個不重疊的位置（數值相近的均線不互相覆蓋）
+  const [slots, setSlots] = useState<number[]>([]);
+  const pts = levels.filter((l): l is { name: string; v: number; color: string; main?: boolean } => typeof l.v === 'number' && Number.isFinite(l.v));
+  const key = pts.map((p) => `${p.name}:${p.v}`).join('|');
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const place = () => {
+      const labels = [...el.querySelectorAll<HTMLElement>('.laxis-l')];
+      const placed: { l: number; r: number }[][] = [[], [], [], []];
+      const next = labels.map((lab) => {
+        const r = lab.getBoundingClientRect();
+        // 目前所在位置的水平範圍（垂直位置不影響寬度）
+        const span = { l: r.left - 6, r: r.right + 6 };
+        const slot = placed.findIndex((row) => row.every((o) => span.r <= o.l || span.l >= o.r));
+        const k = slot < 0 ? 0 : slot;
+        placed[k].push(span);
+        return k;
+      });
+      setSlots((prev) => (prev.join() === next.join() ? prev : next));
+    };
+    place();
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place);
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [key]);
+  if (pts.length < 2) return null;
+  const lo = Math.min(...pts.map((p) => p.v)), hi = Math.max(...pts.map((p) => p.v));
+  const pad = (hi - lo) * 0.08 || 1;
+  const pos = (v: number) => ((v - lo + pad) / (hi - lo + 2 * pad)) * 100;
+  const sorted = [...pts].sort((a, b) => a.v - b.v);
+  const tiers = Math.max(1, ...slots.map((k) => (k >> 1) + 1));
+  return (
+    <div ref={box} class="laxis" role="img" aria-label={`${label}：${sorted.map((p) => `${p.name} ${format(p.v)}`).join('、')}`} data-testid={testid}
+      style={{ '--tiers': tiers } as JSX.CSSProperties}>
+      <i class="laxis-track" />
+      {sorted.map((p, i) => {
+        const k = slots[i] ?? 0;
+        return (
+          <span key={p.name} class={`laxis-m ${k % 2 ? 'below' : 'above'} ${p.main ? 'main' : ''} ${pos(p.v) < 22 ? 'edge-l' : pos(p.v) > 78 ? 'edge-r' : ''}`}
+            style={{ left: `${pos(p.v)}%`, opacity: on ? 1 : 0, '--c': p.color, '--lv': k >> 1 } as JSX.CSSProperties}>
+            <i aria-hidden="true" />
+            <span class="laxis-l" aria-hidden="true"><span class="laxis-n">{p.name}</span> {format(p.v)}</span>
+          </span>
+        );
+      })}
+    </div>
+  );
 }

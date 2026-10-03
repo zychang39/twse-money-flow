@@ -23,6 +23,11 @@ const seed = JSON.parse(readFileSync(SEED, 'utf8'));
 export const PAGES = [
   { id: 'gallery', hash: '#/dev' },
   { id: 'brief', hash: '#/' },
+  { id: 'brief-market', hash: '#/?seg=market' },
+  { id: 'brief-money', hash: '#/?seg=money' },
+  { id: 'brief-mine', hash: '#/?seg=mine' },
+  { id: 'mine', hash: '#/mine' },
+  { id: 'mine-hold', hash: '#/mine?seg=hold' },
   { id: 'stock-momentum', hash: '#/stock/2330', seg: '動能' },
   { id: 'stock-chips', hash: '#/stock/2330', seg: '籌碼' },
   { id: 'stock-fundamental', hash: '#/stock/2330', seg: '基本面' },
@@ -39,7 +44,7 @@ function measure() {
   const V = [];
   const vw = window.innerWidth;
   const near = (a, b, tol = 0.5) => Math.abs(a - b) <= tol;
-  const skipSel = 'svg, canvas, .rings, .sc2, .pbar, .rbar, .dbar, .mini, .skel, .ambient, .chart-wrap, .chart-box, .lw-chart, .netbars, [data-audit-skip], .sheet, .sheet-backdrop, .dock, .topbar, .sr-only, .footer, .update-toast, .status-scrim';
+  const skipSel = 'svg, canvas, .laxis, .rings, .sc2, .pbar, .rbar, .dbar, .mini, .skel, .ambient, .chart-wrap, .chart-box, .lw-chart, .netbars, [data-audit-skip], .sheet, .sheet-backdrop, .dock, .topbar, .sr-only, .footer, .update-toast, .status-scrim';
   const visible = (el) => {
     const r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) return false;
@@ -60,7 +65,7 @@ function measure() {
   // 以「行內片段」為單位：每個文字節點的每一行（Range.getClientRects）與圖示（svg）、輸入框。
   // 同一張卡片內、同一視覺列左邊沒有其他片段的，才是行首；行首的左緣必須是 32（卡片內）或 16（卡片外）。
   const rightish = (el) => {
-    if (el.closest('[data-a="v"], td.r, th.r, .ui-row-tag, .ui-row-chev, .ui-sec-aside, .ui-head-aside, .ui-tag, .tag, .ui-seg, .segmented, .periods, .ui-info, .ui-btn, .btn')) return true;
+    if (el.closest('[data-a="v"], .chev, .stale-note > svg, td.r, th.r, .ui-row-tag, .ui-row-chev, .ui-sec-aside, .ui-head-aside, .ui-tag, .tag, .ui-seg, .segmented, .periods, .ui-info, .ui-btn, .btn')) return true;
     for (let p = el; p && p !== page; p = p.parentElement) {
       const cs = getComputedStyle(p);
       if (cs.textAlign === 'center' || cs.textAlign === 'right' || cs.textAlign === 'end') return true;
@@ -87,7 +92,10 @@ function measure() {
     const cy = (a.r.top + a.r.bottom) / 2;
     const leftOf = boxes.some((b) => b !== a && b.card === a.card && b.r.right <= a.r.left + 1 && cy > b.r.top && cy < b.r.bottom);
     if (leftOf) continue;
-    const want = a.card ? 32 : 16;
+    // 卡片內＝最外層卡片左緣＋16（兩欄摘要卡的右欄從自己的卡片左緣算；卡片裡的表格不另外內縮）
+    let outer = a.card;
+    for (let c = a.card?.parentElement ? cardOf(a.card.parentElement) : null; c; c = c.parentElement ? cardOf(c.parentElement) : null) outer = c;
+    const want = outer ? Math.round(outer.getBoundingClientRect().left) + 16 : 16;
     if (!near(a.r.left, want)) V.push({ rule: 'left-edge', msg: `左緣 x=${a.r.left.toFixed(1)}（應為 ${want}）`, at: label(a.el), y: Math.round(a.r.top + scrollY) });
   }
 
@@ -166,7 +174,7 @@ function measure() {
   let prevTop = null; let prevBottom = null; let prevChar = ''; let prevBlock = null;
   for (let n = tw.nextNode(); n; n = tw.nextNode()) {
     const p = n.parentElement;
-    if (!p || p.closest('svg, .sr-only, [data-audit-skip], .sheet, .dock, .chart-wrap') || !visible(p)) continue;
+    if (!p || p.closest('svg, .laxis, .sr-only, [data-audit-skip], .sheet, .dock, .chart-wrap') || !visible(p)) continue;
     const block = p.closest('p, li, td, th, h1, h2, h3, .ui-row-label, .ui-row-sub, .ui-v, .ui-stat-v, .ui-stat-l, div, span');
     const blockRoot = p.closest('button, .ui-sec-head, .nb-dates span, p, li, td, th, h1, h2, h3, .ui-row-label, .ui-row-sub, .ui-row-main, .ui-row-value, .ui-row-subwide, .ui-row-tag, .ui-row-extra, .ui-stat, .ui-head, .ui-empty, .ui-warn');
     if (blockRoot !== prevBlock) { prevTop = null; prevBottom = null; prevChar = ''; prevBlock = blockRoot; }
@@ -193,7 +201,7 @@ function measure() {
   const props = ['marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight', 'rowGap', 'columnGap'];
   const seen = new Set();
   for (const el of page.querySelectorAll('*')) {
-    if (el.matches('.term') || el.closest('svg, .chart-wrap, .chart-box, .lw-chart, [data-audit-skip], .sheet, .sr-only') || !visible(el)) continue;
+    if (el.matches('.term') || el.closest('svg, .laxis, .chart-wrap, .chart-box, .lw-chart, [data-audit-skip], .sheet, .sr-only') || !visible(el)) continue;
     const cs = getComputedStyle(el);
     if (cs.display === 'inline' && !el.matches('a, button')) continue;
     for (const k of props) {
@@ -202,6 +210,9 @@ function measure() {
       const v = parseFloat(raw);
       if (!Number.isFinite(v) || v === 0) continue;
       if ((k === 'marginLeft' || k === 'marginRight') && near(parseFloat(cs.marginLeft), parseFloat(cs.marginRight)) && v > 40) continue; // 置中（margin: auto）
+      // 擴大點擊區（padding 與等量的負 margin 互相抵銷，視覺間距不變）
+      const pair = k.startsWith('padding') ? 'margin' + k.slice(7) : k.startsWith('margin') ? 'padding' + k.slice(6) : null;
+      if (pair && near(parseFloat(cs[pair]), -v)) continue;
       if (Math.abs(Math.abs(v) / 4 - Math.round(Math.abs(v) / 4)) > 0.01) {
         const key = `${label(el).split('「')[0]}:${k}:${raw}`;
         if (seen.has(key)) continue;
