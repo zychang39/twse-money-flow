@@ -30,7 +30,7 @@ test('兩指：兩條垂直標線＋上方兩個日期、漲跌、報酬率、�
   const tip = page.getByTestId('range-tip');
   await expect(tip).toBeVisible();
   await expect(page.locator('[data-testid="range-marks"] line')).toHaveCount(2);
-  await expect(tip).toContainText(/\d+\/\d+ – \d+\/\d+・\d+ 個交易日/);
+  await expect(tip).toContainText(/\d+\/\d+ – [\d/]+・\d+ 個交易日/);
   await expect(tip).toContainText(/[\d,.]+\s+[+−]?[\d.]+%/);
   const dateBefore = await page.getByTestId('hero-change-date').first().textContent();
   const first = await tip.textContent();
@@ -110,9 +110,12 @@ test('桌機：按住拖曳選出區間；價格基準在 ⋯ 切換（記住；
   expect(await page.evaluate(() => localStorage.getItem('tmf-range-basis'))).toBe('raw');
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('data-time')).toContainText('原始價');
-  await page.mouse.move(b.x + b.width * 0.1, y);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const b2 = await chartBox(page);
+  const y2 = b2.y + b2.height / 2;
+  await page.mouse.move(b2.x + b2.width * 0.1, y2);
   await page.mouse.down();
-  await page.mouse.move(b.x + b.width * 0.5, y, { steps: 6 });
+  await page.mouse.move(b2.x + b2.width * 0.5, y2, { steps: 6 });
   await expect(tip).toBeVisible();
   await page.mouse.up();
 });

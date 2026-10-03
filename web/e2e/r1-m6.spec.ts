@@ -36,7 +36,7 @@ for (const width of [375, 393]) {
       await revealAllSections(page);
       expect(await smallTargets(page)).toEqual([]);
       // ::before 擴大的範圍真的可以點到：點在分段按鈕視覺範圍上方 3px 仍命中該按鈕
-      const seg = page.getByTestId('stock-seg').getByRole('button').nth(1);
+      const seg = page.getByTestId('risk-calc').getByRole('button', { name: '3 倍 ATR' });
       await seg.scrollIntoViewIfNeeded();
       const b = (await seg.boundingBox())!;
       expect(b.height).toBeLessThan(44);

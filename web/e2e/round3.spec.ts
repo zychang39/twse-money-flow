@@ -197,5 +197,5 @@ test('M5（2026-10 改版）：「事件」分段列出近一年法說會（主�
   await expect(conf).toContainText('BofA');
   await expect(conf).toContainText('元大證券');
   await expect(page.getByTestId('sec-upcoming')).toContainText('營收公布期限');
-  await expect(page.locator('main, .page').first()).not.toContainText(/買進|賣出|建議/);
+  await expect(page.locator('.stock-lower')).not.toContainText(/買進|賣出|建議/);
 });

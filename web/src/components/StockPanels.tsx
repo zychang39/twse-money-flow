@@ -64,7 +64,7 @@ export function SummaryStats({ h }: { h: StockHistory }) {
         <StatGrid testid="stock-stats" items={[
           { label: 'RS 百分位', value: <Num v={ok(s.rs) ? Math.round(s.rs) : null} /> },
           { label: '距 52 週高', value: pctPlain(s.dist52, 1) },
-          { label: '20 日乖離', value: <Num v={ok(s.biasAtr) ? fmtNum(s.biasAtr, 2) : null} unit="ATR" /> },
+          { label: '20 日乖離', value: <Signed v={s.biasAtr} digits={2} unit="ATR" tone="plain" /> },
           { label: '量比', value: <Num v={ok(s.vr) ? `${fmtNum(s.vr, 2)}×` : null} /> },
           { label: '法人 20 日佔量', value: <Signed v={s.t20} digits={1} unit="%" /> },
           { label: '千張大戶週變化', value: <Signed v={s.whale} digits={2} unit="百分點" tone="plain" /> },
@@ -129,7 +129,7 @@ export function MomentumPanel({ h, prefs, advanced, row, onScore }: { h: StockHi
         <List>
           <Row label="ATR14" value={price(vo.atr)} />
           <Row label="ATR14 ÷ 股價" value={<Num v={vo.atrPct} digits={2} unit="%" />} />
-          <Row label="20 日乖離" value={<Num v={ok(vo.biasAtr) ? fmtNum(vo.biasAtr, 2) : null} unit="ATR" />} />
+          <Row label="20 日乖離" value={<Signed v={vo.biasAtr} digits={2} unit="ATR" tone="plain" />} />
         </List>
       </Section>
 
