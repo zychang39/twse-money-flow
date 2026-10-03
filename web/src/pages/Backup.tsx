@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
-import { PageHead, TopBar } from '../components/Chrome';
+import { TopBar } from '../components/Chrome';
+import { Card, List, PageTitle, Row, Section, Seg } from '../components/ui';
 import { useDb } from '../hooks';
 import { getSetting, listActivity, listScreens, listTrades, listWatch, logActivity } from '../db/db';
 import { loadSummary } from '../data/api';
@@ -23,7 +24,7 @@ export default function Backup() {
     await markBackedUp();
     const day = await loadSummary().then((x) => x.date).catch(() => todayTpe());
     await logActivity('backup', day);
-    setMsg('已匯出備份檔。建議存到 iCloud 雲碟或其他裝置。');
+    setMsg('已匯出備份檔');
   }
 
   async function doImport(e: Event) {
@@ -52,24 +53,25 @@ export default function Backup() {
   return (
     <div class="page">
       <TopBar back="/" avatar={false} />
-      <PageHead title="備份" sub={info?.last ? `上次備份 ${info.last.slice(0, 10)}` : '尚無備份'} />
-      <div class="card">
-        <p class="body">所有使用者資料只存在這台裝置的瀏覽器（IndexedDB），不會上傳。清除 Safari 網站資料或換手機會遺失，請定期匯出。</p>
-        <p class="caption muted" style={{ margin: 'var(--s-2) 0 var(--s-4)' }}>目前：自選 {info?.watch ?? 0} 檔・交易 {info?.trades ?? 0} 筆・選股組合 {info?.screens ?? 0} 組・流程紀錄 {info?.activity ?? 0} 筆（含遊戲化資料）</p>
-        <button class="btn primary block" onClick={doExport}>匯出全部資料（JSON）</button>
-      </div>
-      <h2 class="section-title">匯入</h2>
-      <div class="card">
-        <div class="segmented" role="group" aria-label="匯入方式">
-          <button aria-pressed={mode === 'replace'} onClick={() => setMode('replace')}>取代全部</button>
-          <button aria-pressed={mode === 'merge'} onClick={() => setMode('merge')}>合併</button>
-        </div>
-        <label class="field">
-          <span>選擇備份檔（.json）</span>
-          <input class="input" type="file" accept="application/json,.json" onChange={doImport} />
-        </label>
-        <p class="caption muted">舊版本的備份檔會自動升級格式；比 App 新的版本會拒絕匯入。</p>
-      </div>
+      <PageTitle title="備份" sub={info?.last ? `上次備份 ${info.last.slice(0, 10)}` : '尚無備份'} />
+      <Section title="匯出" info={<p>使用者資料只存在這台裝置的瀏覽器（IndexedDB），不會上傳；清除 Safari 網站資料或換手機會遺失。匯出檔可存到 iCloud 雲碟或其他裝置。</p>}>
+        <List>
+          <Row label="自選" value={`${info?.watch ?? 0} 檔`} />
+          <Row label="交易" value={`${info?.trades ?? 0} 筆`} />
+          <Row label="選股組合" value={`${info?.screens ?? 0} 組`} />
+          <Row label="流程紀錄" value={`${info?.activity ?? 0} 筆`} />
+        </List>
+        <Card><button class="btn primary block" onClick={doExport}>匯出全部資料（JSON）</button></Card>
+      </Section>
+      <Section title="匯入" info={<p>舊版本的備份檔自動升級格式；比 App 新的版本拒絕匯入。取代全部會先清除這台裝置目前的資料。</p>}>
+        <Seg options={[['replace', '取代全部'], ['merge', '合併']] as const} value={mode} onChange={setMode} label="匯入方式" />
+        <Card>
+          <label class="field">
+            <span>選擇備份檔（.json）</span>
+            <input class="input" type="file" accept="application/json,.json" onChange={doImport} />
+          </label>
+        </Card>
+      </Section>
       {msg ? <div class="banner info" role="status">{msg}</div> : null}
     </div>
   );

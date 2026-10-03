@@ -2,9 +2,9 @@
  * 資料狀態（2026-10-02 健檢 M2）：每個資料集的來源、最新日、應有日、涵蓋率、回補進度、失敗原因。
  * 從各頁頁首的「資料至 …」點入。應有日依公布時程與交易日曆推算（lib/dataStatus.ts）；休市、尚未到公布時間都不是錯誤。
  */
-import { PageHead, TopBar } from '../components/Chrome';
+import { TopBar } from '../components/Chrome';
+import { List, PageTitle, Row, Section, Tag } from '../components/ui';
 import { ErrorState, Loading } from '../components/DataStatus';
-import { KeyValueList } from '../components/Metrics';
 import { useAsync } from '../hooks';
 import { loadHealth, loadJson, loadMarket, loadMeta } from '../data/api';
 import type { EvidenceFile } from '../lib/evidence';
@@ -14,24 +14,19 @@ import { makeCalendar } from '../lib/tradingCalendar';
 
 const STATE_TEXT = { ok: '已齊', lag: '落後', missing: '沒有資料', na: '—' } as const;
 
-function Row({ r }: { r: DatasetRow }) {
+function DatasetSection({ r }: { r: DatasetRow }) {
   const risk = r.state === 'lag' || r.state === 'missing';
-  const rows = [
-    { k: '來源', v: r.sources.length ? r.sources.join('、') : '—（未登錄來源）' },
-    { k: '最新日', v: r.latest ?? '—（尚未取得）' },
-    { k: '應有日', v: r.expected, sub: r.lagText },
-    ...(r.coverage ? [{ k: '涵蓋率', v: r.coverage }] : []),
-    ...(r.backfill ? [{ k: '回補進度', v: r.backfill }] : []),
-    ...(r.failure ? [{ k: '失敗原因', v: r.failure }] : []),
-  ];
   return (
-    <section class="ds-item" data-testid={`ds-${r.key}`}>
-      <div class="row between" style={{ marginTop: 'var(--s-6)', marginBottom: 'var(--s-2)' }}>
-        <h2 class="section">{r.label}</h2>
-        <span class={`tag${risk ? ' risk' : ''}`}>{STATE_TEXT[r.state]}</span>
-      </div>
-      <KeyValueList rows={rows} label={`${r.label}的資料狀態`} />
-    </section>
+    <Section title={r.label} testid={`ds-${r.key}`} aside={<Tag tone={risk ? 'risk' : 'neutral'}>{STATE_TEXT[r.state]}</Tag>}>
+      <List>
+        <Row label="來源" sub={r.sources.length ? r.sources.join('、') : '未登錄來源'} />
+        <Row label="最新日" value={r.latest ?? '—'} />
+        <Row label="應有日" sub={r.lagText ?? undefined} value={r.expected} />
+        {r.coverage ? <Row label="涵蓋率" sub={r.coverage} /> : null}
+        {r.backfill ? <Row label="回補進度" sub={r.backfill} /> : null}
+        {r.failure ? <Row label="失敗原因" sub={r.failure} /> : null}
+      </List>
+    </Section>
   );
 }
 
@@ -55,16 +50,15 @@ export default function Data() {
   return (
     <div class="page">
       <TopBar back="/me/health" avatar={false} />
-      <PageHead title="資料狀態" sub={rows ? (lagging ? `${lagging} 個資料集未到應有日` : '全部資料集已到應有日') : undefined}>
-        <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>
-          應有日依各資料的公布時程與證交所交易日曆推算：信用 21:30 後、集保每週六公布上週、主動式 ETF 隔天上午、月營收次月 10 日。休市或還沒到公布時間不算落後。
-          {meta.data?.generated_at ? `衍生資料產生 ${meta.data.generated_at.replace('T', ' ').slice(0, 16)}。` : ''}
-        </p>
-      </PageHead>
+      <PageTitle title="資料狀態" sub={rows ? (lagging ? `${lagging} 個資料集未到應有日` : '全部資料集已到應有日') : undefined} />
+      <Section title="說明" info={<><p>應有日依各資料的公布時程與證交所交易日曆推算：信用 21:30 後、集保每週六公布上週、主動式 ETF 隔天上午、月營收次月 10 日。休市或還沒到公布時間不算落後。</p>{meta.data?.generated_at ? <p>衍生資料產生 {meta.data.generated_at.replace('T', ' ').slice(0, 16)}。</p> : null}</>}>
+        <List chev>
+          <Row label="資料健康" sub={`最新交易日 ${md(meta.data?.market_date ?? null)}・執行紀錄與格式變動`} href="#/me/health" />
+        </List>
+      </Section>
       {meta.error ? <ErrorState error={meta.error} /> : null}
       {health.error ? <ErrorState error={health.error} /> : null}
-      {!rows ? <Loading /> : rows.map((r) => <Row key={r.key} r={r} />)}
-      {rows ? <p class="caption muted" style={{ marginTop: 'var(--s-6)' }}>最新交易日 {md(meta.data?.market_date ?? null)}；資料源的執行紀錄與格式變動在 <a href="#/me/health">資料健康</a>。</p> : null}
+      {!rows ? <Loading /> : rows.map((r) => <DatasetSection key={r.key} r={r} />)}
     </div>
   );
 }
