@@ -155,6 +155,9 @@ def stock_metrics(p: Panels, code: str) -> dict[str, Any]:
     fn5 = _sum_last(p.foreign_net[code], 5)
     tn5 = _sum_last(p.trust_net[code], 5)
     avg20 = _f(p.value[code].iloc[-21:-1].mean())
+    # 量比（stock 2026-10-03）：當日成交股數 ÷ 前 20 個市場交易日平均成交股數（分母不含當日；有成交的日子 ≥ 10 才計算）
+    prior = p.volume[code].iloc[-21:-1]
+    vol20 = _f(prior.mean()) if int(prior.notna().sum()) >= 10 else None
     return {
         "date": last_i,
         "last_trade_date": last_i if trade_status else None,
@@ -179,6 +182,8 @@ def stock_metrics(p: Panels, code: str) -> dict[str, Any]:
         "pb": clean(p.pb[code].get(last_i), 2),
         "dividend_yield": clean(p.dy[code].get(last_i), 2),
         "volume_ratio_20": clean(_div(val, avg20), 2),
+        "vol_ratio": clean(_div(vol, vol20), 2),
+        "vol20_lots": clean(_div(vol20, 1000), 0),
     }
 
 
@@ -260,6 +265,8 @@ def summary_columns() -> list[str]:
         "fair_position",
         *[f"{c}_chg" for c in SCORE_COLUMNS],
         "short_change",
+        "vol_ratio",
+        "vol20_lots",
         "composite_chg_5d",
         "new_flags_5d",
         "new_flags",
@@ -370,10 +377,16 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
     since = p.dates[max(0, len(p.dates) - 260)]
     etf_changes = etfmod.holdings_changes(ds.table("etf_holdings"))
     etf_holders = etfmod.holders_by_stock(etf_changes, p.names)
+    # SPEC §5.8／§7：個股頁「主動式 ETF」一列（持有檔數｜近 5 日淨變動金額｜佔 20 日均成交額 %）
+    etf_summary = etfmod.stock_summary(ds.table("etf_holdings"), p)
     chip_src = stockdetail.chip_sources(ds)
     holder_src = stockdetail.holder_sources(ds)
     conf_src = stockdetail.conference_sources(ds)
+    attn_src = stockdetail.attention_sources(ds)  # 2026-10：注意／處置（個股檔 attn）
     ev_by_code = adjust_events_by_code(p.events)
+    from pipeline.derive import momentum
+
+    mom_ctx = momentum.build_context(p, mp)
     recent_from = p.dates[max(0, len(p.dates) - ADJ_RECENT_DAYS)]
     for code in active:
         m = stock_metrics(p, code)
@@ -438,9 +451,13 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
             "quarters": fundamentals.latest_table(ds.table("financials"), code),
             "short_halt": short_halt_for(ds, code),
             "etf_holders": etf_holders.get(code),
+            "etf": etf_summary.get(code),
             "chip": stockdetail.chip_block(p, mp, chip_src, code, idx),
             "holders": stockdetail.holders_block(holder_src, code),
             "conferences": stockdetail.conferences_for(conf_src, code, since),
+            "attn": stockdetail.attention_block(attn_src, code, p.dates),
+            # stock 2026-10-03：報酬與全市場百分位、RS 20 日前、產業名次（需要橫斷面）
+            "mom": momentum.mom_block(mom_ctx, code),
             # D-01：還原事件（日期、因子、類型），前端換算持倉的進場價、停損價、股數
             "adj_events": [e for e in code_ev if idx and e[0] > idx[0]],
         }

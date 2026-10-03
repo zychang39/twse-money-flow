@@ -1,7 +1,7 @@
 /** 市場相關的共用區塊：資金指標清單、三大法人金額列、AI 摘要。 */
 import { useState } from 'preact/hooks';
 import type { AiSummary, MarketData, MarketLight, TurnoverCell, TurnoverDay } from '../data/types';
-import { LIGHT_LABEL, envInfo, envVerdict } from '../lib/envState';
+import { LIGHT_LABEL, envConclusion, envCounts, envInfo, type EnvValidation } from '../lib/envState';
 import { MINUS, arrow, dirClass, fmtNum, md, missing, pctPlain } from '../lib/format';
 import { IconChevronDown } from './Icons';
 import { KeyValueList } from './Metrics';
@@ -26,10 +26,11 @@ export function EnvList({ lights }: { lights: MarketLight[] }) {
   );
 }
 
-/** 判定是怎麼來的：「3 項風險 → 保守（任一項風險即保守）」 */
-export function EnvVerdictLine({ lights }: { lights: MarketLight[] | undefined }) {
+/** 燈號計數「風險 3／有利 1／中性 1」；回測驗證顯著時才接「→ 保守」（env.validation.show_conclusion）。 */
+export function EnvVerdictLine({ lights, validation }: { lights: MarketLight[] | undefined; validation?: EnvValidation | null }) {
   const env = envInfo(lights);
-  return <p class="caption" style={{ marginTop: 'var(--s-2)' }} data-testid="env-verdict"><span class={env.state === 'conservative' ? 'risk w6' : 'w6'}>{envVerdict(env)}</span></p>;
+  const c = envConclusion(env, validation);
+  return <p class="caption" style={{ marginTop: 'var(--s-2)' }} data-testid="env-verdict"><span class="w6">{envCounts(env)}{c ? ` → ${c}` : ''}</span></p>;
 }
 
 export function LightsList({ lights }: { lights: MarketLight[] }) {
@@ -55,9 +56,9 @@ export function EnvDetail({ market }: { market: MarketData }) {
   return (
     <>
       <p class="body">資金環境：<b class={env.state === 'conservative' ? 'risk' : ''}>{env.label}</b></p>
-      <EnvVerdictLine lights={market.env?.lights} />
+      <EnvVerdictLine lights={market.env?.lights} validation={(market.env as { validation?: EnvValidation } | undefined)?.validation} />
       <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>
-        {market.env?.lights.length ?? 0} 項指標中 {known} 項有資料。有任一項風險即為「保守」；沒有風險且 ≥ 3 項有利為「積極」；其餘為「中性」（門檻見 config/ui.yml）。
+        {market.env?.lights.length ?? 0} 項指標中 {known} 項有資料。
       </p>
       {market.env ? <LightsList lights={market.env.lights} /> : <p class="caption muted">資料源待處理。</p>}
       {market.temperature ? (

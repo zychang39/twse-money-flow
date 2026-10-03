@@ -7,7 +7,7 @@ import { ALIGN_NAME, type MomentumFacts, type ProfitFacts, type RevenueFacts, pe
 import { fmtNum, fmtPrice, missing, numberFormat, pctSigned, ratioText } from '../lib/format';
 import { LineChart } from './LineChart';
 import { type TechFacts, kdText, macdText } from '../lib/technical';
-import { riskCalc } from '../lib/riskCalc';
+import { riskCalc, stopVsLimitText } from '../lib/riskCalc';
 import type { PortfolioSettings } from '../lib/settings';
 import { KeyValueList } from './Metrics';
 import { useState } from 'preact/hooks';
@@ -185,7 +185,7 @@ export function RiskCalcCard({ price, t, prefs }: { price: number | null; t: Tec
   const [k, setK] = useState(2);
   const r = riskCalc({ capital: prefs.capital, riskPct: prefs.riskPct, oddLot: prefs.oddLot, price, atrPct: t?.atrPct ?? null, k });
   const money = (v: number) => `${fmtNum(v, 0)} 元`;
-  const sizeText = r.shares <= 0 ? missing(r.reason ?? '無法計算') : prefs.oddLot ? `${fmtNum(r.shares, 0)} 股` : `${fmtNum(r.lots, 0)} 張（${fmtNum(r.shares, 0)} 股）`;
+  const sizeText = r.shares <= 0 ? missing(r.reason ?? '無法計算') : r.mode === 'odd' ? `${fmtNum(r.shares, 0)} 股（零股）` : `${fmtNum(r.lots, 0)} 張（${fmtNum(r.shares, 0)} 股）`;
   return (
     <div class="card" style={{ marginTop: 'var(--s-4)' }} data-testid="risk-calc">
       <div class="row between wrap" style={{ gap: 'var(--s-2)' }}>
@@ -204,7 +204,8 @@ export function RiskCalcCard({ price, t, prefs }: { price: number | null; t: Tec
           <KeyValueList label="風險試算" rows={[
             { k: '參考價', v: <span class="num">{fmtPrice(price)}</span>, sub: '最新收盤（未還原）' },
             { k: '停損價', v: <span class="num">{fmtPrice(r.stop)}</span>, sub: `每股風險 ${fmtPrice(r.perShare)}（${k} × ATR ${fmtPrice(r.atr)}）` },
-            { k: '對應股數', v: <span class="num">{sizeText}</span>, sub: `風險上限 ${money(r.budget)}，實際承擔 ${money(r.riskAmount)}（整張捨去）；部位 ${money(r.positionValue)}` },
+            { k: '對應股數', v: <span class="num">{sizeText}</span>, sub: `風險上限 ${money(r.budget)}，實際承擔 ${money(r.riskAmount)}；部位 ${money(r.positionValue)}（佔本金 ${r.positionPct === null ? '—' : `${r.positionPct.toFixed(1)}%`}）` },
+            { k: '一日跌停價', v: <span class="num">{fmtPrice(r.limitDown1)}</span>, sub: stopVsLimitText(r, fmtPrice) },
           ]} />
           <table class="ev-table ev-static" style={{ marginTop: 'var(--s-3)' }} aria-label="連續跌停情境">
             <thead><tr><th scope="col">連續跌停</th><th scope="col">價格</th><th scope="col">虧損</th><th scope="col">佔本金</th><th scope="col">相對計畫風險</th></tr></thead>
@@ -213,8 +214,8 @@ export function RiskCalcCard({ price, t, prefs }: { price: number | null; t: Tec
                 <tr key={s.days}>
                   <th scope="row">{s.days} 日</th>
                   <td class="num">{fmtPrice(s.price)}</td>
-                  <td class="num">{r.shares > 0 ? money(s.loss) : '—'}</td>
-                  <td class="num">{r.shares > 0 ? `${s.lossPct.toFixed(2)}%` : '—'}</td>
+                  <td class="num">{money(s.loss)}</td>
+                  <td class="num">{`${s.lossPct.toFixed(2)}%`}</td>
                   <td class="num">{s.r === null ? '—' : `${s.r.toFixed(1)} R`}</td>
                 </tr>
               ))}

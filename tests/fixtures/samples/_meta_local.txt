@@ -57,3 +57,9 @@ etf_ab_TW00000404A5.json|GET（00404A，最新＝asOfDate 10/02/2026；domesticH
 etf_fsitc_183.json|POST JSON {"pStrFundID":"183","pStrDate":""}（00408A，最新＝sdate 2026-10-02；d 字串內 group 1 裁切為前 4 筆，group 4、5 全留）|https://www.fsitc.com.tw/WebAPI.aspx/Get_hd|200 7335|2026-10-03
 etf_fhtrust_ETF26.xlsx|GET（00409A，2026-10-01 基金資產明細 xlsx；未裁切，60 列）|https://www.fhtrust.com.tw/api/assetsExcel/ETF26/20261001|200 9997|2026-10-03
 etf_fhtrust_nodata.json|GET（2026-10-03 尚無資料：HTTP 200、JSON 文字「查無資料」）|https://www.fhtrust.com.tw/api/assetsExcel/ETF26/20261003|200 12|2026-10-03
+etf_fubon_00405A_20261002.html|GET stkId=00405A&ddate=2026/10/02（保留基金淨資產／在外流通單位數／每單位淨值區塊、資料日期、持股表前 6 列與資產表；§3.4 受益權單位數）|https://websys.fsit.com.tw/FubonETF/Trade/Assets.aspx|200 190429|2026-10-03
+etf_fsitc_pcf_183.json|POST JSON {"pStrFundID":"183","pStrDate":""}（00408A 申購買回清單摘要，最新＝公告日 sdate 2026-10-05；未裁切；「已發行受益權單位總數」對應淨值日 10/02 的持股，§3.4）|https://www.fsitc.com.tw/WebAPI.aspx/Get_BuySellA|200 1450|2026-10-03
+yahoo_chart_2330_5m.json|GET（Yahoo Finance chart，非官方；裁切成最後 60 根：10/01 尾段＋10/02 全日，含 13:25 空值與 13:30 收盤那一根；移除 tradingPeriods）|https://query1.finance.yahoo.com/v8/finance/chart/2330.TW?interval=5m&range=5d|200 33870|2026-10-03
+yahoo_chart_TWII_1m.json|GET（加權指數 1 分 K，非官方；裁切成最後 280 根：10/02 全日 271 根＋前一日尾段）|https://query1.finance.yahoo.com/v8/finance/chart/%5ETWII?interval=1m&range=5d|200|2026-10-03
+tpex_insti_summary.json|GET（上櫃三大法人買賣金額彙總表；未裁切）|https://www.tpex.org.tw/www/zh-tw/insti/summary?type=Daily&date=2026/10/02&response=json|200 1837|2026-10-03
+twse_rwd_BFI82U.json|GET（上市三大法人買賣金額統計表；notes 裁切成 1 條）|https://www.twse.com.tw/rwd/zh/fund/BFI82U?type=day&dayDate=20261002&response=json|200|2026-10-03

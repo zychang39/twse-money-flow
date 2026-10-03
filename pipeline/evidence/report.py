@@ -228,12 +228,10 @@ def section(d: dict[str, Any], H: str) -> list[str]:
             if not b:
                 continue
             m = b.get("mean") or []
-            pk, exh = b.get("peak"), b.get("exhaust")
-            pts = "、".join(f"第 {k} 日 {f(m[k - 1])}" for k in (1, 5, 10, 20, 40, 60) if k <= len(m))
-            out.append(
-                f"- {name}：{pts}；峰值第 {pk or '—'} 日（{f(m[pk - 1]) if pk else '—'}）；"
-                f"alpha 耗盡日（邊際超額連續 5 日 ≤ 0 的第一天）第 {exh or '—'} 日。"
-            )
+            pk = b.get("peak")
+            pts = "、".join(f"第 {k} 日 {f(m[k - 1])}" for k in (1, 5, 10, 20, 40, 60, 120) if k <= len(m))
+            edge = "（峰值在觀察窗邊界）" if b.get("peak_at_edge") else ""
+            out.append(f"- {name}：{pts}；峰值第 {pk or '—'} 日（{f(m[pk - 1]) if pk else '—'}）{edge}。")
         out.append("")
     out += [f"#### 分組（持有 {H} 日）", ""]
     out += groups_table(hs.get("groups") or {}, d.get("oos"))

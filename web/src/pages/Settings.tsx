@@ -30,7 +30,7 @@ export default function Settings() {
   return (
     <div class="page">
       <TopBar back="/" avatar={false} />
-      <PageHead eyebrow="我的" title="設定" />
+      <PageHead title="設定" />
 
       <h2 class="section-title">投資風格</h2>
       <div class="card">

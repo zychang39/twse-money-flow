@@ -395,6 +395,11 @@ def task_daily(ctx: RunContext, sources: list[str] | None = None, heal_days: int
         for sid in daily:
             if sid != "twse_quotes":
                 run_daily_source(ctx, SPECS[sid], d)
+    # 1b) 2026-10：每 5 秒指數統計在已收盤的交易日仍取不到 → Yahoo ^TWII 1 分 K 備援（首頁 1D，標示來源）
+    if "twse_intraday_index" in daily:
+        from pipeline import tasks_kbar
+
+        tasks_kbar.index_fallback(ctx, [d for d in recent if d not in ctx.calendar.closed])
     # 2) 區間型：近 10 天（跨月時依月份拆檔）
     for sid in [s for s in wanted if s in SPECS and SPECS[s].kind == "range"]:
         run_range_source(ctx, SPECS[sid], target - timedelta(days=10), target)

@@ -9,7 +9,7 @@ stages:
     label: 收盤行情
     time: "14:15"             # 台北；收盤行情約 14:00 公布
     cron: "15 6 * * 1-5"
-    sources: [twse_quotes, tpex_quotes, tpex_index]
+    sources: [twse_quotes, tpex_quotes, tpex_index, twse_intraday_index]  # 2026-10：每 5 秒指數統計約 14:00 已公布，與收盤行情同段抓（首頁 1D）
     ready: [twse_quotes, tpex_quotes]
     note: 價格與價格類訊號
     digest: false
@@ -17,7 +17,7 @@ stages:
     label: 法人
     time: "15:30"             # 三大法人約 15:00–16:30 公布
     cron: "30 7 * * 1-5"
-    sources: [twse_quotes, tpex_quotes, twse_insti, tpex_insti, twse_valuation, tpex_valuation, twse_qfii, tpex_qfii]
+    sources: [twse_quotes, tpex_quotes, twse_insti, tpex_insti, twse_valuation, tpex_valuation, twse_qfii, tpex_qfii, twse_insti_amount, tpex_insti_amount, twse_intraday_index]
     ready: [twse_insti, tpex_insti]
     note: 法人、訊號、今日新觸發、策略健康度；推送 Telegram（若有設定）
     digest: true

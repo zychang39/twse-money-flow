@@ -1,8 +1,8 @@
 """策略庫（M2；METHODOLOGY §11）：把判定為「有效」或「環境依賴」的指標包成內建策略。
 
-每個策略：條件（config/strategies.yml）、出場規則（§10.10 各規則選定參數中相對指數最高者）、多期間報表、逐年報酬、
-策略健康度（近 60 日 vs 長期）、環境條件與今日狀態、今日新觸發、樣本範圍；另外預先模擬同時持有 K 檔的組合
-（K＝1、3、5、10），提供槓桿計算需要的歷史最大回撤、年化報酬與波動、最大不利波動分布、跌停鎖死發生率。
+每個策略：條件（config/strategies.yml）、多期間報表、逐年報酬、策略健康度（近 60 日 vs 長期）、環境條件與今日狀態、
+今日新觸發、樣本範圍。組合模擬（K＝1、3、5、10 檔）、判定卡、分級、出場規則（樣本內選、樣本外另列）與槓桿用的組合層
+風險數字由 judge.annotate 統一計算（2026-10-03）；這裡保留共用的模擬與績效函式（simulate、perf、bench_compare…）。
 """
 
 from __future__ import annotations
@@ -14,21 +14,12 @@ import numpy as np
 import pandas as pd
 
 from pipeline.core import config
-from pipeline.evidence import engine, exits, stats, verdict
+from pipeline.evidence import engine, stats, verdict
 from pipeline.evidence.engine import Market
 
 log = logging.getLogger(__name__)
 
 ENV_STATE = {"regime": "regime_up", "trend": "trend_up", "quarter_end": "quarter_end"}
-
-
-def best_exit(detail: dict[str, Any]) -> dict[str, Any] | None:
-    """各出場規則的選定參數中，相對指數（exc_idx）最高者；同分取 MAE 較小者。"""
-    rules = [r for r in (detail.get("exits") or {}).get("rules", []) if r.get("chosen") and r.get("n")]
-    rules = [r for r in rules if r.get("exc_idx") is not None]
-    if not rules:
-        return None
-    return max(rules, key=lambda r: (r["exc_idx"], r.get("mae") or -999))
 
 
 def simulate(mk: Market, trades: pd.DataFrame, value: np.ndarray, k: int, start: int) -> np.ndarray:
@@ -364,18 +355,14 @@ def build(res: dict[str, Any]) -> dict[str, Any]:
             for code in today_codes
         ]
         item["today_note"] = today_note(item, ev, mk, last)
-        if enabled:
+        if registered:  # 2026-10-03：上架改由 judge.annotate 的分級決定，訊號追蹤在分級後再依 enabled 篩選
             signals[s["id"]] = {
                 ev.dates[t]: [ev.codes[i] for i in np.nonzero(mask[t])[0]]
                 for t in range(max(0, T - 250), T)
                 if mask[t].any()
             }
-        # 2026-10-02 健檢：組合模擬對每一套都算（上架與否由之後的分級決定，不再由這裡的判定決定）；
-        # 前端依分級決定是否顯示（停用的不顯示組合與權益曲線）
-        try:
-            item.update(_portfolio(ev, mk, uni, c, sc, keep, details.get(s["test"]) or {}, H))
-        except Exception:  # 單一策略的組合模擬失敗不影響其他策略
-            log.exception("策略 %s 組合模擬失敗", s["id"])
+        # 2026-10-03：組合模擬（K 檔、5 檔 vs 基準、權益曲線、交易統計）改由 judge.annotate 對每一套（含波段策略）
+        # 以判定持有期（固定 40 日）統一計算；這裡只建立條件、健康度與今日狀態
         out.append(item)
     return {
         "date": ev.dates[last],
@@ -385,80 +372,4 @@ def build(res: dict[str, Any]) -> dict[str, Any]:
         "slots": sc["slots"],
         "strategies": out,
         "_signals": signals,
-    }
-
-
-def _portfolio(
-    ev: Any,
-    mk: Market,
-    uni: np.ndarray,
-    c: dict[str, Any],
-    sc: dict[str, Any],
-    keep: dict[str, Any],
-    detail: dict[str, Any],
-    H: int,
-) -> dict[str, Any]:
-    """選用的出場規則 → 去重交易統計、MAE 分布、跌停鎖死發生率、K 檔組合的權益統計。"""
-    best = best_exit(detail)
-    start = str(keep["start"])
-    m = keep["mask"] & (np.asarray(ev.dates) >= start)[:, None]
-    t, cc = engine.events_from_mask(m, uni)
-    cand = engine.evaluate(mk, t, cc, H)
-    cand = cand[cand["status"] == "ok"]
-    rule, param = (best["rule"], best["param"]) if best else ("fixed", str(H))
-    trades = exits.run_one(mk, cand, ev, c, rule, param)
-    trades = trades[trades["status"] == "ok"]
-    d = engine.dedupe(trades)
-    locked_any = np.array(
-        [bool(mk.locked[int(e) : int(x) + 1, int(ci)].any()) for e, x, ci in d[["e", "x", "c"]].itertuples(index=False)]
-    )
-    mae = -d["mae"].to_numpy() * 100
-    dd = engine.annotate(d, mk)
-    yearly_trades = {
-        str(y): {
-            "n": len(p),
-            "mean_net": stats.pct(float(p["net"].mean())),
-            "exc_idx": stats.pct(float(p["exc_idx"].mean())),
-            "win": stats.pct(float((p["net"] > 0).mean())),
-        }
-        for y, p in dd.groupby("year")
-    }
-    s_row = int(np.searchsorted(np.asarray(ev.dates), start))
-    port = {}
-    for k in sc["slots"]:
-        eq = simulate(mk, trades, ev.value, int(k), max(s_row, 1))
-        port[str(k)] = curve_stats(eq, ev.dates[max(s_row, 1) :])
-    eq5 = simulate(mk, trades, ev.value, 5, max(s_row, 1))
-    weekly = pd.Series(eq5, index=pd.to_datetime(ev.dates[max(s_row, 1) :])).resample("W-FRI").last().dropna()
-    s0 = max(s_row, 1)
-    compare = bench_compare(eq5, mk, ev, s0)
-    weekly_dates = [x.date().isoformat() for x in weekly.index]
-    return {
-        "compare": compare,
-        "exit": {
-            "rule": rule,
-            "param": param,
-            "label": (best or {}).get("label") or f"固定 {H} 日",
-            "stats": {k: (best or {}).get(k) for k in ("n", "ev", "exc_idx", "win", "hold", "mae", "locked")},
-            "alternatives": [r for r in (detail.get("exits") or {}).get("rules", []) if r.get("chosen")],
-        },
-        "trades": {
-            "n": len(d),
-            "mean_net": stats.pct(float(d["net"].mean())) if len(d) else None,
-            "win": stats.pct(float((d["net"] > 0).mean())) if len(d) else None,
-            "hold": round(float(d["hold"].mean()), 1) if len(d) else None,
-            "mae_p50": round(float(np.percentile(mae, 50)), 2) if mae.size else None,
-            "mae_p90": round(float(np.percentile(mae, 90)), 2) if mae.size else None,
-            "mae_p99": round(float(np.percentile(mae, 99)), 2) if mae.size else None,
-            "lock_rate": round(float(locked_any.mean()) * 100, 2) if locked_any.size else None,
-            "yearly": yearly_trades,
-        },
-        "portfolio": port,
-        "curve": {
-            "dates": weekly_dates,
-            "equity": [round(float(v), 4) for v in weekly.to_numpy()],
-            "slots": 5,
-            # v3 M2：可疊加的基準線（每週、以期初為 1）；2026-10-02 健檢：與波段策略共用 weekly_bench_lines
-            **weekly_bench_lines(mk, ev, weekly_dates),
-        },
     }

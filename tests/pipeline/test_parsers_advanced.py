@@ -128,7 +128,7 @@ def test_tdcc_stock_history():
 
 def test_intraday_index():
     """每 5 秒指數統計（首頁 1D）：只取時間與加權指數；降採樣成每分鐘最後一筆。"""
-    from pipeline.derive.extras import downsample_minutes
+    from pipeline.derive.intraday import downsample_minutes
 
     t = adv.parse_twse_intraday_index(sample("twse_MI_5MINS_INDEX.json"))
     assert t.response_date == date(2026, 10, 2)

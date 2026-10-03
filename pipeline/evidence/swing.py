@@ -7,7 +7,7 @@ docs/swing/HYPOTHESIS.md、TRIALS.md）。
 - 兩種超額並列：毛超額＝毛報酬 − 等權毛報酬（選股能力）、扣成本超額＝淨報酬 − 等權毛報酬（可交易性）。
 - 持有 40 日為主、20 日並列（10 日只顯示）。
 - 三段固定日期切分：開發 2017-01～2021-12、驗證 2022-01～2024-10、最終測試 2024-11 至今（上一輪已查看兩次，非全新樣本）。
-- 校正後 t：集中進場（進場日 ÷ 期間交易日 < 25%）用日曆時間法；其餘取日曆、NW、區塊的最小值。
+- 校正後 t：日曆時間法、NW、區塊三者取絕對值最小（2026-10-03 全站統一，取消集中進場的例外；audit.corrected_t）。
 - 進場延後 1、3 日；參數 ±20%；九項上線門檻；組合層 10 檔等權、槽位滿了就跳過，含兩條共用規則
   （加權指數在 240 日線下不開新倉；20 日乖離 > 20% 不進場；不計入參數）。
 - 前瞻驗證：合併日（forward_since）之後的訊號自動記錄，滿 forward_days 個交易日後在策略頁顯示與回測對照。
@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 
 from pipeline.core import config
-from pipeline.evidence import audit, curve, engine, stats, verdict
+from pipeline.evidence import audit, engine, stats, verdict
 from pipeline.evidence import indicators as ind
 
 log = logging.getLogger(__name__)
@@ -659,6 +659,7 @@ def build(res: dict[str, Any], f: dict[str, Any] | None = None, *, with_test: bo
     signals: dict[str, dict[str, list[str]]] = {}
     details: dict[str, Any] = {}
     series: dict[str, pd.Series] = {}
+    masks: dict[str, tuple[np.ndarray, str]] = {}  # 訊號遮罩與訊號起點（judge.annotate 用，不寫入 JSON）
     for spec in sw["strategies"]:
         r = evaluate_spec(spec, ev, f, uni, mk, c, g, with_test=with_test)
         if "error" in r:
@@ -790,29 +791,14 @@ def build(res: dict[str, Any], f: dict[str, Any] | None = None, *, with_test: bo
                 "slots": int(r["portfolio"].get("slots") or g.get("portfolio_slots", 10)),
                 **weekly_bench_lines(mk, ev, w["dates"]),
             }
-        # 累積超額曲線（事件時間，第 1～60 日）：與一般指標同一個函式；樣本＝主判定持有天數的去重事件
-        cc = c.get("curve") or {}
-        try:
-            item["_curve_detail"] = curve.curve(
-                mk,
-                d,
-                int(cc.get("days", 60)),
-                int(c["stats"]["bootstrap"]),
-                int(c["stats"]["seed"]),
-                int(cc.get("exhaust_run", 5)),
-            )
-        except Exception:  # 曲線失敗不影響策略本身
-            log.exception("swing %s 累積超額曲線失敗", spec["id"])
-            item["_curve_detail"] = None
+        # 累積超額曲線（事件時間，第 1～120 日）改由 judge.annotate 以判定持有期（40 日）的去重事件統一計算（2026-10-03）
+        masks[spec["id"]] = (r["mask"], str(r["signal_start"]))
         signals[spec["id"]] = {
             ev.dates[t]: [ev.codes[i] for i in np.nonzero(mask[t])[0]]
             for t in range(max(0, T - 250), T)
             if mask[t].any()
         }
         details[spec["id"]] = dict(item["swing"])
-        cd = item.pop("_curve_detail", None)
-        if cd and cd.get("n"):
-            details[spec["id"]]["curve"] = cd
         series[spec["id"]] = audit.daily_series(mk, d)
         items.append(item)
         log.info(
@@ -824,7 +810,7 @@ def build(res: dict[str, Any], f: dict[str, Any] | None = None, *, with_test: bo
             it["swing"]["correlation"] = {
                 k: v for k, v in (corr.get("matrix", {}).get(it["id"]) or {}).items() if k != it["id"]
             }
-    return {"strategies": items, "_signals": signals, "details": details, "correlation": corr}
+    return {"strategies": items, "_signals": signals, "details": details, "correlation": corr, "_masks": masks}
 
 
 def _health(d: pd.DataFrame, c: dict[str, Any], hold: int, T: int, long_m: float | None) -> dict[str, Any]:

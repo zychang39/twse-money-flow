@@ -1,23 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { envInfo, envVerdict, type Light } from './envState';
+import { envConclusion, envCounts, envInfo, type EnvValidation, type Light } from './envState';
 
 const light = (id: string, state: Light['state']): Light => ({ id, label: id, state, value: '', basis: '' });
+const v = (show: boolean): EnvValidation => ({ period: ['2017-01-03', '2026-10-02'], days: 2300, states: [], show_conclusion: show, reason: '' });
 
-describe('資金環境判定的說明（M1-7）', () => {
-  it('有風險 → 保守，並寫出「任一項風險即保守」', () => {
+describe('envCounts／envConclusion（2026-10 改版）', () => {
+  it('計數格式：風險 3／有利 1／中性 1', () => {
     const env = envInfo([light('a', 'red'), light('b', 'red'), light('c', 'red'), light('d', 'green'), light('e', 'yellow')]);
+    expect(envCounts(env)).toBe('風險 3／有利 1／中性 1');
     expect(env.state).toBe('conservative');
-    expect(envVerdict(env)).toBe('3 項風險 → 保守（任一項風險即保守）');
   });
-  it('沒有風險且 ≥ 3 項有利 → 積極', () => {
-    const env = envInfo([light('a', 'green'), light('b', 'green'), light('c', 'green'), light('d', 'yellow')]);
-    expect(envVerdict(env)).toBe('沒有風險、3 項有利 → 積極（沒有風險且有利 ≥ 3 項）');
+  it('驗證不顯著時不下「保守」結論', () => {
+    const env = envInfo([light('a', 'red')]);
+    expect(envConclusion(env, v(false))).toBeNull();
+    expect(envConclusion(env, null)).toBeNull();
+    expect(envConclusion(env, v(true))).toBe('保守');
   });
-  it('沒有風險但有利不足 → 中性', () => {
-    const env = envInfo([light('a', 'green'), light('b', 'yellow'), light('c', 'gray')]);
-    expect(envVerdict(env)).toBe('沒有風險、1 項有利 → 中性（有利不足 3 項）');
-  });
-  it('全部累積中 → 資料不足', () => {
-    expect(envVerdict(envInfo([light('a', 'gray')]))).toBe('資料不足（指標都還沒有資料）');
+  it('全部資料累積中', () => {
+    const env = envInfo([light('a', 'gray')]);
+    expect(envCounts(env)).toBe('資料累積中');
+    expect(envConclusion(env, v(true))).toBeNull();
   });
 });

@@ -109,3 +109,62 @@ export function checklistCalc(f: ChecklistInput, p: { capital: number; riskPct: 
     qualitative, blocker,
   };
 }
+
+/**
+ * 檢查表 7 題是否完成（流程頁進場環、合規交易的「進場前完成檢查表」）：
+ * 1 市場燈號、2 趨勢、3 營收、4 估值、5 理由類型（含理由文字）、6 停損價（低於進場價）、7 目標價（高於進場價）。
+ * 舊交易沒有 checklistDone 欄位時由已存的答案推得（遷移 v5 也用這個函式補欄位）。
+ * skipStop：違規標籤「未檢查」不重複計入第 6 題（停損另記「無停損」）。
+ */
+export function checklistComplete(t: {
+  checklist?: { market?: string; trend?: string; revenue?: string; valuation?: string; reason?: string } | null;
+  reasonType?: string;
+  entry: number;
+  stop: number;
+  target: number;
+}, opts: { skipStop?: boolean } = {}): boolean {
+  const c = t.checklist ?? {};
+  const filled = (s: string | undefined) => !!s && s.trim().length > 0;
+  return filled(c.market) && filled(c.trend) && filled(c.revenue) && filled(c.valuation)
+    && filled(t.reasonType) && filled(c.reason)
+    && (opts.skipStop || (Number.isFinite(t.stop) && t.stop > 0 && t.stop < t.entry))
+    && Number.isFinite(t.target) && t.target > t.entry;
+}
+
+/** 個股頁風險試算「帶入檢查表」的網址參數（#/discipline/checklist?code=2330&price=123.5&stop=110&shares=150）。 */
+export interface ChecklistPrefill {
+  code?: string;
+  /** 進場價（參考價） */
+  entry?: string;
+  stop?: string;
+  shares?: string;
+}
+
+/**
+ * 解析帶入參數：代號轉大寫（E-08）；價格必須是正數；股數必須是正整數。不合法的參數直接忽略（不猜、不補 0），
+ * 其餘照常帶入；停損 ≥ 參考價時仍帶入，由檢查表的提示（「停損價要低於進場價」）說明。
+ */
+export function parseChecklistQuery(q: URLSearchParams | string): ChecklistPrefill {
+  const p = typeof q === 'string' ? new URLSearchParams(q.replace(/^[^?]*\?/, '')) : q;
+  const out: ChecklistPrefill = {};
+  const rawCode = p.get('code');
+  if (rawCode) {
+    let c = rawCode;
+    try { c = decodeURIComponent(rawCode); } catch { /* 原樣使用 */ }
+    c = c.replace(/\s+/g, '').toUpperCase();
+    if (/^[0-9A-Z]{4,6}$/.test(c)) out.code = c;
+  }
+  const num = (k: string): number | null => {
+    const s = p.get(k);
+    if (s === null || !s.trim()) return null;
+    const v = Number(s);
+    return Number.isFinite(v) && v > 0 ? v : null;
+  };
+  const price = num('price');
+  if (price !== null) out.entry = String(price);
+  const stop = num('stop');
+  if (stop !== null) out.stop = String(stop);
+  const shares = num('shares');
+  if (shares !== null && Number.isInteger(shares)) out.shares = String(shares);
+  return out;
+}

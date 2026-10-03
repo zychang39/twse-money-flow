@@ -50,3 +50,24 @@ export function watchAnswer(s: WatchSummary, watchCount: number): string {
   if (!watchCount) return '還沒有自選股';
   return s.significant.length ? `${s.significant.length} 檔有顯著變化` : '沒有顯著變化';
 }
+
+/**
+ * 簡報頁自選股列的副資訊（2026-10 改版 §4-7）：「外資+投信 +5,887 張（佔 20 日均量 32%）・量 1.32×」。
+ * 舊版的「量 32%」是外資＋投信淨買賣超 ÷ 當日成交量；改版統一成：括號內＝淨買賣超 ÷ 20 日均量（%），
+ * 「量」＝量比（當日成交量 ÷ 20 日均量，倍數）。缺 20 日均量時省略括號；缺量比時省略「量」。
+ */
+export function watchSub(r: StockRow): string {
+  const f = r.foreign_net_lots, t = r.trust_net_lots;
+  const parts: string[] = [];
+  if (f !== null && f !== undefined || t !== null && t !== undefined) {
+    const inst = (f ?? 0) + (t ?? 0);
+    const r0 = Math.round(Math.abs(inst));
+    const sign = r0 === 0 ? '' : inst > 0 ? '+' : '\u2212';
+    const vol20 = r.vol20_lots as number | null | undefined;
+    const pct = vol20 && vol20 > 0 ? `（佔 20 日均量 ${Math.round((Math.abs(inst) / vol20) * 100)}%）` : '';
+    parts.push(`外資+投信 ${sign}${r0.toLocaleString('en-US')}\u00a0張${pct}`);
+  }
+  const vr = r.vol_ratio as number | null | undefined;
+  if (vr !== null && vr !== undefined && Number.isFinite(vr)) parts.push(`量\u00a0${vr.toFixed(2)}×`);
+  return parts.join('・');
+}

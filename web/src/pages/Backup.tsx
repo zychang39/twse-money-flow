@@ -52,7 +52,7 @@ export default function Backup() {
   return (
     <div class="page">
       <TopBar back="/" avatar={false} />
-      <PageHead eyebrow="我的" title={info?.last ? `上次備份 ${info.last.slice(0, 10)}` : '還沒有備份過'} />
+      <PageHead title="備份" sub={info?.last ? `上次備份 ${info.last.slice(0, 10)}` : '尚無備份'} />
       <div class="card">
         <p class="body">所有使用者資料只存在這台裝置的瀏覽器（IndexedDB），不會上傳。清除 Safari 網站資料或換手機會遺失，請定期匯出。</p>
         <p class="caption muted" style={{ margin: 'var(--s-2) 0 var(--s-4)' }}>目前：自選 {info?.watch ?? 0} 檔・交易 {info?.trades ?? 0} 筆・選股組合 {info?.screens ?? 0} 組・紀律紀錄 {info?.activity ?? 0} 筆（含遊戲化資料）</p>

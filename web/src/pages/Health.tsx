@@ -36,7 +36,7 @@ export default function Health() {
   return (
     <div class="page">
       <TopBar back="/" avatar={false} />
-      <PageHead eyebrow="我的" title={health.data ? healthConclusion(health.data.sources) : '資料健康'}>
+      <PageHead title="資料健康" sub={health.data ? healthConclusion(health.data.sources) : undefined}>
         {/* M1-4：各資料集各自的資料日（頁首「市場最新交易日」只是收盤行情的日期） */}
         <AsOf keys={['quotes', 'insti', 'credit', 'valuation', 'tdcc', 'etf_holdings', 'revenue', 'financials', 'taifex']} />
       </PageHead>

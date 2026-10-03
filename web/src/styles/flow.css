@@ -1,0 +1,52 @@
+/*
+ * 流程頁與簡報頁流程列（components/Ritual.tsx、pages/Discipline.tsx）。數值全部取自 tokens.css。
+ * 三環顏色只用 --ring-1～3（簡報、進場、檢討），軌道 --ring-track；不適用＝細底環＋「—」。
+ * 動效只有環填滿一次（--dur-ring 0.6 秒 ease-out）；prefers-reduced-motion 時全部關閉。
+ */
+.ring-1 { --rc: var(--ring-1); }
+.ring-2 { --rc: var(--ring-2); }
+.ring-3 { --rc: var(--ring-3); }
+
+/* ---------- 三環（直徑 120；SVG 高 132＝右側 3 列 × 44） ---------- */
+.flow-ring-card { display: grid; grid-template-columns: var(--ring-lg) minmax(0, 1fr); column-gap: var(--s-6); align-items: center; }
+.flow-rings { display: block; width: var(--ring-lg); height: calc(var(--row-min) * 3); overflow: visible; }
+.flow-rings .track, .flow-mini .track { stroke: var(--ring-track); }
+.flow-rings .track.thin { stroke-width: 2; }
+.flow-mini .track.thin { stroke-width: 1.5; }
+.flow-rings .arc, .flow-mini .arc { stroke: var(--rc); }
+.flow-rings .na-gap { fill: var(--surface-1); }
+.flow-rings .na-dash, .flow-mini .na-dash { fill: var(--text-2); font-size: var(--fs-foot); font-weight: var(--fw-semibold); }
+.flow-mini .na-dash { font-size: 0.625rem; }
+.flow-rings.anim .arc, .flow-mini.anim .arc { animation: flow-ring-fill var(--dur-ring) var(--ease-out) both; }
+@keyframes flow-ring-fill { from { stroke-dasharray: 0 1; } }
+.flow-ring-rows .ui-row-icon { color: var(--rc); }
+.flow-dot-ico { fill: var(--rc); }
+
+/* ---------- 簡報頁流程列：三個 24px 小環＋文字 ---------- */
+.flow-brief-v { display: inline-flex; align-items: center; gap: var(--s-2); }
+.flow-mini { display: inline-flex; gap: var(--s-1); }
+.flow-mini svg { display: block; width: var(--ring-sm); height: var(--ring-sm); overflow: visible; }
+
+/* ---------- 連續與逐日小點 ---------- */
+.flow-dots { margin-top: var(--s-3); }
+.flow-dots svg { display: block; width: 100%; height: var(--s-4); }
+.flow-dots .d-done { fill: var(--ring-1); }
+.flow-dots .d-grace { fill: none; stroke: var(--ring-1); stroke-width: 1.5; }
+.flow-dots .d-missed { fill: var(--text-2); opacity: 0.45; }
+.flow-dots .d-open { fill: none; stroke: var(--text-2); stroke-width: 1.5; }
+.flow-dots .d-na { fill: var(--ring-track); }
+.flow-dots-axis { display: flex; justify-content: space-between; margin-top: var(--s-1); }
+
+/* ---------- 等級卡 ---------- */
+.flow-bar { height: var(--s-2); margin-top: var(--s-2); border-radius: var(--r-pill); background: var(--ring-track); overflow: hidden; }
+.flow-bar > i { display: block; height: 100%; width: 100%; background: var(--ring-1); border-radius: var(--r-pill); transform-origin: left; }
+
+/* ---------- 成就 ---------- */
+.flow-badge-ico { color: var(--text-2); }
+.flow-badge-ico svg { width: var(--icon); height: var(--icon); }
+.flow-badge.earned .ui-row-icon { color: var(--text-1); }
+.flow-badge:not(.earned) .ui-row-label { color: var(--text-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-rings.anim .arc, .flow-mini.anim .arc { animation: none; }
+}

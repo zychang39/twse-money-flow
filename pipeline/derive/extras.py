@@ -13,6 +13,7 @@ import pandas as pd
 from pipeline.core import config
 from pipeline.core.normalize import is_common_stock, is_etf
 from pipeline.derive import backtest as bt
+from pipeline.derive import envhist
 from pipeline.derive.export import clean, text, write_json
 
 log = logging.getLogger(__name__)
@@ -287,6 +288,11 @@ def _light(lid: str, label: str, state: str, value: str, basis: str) -> dict[str
     return {"id": lid, "label": label, "state": state, "value": value, "basis": basis}
 
 
+def _m(text: str) -> str:
+    """數字前的負號改用 U+2212（−）。"""
+    return text.replace("-", "−")
+
+
 def futures_net_oi(ti: pd.DataFrame) -> pd.Series:
     """外資台指期淨未平倉（大台約當口數 = 大台 + 小台/4 + 微台/20）。"""
     if ti.empty:
@@ -334,8 +340,12 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
                 f"大台約當口數（大台 + 小台/4 + 微台/20）；≥ {env['futures_net_oi']['bullish_above']:,} 偏多、≤ {env['futures_net_oi']['bearish_below']:,} 偏空",
             )
         )
+        # 2026-10：近 250 個交易日百分位（0–100）
+        lights[-1]["pct250"] = envhist.percentile(net, 250)
+        lights[-1].update(short=f"{_m(f'{v:,.0f}')} 口", detail=str(net.index[-1]))
     else:
         lights.append(_light("futures", "外資台指期淨未平倉", "gray", "資料源待處理", "期交所三大法人期貨資料尚未取得"))
+        lights[-1]["pct250"] = None
     # 2) 台幣匯率趨勢
     fx = ds.table("fx")
     if not fx.empty and len(fx) > 20:
@@ -352,6 +362,7 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
                 f"美元兌台幣 20 日變化；≤ {c['inflow_below']}%（台幣升值、資金流入）偏多、≥ +{c['outflow_above']}% 偏空",
             )
         )
+        lights[-1].update(short=f"{s.iloc[-1]:.3f}", detail=f"USD/TWD・20 日 {_m(f'{chg:+.2f}')}%")
     else:
         lights.append(_light("fx", "台幣匯率趨勢", "gray", "資料源待處理", "期交所每日匯率資料不足 20 日"))
     # 3) 大盤與年線
@@ -363,6 +374,7 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
         lights.append(
             _light("ma240", "大盤與年線", st, f"{gap:+.1f}%", f"加權指數相對 240 日均線；±{band}% 內視為年線附近")
         )
+        lights[-1].update(short=f"{_m(f'{gap:+.1f}')}%", detail="加權指數相對 240 日均線")
     else:
         lights.append(_light("ma240", "大盤與年線", "gray", "歷史不足 240 日", "回補完成後顯示"))
     # 4) M1B／M2
@@ -379,6 +391,10 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
                 f"M1B {r['m1b_yoy']:.2f}%、M2 {r['m2_yoy']:.2f}%（{r['ym']}）",
                 "M1B 年增率高於 M2（黃金交叉）視為資金動能偏多",
             )
+        )
+        lights[-1].update(
+            short=f"M1B−M2 {_m(f'{gap:+.2f}')}",
+            detail=f"M1B {r['m1b_yoy']:.2f}%・M2 {r['m2_yoy']:.2f}%（{r['ym']}）",
         )
     else:
         lights.append(_light("m1b", "M1B／M2 年增率", "gray", "資料源待處理", "央行貨幣總計數（選配資料）"))
@@ -398,9 +414,13 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
                 f"20 日變化 ≥ +{c['tightening_above']}bp 偏緊、≤ {c['easing_below']}bp 偏鬆",
             )
         )
+        lights[-1].update(short=f"{s.iloc[-1]:.2f}%", detail=f"20 日 {_m(f'{bp:+.0f}')}bp")
     else:
         lights.append(_light("ust", "美國 10 年期殖利率", "gray", "資料源待處理", "美國財政部 Par Yield Curve"))
     score = sum({"green": 1, "red": -1}.get(li["state"], 0) for li in lights)
+    for li in lights:  # 2026-10：右欄短數值與副資訊一行（資料不足的燈號：短數值「—」、副資訊為原因）
+        li.setdefault("short", "—")
+        li.setdefault("detail", li["value"])
     known = sum(1 for li in lights if li["state"] != "gray")
     summary = f"{sum(li['state'] == 'green' for li in lights)} 綠 {sum(li['state'] == 'yellow' for li in lights)} 黃 {sum(li['state'] == 'red' for li in lights)} 紅"
     # ---- 市場溫度
@@ -462,6 +482,8 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
             "lights": lights,
             # M2 2026-10-03：外資台指期淨未平倉走勢（大台約當口數，近 60 個交易日）
             "futures_series": [{"date": str(d), "net": clean(v, 0)} for d, v in net.iloc[-60:].items()],
+            # 2026-10：燈號歷史重建驗證（pipeline/derive/envhist.py）
+            "validation": envhist.env_validation(ds, list(p.dates), taiex, index_series(ds, TAIEX_TR, p.dates), net),
         },
         "temperature": {"lights": tl, "retail": retail_series, "pc_series": pc_series(ds.table("taifex_pc"))},
     }
@@ -488,29 +510,10 @@ def pc_series(pc: pd.DataFrame, days: int = 60) -> list[dict[str, Any]]:
 
 
 def active_etf_section(ds: Any, p: Any) -> dict[str, Any]:
-    """主動式 ETF 清單（由行情代號 00xxxA 判定）與跨檔加碼／減碼排行（需 etf_holdings）。"""
+    """主動式 ETF 清單（由行情代號 00xxxA 判定）與跨檔加碼／減碼排行（需 etf_holdings）；計算在 derive/etf.py（§7）。"""
     from pipeline.derive import etf as etfmod
 
-    changes = etfmod.holdings_changes(ds.table("etf_holdings"))
-    close = {c: float(v) for c, v in p.close.iloc[-1].dropna().items()} if len(p.dates) else {}
-    etfs = etfmod.active_etfs(p)
-    ranking: dict[str, Any] = {"date": str(changes["date"].max()) if not changes.empty else None}
-    ranking.update(etfmod.ranking(changes, close, names=p.names))
-    ranking["coverage"] = etfmod.coverage_text(changes, len(etfs))
-    # M2 2026-10-03：變動分類筆數（ETF × 股票）：新增／加碼／減碼／剔除
-    ranking["kinds"] = etfmod.kind_counts(changes)
-    # 2026-10-02 健檢：結構化的涵蓋數（探索卡與內頁同一個數字）
-    ranking["covered"] = int(changes["etf"].nunique()) if not changes.empty else 0
-    ranking["total"] = len(etfs)
-    covered_codes = set(changes["etf"].unique()) if not changes.empty else set()
-    for e in etfs:
-        e["has_holdings"] = e["code"] in covered_codes
-    if not ranking["add"] and not ranking["reduce"]:
-        ranking["status"] = (
-            "主動式 ETF 每日持股只由各投信官網個別揭露；目前涵蓋"
-            f"{etfmod.covered_issuers_text()}，累積兩天以上的揭露後才顯示跨檔加碼／減碼。"
-        )
-    return {"active_etfs": etfs, "etf_ranking": ranking}
+    return etfmod.market_section(ds, p)
 
 
 def _yi(v: Any) -> float | None:
@@ -581,25 +584,93 @@ def market_breadth(p: Any, chg: pd.Series) -> dict[str, Any]:
     else:
         out["high60"] = None
         out["low60"] = None
+    out.update(breadth_52w(adj))
     return out
 
 
-def market_file(ds: Any, p: Any, mp: Any, out: Path) -> dict[str, Any]:
-    taiex = index_series(ds, TAIEX, p.dates)
-    k = min(len(p.dates), 60)
+def breadth_52w(adj: pd.DataFrame, window: int = 250, min_obs: int = 240) -> dict[str, Any]:
+    """52 週新高／新低家數（2026-10 改版；METHODOLOGY「市場寬度」）。
+
+    普通股、還原收盤價；52 週＝最近 250 個交易日（含當日）。當日收盤 ≥ 窗內最高收盤＝新高、≤ 最低收盤＝新低；
+    當日有收盤且窗內至少 min_obs 個收盤的股票才列入（n52；上市未滿約一年者不列入）。歷史不足 250 日 → None。
+    """
+    if len(adj) < window:
+        return {"high52": None, "low52": None, "net52": None, "n52": 0}
+    win = adj.iloc[-window:]
+    last = win.iloc[-1]
+    ok = last.notna() & (win.notna().sum() >= min_obs)
+    hi = int((last[ok] >= win.max()[ok]).sum())
+    lo = int((last[ok] <= win.min()[ok]).sum())
+    return {"high52": hi, "low52": lo, "net52": hi - lo, "n52": int(ok.sum())}
+
+
+FLOWS_SOURCE = (
+    "證交所「三大法人買賣金額統計表」＋櫃買中心「三大法人買賣金額彙總表」（上市＋上櫃合計，億元；"
+    "外資＝外資及陸資不含外資自營商，自營商＝自行買賣＋避險）；標「估」的日期取不到官方金額，"
+    "改以個股買賣超股數 × 收盤價估算"
+)
+AMOUNT_SOURCES = {"twse": "twse_insti_amount", "tpex": "tpex_insti_amount"}
+
+
+def insti_amounts(store: Any, start: str) -> dict[tuple[str, str], dict[str, float]]:
+    """(日期, 市場) → {item: 買賣超金額（元）}（pipeline/sources/insti_amount.py）。"""
+    from datetime import date as _d
+
+    out: dict[tuple[str, str], dict[str, float]] = {}
+    for mk, sid in AMOUNT_SOURCES.items():
+        df = store.read_range(sid, _d.fromisoformat(start)) if store is not None else pd.DataFrame()
+        if df.empty:
+            continue
+        for (d, item), v in df.dropna(subset=["net"]).groupby(["date", "item"])["net"].last().items():
+            out.setdefault((str(d), mk), {})[str(item)] = float(v)
+    return out
+
+
+def market_flows(ds: Any, p: Any, days: int = 60) -> list[dict[str, Any]]:
+    """首頁三大法人（2026-10 改版）：交易所公布的實際金額；某市場某日取不到才用張數 × 收盤估算並標 est。"""
+    k = min(len(p.dates), days)
+    if not k:
+        return []
+    amounts = insti_amounts(getattr(ds, "store", None), p.dates[len(p.dates) - k])
+    markets = getattr(p, "markets", {}) or {}
+    cols = {mk: [c for c in p.close.columns if markets.get(c) == mk] for mk in AMOUNT_SOURCES}
     flows = []
     for i in range(len(p.dates) - k, len(p.dates)):
         d = p.dates[i]
         close = p.close.iloc[i]
-        flows.append(
-            {
-                "date": d,
+        tot: dict[str, float | None] = {"foreign": None, "trust": None, "dealer": None}
+        est = False
+        for mk in AMOUNT_SOURCES:
+            amt = amounts.get((d, mk), {})
+            if all(x in amt for x in ("foreign", "trust", "dealer_self", "dealer_hedge")):
+                vals = {
+                    "foreign": amt["foreign"],
+                    "trust": amt["trust"],
+                    "dealer": amt["dealer_self"] + amt["dealer_hedge"],
+                }
+            else:
                 # D-08：法人資料整天缺漏時輸出 None（畫面顯示「—」），不是 0 億
-                "foreign": _yi((p.foreign_net.iloc[i] * close).sum(min_count=1)),
-                "trust": _yi((p.trust_net.iloc[i] * close).sum(min_count=1)),
-                "dealer": _yi((p.dealer_net.iloc[i] * close).sum(min_count=1)),
-            }
-        )
+                c = cols[mk]
+                vals = {
+                    "foreign": (p.foreign_net.iloc[i][c] * close[c]).sum(min_count=1),
+                    "trust": (p.trust_net.iloc[i][c] * close[c]).sum(min_count=1),
+                    "dealer": (p.dealer_net.iloc[i][c] * close[c]).sum(min_count=1),
+                }
+                if any(v == v for v in vals.values()):
+                    est = True
+            for key, v in vals.items():
+                if v == v and v is not None:
+                    tot[key] = (tot[key] or 0.0) + float(v)
+        row: dict[str, Any] = {"date": d, **{key: _yi(v) if v is not None else None for key, v in tot.items()}}
+        if est:
+            row["est"] = True
+        flows.append(row)
+    return flows
+
+
+def market_file(ds: Any, p: Any, mp: Any, out: Path) -> dict[str, Any]:
+    taiex = index_series(ds, TAIEX, p.dates)
+    flows = market_flows(ds, p)
     # D-09：漲跌家數用官方漲跌（相對參考價，除權息日不會被算成下跌），與產業輪動的還原價一致
     chg = p.change.iloc[-1] if len(p.dates) >= 1 else pd.Series(dtype=float)
     data: dict[str, Any] = {
@@ -611,6 +682,7 @@ def market_file(ds: Any, p: Any, mp: Any, out: Path) -> dict[str, Any]:
         },
         "breadth": market_breadth(p, chg),
         "flows": flows,
+        "flows_source": FLOWS_SOURCE,
         "turnover": turnover_series(p),
         "sectors": sector_rotation(p),
         **market_env(ds, p, taiex),
@@ -677,41 +749,26 @@ def calendar_file(ds: Any, p: Any, out: Path) -> int:
     return len(ev)
 
 
-def downsample_minutes(df: pd.DataFrame) -> list[dict[str, Any]]:
-    """每 5 秒 → 每分鐘一點（該分鐘最後一筆；13:30:00 收盤那一筆自成一點）。"""
-    if df.empty:
-        return []
-    d = df.dropna(subset=["taiex"]).copy()
-    d["minute"] = d["time"].astype(str).str.slice(0, 5)
-    last = d.groupby("minute", sort=True)["taiex"].last()
-    return [{"t": str(t), "v": clean(float(v), 2)} for t, v in last.items()]
-
-
 def intraday_file(ds: Any, p: Any, out: Path) -> dict[str, Any] | None:
-    """首頁 1D（M2，2026-10-03）：最新一天的加權指數盤中走勢（證交所每 5 秒統計降採樣成每分鐘）與前一交易日收盤。"""
-    df = ds.table("intraday_index")
-    if df.empty:
-        return None
-    day = str(df["date"].max())
-    points = downsample_minutes(df[df["date"] == day])
-    taiex = index_series(ds, TAIEX, p.dates)
-    prev = taiex[taiex.index < day].dropna()
-    data = {
-        "date": day,
-        "name": TAIEX,
-        "prev_close": clean(float(prev.iloc[-1]), 2) if len(prev) else None,
-        "prev_date": str(prev.index[-1]) if len(prev) else None,
-        "source": "證交所每 5 秒指數統計（盤後取得，降採樣成每分鐘一點）",
-        "points": points,
-    }
-    write_json(out / "intraday.json", data)
-    return data
+    """首頁 1D／1W（2026-10 改版，pipeline/derive/intraday.py）：加權指數最近交易日每分鐘、最近 5 日每 5 分鐘。"""
+    from pipeline.derive import intraday
+
+    return intraday.intraday_file(ds.store, list(p.dates), index_series(ds, TAIEX, p.dates), out)
+
+
+def kbar_files(ds: Any, p: Any, out: Path) -> dict[str, Any]:
+    """個股頁 1D／1W（2026-10 改版）：Yahoo 5 分 K（非官方）；只為近 20 日有交易（有個股頁）且有 K 棒的股票產生檔案。"""
+    from pipeline.derive import intraday
+
+    active = {c for c in p.codes if pd.notna(p.close[c].iloc[-20:]).any()}
+    return intraday.kbar_files(ds.store, list(p.dates), p.close, active, out)
 
 
 def build_extras(ds: Any, p: Any, mp: Any, sc: Any, fv: Any, out: Path) -> dict[str, Any]:
     report: dict[str, Any] = {}
     index_file(ds, p, out)
     intraday_file(ds, p, out)
+    report.update(kbar_files(ds, p, out))
     market_file(ds, p, mp, out)
     report["calendar_events"] = calendar_file(ds, p, out)
     report.update(preset_backtests(ds, p, mp, sc, out))

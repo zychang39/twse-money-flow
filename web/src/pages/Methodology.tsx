@@ -37,7 +37,7 @@ export default function Methodology() {
   return (
     <div class="page">
       <TopBar back="/" avatar={false} />
-      <PageHead eyebrow="我的" title="方法說明">
+      <PageHead title="方法說明">
         <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>依設定檔自動產生；所有報酬、均線、RS、回測使用還原價。</p>
       </PageHead>
       <Section title="綜合分">

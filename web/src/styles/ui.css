@@ -1,0 +1,191 @@
+/*
+ * 共用元件樣式（components/ui.tsx）。數值全部取自 tokens.css。
+ * 格線：頁邊 x=16（.page 的左右內距）、卡片內容 x=32（卡片內距 16）。不得出現第三種縮排。
+ */
+
+/* ---------- 字級工具 ---------- */
+.ui-large { font-size: var(--fs-large); line-height: var(--lh-large); font-weight: var(--fw-bold); letter-spacing: -0.01em; }
+.ui-title2 { font-size: var(--fs-title2); line-height: var(--lh-title2); font-weight: var(--fw-bold); }
+.ui-headline { font-size: var(--fs-headline); line-height: var(--lh-headline); font-weight: var(--fw-semibold); }
+.ui-body { font-size: var(--fs-body); line-height: var(--lh-body); }
+.ui-sub { font-size: var(--fs-sub); line-height: var(--lh-sub); }
+.ui-foot { font-size: var(--fs-foot); line-height: var(--lh-foot); }
+.ui-cap { font-size: var(--fs-cap); line-height: var(--lh-cap); }
+.ui-muted { color: var(--text-2); }
+.ui-strong { font-weight: var(--fw-semibold); }
+.ui-risk { color: var(--risk); }
+
+/* 中文排版：只在空白與標點處換行、行首行尾不放禁則標點；標題平衡各行長度 */
+.ui-head, .ui-sec-head, .ui-row, .ui-stat, .ui-table, .ui-tag, .ui-seg, .ui-empty, .ui-warn, .ui-card-label {
+  word-break: keep-all; overflow-wrap: anywhere; line-break: strict;
+}
+.ui-large, .ui-sec-title, .ui-row-label { text-wrap: balance; }
+.ui-prose { line-break: strict; text-wrap: pretty; }
+.ui-num, .sv, .ui-v, .ui-tag, .ui-unit { white-space: nowrap; }
+
+/* ---------- 頁首 ---------- */
+.ui-head { padding-top: var(--s-2); }
+.ui-head-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: var(--s-3); }
+.ui-head-aside { text-align: right; }
+.ui-head-aside { font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); white-space: nowrap; }
+.ui-head-sub { margin-top: var(--s-1); }
+
+/* ---------- 區塊 ---------- */
+.ui-sec { margin-top: var(--block-gap); }
+.ui-sec-head { display: flex; align-items: center; min-height: var(--tap); gap: 0; }
+.ui-sec-title { font-size: var(--fs-headline); line-height: var(--lh-headline); font-weight: var(--fw-semibold); margin: 0; }
+.ui-sec-aside { flex: 1 1 auto; padding-left: var(--s-3); text-align: right; white-space: nowrap; }
+.ui-sec-head + .ui-card, .ui-sec-head + .ui-list, .ui-sec-head + * { margin-top: var(--s-2); }
+
+/* ---------- 卡片 ---------- */
+.ui-card, .ui-list {
+  background: var(--surface-1);
+  border-radius: var(--r-card);
+  padding: 0 var(--card-pad);
+  margin: 0;
+}
+.ui-card { padding: var(--card-pad); }
+.ui-card + .ui-card, .ui-list + .ui-list, .ui-card + .ui-list, .ui-list + .ui-card { margin-top: var(--s-2); }
+@supports (overflow: clip) { .ui-card, .ui-list { overflow: clip; } }
+.ui-card-label { display: flex; justify-content: space-between; gap: var(--s-3); margin-top: var(--s-4); }
+.ui-card-label:first-child { margin-top: 0; }
+.ui-card > .ui-list, .ui-card > .ui-stats, .ui-card > .ui-table { margin-top: var(--s-2); }
+/* 卡片裡的列（不再有自己的外框）：左右不再內縮 */
+.ui-card > .ui-list { padding: 0; background: none; border-radius: 0; }
+
+/* ---------- 列 ---------- */
+.ui-list { --tagcol: 0px; --chevcol: 0px; }
+.ui-list.has-tags { --tagcol: calc(var(--tag-w) + var(--row-gap)); }
+.ui-list.has-chev { --chevcol: calc(var(--s-4) + var(--s-2)); }
+.ui-row {
+  display: grid;
+  grid-template-columns: minmax(6rem, 1fr) auto var(--tagcol, 0px) var(--chevcol, 0px);
+  align-items: baseline;
+  column-gap: 0;
+  min-height: var(--row-min);
+  padding: var(--row-pad) 0;
+  color: inherit; background: none; border: 0; width: 100%; text-align: left; font: inherit;
+  font-size: var(--fs-body); line-height: var(--lh-body);
+  text-decoration: none;
+}
+.ui-row.has-icon { grid-template-columns: calc(var(--icon) + var(--row-gap)) minmax(6rem, 1fr) auto var(--tagcol, 0px) var(--chevcol, 0px); }
+.ui-row + .ui-row { box-shadow: inset 0 0.5px 0 var(--line); }
+.ui-row.ui-tap { cursor: pointer; }
+.ui-row.ui-tap:active { background: var(--surface-row); }
+.ui-row-icon { display: inline-flex; align-self: center; color: var(--brand); width: var(--icon); height: var(--icon); }
+.ui-row-icon svg { width: var(--icon); height: var(--icon); }
+.ui-row-main { display: flex; flex-direction: column; min-width: 0; }
+.ui-row-label { color: var(--text-1); }
+.ui-row-sub { display: block; white-space: nowrap; overflow: hidden; }
+.ui-row-value { display: flex; flex-direction: column; align-items: flex-end; padding-left: var(--row-gap); text-align: right; }
+.ui-v { color: var(--text-1); font-variant-numeric: tabular-nums; }
+.ui-v2 { white-space: nowrap; }
+.ui-row-tag { display: flex; justify-content: flex-end; min-width: 0; }
+.ui-row-chev { display: inline-flex; justify-content: flex-end; align-self: center; color: var(--text-3); }
+.ui-row-chev svg { width: var(--s-4); height: var(--s-4); }
+.ui-unit { margin-left: var(--s-1); font-size: inherit; }
+
+/* ---------- 帶號數值（▲▼／+−） ---------- */
+.sv { font-variant-numeric: tabular-nums; }
+.sv.up { color: var(--up); }
+.sv.down { color: var(--down); }
+.sv.flat, .sv.plain { color: inherit; }
+.sv-in { white-space: nowrap; }
+.sv-a { display: inline-block; font-size: 0.75em; margin-right: var(--s-1); vertical-align: 0.0625em; }
+
+/* ---------- 標籤 ---------- */
+.ui-tag {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: var(--tag-w); height: var(--tag-h); padding: 0 var(--s-2);
+  border-radius: var(--r-xs);
+  font-size: var(--fs-foot); line-height: var(--tag-h); font-weight: var(--fw-semibold);
+  background: var(--surface-2); color: var(--text-2);
+  flex: none; white-space: nowrap;
+}
+.ui-tag.risk { background: var(--risk-tint); color: var(--risk); }
+.ui-tag.strong { color: var(--text-1); }
+
+/* ---------- ⓘ ---------- */
+.ui-info {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: var(--tap); height: var(--tap); margin: 0 calc(-1 * var(--s-3)) 0 calc(-1 * var(--s-2));
+  padding: 0; border: 0; background: none; color: var(--brand); cursor: pointer;
+}
+.ui-info svg { width: var(--info); height: var(--info); }
+.ui-prose { font-size: var(--fs-sub); line-height: var(--lh-sub); color: var(--text-1); }
+.ui-prose p + p, .ui-prose p + ul, .ui-prose ul + p, .ui-prose table + p { margin-top: var(--s-3); }
+.ui-prose ul { margin: var(--s-2) 0 0; padding-left: var(--s-5); }
+.ui-prose li + li { margin-top: var(--s-1); }
+.ui-prose h3 { font-size: var(--fs-headline); line-height: var(--lh-headline); margin: var(--s-4) 0 var(--s-2); }
+.ui-prose .ui-table { margin-top: var(--s-2); }
+
+/* ---------- 分段控制 ---------- */
+.ui-seg {
+  display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr));
+  gap: var(--s-1); padding: var(--s-1);
+  background: var(--surface-1); border-radius: var(--r-sm);
+}
+.ui-seg button {
+  position: relative; min-width: 0; height: var(--seg-h); padding: 0 var(--s-1);
+  border: 0; border-radius: var(--r-xs); background: none; cursor: pointer;
+  font-size: var(--fs-foot); line-height: var(--lh-foot); font-weight: var(--fw-medium); color: var(--text-1);
+  white-space: nowrap; overflow: hidden;
+}
+/* 點擊區域上下擴到 44 */
+.ui-seg button::after { content: ''; position: absolute; left: 0; right: 0; top: calc(-1 * var(--s-1)); bottom: calc(-1 * var(--s-1)); }
+.ui-seg button[aria-pressed='true'] { background: var(--surface-3); color: var(--text-1); font-weight: var(--fw-semibold); }
+.ui-seg-sticky {
+  position: sticky; top: calc(var(--safe-top) + var(--navbar-h)); z-index: 5;
+  margin: 0 calc(-1 * var(--gutter)); padding: var(--s-1) var(--gutter);
+  background: var(--bg);
+}
+
+/* ---------- 表格 ---------- */
+.ui-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: var(--fs-body); line-height: var(--lh-body); }
+.ui-table th { font-size: var(--fs-foot); line-height: var(--lh-foot); font-weight: var(--fw-medium); color: var(--text-2); padding: var(--s-2) 0; white-space: nowrap; }
+.ui-table td { padding: var(--s-3) 0; vertical-align: baseline; font-variant-numeric: tabular-nums; }
+.ui-table th.l, .ui-table td.l { text-align: left; }
+.ui-table th.r, .ui-table td.r { text-align: right; }
+.ui-table th + th, .ui-table td + td { padding-left: var(--s-2); }
+.ui-table tbody tr { box-shadow: inset 0 0.5px 0 var(--line); }
+.ui-table tbody tr.ui-tap { cursor: pointer; }
+.ui-table tbody tr.ui-tap:active { background: var(--surface-row); }
+.ui-table.sticky thead th { position: sticky; top: calc(var(--safe-top) + var(--navbar-h)); background: var(--surface-1); z-index: 2; }
+
+/* ---------- 摘要格（subgrid：同列標籤同高、數值同基線） ---------- */
+.ui-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: auto auto; column-gap: var(--s-4); row-gap: var(--s-4); }
+.ui-stats.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ui-stats.c4 { grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: var(--s-2); }
+.ui-stats.c4 .ui-stat-v { font-size: var(--fs-body); font-weight: var(--fw-regular); }
+.ui-stat { display: grid; grid-row: span 2; grid-template-rows: subgrid; row-gap: var(--s-1); min-width: 0; }
+.ui-stat-l { white-space: nowrap; overflow: hidden; }
+.ui-stat-v { font-size: var(--fs-headline); line-height: var(--lh-headline); font-weight: var(--fw-semibold); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ---------- 空狀態、警示 ---------- */
+.ui-empty { padding: var(--row-pad) 0; min-height: var(--row-min); }
+.ui-card > .ui-empty { padding: 0; min-height: 0; }
+.ui-warn { color: var(--risk); margin-top: var(--s-1); }
+
+/* ---------- 按鈕 ---------- */
+.ui-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
+  min-height: var(--tap); padding: 0 var(--s-4); border: 0; border-radius: var(--r-sm);
+  font-size: var(--fs-body); font-weight: var(--fw-semibold); cursor: pointer; text-decoration: none;
+  background: var(--surface-2); color: var(--brand);
+}
+.ui-btn.fill { background: var(--brand-fill); color: var(--on-brand); }
+.ui-btn.block { display: flex; width: 100%; }
+.ui-btn:disabled { opacity: 0.4; cursor: default; }
+.ui-card > .ui-btn.block { margin-top: var(--s-4); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-row, .ui-seg button { transition: none; }
+}
+
+/* ---------- 簡報頁：長條圖、指數開高低收 ---------- */
+.ui-bars { margin: var(--s-3) 0 0; }
+.ui-bars svg { display: block; width: 100%; }
+.ui-bars-axis { display: flex; justify-content: space-between; margin-top: var(--s-1); }
+.index-ohlc { margin-top: var(--s-4); }
+.ui-row-toggle { display: inline-flex; color: var(--text-2); }
+.ui-row-toggle svg { width: var(--s-4); height: var(--s-4); }

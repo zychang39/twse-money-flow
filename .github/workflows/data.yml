@@ -12,12 +12,13 @@ on:
     - cron: "0 3 1 4 *"         # 年報法定期限後（3/31）
     - cron: "*/15 1-5 * * 1-5"  # 交易時段每 15 分鐘：盤中提醒
     - cron: "40 14 * * 1-5"     # 22:40（台北）：接續在每日任務時段延後的回補分段（E-05）
+    - cron: "45 6 * * 1-5"      # 14:45（台北）：個股 5 分 K（Yahoo，非官方；個股頁 1D／1W），跑不完自動接續
   workflow_dispatch:
     inputs:
       task:
         description: "任務"
         type: choice
-        options: [daily, periodic, backfill, holders_backfill, stage, probe, alerts]
+        options: [daily, periodic, backfill, holders_backfill, stage, probe, alerts, kbar]
         default: daily
       source:
         description: "來源 id（逗號分隔，可留白）"
@@ -52,11 +53,12 @@ permissions:
 # M0：全市場集保回補（holders_backfill）用自己的 holders-backfill 群組，和籌碼回補、每日任務互不排隊。
 # v3 M0：再依 source 分群（lane=0/2、lane=1/2 兩道平行；空白或 lanes=2 是只負責觸發兩道的分派者）。
 # M3.4：公布時間實測（probe）只抓取不寫資料，用 publish-probe 群組。
+# 2026-10：個股 5 分 K（kbar，約 2,400 檔 × 1–2 次／秒）用自己的 kbar 群組，不擋分段更新；每段最多 60 分鐘、跑不完自動接續。
 # E-05：回補用獨立的 data-backfill 群組（每段最多 40 分鐘、交易日 16:30–22:30 不開始新的一段），
 # 不再和每日任務排同一個佇列（GitHub 同一群組只保留最新一個等待中的 run，長時間回補會把排程的每日任務擠掉）。
 # 兩者可能同時寫入 data 分支：commit-data 推送失敗時 rebase 到遠端最新並合併 manifest 後重試（pipeline/gitdata.py）。
 concurrency:
-  group: ${{ (github.event.schedule == '*/15 1-5 * * 1-5' || inputs.task == 'alerts') && 'alerts' || (inputs.task == 'backfill' && 'data-backfill' || (inputs.task == 'holders_backfill' && format('holders-backfill-{0}', inputs.source) || (inputs.task == 'probe' && 'publish-probe' || 'data-pipeline'))) }}
+  group: ${{ (github.event.schedule == '*/15 1-5 * * 1-5' || inputs.task == 'alerts') && 'alerts' || (inputs.task == 'backfill' && 'data-backfill' || (inputs.task == 'holders_backfill' && format('holders-backfill-{0}', inputs.source) || (inputs.task == 'probe' && 'publish-probe' || ((github.event.schedule == '45 6 * * 1-5' || inputs.task == 'kbar') && 'kbar' || 'data-pipeline')))) }}
   cancel-in-progress: false
 
 jobs:
@@ -112,7 +114,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
-          python -m pipeline run --data-dir data --chain --max-minutes ${{ (inputs.task == 'backfill' || inputs.task == 'holders_backfill') && 40 || 320 }}
+          python -m pipeline run --data-dir data --chain --max-minutes ${{ (inputs.task == 'backfill' || inputs.task == 'holders_backfill') && 40 || ((github.event.schedule == '45 6 * * 1-5' || inputs.task == 'kbar') && 60 || 320) }}
           --task "${{ inputs.task }}" --schedule "${{ github.event.schedule }}"
           --source "${{ inputs.source }}" --start "${{ inputs.start }}" --end "${{ inputs.end }}"
           --refresh "${{ inputs.refresh }}" --stage "${{ inputs.stage }}"

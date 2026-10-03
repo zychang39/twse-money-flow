@@ -25,7 +25,7 @@ function SectorStocks({ industry }: { industry: string }) {
   return (
     <div class="page">
       <TopBar back="/explore/sectors" />
-      <PageHead eyebrow="產業資金輪動" title={industry}>
+      <PageHead title={industry}>
         <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>依外資＋投信近 5 日淨買超金額排序・{rows.length} 檔</p>
       </PageHead>
       {summary.loading ? <Loading /> : null}
@@ -51,7 +51,7 @@ export default function Sectors({ industry }: { industry?: string }) {
   return (
     <div class="page">
       <TopBar back="/explore" />
-      <PageHead eyebrow="資金流向哪些產業？" title={sorted[0] ? <>近 {period} 日法人淨買超最多：<br />{sorted[0].industry}</> : '產業資金輪動'} />
+      <PageHead title="產業資金輪動" sub={sorted[0] ? `近 ${period} 日法人淨買超最多：${sorted[0].industry}` : undefined} />
       <DataStatus date={m?.date} />
       {market.error ? <ErrorState error={market.error} /> : null}
       {market.loading ? <Loading /> : null}

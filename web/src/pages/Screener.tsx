@@ -139,7 +139,7 @@ export default function Screener() {
   return (
     <div class="page">
       <TopBar back="/explore" actions={<a class="btn small" href={backtestHref}>一鍵回測</a>} />
-      <PageHead eyebrow="自選股以外，有哪些符合條件的股票？" title={summary.data ? `${title}：${mode === 'new' ? `今日新觸發 ${results.length} 檔` : `${results.length} 檔符合`}` : '選股'} />
+      <PageHead title="選股" sub={summary.data ? `${title}・${mode === 'new' ? `今日新觸發 ${results.length} 檔` : `${results.length} 檔符合`}・依規則產生，非推薦` : undefined} />
       <DataStatus date={summary.data?.date} uses={PAGE_SOURCES.screener} />
       <a class="list-item st-entry" href="#/explore/strategies">
         <span class="grow"><span class="body w6">策略庫</span><span class="caption muted" style={{ display: 'block' }}>指標效度評估通過的策略・今日新觸發・槓桿風險計算</span></span>

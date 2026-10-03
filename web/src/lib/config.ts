@@ -53,17 +53,25 @@ export const CATEGORY_IDS: CategoryId[] = ['chip', 'momentum', 'fundamental', 'v
 // ---------- 介面行為參數（config/ui.yml） ----------
 import uiYml from '../../../config/ui.yml';
 
-export interface BadgeConfig { id: string; label: string; description: string; metric: string; target: number }
+export interface BadgeConfig { id: string; label: string; description: string; metric: string; target: number; /** 一行條件（成就頁副資訊；完整條件在 description） */ short?: string }
 export interface UiConfig {
   significance: { price_pct: number; composite_points: number; inst_streak_days: number; inst_volume_pct: number; margin_pct: number; near_stop_pct: number };
   env_state: { conservative_min_red: number; aggressive_min_green: number };
   impulse: { env_conservative: boolean; ma20_gap_pct: number; price_change_5d_pct: number };
   backtest_confidence: { low_below: number; high_from: number };
   gamification: {
-    review_window_days: number;
+    review_due_trading_days: number;
+    loss_tolerance: number;
+    deadline_hour: number;
+    grace_days_per_month: number;
+    history_days: number;
+    min_group_sample: number;
+    recent_trades: number;
     stop_respected_tolerance_pct: number;
-    xp: Record<'brief_read' | 'checklist_done' | 'review_done' | 'ritual_done' | 'backup' | 'backtest_own', number>;
-    level_step: number;
+    xp: Record<'brief' | 'entry' | 'review' | 'plan_exit' | 'weekly_review' | 'backup' | 'backtest_own', number>;
+    caps: { entry_per_day: number; review_per_day: number; plan_exit_per_day: number };
+    level_base: number;
+    level_max: number;
     badges: BadgeConfig[];
   };
   chip: {

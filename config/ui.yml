@@ -28,57 +28,78 @@ backtest_confidence:
 
 # 遊戲化：只獎勵紀律行為，不因交易次數、頻率或獲利給予任何獎勵
 gamification:
-  review_window_days: 30    # 近 30 天平倉的交易都要有檢討，第三環才算完成
-  stop_respected_tolerance_pct: 2   # 出場價 ≤ 停損價 × (1 + 2%) 且為虧損出場 → 「守住停損」
+  # 流程與遊戲化（流程頁；只獎勵流程，不獎勵損益、交易次數、開啟次數；沒有扣分）
+  review_due_trading_days: 3   # 平倉後 3 個交易日內完成檢討
+  loss_tolerance: 1.2          # 虧損出場時，實際虧損 ≤ 計畫風險 × 1.2 才算依計畫
+  deadline_hour: 9             # 交易日 D 的流程期限：下一交易日 09:00（台北）前
+  grace_days_per_month: 2      # 每個日曆月的寬限日（不累積到下月）
+  history_days: 20             # 逐日小點與流程完成率的交易日數
+  min_group_sample: 20         # 個人統計「合規 vs 不合規」每組至少筆數
+  recent_trades: 20            # 違規標籤次數統計的近 N 筆交易
+  stop_respected_tolerance_pct: 2   # 舊交易（沒有出場原因）判斷「依計畫停損」：出場價在停損價 ±2% 內
   xp:
-    brief_read: 10          # 看完今晚簡報（每個交易日一次）
-    checklist_done: 20      # 完成新增持倉前檢查表（含「檢查後決定不進場」；每日最多一次）
-    review_done: 30         # 完成一筆平倉檢討（每日最多 3 筆）
-    ritual_done: 20         # 三環全部完成（每個交易日一次）
-    backup: 20              # 匯出備份（每 7 天最多一次）
-    backtest_own: 15        # 回測自己的條件（每日最多一次）
-  level_step: 100           # 升到第 n 級所需累積 XP = step × n(n−1)/2
+    brief: 10           # 簡報環完成（每交易日）
+    entry: 20           # 每筆符合條件的新持倉（檢查表、停損、計畫風險 ≤ 上限）
+    review: 30          # 平倉後 3 個交易日內完成檢討（每筆）
+    plan_exit: 20       # 依計畫出場（停損、時間停損、規則出場，且虧損 ≤ 計畫風險 × 1.2；每筆）
+    weekly_review: 30   # 週檢討（週報頁按下完成；每週一次）
+    backup: 10          # 備份（每日曆月一次）
+    backtest_own: 10    # 回測自己的條件（每週一次）
+  caps:                 # 每日上限（筆數）
+    entry_per_day: 2
+    review_per_day: 3
+    plan_exit_per_day: 3
+  level_base: 100       # 升到等級 n 所需累計經驗值 = base × (2^(n−1) − 1)
+  level_max: 10
   badges:
-    - id: first_ritual
-      label: 第一次今晚儀式
-      description: 第一次完成今晚的三環。
-      metric: rituals
+    - id: first_compliant
+      label: 第一筆合規交易
+      short: 五項全過的平倉 1 筆
+      description: 1 筆平倉交易五項全過：進場前完成檢查表、有停損價、計畫風險 ≤ 上限、平倉後 3 個交易日內檢討、虧損 ≤ 計畫風險 × 1.2。
+      metric: compliant
       target: 1
-    - id: streak_7
-      label: 連續 7 天
-      description: 連續 7 個交易日完成今晚儀式（休市日不中斷）。
+    - id: streak_5
+      label: 連續 5 個交易日
+      short: 流程完成・休市日不中斷
+      description: 連續 5 個交易日完成流程（休市日不計也不中斷；寬限日不中斷）。
       metric: best_streak
-      target: 7
-    - id: streak_30
-      label: 連續 30 天完成儀式
-      description: 連續 30 個交易日完成今晚儀式（休市日不中斷）。
+      target: 5
+    - id: streak_20
+      label: 連續 20 個交易日
+      short: 流程完成・休市日不中斷
+      description: 連續 20 個交易日完成流程（休市日不計也不中斷；寬限日不中斷）。
       metric: best_streak
-      target: 30
-    - id: reviews_20
-      label: 完成 20 筆檢討
-      description: 累積 20 筆寫有檢討內容的平倉紀錄。
-      metric: reviews
       target: 20
-    - id: stops_10
-      label: 守住停損 10 次
-      description: 10 次在停損價附近出場（虧損出場且出場價不低於停損價過多）。
-      metric: stops_respected
-      target: 10
-    - id: checklists_10
-      label: 完成 10 份檢查表
-      description: 完成 10 份新增持倉前檢查表（包含檢查後決定不進場）。
-      metric: checklists
-      target: 10
-    - id: backtest_own
-      label: 回測過自己的條件
-      description: 用自己儲存的選股條件跑過一次回測。
-      metric: backtests_own
+    - id: streak_60
+      label: 連續 60 個交易日
+      short: 流程完成・休市日不中斷
+      description: 連續 60 個交易日完成流程（休市日不計也不中斷；寬限日不中斷）。
+      metric: best_streak
+      target: 60
+    - id: first_plan_stop
+      label: 首次依計畫停損出場
+      short: 停損出場・虧損 ≤ 計畫 × 1.2
+      description: 出場原因為停損，且實際虧損 ≤ 計畫風險 × 1.2。
+      metric: plan_stops
       target: 1
-    - id: first_backup
-      label: 首次備份
-      description: 第一次匯出本機資料備份。
-      metric: backups
-      target: 1
+    - id: reviews_10
+      label: 完成 10 筆檢討
+      short: 寫有檢討的平倉
+      description: 累計 10 筆寫有檢討內容的平倉紀錄。
+      metric: reviews
+      target: 10
+    - id: compliant_30
+      label: 累計 30 筆合規交易
+      short: 五項全過的平倉
+      description: 累計 30 筆五項全過的平倉交易。
+      metric: compliant
+      target: 30
+    - id: risk_run_20
+      label: 連續 20 筆未超過風險上限
+      short: 有停損且計畫風險 ≤ 上限
+      description: 依進場順序連續 20 筆交易有停損價，且計畫風險 ≤ 每筆風險上限。
+      metric: risk_run
+      target: 20
 
 # ---------- 個股籌碼明細與區間統計（METHODOLOGY §4.7.1） ----------
 chip:

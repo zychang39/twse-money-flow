@@ -347,7 +347,7 @@ export default function Mine() {
       <TopBar caption="我的股票" actions={
         <button class="icon-btn" aria-label={seg === 'hold' ? '新增持倉（新增持倉前檢查表）' : '加入自選股'} onClick={() => setAdding(true)}><IconPlus /></button>
       } />
-      <PageHead twoLine eyebrow={seg === 'hold' ? '我的持股有沒有出事？' : '自選股出現了什麼新變化？'} title={user && summary.data ? conclusion : '我的股票'} />
+      <PageHead title="我的股票" sub={user && summary.data ? conclusion : undefined} />
       <DataStatus date={summary.data?.date} uses={PAGE_SOURCES.mine} asof={['quotes', 'insti', 'credit']} />
       {summary.error ? <ErrorState error={summary.error} /> : null}
 

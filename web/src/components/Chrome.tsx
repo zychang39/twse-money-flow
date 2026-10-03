@@ -124,6 +124,7 @@ export function Dock({ path }: { path: string }) {
                 if (current) { e.preventDefault(); window.dispatchEvent(new Event('search-refocus')); }
               } : undefined}>
               <Icon />
+              <span class="tab-label" aria-hidden="true">{t.label}</span>
             </a>
           );
         })}
@@ -248,20 +249,24 @@ export function TopBar({ back, caption, actions, avatar = true }: { back?: strin
           onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); goBack(back); }}>
           <IconBack />
         </a>
-      ) : <span style={{ width: 'var(--s-3)' }} />}
+      ) : <span />}
       <div class="grow caption">{caption}</div>
-      {actions}
-      {avatar ? <AvatarButton /> : null}
+      <span class="topbar-actions">
+        {actions}
+        {avatar ? <AvatarButton /> : null}
+      </span>
     </div>
   );
 }
 
-/** 頁首：問題（小字）＋ 結論句（頁面標題）。 */
-export function PageHead({ eyebrow, title, children, twoLine }: { eyebrow?: ComponentChildren; title: ComponentChildren; children?: ComponentChildren; twoLine?: boolean }) {
+/**
+ * 頁首（2026-10 改版）：名詞標題（LargeTitle）＋可選的一行副資訊。不再顯示問題式的小字（eyebrow 只保留參數相容、不顯示）。
+ */
+export function PageHead({ title, sub, children }: { eyebrow?: ComponentChildren; title: ComponentChildren; sub?: ComponentChildren; children?: ComponentChildren; twoLine?: boolean }) {
   return (
-    <header class="page-head">
-      {eyebrow ? <div class="eyebrow">{eyebrow}</div> : null}
-      <h1 class={`title ${twoLine ? 'two-line' : ''}`}>{title}</h1>
+    <header class="page-head ui-head">
+      <h1 class="ui-large">{title}</h1>
+      {sub ? <div class="ui-foot ui-muted ui-head-sub">{sub}</div> : null}
       {children}
     </header>
   );

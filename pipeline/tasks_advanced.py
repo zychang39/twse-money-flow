@@ -634,7 +634,15 @@ class _EtfFetcher:
             if issuer == "fsitc":
                 # ASP.NET WebMethod：POST JSON；pStrDate＝公告日，空字串＝最新
                 body = {"pStrFundID": fund, "pStrDate": slash(d) if d else ""}
-                return eh.parse_fsitc(self.ctx.client.post_json(url, body), etf)
+                res = eh.parse_fsitc(self.ctx.client.post_json(url, body), etf)
+                if not res.df.empty and cfg.get("units_url"):
+                    # §3.4：受益權單位數在同一公告日的申購買回清單摘要（另一個 WebMethod）；取不到不影響持股
+                    try:
+                        units = eh.parse_fsitc_units(self.ctx.client.post_json(str(cfg["units_url"]), body))
+                    except SOURCE_ERRORS:
+                        units = None
+                    res.df["units"] = units if units and units > 0 else None
+                return res
             return eh.parse_fhtrust(_fetch(self.ctx, url.format(fund=fund, ymd=day.strftime("%Y%m%d"))), etf)
         raise ParseError(f"未實作的投信：{issuer}")
 
@@ -677,8 +685,13 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
     stored = ctx.store.read_range("etf_holdings")
     have: dict[str, set[str]] = {}
     if not stored.empty:
-        for d_, e_ in set(zip(stored["date"].astype(str), stored["etf"].astype(str), strict=True)):
-            have.setdefault(e_, set()).add(d_)
+        # §3.4（2026-10-03）：有揭露受益權單位數的投信，舊資料（沒有 units 欄）視為缺漏，回補時重抓
+        has_units = stored["units"].notna() if "units" in stored.columns else pd.Series(False, index=stored.index)
+        for d_, e_, u_ in set(
+            zip(stored["date"].astype(str), stored["etf"].astype(str), has_units.astype(bool), strict=True)
+        ):
+            if u_ or eh.UNITS_FIELD.get(targets.get(e_, ""), None) is None:
+                have.setdefault(e_, set()).add(d_)
     lookback = int(cfg.get("backfill_days", 20))
     recent = ctx.calendar.trading_days(target - timedelta(days=lookback * 2 + 14), target)[::-1]
     fetcher = _EtfFetcher(ctx, issuers)

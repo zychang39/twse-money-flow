@@ -176,7 +176,7 @@ export interface Lists {
 
 // ---------- market.json ----------
 export type LightStateT = 'green' | 'yellow' | 'red' | 'gray';
-export interface MarketLight { id: string; label: string; state: LightStateT; value: string; basis: string }
+export interface MarketLight { id: string; label: string; state: LightStateT; value: string; basis: string; /** 外資期貨淨未平倉：近 250 個交易日百分位（0–100） */ pct250?: number | null }
 export interface Sector { industry: string; count: number; up: number; down: number; foreign_1: number | null; trust_1: number | null; [k: string]: string | number | null }
 /** 主動式 ETF 持股日變動分類（M2 2026-10-03）：new 新增（前次沒有）、add 加碼、reduce 減碼、exit 剔除（本次 0 股） */
 export type EtfKind = 'new' | 'add' | 'reduce' | 'exit';
@@ -189,13 +189,15 @@ export interface MarketData {
   date: string;
   taiex: { close: number | null; change: number | null; ma240: number | null };
   /** 市場寬度（M2，2026-10-03）：漲跌家數（官方漲跌）；站上 20／60／240 日線比例（普通股、還原價，分母 n_maN）；創 60 日新高／新低家數 */
-  breadth: { up: number; down: number; flat: number; n?: number; above_ma20_pct?: number | null; above_ma60_pct?: number | null; above_ma240_pct?: number | null; n_ma20?: number; n_ma60?: number; n_ma240?: number; high60?: number | null; low60?: number | null };
-  flows: { date: string; foreign: number | null; trust: number | null; dealer: number | null }[];
+  breadth: { up: number; down: number; flat: number; n?: number; /** 2026-10 改版：52 週（250 日）收盤新高／新低家數與差 */ high52?: number | null; low52?: number | null; net52?: number | null; n52?: number; above_ma20_pct?: number | null; above_ma60_pct?: number | null; above_ma240_pct?: number | null; n_ma20?: number; n_ma60?: number; n_ma240?: number; high60?: number | null; low60?: number | null };
+  /** 三大法人買賣超金額（上市＋上櫃）；est＝當日取不到官方金額、以張數×收盤估算 */
+  flows: { date: string; foreign: number | null; trust: number | null; dealer: number | null; est?: boolean }[];
+  flows_source?: string;
   /** M2（2026-10-03）：上市＋上櫃每日成交金額（億元）與 ÷ 前 20 日平均倍數（分母不含當日；不足 20 日為 null） */
   turnover?: TurnoverDay[];
   sectors: Sector[];
   /** futures_series（M2 2026-10-03）：外資台指期淨未平倉（大台約當口數），近 60 個交易日 */
-  env?: { summary: string; lights: MarketLight[]; futures_series?: { date: string; net: number | null }[] };
+  env?: { summary: string; lights: MarketLight[]; futures_series?: { date: string; net: number | null }[]; validation?: import('../lib/envState').EnvValidation | null };
   /** retail：小台（mtx）與微台（tmf）散戶多空比 %；pc_series（M2 2026-10-03）：臺指選擇權 P/C 比 %（pc＝未平倉量比、vol＝成交量比），只呈現不判定 */
   temperature?: { lights: MarketLight[]; retail?: { date: string; mtx: number | null; tmf: number | null }[]; pc_series?: { date: string; pc: number | null; vol: number | null }[] };
   etf_ranking?: { date: string | null; add: EtfMove[]; reduce: EtfMove[]; status?: string; coverage?: string; covered?: number; total?: number; /** 變動分類筆數（ETF × 股票；M2 2026-10-03） */ kinds?: Partial<Record<EtfKind, number>> };
@@ -205,7 +207,18 @@ export interface MarketData {
 // ---------- index.json ----------
 export interface IndexData { dates: string[]; series: Record<string, (number | null)[]> }
 /** 首頁 1D（M2，2026-10-03）：最新一天的加權指數盤中走勢（證交所每 5 秒統計，pipeline 降採樣成每分鐘一點）。 */
-export interface IntradayData { date: string; name: string; prev_close: number | null; prev_date: string | null; source: string; points: { t: string; v: number }[] }
+export interface IntradayData {
+  date: string; name: string; prev_close: number | null; prev_date: string | null; source: string; points: { t: string; v: number }[];
+  /** 2026-10 改版：備援來源（證交所取不到時） */
+  fallback?: boolean;
+  /** 最近交易日的開高低收 */
+  ohlc?: { o: number | null; h: number | null; l: number | null; c: number | null };
+  /** 最近 ≤5 個交易日的 5 分鐘走勢（舊→新），1W 用 */
+  days?: { date: string; prev_close: number | null; points: { t: string; v: number }[] }[];
+}
+/** 個股 5 分 K（Yahoo Finance，非官方）：bars＝[時間 HH:MM, 開, 高, 低, 收, 量（股）] */
+export interface StockIntraday { code: string; date: string; source: string; days: { date: string; prev_close: number | null; bars: [string, number, number, number, number, number][] }[] }
+export interface StockIntradayIndex { date: string; source: string; codes: string[] }
 export const TAIEX = '發行量加權股價指數';
 export const TAIEX_TR = '發行量加權股價報酬指數';
 export const TPEX = '櫃買指數';

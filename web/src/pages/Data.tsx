@@ -17,7 +17,7 @@ const STATE_TEXT = { ok: '已齊', lag: '落後', missing: '沒有資料', na: '
 function Row({ r }: { r: DatasetRow }) {
   const risk = r.state === 'lag' || r.state === 'missing';
   const rows = [
-    { k: '來源', v: r.sources.length ? r.sources.join('、') : '—（config/sources.yml 沒有這個來源）' },
+    { k: '來源', v: r.sources.length ? r.sources.join('、') : '—（未登錄來源）' },
     { k: '最新日', v: r.latest ?? '—（尚未取得）' },
     { k: '應有日', v: r.expected, sub: r.lagText },
     ...(r.coverage ? [{ k: '涵蓋率', v: r.coverage }] : []),
@@ -55,7 +55,7 @@ export default function Data() {
   return (
     <div class="page">
       <TopBar back="/me/health" avatar={false} />
-      <PageHead eyebrow="資料狀態" title={rows ? (lagging ? `${lagging} 個資料集未到應有日` : '所有資料集都到應有日') : '資料狀態'}>
+      <PageHead title="資料狀態" sub={rows ? (lagging ? `${lagging} 個資料集未到應有日` : '全部資料集已到應有日') : undefined}>
         <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>
           應有日依各資料的公布時程與證交所交易日曆推算：信用 21:30 後、集保每週六公布上週、主動式 ETF 隔天上午、月營收次月 10 日。休市或還沒到公布時間不算落後。
           {meta.data?.generated_at ? `衍生資料產生 ${meta.data.generated_at.replace('T', ' ').slice(0, 16)}。` : ''}

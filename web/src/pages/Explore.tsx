@@ -12,7 +12,7 @@ import { IconAlert, IconBooks, IconBriefcase, IconCalendar, IconFilter, IconFlas
 import { useAsync } from '../hooks';
 import { loadIndex, loadJson, loadMarket } from '../data/api';
 import { TAIEX, TAIEX_TR, TPEX } from '../data/types';
-import { envInfo } from '../lib/envState';
+import { envCounts, envInfo } from '../lib/envState';
 import type { EvidenceFile } from '../lib/evidence';
 import { labStatus } from '../lib/labStatus';
 import { arrow, dirClass, fmtNum, glueNumbers } from '../lib/format';
@@ -66,9 +66,7 @@ export default function Explore() {
   const sectors = market.data?.sectors ?? [];
   const topSector = [...sectors].sort((a, b) => ((b.net_5 as number) ?? 0) - ((a.net_5 as number) ?? 0))[0];
   const inflow = sectors.filter((s) => ((s.net_5 as number) ?? 0) > 0).length;
-  const title = market.data
-    ? <>{inflow} 個產業近 5 日法人淨買超，<br />資金環境{env.label}。</>
-    : '探索市場';
+  const title = market.data ? `近 5 日法人淨買超 ${inflow} 個產業・資金指標 ${envCounts(env)}` : null;
   const rk = market.data?.etf_ranking;
   const etfStatus = market.data?.active_etfs
     ? rk?.total !== undefined
@@ -78,7 +76,7 @@ export default function Explore() {
   return (
     <div class="page">
       <TopBar caption="探索" />
-      <PageHead twoLine eyebrow="大盤環境與可研究的新變化" title={title} />
+      <PageHead title="探索" sub={title ?? undefined} />
       <DataStatus date={market.data?.date} uses={PAGE_SOURCES.explore} />
       <div class="hscroll" style={{ marginTop: 'var(--s-5)' }} role="group" aria-label="指數">
         <IndexCard name="加權指數" values={index.data?.series[TAIEX]} />

@@ -22,7 +22,7 @@ export default function CalendarPage() {
   return (
     <div class="page">
       <TopBar back="/explore" />
-      <PageHead eyebrow="接下來有哪些已知事件？" title={cal.data ? `近期 ${events.length} 件事件` : '行事曆'} />
+      <PageHead title="行事曆" sub={cal.data ? `近期 ${events.length} 件事件` : undefined} />
       <DataStatus date={cal.data?.date} uses={PAGE_SOURCES.calendar} />
       <div class="segmented" role="group" aria-label="範圍" style={{ marginTop: 'var(--s-4)' }}>
         <button aria-pressed={!all} onClick={() => setAll(false)}>自選與持股</button>

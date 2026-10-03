@@ -53,7 +53,7 @@ export default function Backtest() {
   return (
     <div class="page">
       <TopBar back="/explore" />
-      <PageHead eyebrow="條件在過去表現如何？（看樣本數與可信度）" title="回測">
+      <PageHead title="回測">
         <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>T 日收盤後訊號、T+1 開盤進場、持有 N 日開盤出場；已扣手續費、證交稅與滑價。</p>
       </PageHead>
       {index.error ? <ErrorState error={index.error} /> : null}

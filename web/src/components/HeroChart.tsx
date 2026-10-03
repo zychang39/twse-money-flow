@@ -29,8 +29,8 @@ import { useAsync } from '../hooks';
 const N = 160;
 /** 走勢圖下緣留給起訖日期標籤的高度（px；M1-9） */
 const DATE_GUTTER = 16;
-/** 圖內標籤（最高、最低、起訖日期）的字級：11px、淡色 */
-const LABEL_STYLE = { fontSize: 11, fill: 'var(--text-2)', fontVariantNumeric: 'tabular-nums' } as const;
+/** 圖內標籤（最高、最低、起訖日期）的字級：13px（Footnote）、淡色 */
+const LABEL_STYLE = { fontSize: 13, fill: 'var(--text-2)', fontVariantNumeric: 'tabular-nums' } as const;
 const reduceMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 export function usePeriod(id: string, fallback: Period = '3M', allowed: Period[] = PERIODS): [Period, (p: Period) => void] {
@@ -169,7 +169,7 @@ export function HeroChart({
   const frame: Frame = { w, h: height, padX: 12, padY: 14 };
   const geo = useMemo(() => {
     if (!win || !win.values.length) return null;
-    const range = extent(win.values, win.values[0]);
+    const range = extent(win.values, win.base ?? win.values[0]);
     const pts = points(win.values, frame, range);
     // M1-9：視窗內最高、最低點（第一個出現的）
     let hi = 0, lo = 0;
@@ -177,7 +177,7 @@ export function HeroChart({
       if (win.values[i] > win.values[hi]) hi = i;
       if (win.values[i] < win.values[lo]) lo = i;
     }
-    return { range, pts, baseY: yOf(win.values[0], frame, range), hi, lo };
+    return { range, pts, baseY: yOf(win.base ?? win.values[0], frame, range), hi, lo };
   }, [win, w, height]);
   // M1-8：區間報酬的「相隔交易日數」：有日資料就數日資料的日期，否則用交易日曆（10Y／ALL 是週線取樣，索引差只是週數）
   const meta = useAsync(loadMeta, []);
@@ -230,10 +230,12 @@ export function HeroChart({
   // daily：與前一個交易日比較（#3：有日資料時用日資料，10Y／ALL 的週線取樣相鄰兩點相隔一週；
   // 沒有日資料時視窗本身就是日資料，第一點是區間基準、沒有前一日可比）
   const dayChg = win ? windowDayChange(win, at) : null;
-  const chg = !win ? null : daily || both ? dayChg : change(win.values, at);
-  const periodChg = win && both && win.values.length >= 2 ? change(win.values, at) : null;
-  const range = win ? change(win.values) : null;
-  const dir: Dir = win ? change(win.values).dir : 'flat';
+  // win.base（1D／1W 的前一交易日收盤）：虛線基準與期間漲跌都以它為起點
+  const fromBase = (i: number) => (win ? (win.base !== undefined ? change([win.base, win.values[i]], 1) : change(win.values, i)) : null);
+  const chg = !win ? null : daily || both ? dayChg : fromBase(at);
+  const periodChg = win && both && win.values.length >= 2 ? fromBase(at) : null;
+  const range = win ? fromBase(last) : null;
+  const dir: Dir = range ? range.dir : 'flat';
   const color = dirColor(dir);
   const rolled = useRoll(latest, seen, format);
   const heroText = scrub !== null && win ? format(win.values[scrub]) : rolled;
@@ -439,7 +441,7 @@ export function HeroChart({
   const showHiLo = !!geo && win && win.values.length >= 2 && geo.hi !== geo.lo;
   const svgH = height + DATE_GUTTER;
   const summary = win && latest !== null && chg
-    ? `${typeof label === 'string' ? label : ''}${PERIOD_LABEL[period]}走勢：${dateLabel(win.dates[0])}到${dateLabel(win.dates[last])}，最新 ${format(latest)}，${dir === 'up' ? '上漲' : dir === 'down' ? '下跌' : '持平'} ${fd(Math.abs(change(win.values).abs))}`
+    ? `${typeof label === 'string' ? label : ''}${PERIOD_LABEL[period]}走勢：${dateLabel(win.dates[0])}到${dateLabel(win.dates[last])}，最新 ${format(latest)}，${dir === 'up' ? '上漲' : dir === 'down' ? '下跌' : '持平'} ${fd(Math.abs(fromBase(last)?.abs ?? 0))}`
     : '走勢圖資料不足';
 
   return (
