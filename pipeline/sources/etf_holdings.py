@@ -1,7 +1,8 @@
 """主動式 ETF 每日持股：各投信官網公開的持股揭露／申購買回清單（PCF）。
 
 只涵蓋沒有反爬、導向循環或驗證機制的投信（清單與狀態見 config/sources.yml 的 active_etf.issuers）。
-每家一個 parser，輸出統一欄位：date（持股日期＝淨值日，ISO）、etf、code、name、shares（股）、weight（%）。
+每家一個 parser，輸出統一欄位：date（持股日期＝淨值日，ISO）、etf、code、name、shares（股）、weight（%）、
+units（該 ETF 當日已發行／在外流通受益權單位數，每列相同；投信沒有揭露時為空值，見 UNITS_FIELD）。
 只保留台灣掛牌的證券代號（4–6 碼數字，可帶 1 碼英文）；海外持股（如 "NVDA US"）、期貨、現金不列入。
 已實作：野村、群益、元大、富邦（2026-09-27）；台新、凱基、聯博、第一金、復華（2026-10-03）；國泰解析器完成但網站擋本工具。
 各家的請求方式（查詢日與持股日的關係）由 pipeline/tasks_advanced.py 的 _EtfFetcher 依 config 組合。
@@ -34,7 +35,21 @@ from pipeline.sources.base import (
     resolve_fields,
 )
 
-HOLDING_COLS = ["date", "etf", "code", "name", "shares", "weight"]
+HOLDING_COLS = ["date", "etf", "code", "name", "shares", "weight", "units"]
+#: §3.4（2026-10-03）各投信受益權單位數的來源欄位；None＝該端點沒有揭露（以真實回應逐家確認，DATA_SOURCES.md）。
+#: 每家都以「淨資產 ÷ 單位數 ＝ 每單位淨值」對照確認單位數與持股同一個淨值日。
+UNITS_FIELD: dict[str, str | None] = {
+    "nomura": "Entries.Data.FundAsset.Units",
+    "capital": "data.pcf.totUnit（已發行受益權單位總數）",
+    "yuanta": "PCF.osunit",
+    "fubon": "頁面「基金在外流通單位數(單位)」",
+    "taishin": "頁面「已發行受益權單位總數」",
+    "kgi": "頁面「已發行受益權單位總數」",
+    "fsitc": "WebAPI.aspx/Get_BuySellA「已發行受益權單位總數-台幣交易」（另一個請求）",
+    "fhtrust": "工作表「基金在外流通單位數」",
+    "ab": None,  # holdings 與基金資訊端點都沒有單位數（fundAssetTotal 只有各類資產市值與比例）
+    "cathay": None,  # GetETFDetailStockList 只有持股列（且網站擋本工具，依規則跳過）
+}
 TW_CODE = re.compile(r"^\d{4,6}[A-Z]?$")
 
 
@@ -46,7 +61,9 @@ def issuer_of(name: str, issuers: dict[str, dict[str, Any]]) -> str | None:
     return None
 
 
-def _frame(rows: list[tuple[Any, Any, Any, Any]], etf: str, d: date) -> pd.DataFrame:
+def _frame(rows: list[tuple[Any, Any, Any, Any]], etf: str, d: date, units: float | None = None) -> pd.DataFrame:
+    """units：該 ETF 當日受益權單位數（> 0 才保留，其餘記為空值）。"""
+    u = units if units is not None and units > 0 else None
     out = []
     for code, name, shares, weight in rows:
         c = clean_code(code)
@@ -61,6 +78,7 @@ def _frame(rows: list[tuple[Any, Any, Any, Any]], etf: str, d: date) -> pd.DataF
                 "name": clean_name(name),
                 "shares": n,
                 "weight": to_num(weight),
+                "units": u,
             }
         )
     df = pd.DataFrame(out, columns=HOLDING_COLS)
@@ -89,7 +107,8 @@ def parse_nomura(payload: bytes | str, etf: str) -> ParseResult:
     tables = data.get("Table") or []
     if obj["StatusCode"] != 0 or not tables:
         return _empty(str(obj.get("Message") or "野村：查無持股資料"))
-    d = parse_date((data.get("FundAsset") or {}).get("NavDate"))
+    asset = data.get("FundAsset") or {}
+    d = parse_date(asset.get("NavDate"))
     if d is None:
         raise ParseError("野村：找不到淨值日期（FundAsset.NavDate）")
     stock = next((t for t in tables if str(t.get("TableTitle", "")).strip() == "股票"), None)
@@ -101,7 +120,7 @@ def parse_nomura(payload: bytes | str, etf: str) -> ParseResult:
     df = frame_from_fields(
         cols, stock.get("Rows", []), _holding_map("股票代號", "股票名稱", "股數", "權重(%)"), source="野村股票表"
     )
-    return ParseResult(_frame(_tuples(df), etf, d), response_date=d)
+    return ParseResult(_frame(_tuples(df), etf, d, to_num(asset.get("Units"))), response_date=d)
 
 
 # ------------------------------------------------------------------ 群益投信（POST JSON etf/items、etf/buyback）
@@ -131,7 +150,8 @@ def parse_capital(payload: bytes | str, etf: str) -> ParseResult:
     df = frame_from_records(
         stocks, _holding_map("stocNo", "stocName", "share", "weight"), source="群益 stocks", infer_types=False
     )
-    return ParseResult(_frame(_tuples(df), etf, d), response_date=d)
+    # totUnit＝已發行受益權單位總數（nav ÷ totUnit ＝ pUnit，與 date2 同一個淨值日）
+    return ParseResult(_frame(_tuples(df), etf, d, to_num(pcf.get("totUnit"))), response_date=d)
 
 
 # ------------------------------------------------------------------ 元大投信（GET api/bridge PCF/Daily）
@@ -152,7 +172,8 @@ def parse_yuanta(payload: bytes | str, etf: str) -> ParseResult:
     df = frame_from_records(
         stocks, _holding_map("code", "name", "qty", "weights"), source="元大 StockWeights", infer_types=False
     )
-    return ParseResult(_frame(_tuples(df), etf, d), response_date=d)
+    # osunit＝trandate 的在外流通單位數（totalav ÷ osunit ＝ nav）；preunit 是下一日的預估值，不用
+    return ParseResult(_frame(_tuples(df), etf, d, to_num(pcf.get("osunit"))), response_date=d)
 
 
 # ------------------------------------------------------------------ HTML 表格共用（富邦、台新、凱基）
@@ -184,6 +205,12 @@ def _table_rows(rows: list[list[str]], mapping: dict[str, Any], source: str) -> 
     ]
 
 
+def _label_number(text: str, label: str) -> float | None:
+    """頁面文字中「label」之後的第一個數字（跨過標籤、空白與幣別），例：「已發行受益權單位總數 39,327,000」。"""
+    m = re.search(re.escape(label) + r"(?:\s|<[^>]*>|TWD\$?|NT\$)*([-0-9,]+(?:\.\d+)?)", text)
+    return to_num(m.group(1)) if m else None
+
+
 def _no_stock_table(d: date, message: str) -> ParseResult:
     return ParseResult(pd.DataFrame(columns=HOLDING_COLS), response_date=d, no_data=True, message=message)
 
@@ -207,13 +234,17 @@ def parse_fubon(html: bytes | str, etf: str) -> ParseResult:
         # 持股表：表頭有「股票…」或「股數」欄（另一張為現金等「項目／金額」表）
         if rows and any(h.startswith("股票") or h == "股數" for h in rows[0]):
             body = _table_rows(rows, _holding_map("股票代碼", "股票名稱", "股數", "權重(%)"), "富邦持股表")
-            return ParseResult(_frame(body, etf, d), response_date=d)
+            units = _label_number(text, "基金在外流通單位數(單位)")
+            return ParseResult(_frame(body, etf, d, units), response_date=d)
     return _no_stock_table(d, "富邦：無股票持股表")
 
 
 # ------------------------------------------------------------------ 台新投信（GET HTML ETF/Home/Pcf/{etf}?FundType=ALL&DataDate=YYYY-MM-DD）
 _TAISHIN_ETF = re.compile(r'id="ETF_ID"[^>]*value="([^"]*)"')
 _TAISHIN_NAV = re.compile(r"(\d{4}/\d{1,2}/\d{1,2})預估發行受益權單位數")
+# 國內型（00987A）頁面沒有「預估發行受益權單位數」列：改取「YYYY/M/D每基數實際申購總價金」的日期（2026-10-03 實測：
+# 淨值 17.76 對應 10/02 收盤 17.68）
+_TAISHIN_ACTUAL = re.compile(r"(\d{4}/\d{1,2}/\d{1,2})每基數實際申購總價金")
 
 
 def _strip_tt(code: Any) -> Any:
@@ -225,6 +256,7 @@ def _strip_tt(code: Any) -> Any:
 def parse_taishin(payload: bytes | str, etf: str) -> ParseResult:
     """DataDate 為申購買回清單適用日；持股日取頁面「YYYY/M/D預估發行受益權單位數」的日期（清單製作時的最新淨值日）。
 
+    國內型（00987A）沒有「預估發行受益權單位數」列，改取「YYYY/M/D每基數實際申購總價金」的日期。
     查無資料時版面仍在：金額為 0、日期顯示 0001/1/1、沒有「預估發行受益權單位數」列。
     """
     text = _html_text(payload)
@@ -232,10 +264,11 @@ def parse_taishin(payload: bytes | str, etf: str) -> ParseResult:
     if page_etf and clean_code(page_etf.group(1)) != etf:
         raise ParseError(f"台新：頁面 ETF_ID 為 {page_etf.group(1)!r}，與查詢的 {etf} 不符")
     m = _TAISHIN_NAV.search(text)
+    if not m and "0001/1/1" in text:
+        return _empty("台新：該日無申購買回清單")
+    m = m or _TAISHIN_ACTUAL.search(text)
     if not m:
-        if "0001/1/1" in text:
-            return _empty("台新：該日無申購買回清單")
-        raise ParseError("台新：找不到「預估發行受益權單位數」的日期")
+        raise ParseError("台新：找不到「預估發行受益權單位數」或「每基數實際申購總價金」的日期")
     d = parse_date(m.group(1))
     if d is None:
         raise ParseError(f"台新：無法解析日期 {m.group(1)!r}")
@@ -243,7 +276,9 @@ def parse_taishin(payload: bytes | str, etf: str) -> ParseResult:
         # 股票表的表頭為「代號／名稱／股數／持股權重」；期貨表為「期貨代號…」，基金資訊表沒有表頭列
         if rows and "代號" in rows[0] and "股數" in rows[0]:
             body = _table_rows(rows, _holding_map("代號", "名稱", "股數", "持股權重"), "台新持股表")
-            return ParseResult(_frame([(_strip_tt(c), n, s, w) for c, n, s, w in body], etf, d), response_date=d)
+            units = _label_number(text, "已發行受益權單位總數")
+            tw = [(_strip_tt(c), n, s, w) for c, n, s, w in body]
+            return ParseResult(_frame(tw, etf, d, units), response_date=d)
     return _no_stock_table(d, "台新：無股票持股表")
 
 
@@ -268,7 +303,8 @@ def parse_kgi(payload: bytes | str, etf: str) -> ParseResult:
     for rows in _html_tables(text):
         if rows and any(h.startswith("股票代號") for h in rows[0]):
             body = _table_rows(rows, _holding_map("股票代號", "股票名稱", "股數", "權重(%)"), "凱基持股表")
-            return ParseResult(_frame(body, etf, d), response_date=d)
+            units = _label_number(text, "已發行受益權單位總數")
+            return ParseResult(_frame(body, etf, d, units), response_date=d)
     return _no_stock_table(d, "凱基：無股票持股表")
 
 
@@ -327,6 +363,25 @@ def parse_fsitc(payload: bytes | str, etf: str) -> ParseResult:
     stocks = [r for r in rows if str(r.get("group")) == "1"]
     df = frame_from_records(stocks, _holding_map("A", "B", "D", "C"), source="第一金 Get_hd", infer_types=False)
     return ParseResult(_frame(_tuples(df), etf, d), response_date=d)
+
+
+def parse_fsitc_units(payload: bytes | str) -> float | None:
+    """第一金申購買回清單摘要（WebAPI.aspx/Get_BuySellA，與 Get_hd 同樣以公告日 pStrDate 查詢）→ 已發行受益權單位總數。
+
+    回應 {"d": "[{A: 項目, B: 值, sdate: 公告日}, …]"}；「基金淨資產價值 ÷ 已發行受益權單位總數 ＝ 每受益權單位淨資產價值」
+    對應 Get_hd 的持股日（淨值日）。取不到（null、格式不符、沒有該列）回 None，不影響持股本身。
+    """
+    try:
+        obj = load_json(payload)
+        rows = load_json(obj["d"]) if isinstance(obj, dict) and obj.get("d") else None
+    except (ParseError, KeyError, TypeError):
+        return None
+    if not isinstance(rows, list):
+        return None
+    for r in rows:
+        if isinstance(r, dict) and str(r.get("A", "")).startswith("已發行受益權單位總數"):
+            return to_num(r.get("B"))
+    return None
 
 
 # ------------------------------------------------------------------ 復華投信（GET xlsx api/assetsExcel/{基金代碼}/{YYYYMMDD}）
@@ -388,12 +443,16 @@ def parse_fhtrust(payload: bytes | str, etf: str) -> ParseResult:
         raise ParseError("復華：回應不是 xlsx，也不是「查無資料」")
     rows = xlsx_rows(payload)
     d: date | None = None
+    units: float | None = None
     header_at: int | None = None
     for i, r in enumerate(rows):
         for text in r:
             m = _FHTRUST_DATE.search(text)
             if m:
                 d = parse_date(m.group(1))
+        # 摘要區：「基金在外流通單位數」的下一列是數值
+        if r and r[0].strip() == "基金在外流通單位數" and i + 1 < len(rows) and rows[i + 1]:
+            units = to_num(rows[i + 1][0])
         if "證券代號" in r and "股數" in r:
             header_at = i
             break
@@ -402,7 +461,7 @@ def parse_fhtrust(payload: bytes | str, etf: str) -> ParseResult:
     if header_at is None:
         return _no_stock_table(d, "復華：無持股表")
     body = _table_rows(rows[header_at:], _holding_map("證券代號", "證券名稱", "股數", "權重(%)"), "復華持股表")
-    return ParseResult(_frame(body, etf, d), response_date=d)
+    return ParseResult(_frame(body, etf, d, units), response_date=d)
 
 
 # ------------------------------------------------------------------ 國泰投信（GET api/ETF/GetETFList、GetETFDetailStockList）

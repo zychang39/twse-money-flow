@@ -1,6 +1,7 @@
 /** 日誌：持倉與已平倉紀錄；新增持倉一律經過新增持倉前檢查表；平倉後可立即或稍後補寫檢討。 */
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { PageHead, TopBar } from '../components/Chrome';
+import { TopBar } from '../components/Chrome';
+import { PageTitle } from '../components/ui';
 import { DataStatus, EmptyState } from '../components/DataStatus';
 import { Signed } from '../components/Change';
 import { ChecklistSheet, CloseSheet, ReviewSheet } from '../components/Trades';
@@ -12,6 +13,7 @@ import { deleteTrade, getSetting, type Trade } from '../db/db';
 import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
 import { DEFAULT_COSTS, type CostSettings } from '../lib/costs';
 import { hasReview } from '../lib/ritual';
+import { parseChecklistQuery } from '../lib/checklist';
 import { adjustTrade, eventsFor, unrealizedPnl } from '../lib/corpActions';
 import { tradePnl } from '../lib/sizing';
 import { fmtMoney, fmtPrice } from '../lib/format';
@@ -39,6 +41,9 @@ export default function Journal({ startChecklist }: { startChecklist?: boolean }
   const pending = closed.filter((t) => !hasReview(t));
   const portfolio = settings?.portfolio ?? DEFAULT_PORTFOLIO;
   const day = summary.data?.date ?? '';
+  // 個股頁風險試算「帶入檢查表」：#/discipline/checklist?code=2330&price=123.5&stop=110&shares=150
+  const prefill = useMemo(() => parseChecklistQuery(route.query), [route.query.toString()]);
+  const preset = prefill.code ? summary.data?.byCode.get(prefill.code) : undefined;
 
   useEffect(() => {
     const id = route.query.get('review');
@@ -49,9 +54,8 @@ export default function Journal({ startChecklist }: { startChecklist?: boolean }
   return (
     <div class="page">
       <TopBar back="/discipline" actions={<button class="btn small primary" onClick={() => setAdding(true)}>新增持倉</button>} />
-      <PageHead eyebrow="我該記錄或檢討什麼？" title={pending.length ? `${pending.length} 筆平倉等待檢討` : `持倉 ${open.length} 筆・已平倉 ${closed.length} 筆`}>
-        <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>總資金 {fmtMoney(portfolio.capital)}・單筆風險 {portfolio.riskPct}%・<a href="#/me/settings">調整</a></p>
-      </PageHead>
+      <PageTitle title="日誌" sub={pending.length ? `待檢討 ${pending.length}・持倉 ${open.length}・已平倉 ${closed.length}` : `持倉 ${open.length}・已平倉 ${closed.length}`} />
+      <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>總資金 {fmtMoney(portfolio.capital)}・單筆風險 {portfolio.riskPct}%・<a href="#/me/settings">調整</a></p>
       <DataStatus date={summary.data?.date} uses={PAGE_SOURCES.journal} />
       <div class="segmented" role="group" aria-label="日誌分頁" style={{ marginTop: 'var(--s-4)' }}>
         <button aria-pressed={tab === 'open'} onClick={() => setTab('open')}>持倉<span class="count">{open.length}</span></button>
@@ -98,7 +102,7 @@ export default function Journal({ startChecklist }: { startChecklist?: boolean }
         </>
       ) : (
         <>
-          {user && !closed.length ? <EmptyState icon={<IconNotebook />} title="尚無已平倉紀錄" text="平倉後寫下檢討，第三環才會完成。" action={<button class="btn" onClick={() => setTab('open')}>查看持倉</button>} /> : null}
+          {user && !closed.length ? <EmptyState icon={<IconNotebook />} title="尚無已平倉紀錄" text="平倉後 3 個交易日內寫下檢討。" action={<button class="btn" onClick={() => setTab('open')}>查看持倉</button>} /> : null}
           {closed.map((t) => (
             <div key={t.id} class="card">
               <div class="row between">
@@ -115,7 +119,7 @@ export default function Journal({ startChecklist }: { startChecklist?: boolean }
         </>
       )}
 
-      {summary.data ? <ChecklistSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.rows} portfolio={portfolio} day={day} /> : null}
+      {summary.data ? <ChecklistSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.rows} portfolio={portfolio} day={day} preset={startChecklist ? preset : undefined} prefill={startChecklist ? prefill : undefined} /> : null}
       <CloseSheet trade={closing} onClose={() => setClosing(null)} costs={settings?.costs ?? DEFAULT_COSTS} price={closing ? byCode.get(closing.code)?.close ?? null : null} day={day} />
       <ReviewSheet trade={reviewing} onClose={() => setReviewing(null)} day={day} />
     </div>

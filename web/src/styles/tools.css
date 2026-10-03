@@ -66,7 +66,7 @@
 .ir-h2 { margin-top: var(--s-8); }
 .ir-table-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); }
 .ir-wrap { margin-top: var(--s-2); }
-.ir-table .ir-col-date { width: 5rem; }
+.ir-table .ir-col-date { width: 5.75rem; }
 .ir-table th, .ir-table td { padding-left: 0.125rem; padding-right: 0.125rem; }
 .ir-table th:first-child, .ir-table td:first-child { padding-left: var(--s-2); }
 .ir-table td:last-child, .ir-table thead th:last-child { padding-right: var(--s-2); }

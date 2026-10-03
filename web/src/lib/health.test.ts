@@ -39,8 +39,8 @@ describe('資料健康白話說明', () => {
     expect(PAGE_SOURCES.calendar).toContain('investor_conference');
   });
   it('頁首結論', () => {
-    expect(healthConclusion([base])).toBe('所有資料源都正常更新');
-    expect(healthConclusion([{ ...base, format_warnings: ['x'] }])).toContain('相容模式');
+    expect(healthConclusion([base])).toBe('1／1 正常');
+    expect(healthConclusion([base, { ...base, format_warnings: ['x'] }])).toBe('1／2 正常・相容模式 1');
   });
   it('頁首異常提示只看該頁用到的來源', () => {
     expect(affectedFor(['twse_quotes', 'tpex_valuation'], ['tpex_valuation', 'tdcc_holders'])).toEqual(['tpex_valuation']);

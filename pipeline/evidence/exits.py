@@ -217,7 +217,7 @@ RULE_LABELS = {
     "atr": "ATR 移動停損（最高收盤回落 {p} 倍 ATR14）",
     "entry_low": "收盤跌破進場日最低價",
     "exhaust": "動能衰竭（量縮 3 日且漲跌 ≤ ±2%）",
-    "peak": "峰值日固定出場（第 {p} 日）",
+    "peak": "第 {p} 日出場（訓練期累積超額峰值）",
 }
 
 
@@ -231,7 +231,7 @@ def compare(
 ) -> dict[str, Any]:
     """每種出場的全參數表＋walk-forward 選參數（依訓練期期望值）與驗證期表現。
 
-    peak：v3 M3-4「峰值日固定出場」的 N＝訓練期（第一個 walk-forward 訓練窗）累積超額曲線的峰值日，不看全樣本。
+    peak：v3 M3-4「第 N 日出場（訓練期峰值）」的 N＝訓練期（第一個 walk-forward 訓練窗）累積超額曲線的峰值日，不看全樣本。
     """
     res = run_rules(mk, cand, ev, cfg)
     if peak:
@@ -280,8 +280,108 @@ def compare(
 
 def run_one(mk: Market, cand: pd.DataFrame, ev: Any, cfg: dict[str, Any], rule: str, param: str) -> pd.DataFrame:
     """單一出場規則（策略庫用）：與 run_rules 同樣的規則與參數格式。"""
-    if rule in ("fixed", "peak"):  # 峰值日固定出場＝固定 N 日（N＝訓練期峰值日）
+    if rule in ("fixed", "peak"):  # 第 N 日出場（訓練期峰值）＝固定 N 日（N＝訓練期峰值日）
         x = cfg["exits"]
         p = Paths(mk, cand["e"].to_numpy(), cand["c"].to_numpy(), int(x["max_days"]), {})
         return rule_fixed(p, int(param))
     return run_rules(mk, cand, ev, cfg)[rule][param]
+
+
+def _split_dates(v: pd.DataFrame, dates: np.ndarray) -> np.ndarray:
+    return dates[v["t"].to_numpy()]
+
+
+def _metric(s: dict[str, Any], key: str) -> float | None:
+    """選規則的指標：相對 0050 的平均超額（事件平均，%）；key 為 rel 的鍵。"""
+    v = (s.get("rel") or {}).get(key)
+    return None if v is None else float(v)
+
+
+def compare_split(
+    mk: Market,
+    cand: pd.DataFrame,
+    ev: Any,
+    cfg: dict[str, Any],
+    train_end: str,
+    peak: int | None = None,
+    metric: str = "0050",
+    min_events: int = 30,
+    fallback: tuple[str, str] | None = None,
+) -> dict[str, Any]:
+    """2026-10-03 出場規則：只用訊號日 ≤ train_end（2021-12-31）的事件選規則，之後（2022 起）另列樣本外，兩段並排。
+
+    1. 每種規則的參數（如停損 −5／−7／−10%）：樣本內相對 0050 平均超額最高者（樣本內去重事件 ≥ min_events 才可選）。
+    2. 規則之間：各規則選定參數的樣本內相對 0050 平均超額最高者＝chosen（同分取樣本內 MAE 較小者）。
+    3. 樣本內沒有足夠事件（訊號期間自 2022 起的策略）→ chosen＝fallback（預先指定：固定持有判定天數），並註明。
+    樣本外的數字只報告、不參與任何選擇。
+    """
+    res = run_rules(mk, cand, ev, cfg)
+    if peak:
+        x = cfg["exits"]
+        p = Paths(mk, cand["e"].to_numpy(), cand["c"].to_numpy(), int(x["max_days"]), {})
+        res["peak"] = {str(int(peak)): rule_fixed(p, int(peak))}
+    dates = np.asarray(mk.dates)
+    rules: list[dict[str, Any]] = []
+    for rule, cells in res.items():
+        best, best_v, best_mae, tested = None, None, None, []
+        ins_by: dict[str, dict[str, Any]] = {}
+        for k, v in cells.items():
+            dd = _split_dates(v, dates)
+            ins = summarize_rule(v[dd <= train_end])
+            ins_by[k] = ins
+            m = _metric(ins, metric)
+            tested.append({"param": k, "n": ins.get("n", 0), "rel_0050": m})
+            if ins.get("n", 0) < min_events or m is None:
+                continue
+            mae = ins.get("mae") or -999.0
+            if best_v is None or m > best_v or (m == best_v and mae > (best_mae or -999.0)):
+                best, best_v, best_mae = k, m, mae
+        if best is None:
+            continue
+        v = cells[best]
+        dd = _split_dates(v, dates)
+        rules.append(
+            {
+                "rule": rule,
+                "param": best,
+                "label": RULE_LABELS[rule].format(p=best),
+                "in_sample": ins_by[best],
+                "oos": summarize_rule(v[dd > train_end]),
+                "params_tested": tested,
+            }
+        )
+    chosen: dict[str, Any] | None = None
+    note = None
+    if rules:
+        top = max(rules, key=lambda r: (_metric(r["in_sample"], metric), r["in_sample"].get("mae") or -999.0))
+        chosen = {"rule": top["rule"], "param": top["param"], "label": top["label"], "basis": "in_sample"}
+    elif fallback is not None:
+        rule, param = fallback
+        cells = res.get(rule) or {}
+        v = cells.get(param)
+        if v is not None:
+            dd = _split_dates(v, dates)
+            rules.append(
+                {
+                    "rule": rule,
+                    "param": param,
+                    "label": RULE_LABELS[rule].format(p=param),
+                    "in_sample": summarize_rule(v[dd <= train_end]),
+                    "oos": summarize_rule(v[dd > train_end]),
+                    "params_tested": [],
+                }
+            )
+        chosen = {"rule": rule, "param": param, "label": RULE_LABELS[rule].format(p=param), "basis": "fallback"}
+        note = f"{train_end[:4]} 年底前樣本不足 {min_events} 筆，無法選規則；採預先指定的{RULE_LABELS[rule].format(p=param)}"
+    for r in rules:
+        r["chosen"] = chosen is not None and r["rule"] == chosen["rule"] and r["param"] == chosen["param"]
+    return {
+        "train_end": train_end,
+        "oos_start": (pd.Timestamp(train_end) + pd.Timedelta(days=1)).date().isoformat(),
+        "metric": f"樣本內相對 {metric} 平均超額（扣成本）",
+        "min_events": min_events,
+        "max_days": int(cfg["exits"]["max_days"]),
+        "rules": rules,
+        "chosen": chosen,
+        "note": note,
+    }

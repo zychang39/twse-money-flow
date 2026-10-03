@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from pipeline.core import config
 from pipeline.core.dates import roc_year, slash, ymd
-from pipeline.sources import advanced, listing, mops, tpex, twse
+from pipeline.sources import advanced, insti_amount, listing, mops, tpex, twse
 from pipeline.sources.base import ParseResult
 
 Granularity = Literal["daily", "monthly", "yearly", "snapshot"]
@@ -225,6 +225,27 @@ SPECS: dict[str, Spec] = {
             min_rows=1000,
             tier="advanced",
         ),
+        # ---- 2026-10：三大法人買賣金額（全市場合計，元）；首頁三大法人改用實際金額
+        Spec(
+            "twse_insti_amount",
+            "daily",
+            insti_amount.parse_twse,
+            "daily",
+            keys=("item",),
+            numeric=("net",),
+            min_rows=5,
+            tier="advanced",
+        ),
+        Spec(
+            "tpex_insti_amount",
+            "daily",
+            insti_amount.parse_tpex,
+            "daily",
+            keys=("item",),
+            numeric=("net",),
+            min_rows=5,
+            tier="advanced",
+        ),
         Spec(
             "twse_insider",
             "snapshot",
@@ -306,6 +327,8 @@ ADVANCED_DAILY = [
     "twse_daytrade",
     "tpex_daytrade",
     "twse_intraday_index",
+    "twse_insti_amount",
+    "tpex_insti_amount",
 ]
 ADVANCED_SNAPSHOT = ["twse_short_halt", "tpex_short_halt", "twse_insider", "tpex_insider"]
 BACKFILL_DEFAULT = [

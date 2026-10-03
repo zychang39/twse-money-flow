@@ -2,7 +2,7 @@
 // 任何一個檔案含 NaN／Infinity 或其他非法內容就以非零結束（CI 與部署前把關）。
 // 2026-10-02 健檢 M1-8：另外檢查跨頁共用的資料不變量（失敗不部署）：
 //  - strategies.json：每套策略有 id／label／grade／subtitle；有權益曲線的策略，每條有值的基準線在起訖日都有值；
-//    上架（有效／觀察中）策略的 h 含判定持有天數；grade 只能是 有效／觀察中／停用。
+//    上架策略的 h 含判定持有天數；grade 為 { id: valid／sig_only／watch／invalid, label }（2026-10 改版；舊版字串 有效／觀察中／停用 仍接受）。
 //  - evidence.json：每列有 id／label／verdict／kind；meta.config.primary_horizon 存在；沒有 meta.error。
 //  - meta.json：market_date、calendar.closed、asof 存在。
 //  - 策略的 test 若在 evidence rows 中，兩邊的訊號期間起點一致（同一數字只有一個來源）。
@@ -60,8 +60,9 @@ function checkInvariants() {
     const byTest = new Map((evidence?.rows ?? []).map((r) => [r.id, r]));
     for (const s of strategies.strategies ?? []) {
       for (const k of ['id', 'label', 'subtitle', 'grade']) if (!s[k]) invariant.push(`strategies.json ${s.id ?? '?'} 缺少 ${k}`);
-      if (s.grade && !['有效', '觀察中', '停用'].includes(s.grade)) invariant.push(`strategies.json ${s.id} 的 grade「${s.grade}」不在 有效／觀察中／停用`);
-      const listed = s.grade === '有效' || s.grade === '觀察中';
+      const gid = typeof s.grade === 'object' && s.grade ? s.grade.id : ({ 有效: 'valid', 觀察中: 'watch', 停用: 'invalid' })[s.grade];
+      if (s.grade && !['valid', 'sig_only', 'watch', 'invalid'].includes(gid)) invariant.push(`strategies.json ${s.id} 的 grade「${JSON.stringify(s.grade)}」不在 有效／訊號顯著・未勝 0050／觀察中／無效`);
+      const listed = gid && gid !== 'invalid' && s.enabled !== false;
       const hold = s.swing?.hold ? String(s.swing.hold) : H;
       if (listed && !(s.h && s.h[hold])) invariant.push(`strategies.json ${s.id} 上架但沒有 ${hold} 日的統計（h）`);
       const cv = s.curve;

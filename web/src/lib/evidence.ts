@@ -30,6 +30,8 @@ export interface EvidenceRow {
   raw?: number;
   t?: number | null;
   t_nw?: number | null;
+  /** 2026-10-03：全站統一的校正後 t（等權、判定持有期） */
+  t_corr?: number | null;
   mean_excess?: number | null;
   ci?: [number | null, number | null];
   win?: number | null;
@@ -202,6 +204,9 @@ export const FAMILIES = ['動能', '籌碼', '基本面', '組合'] as const;
 export interface EvidenceToday {
   date: string;
   tests: Record<string, { t: Record<string, string>; near: string[] }>;
+  /** 2026-10-03：上架策略近 window 個交易日內觸發（代號 → 最近一次觸發日） */
+  strategies?: Record<string, { window: number; t: Record<string, string> }>;
+  window?: number;
 }
 
 export type SignalState = 'triggered' | 'near' | 'off';

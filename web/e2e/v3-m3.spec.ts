@@ -5,51 +5,42 @@ import { gotoStock } from './helpers';
 
 test.use({ viewport: { width: 393, height: 852 } });
 
-const questions = (page: Page) => page.locator('.stock-lower > section.block > .eyebrow').allTextContents();
+// 2026-10 改版：個股頁固定順序（摘要 → 策略訊號 → 分段「動能｜籌碼｜基本面｜事件」）；投資風格只決定預設期間與第一次開啟的分段。
+const titles = (page: Page) => page.locator('.stock-lower .ui-sec-title').allTextContents();
 
-test('預設波段動能：區塊順序、預設 1Y、每個區塊標題是「問題＋一句結論」', async ({ page }) => {
+test('預設波段動能：摘要 → 策略訊號 → 動能分段；預設 1Y；區塊標題是名詞（沒有問句）', async ({ page }) => {
   await gotoStock(page, '#/stock/2330');
-  await expect(page.locator('.stock-lower')).toHaveAttribute('data-style', 'swing');
-  expect(await questions(page)).toEqual([
-    '整體狀態如何？（波段動能）', '有統計證據的訊號觸發了嗎？', '四環分數', '動能夠不夠強？', '法人在買還是賣？', '融資與空方在做什麼？', '大戶在增加還是減少？', '營收與基本面如何？', '現在貴不貴？', '最近有什麼事件？',
-  ]);
-  await expect(page.getByRole('group', { name: '股價走勢期間' }).first().getByRole('button', { name: /^1Y/ })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#sec-momentum h2')).toHaveText(/^RS \d+，(站上全部均線|跌破全部均線|跌破 [\d／]+ 日線|均線資料不足)$/);
-  await expect(page.getByTestId('momentum-facts')).toContainText('距 52 週高點');
-  await expect(page.getByTestId('momentum-facts')).toContainText('量能');
-  // M3：動能補 20 日乖離、KD 與鈍化天數、MACD 狀態
-  for (const k of ['20 日乖離', 'KD（9,3,3）', 'MACD（12,26,9）']) await expect(page.getByTestId('momentum-facts')).toContainText(k);
-  await expect(page.locator('#sec-momentum')).toContainText('240 日線');
-  // 每個區塊都有非空的一句結論
-  for (const h of await page.locator('.stock-lower > section.block > h2').allTextContents()) expect(h.trim().length).toBeGreaterThan(3);
-  await expect(page.locator('#sec-conclusion h2')).toHaveText(/動能/);
+  await expect(page.getByTestId('stock-seg').getByRole('button', { name: '動能', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  expect(await titles(page)).toEqual(['摘要', '策略訊號', '報酬與相對強弱', '趨勢', '位置', '波動', '風險試算']);
+  for (const t of await titles(page)) expect(t).not.toMatch(/？|\?/);
+  await expect(page.getByTestId('stock-periods').first().getByRole('button', { name: '1Y', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  const stats = page.getByTestId('stock-stats');
+  for (const k of ['RS 百分位', '距 52 週高', '20 日乖離', '量比', '法人 20 日佔量', '千張大戶週變化']) await expect(stats).toContainText(k);
+  await expect(page.locator('.stock-lower')).not.toContainText(/整體狀態如何|動能夠不夠強|綜合分|便宜|昂貴/);
 });
 
-test('切到長期投資：區塊順序、預設 5Y、結論側重營收／獲利／估值；本益比河流、外資持股比趨勢', async ({ page }) => {
+test('切到長期投資：預設 5Y、第一次開啟為基本面分段（營收年增率圖、估值三列；沒有價格帶）', async ({ page }) => {
   await page.goto('#/me/settings');
   await page.getByRole('group', { name: '投資風格' }).getByRole('button', { name: '長期投資' }).click();
   expect(await page.evaluate(() => localStorage.getItem('tmf-style'))).toBe('long');
   await gotoStock(page, '#/stock/2330');
-  await expect(page.locator('.stock-lower')).toHaveAttribute('data-style', 'long');
-  expect(await questions(page)).toEqual([
-    '整體狀態如何？（長期投資）', '四環分數', '營收有沒有在成長？', '獲利品質好不好？', '現在貴不貴？', '大戶在增加還是減少？', '法人在買還是賣？', '融資與空方在做什麼？', '有統計證據的訊號觸發了嗎？', '最近有什麼事件？',
-  ]);
-  await expect(page.getByRole('group', { name: '股價走勢期間' }).first().getByRole('button', { name: /^5Y/ })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#sec-conclusion h2')).toHaveText(/營收|ROE|本益比/);
-  await expect(page.locator('#sec-conclusion h2')).not.toHaveText(/動能/);
-  await expect(page.locator('#sec-revenue').getByRole('img', { name: /營收年增率柱狀圖/ })).toBeVisible();
-  await expect(page.locator('#sec-profit h2')).toContainText('EPS');
-  await expect(page.getByTestId('pe-river')).toBeVisible();
-  await expect(page.getByTestId('foreign-trend')).toBeVisible();
-  await expect(page.getByTestId('style-note')).toContainText('長期投資');
+  await expect(page.getByTestId('stock-periods').first().getByRole('button', { name: '5Y', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('stock-seg').getByRole('button', { name: '基本面', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('sec-revenue').getByRole('img', { name: /營收年增率柱狀圖/ })).toBeVisible();
+  const val = page.getByTestId('sec-valuation');
+  for (const k of ['本益比', '淨值比', '殖利率']) await expect(val).toContainText(k);
+  await expect(val).toContainText('3 年百分位');
+  await expect(page.locator('.stock-lower')).not.toContainText(/便宜|合理價|昂貴|高於區間上緣/);
 });
 
-test('兩種風格的期間各自記住；切換風格時個股頁即時重排', async ({ page }) => {
+test('兩種風格的期間各自記住；分段記住上次選擇', async ({ page }) => {
   await gotoStock(page, '#/stock/2330');
-  await page.getByRole('group', { name: '股價走勢期間' }).first().getByRole('button', { name: /^3M/ }).click();
+  await page.getByTestId('stock-periods').first().getByRole('button', { name: '3M', exact: true }).click();
+  await page.getByTestId('stock-seg').getByRole('button', { name: '事件', exact: true }).click();
   await page.evaluate(() => { localStorage.setItem('tmf-style', 'long'); window.dispatchEvent(new Event('style-change')); });
-  await expect(page.locator('.stock-lower')).toHaveAttribute('data-style', 'long');
-  await expect(page.getByRole('group', { name: '股價走勢期間' }).first().getByRole('button', { name: /^5Y/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('stock-periods').first().getByRole('button', { name: '5Y', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.evaluate(() => { localStorage.setItem('tmf-style', 'swing'); window.dispatchEvent(new Event('style-change')); });
-  await expect(page.getByRole('group', { name: '股價走勢期間' }).first().getByRole('button', { name: /^3M/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('stock-periods').first().getByRole('button', { name: '3M', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.reload();
+  await expect(page.getByTestId('stock-seg').getByRole('button', { name: '事件', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });

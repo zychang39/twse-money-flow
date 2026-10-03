@@ -422,3 +422,69 @@ def dividends_for(ds: Any, code: str) -> list[dict[str, Any]]:
             ratio = max(0.0, (float(pre) - float(cash)) / float(ref) - 1)
         out.append({"date": r["date"], "cash": round(float(cash), 4), "stock_ratio": round(ratio, 6)})
     return sorted(out, key=lambda x: x["date"])
+
+
+# ------------------------------------------------------------------ 注意／處置（2026-10 改版：個股檔 attn）
+def attention_sources(ds: Any) -> dict[str, dict[str, pd.DataFrame]]:
+    """注意（每日）與處置（公告）依代號分組；處置去掉「本日無處置資料」等無代號的列。"""
+    out: dict[str, dict[str, pd.DataFrame]] = {"attention": {}, "disposition": {}}
+    att = ds.attention
+    if att is not None and not att.empty and "code" in att.columns:
+        a = att.dropna(subset=["code", "date"]).assign(code=lambda x: x["code"].astype(str))
+        out["attention"] = {str(c): g for c, g in a.groupby("code")}
+    dis = ds.disposition
+    if dis is not None and not dis.empty and "code" in dis.columns:
+        d = dis.dropna(subset=["code", "start", "end"]).assign(code=lambda x: x["code"].astype(str))
+        out["disposition"] = {str(c): g for c, g in d.groupby("code")}
+    return out
+
+
+def _interval(v: Any) -> str | None:
+    return f"{int(v)} 分鐘" if v == v and v is not None and v else None
+
+
+def attention_block(src: dict[str, dict[str, pd.DataFrame]], code: str, dates: list[str]) -> dict[str, Any]:
+    """近 10／30 個營業日的注意次數（一天算一次）、近 30 個營業日每次注意、近一年處置期間、目前處置中。
+
+    營業日＝收盤行情的交易日（dates）；只呈現交易所公告的事實，不預測是否會被處置。
+    """
+    last = dates[-1] if dates else ""
+    d30, d10 = set(dates[-30:]), set(dates[-10:])
+    att = src["attention"].get(code)
+    days: list[dict[str, Any]] = []
+    count10 = count30 = 0
+    if att is not None:
+        rows = att[att["date"].astype(str).isin(d30)].drop_duplicates("date", keep="last").sort_values("date")
+        days = [{"date": str(r["date"]), "reason": text(r.get("reason"), "—")} for _, r in rows.iterrows()][::-1]
+        count30 = len(rows)
+        count10 = int(rows["date"].astype(str).isin(d10).sum())
+    disp: list[dict[str, Any]] = []
+    active = upcoming = None
+    dis = src["disposition"].get(code)
+    if dis is not None and last:
+        year_ago = (pd.Timestamp(last) - pd.Timedelta(days=365)).date().isoformat()
+        rows = dis[dis["end"].astype(str) >= year_ago].sort_values(["start", "announce_date"])
+        rows = rows.drop_duplicates(["start", "end"], keep="last")
+        for _, r in rows.iterrows():
+            start, end = str(r["start"]), str(r["end"])
+            item: dict[str, Any] = {
+                "start": start,
+                "end": end,
+                "interval": _interval(r.get("interval_minutes")),
+                "reason": text_or_none(r.get("reason")),
+                "measure": text_or_none(r.get("measure")),
+            }
+            disp.append(item)
+            period = {"start": start, "end": end, "interval": item["interval"]}
+            if start <= last <= end:
+                active = period
+            elif start > last:
+                upcoming = period
+    return {
+        "count10": count10,
+        "count30": count30,
+        "days": days,
+        "disposition": disp[::-1],
+        "active": active,
+        "upcoming": upcoming,
+    }

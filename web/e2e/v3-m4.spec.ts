@@ -30,8 +30,9 @@ test('兩指：兩條垂直標線＋上方兩個日期、漲跌、報酬率、�
   const tip = page.getByTestId('range-tip');
   await expect(tip).toBeVisible();
   await expect(page.locator('[data-testid="range-marks"] line')).toHaveCount(2);
-  await expect(tip).toContainText(/\d{4}\/\d+\/\d+ – \d{4}\/\d+\/\d+・\d+ 個交易日/);
-  await expect(tip).toContainText(/[▲▼]?\s?[\d,.]+（[+−]?[\d.]+%）/);
+  await expect(tip).toContainText(/\d+\/\d+ – [\d/]+・\d+ 個交易日/);
+  await expect(tip).toContainText(/[▲▼][\d,.]+.*[+−]?[\d.]+%/);
+  const dateBefore = await page.getByTestId('hero-change-date').first().textContent();
   const first = await tip.textContent();
   const days1 = Number(first!.match(/(\d+) 個交易日/)![1]);
   // 手指移動 → 即時更新
@@ -42,8 +43,8 @@ test('兩指：兩條垂直標線＋上方兩個日期、漲跌、報酬率、�
   await expect(tip).not.toHaveText(first!);
   const days2 = Number((await tip.textContent())!.match(/(\d+) 個交易日/)![1]);
   expect(days2).toBeGreaterThan(days1);
-  // 主角數字不受影響（不是單指查價）：標籤仍是資料日（M/D），不是手指所在的日期
-  await expect(page.getByTestId('hero-change-date').first()).toHaveText(/^\d{1,2}\/\d{1,2}$/);
+  // 主角數字不受影響（不是查價）：當日漲跌的日期不變
+  await expect(page.getByTestId('hero-change-date').first()).toHaveText(dateBefore!);
   await touch(cdp, 'touchEnd', []);
   await page.waitForTimeout(1000);
   await expect(tip).toBeVisible(); // 放開後仍保留
@@ -51,16 +52,17 @@ test('兩指：兩條垂直標線＋上方兩個日期、漲跌、報酬率、�
   await cdp.detach();
 });
 
-test('單指仍是查單點價格（沒有區間）', async ({ page }) => {
+test('單指長按是十字線查價（沒有區間；2026-10 改版：長按 0.3 秒）', async ({ page }) => {
   await page.goto('#/stock/2330');
   const b = await chartBox(page);
   const cdp = await page.context().newCDPSession(page);
   const p = { x: b.x + b.width * 0.4, y: b.y + b.height / 2, id: 1 };
   await touch(cdp, 'touchStart', [p]);
-  await page.waitForTimeout(80);
+  await page.waitForTimeout(450);
   await touch(cdp, 'touchMove', [{ ...p, x: p.x + 3 }]);
   await page.waitForTimeout(80);
-  await expect(page.locator('.hero-change .caption').first()).toHaveText(/\d{4}\/\d+\/\d+（.）/);
+  await expect(page.getByTestId('crosshair-tip')).toContainText(/\d{4}\/\d+\/\d+/);
+  await expect(page.getByTestId('crosshair-tip')).toContainText(/收 [\d,.]+/);
   await expect(page.getByTestId('range-tip')).toHaveCount(0);
   await touch(cdp, 'touchEnd', []);
   await cdp.detach();
@@ -70,7 +72,7 @@ test('在可換股的清單中，兩指左右移動不會換股', async ({ page 
   await page.goto('#/mine');
   await page.evaluate(() => sessionStorage.setItem('twse:list-context', JSON.stringify({ name: '自選', codes: ['2330', '2317', '2454'] })));
   await page.goto('#/stock/2317');
-  await expect(page.locator('.pager-pane:not([inert]) .hero')).toBeVisible();
+  await expect(page.locator('.pager-pane:not([inert]) [data-testid="stock-price"]')).toBeVisible();
   const b = await chartBox(page, '.pager-pane:not([inert]) .chart-wrap');
   const y = b.y + b.height / 2;
   const cdp = await page.context().newCDPSession(page);
@@ -90,7 +92,7 @@ test('在可換股的清單中，兩指左右移動不會換股', async ({ page 
   await cdp.detach();
 });
 
-test('桌機：按住拖曳選出區間；報酬率預設還原價，可切換原始價（記住；M5 起整張圖一起切換）', async ({ page }) => {
+test('桌機：按住拖曳選出區間；價格基準在 ⋯ 切換（記住；整張圖一起切換）', async ({ page }) => {
   await page.goto('#/stock/2330');
   const b = await chartBox(page);
   const y = b.y + b.height / 2;
@@ -99,16 +101,21 @@ test('桌機：按住拖曳選出區間；報酬率預設還原價，可切換�
   await page.mouse.move(b.x + b.width * 0.5, y, { steps: 6 });
   const tip = page.getByTestId('range-tip');
   await expect(tip).toBeVisible();
-  await expect(tip).toContainText('還原價（含股利）');
   await page.mouse.up();
   await expect(tip).toBeVisible();
-  const basis = page.getByTestId('range-basis');
+  await page.getByTestId('stock-more').click();
+  const basis = page.getByTestId('basis-seg');
   await expect(basis.getByRole('button', { name: '還原價' })).toHaveAttribute('aria-pressed', 'true');
   await basis.getByRole('button', { name: '原始價' }).click();
   expect(await page.evaluate(() => localStorage.getItem('tmf-range-basis'))).toBe('raw');
-  await page.mouse.move(b.x + b.width * 0.1, y);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('data-time')).toContainText('原始價');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const b2 = await chartBox(page);
+  const y2 = b2.y + b2.height / 2;
+  await page.mouse.move(b2.x + b2.width * 0.1, y2);
   await page.mouse.down();
-  await page.mouse.move(b.x + b.width * 0.5, y, { steps: 6 });
-  await expect(tip).toContainText('原始價');
+  await page.mouse.move(b2.x + b2.width * 0.5, y2, { steps: 6 });
+  await expect(tip).toBeVisible();
   await page.mouse.up();
 });

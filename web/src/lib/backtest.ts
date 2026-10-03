@@ -258,7 +258,8 @@ export function stats(trades: Trade[]): Stats {
     avg: mean(net) * 100,
     median: median * 100,
     avg_mae: mean(mae) * 100,
-    worst_mae: Math.min(...mae) * 100,
+    // 大量交易時展開運算子會超出呼叫堆疊（Maximum call stack size exceeded），改用 reduce
+    worst_mae: mae.reduce((m, x) => (x < m ? x : m), Infinity) * 100,
     avg_excess: exc.length ? mean(exc) * 100 : null,
     low_reference: n < minSamples,
   };

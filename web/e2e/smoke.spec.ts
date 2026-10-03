@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 // 冒煙測試：逐一載入每個頁面（新資訊架構），確認沒有 JS 錯誤、有頁面標題、頁尾免責聲明與 4 個圖示 Tab。
 const PAGES: { hash: string; title?: RegExp }[] = [
-  { hash: '#/', title: /今晚|資金/ }, // 資料載入前是「今晚的盤後簡報」，載入後是結論句（後半句一定是資金環境）
+  { hash: '#/', title: /盤後簡報/ }, // 2026-10 改版：頁首固定「盤後簡報」＋日期
   { hash: '#/mine' },
   { hash: '#/mine?seg=watch' },
   { hash: '#/stock/2330', title: /台積電/ },
@@ -11,7 +11,7 @@ const PAGES: { hash: string; title?: RegExp }[] = [
   { hash: '#/explore/backtest', title: /回測/ },
   { hash: '#/explore/sectors' },
   { hash: '#/explore/etf', title: /主動式 ETF/ },
-  { hash: '#/explore/market', title: /資金環境/ },
+  { hash: '#/explore/market', title: /市場溫度/ },
   { hash: '#/explore/calendar' },
   { hash: '#/explore/disposition', title: /處置/ },
   { hash: '#/discipline' },
@@ -51,16 +51,16 @@ for (const p of PAGES) {
     await expect(page.getByText('僅供研究參考，非投資建議')).toBeVisible();
     const nav = page.getByRole('navigation', { name: '主要分頁' });
     await expect(nav).toBeVisible();
-    await expect(nav.getByRole('link')).toHaveCount(5); // 今晚、我的股票、探索、搜尋、紀律
+    await expect(nav.getByRole('link')).toHaveCount(5); // 簡報、我的股票、探索、搜尋、流程
     expect(errors).toEqual([]);
   });
 }
 
-test('Tab 只有圖示、以 aria-label 提供名稱', async ({ page }) => {
+test('分頁列：圖示＋文字標籤，以 aria-label 提供名稱', async ({ page }) => {
   await page.goto('#/');
   const nav = page.getByRole('navigation', { name: '主要分頁' });
-  for (const name of ['今晚', '我的股票', '探索', '搜尋代號或名稱', '紀律']) await expect(nav.getByRole('link', { name })).toBeVisible();
-  await expect(nav).toHaveText('');
+  for (const name of ['簡報', '我的股票', '探索', '搜尋代號或名稱', '流程']) await expect(nav.getByRole('link', { name })).toBeVisible();
+  await expect(nav).toHaveText('簡報我的股票探索搜尋流程');
 });
 
 test('舊網址轉址到新位置', async ({ page }) => {
@@ -81,8 +81,10 @@ test('我的股票：加入自選後出現清單列，點擊進入個股頁', as
   await row.click();
   await expect(page.locator('h1')).toHaveText(/台積電/);
   await expect(page.getByRole('img', { name: /走勢/ })).toBeVisible();
-  await page.getByRole('button', { name: '進階' }).click();
-  await expect(page.getByRole('img', { name: /K 線圖/ })).toBeVisible({ timeout: 15_000 });
+  // 2026-10 改版：日 K 是預設；「進階」在 ⋯ 內，顯示分項分數、多空條件、KD、MACD
+  await page.getByTestId('stock-more').click();
+  await page.getByTestId('toggle-advanced').click();
+  await expect(page.getByTestId('sec-advanced')).toContainText('KD');
 });
 
 test('選股：切換預設組合、新增條件、一鍵回測連結', async ({ page }) => {
@@ -90,7 +92,7 @@ test('選股：切換預設組合、新增條件、一鍵回測連結', async ({
   await page.getByRole('button', { name: '近高點放量' }).click();
   await expect(page.getByRole('heading', { name: /結果/ })).toBeVisible();
   await page.getByRole('button', { name: '新增條件' }).click();
-  await expect(page.getByLabel('欄位').last()).toHaveValue('composite');
+  await expect(page.getByLabel('欄位').last()).toHaveValue('rs_percentile'); // 2026-10-03：綜合分移除，新增條件預設 RS 百分位
   await expect(page.getByRole('link', { name: '一鍵回測' })).toHaveAttribute('href', /#\/explore\/backtest\?c=/);
 });
 
@@ -98,7 +100,7 @@ test('方法說明由設定產生（含介面呈現規則）', async ({ page }) 
   await page.goto('#/me/methodology');
   await expect(page.getByText('外資連買天數')).toBeVisible();
   await expect(page.getByText(/線性：-5 → 0 分/).first()).toBeVisible();
-  await expect(page.getByText(/遊戲化只獎勵紀律行為/)).toBeVisible();
+  await expect(page.getByText(/遊戲化只獎勵流程/)).toBeVisible();
 });
 
 test('設定：外觀、環境光與遊戲化開關', async ({ page }) => {
@@ -111,7 +113,8 @@ test('設定：外觀、環境光與遊戲化開關', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-ambient', 'off');
   await page.getByRole('switch', { name: '遊戲化' }).click();
   await page.goto('#/discipline/badges');
-  await expect(page.getByRole('heading', { name: '遊戲化已關閉' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '成就' })).toBeVisible();
+  await expect(page.getByText('遊戲化已關閉')).toBeVisible();
 });
 
 test('回測：預設組合顯示統計與可信度；自訂條件在 Web Worker 計算', async ({ page }) => {
@@ -121,8 +124,9 @@ test('回測：預設組合顯示統計與可信度；自訂條件在 Web Worker
   await expect(page.getByText('訊號衰減曲線')).toBeVisible();
   const c = encodeURIComponent(JSON.stringify([{ field: 'composite', op: '>=', value: 50 }]));
   await page.goto(`#/explore/backtest?c=${c}&name=test`);
-  await expect(page.getByRole('rowheader', { name: '勝率' })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/訊號 \d+ 筆 · 範圍：成交值前/)).toBeVisible();
+  // 只換 hash 時預設組合的報告可能還在畫面上：先等自訂條件的結果（範圍文字只有自訂條件才有）
+  await expect(page.getByText(/訊號 [\d,]+ 筆 · 範圍：成交值前/)).toBeVisible({ timeout: 40_000 });
+  await expect(page.getByRole('rowheader', { name: '勝率' })).toBeVisible();
 });
 
 test('日誌：冷靜卡 → 新增持倉前檢查表 → 新增持倉 → 平倉 → 統計出現錯誤標籤', async ({ page }) => {
@@ -137,7 +141,7 @@ test('日誌：冷靜卡 → 新增持倉前檢查表 → 新增持倉 → 平�
   await cont.click();
   const save = page.getByTestId('checklist-submit');
   await expect(save).toBeDisabled();
-  await page.getByLabel('1. 市場燈號（見今晚頁）').selectOption('中性');
+  await page.getByLabel('1. 市場燈號（見盤後簡報）').selectOption('中性');
   for (const [label, idx] of [['2. 趨勢', 1], ['3. 營收', 1], ['4. 估值', 1]] as const) {
     const sel = page.getByLabel(label);
     if (!(await sel.inputValue())) await sel.selectOption({ index: idx });
@@ -152,15 +156,17 @@ test('日誌：冷靜卡 → 新增持倉前檢查表 → 新增持倉 → 平�
   await expect(page.getByRole('button', { name: /持倉\s*1/ })).toBeVisible();
   await page.getByRole('button', { name: '平倉', exact: true }).click();
   await page.getByRole('button', { name: '追高' }).click();
+  await expect(page.getByRole('button', { name: '請選擇出場原因' })).toBeDisabled();
+  await page.getByTestId('close-reason').selectOption('stop');
   await page.getByRole('button', { name: '確認平倉' }).click();
   await page.goto('#/discipline/stats');
   await expect(page.getByText('追高').first()).toBeVisible();
 });
 
-test('備份：匯出按鈕存在並說明包含紀律紀錄', async ({ page }) => {
+test('備份：匯出按鈕存在並說明包含流程紀錄', async ({ page }) => {
   await page.goto('#/me/backup');
   await expect(page.getByRole('button', { name: '匯出全部資料（JSON）' })).toBeVisible();
-  await expect(page.getByText(/紀律紀錄 \d+ 筆（含遊戲化資料）/)).toBeVisible();
+  await expect(page.getByText('流程紀錄', { exact: true })).toBeVisible(); // 2026-10-03：匯出前列出各類資料筆數（含流程紀錄）
 });
 
 test('產業資金輪動：熱力圖可點進產業個股清單', async ({ page }) => {
@@ -170,26 +176,29 @@ test('產業資金輪動：熱力圖可點進產業個股清單', async ({ page 
   await page.getByRole('button', { name: '20 日' }).click();
   await tile.click();
   await expect(page.locator('h1')).toHaveText('半導體業');
-  await expect(page.getByRole('button', { name: /台積電/ })).toBeVisible();
+  // 2026-10：產業內個股改為可點的列（連結）
+  await expect(page.getByRole('link', { name: /台積電/ })).toBeVisible();
 });
 
-test('今晚：加入自選後出現在「自選股的新變化」區塊', async ({ page }) => {
+test('簡報頁：加入自選後出現在「自選股異動」區塊', async ({ page }) => {
   await addWatch(page, '1101');
   await page.goto('#/');
-  const section = page.getByRole('region', { name: '自選股出現了什麼新變化？' });
+  const section = page.getByRole('region', { name: '自選股異動' });
   await expect(section).toBeVisible();
   // 等區塊內容畫好：台泥這一列直接出現，或收在「低於門檻」底下（切換分頁不再等整頁轉場，內容可能晚一點才到）
   const row = section.getByRole('button', { name: /台泥 1101/ });
-  const expand = section.getByRole('button', { name: /低於門檻/ });
+  const expand = section.getByRole('button', { name: /未達門檻/ });
   await expect(row.or(expand).first()).toBeVisible();
   if (await expand.isVisible() && (await expand.getAttribute('aria-expanded')) !== 'true') await expand.click();
   await expect(row).toBeVisible();
 });
 
-test('處置預警、行事曆、週報顯示資料', async ({ page }) => {
+test('處置與注意、行事曆、週報顯示資料', async ({ page }) => {
   await page.goto('#/explore/disposition');
-  await expect(page.getByText('可能進入處置').first()).toBeVisible();
-  await expect(page.getByText(/分盤撮合約每 5 分鐘/)).toBeVisible();
+  // 2026-10：只呈現事實與次數，不再出現「可能進入處置」之類的預測
+  await expect(page.getByRole('heading', { name: '處置中' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '注意次數' })).toBeVisible();
+  await expect(page.getByText('可能進入處置')).toHaveCount(0);
   await page.goto('#/explore/calendar');
   await page.getByRole('button', { name: '全部' }).click();
   await expect(page.getByText(/融券最後回補日/)).toBeVisible();
@@ -204,11 +213,13 @@ test('市場溫度：資金環境燈號與市場溫度', async ({ page }) => {
   await expect(page.getByText('散戶多空比（小台）').first()).toBeVisible();
 });
 
-test('主動式 ETF：持股標示部分涵蓋與來源投信', async ({ page }) => {
+test('主動式 ETF：頁首一列涵蓋檔數與持股日，投信與方法在 ⓘ', async ({ page }) => {
   await page.goto('#/explore/etf');
-  await expect(page.getByText(/部分涵蓋：\d+／\d+ 檔主動式 ETF 有持股資料/)).toBeVisible();
-  // 投信清單與家數來自 config/sources.yml（issuers status=verified），不寫死名單
-  await expect(page.getByText(/目前涵蓋.+\d+ 家投信/)).toBeVisible();
+  // SPEC §7：頁首「涵蓋 8/32 檔・持股日 10/2」；投信家數與已實作家數分開寫在 ⓘ
+  await expect(page.getByTestId('etf-coverage')).toHaveText(/^(涵蓋 \d+\/\d+ 檔・持股日 \d+\/\d+|持股資料累積中)$/);
+  await page.getByTestId('etf-moves').getByRole('button', { name: /說明/ }).click();
+  await expect(page.getByRole('dialog').getByText(/來自 \d+ 家投信/)).toBeVisible();
+  await expect(page.getByRole('dialog').getByText(/已實作 \d+ 家投信、\d+ 檔/)).toBeVisible();
 });
 
 test('資料健康：列出還原價推估事件並標示「推估」', async ({ page }) => {

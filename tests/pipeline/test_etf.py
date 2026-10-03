@@ -8,27 +8,29 @@ import pandas as pd
 
 from pipeline.derive import etf
 
+U = 1_000_000.0  # 受益權單位數不變：超額股數＝原始股數差
+
 
 def _holdings() -> pd.DataFrame:
     rows = [
-        # 00981A：2330 加 1000 股、2317 減 500 股、2454 新增
-        ("2026-09-23", "00981A", "2330", "台積電", 10000, 9.0),
-        ("2026-09-23", "00981A", "2317", "鴻海", 3000, 3.0),
-        ("2026-09-24", "00981A", "2330", "台積電", 11000, 9.5),
-        ("2026-09-24", "00981A", "2317", "鴻海", 2500, 2.6),
-        ("2026-09-24", "00981A", "2454", "聯發科", 800, 1.2),
+        # 00981A：2330 加 1000 股、2317 減 1000 股、2454 新增
+        ("2026-09-23", "00981A", "2330", "台積電", 10000, 9.0, U),
+        ("2026-09-23", "00981A", "2317", "鴻海", 3000, 3.0, U),
+        ("2026-09-24", "00981A", "2330", "台積電", 11000, 9.5, U),
+        ("2026-09-24", "00981A", "2317", "鴻海", 2000, 2.6, U),
+        ("2026-09-24", "00981A", "2454", "聯發科", 800, 1.2, U),
         # 00982A：2330 加 2000 股、2317 全數出清
-        ("2026-09-23", "00982A", "2330", "台積電", 5000, 6.0),
-        ("2026-09-23", "00982A", "2317", "鴻海", 1000, 1.0),
-        ("2026-09-24", "00982A", "2330", "台積電", 7000, 7.1),
+        ("2026-09-23", "00982A", "2330", "台積電", 5000, 6.0, U),
+        ("2026-09-23", "00982A", "2317", "鴻海", 1000, 1.0, U),
+        ("2026-09-24", "00982A", "2330", "台積電", 7000, 7.1, U),
     ]
-    return pd.DataFrame(rows, columns=["date", "etf", "code", "name", "shares", "weight"])
+    return pd.DataFrame(rows, columns=["date", "etf", "code", "name", "shares", "weight", "units"])
 
 
 def test_holdings_changes() -> None:
     ch = etf.holdings_changes(_holdings()).set_index(["etf", "code"])
     assert ch.loc[("00981A", "2330"), "change_shares"] == 1000
-    assert ch.loc[("00981A", "2317"), "change_shares"] == -500
+    assert ch.loc[("00981A", "2317"), "change_shares"] == -1000
     assert ch.loc[("00981A", "2454"), "change_shares"] == 800
     assert ch.loc[("00982A", "2317"), "change_shares"] == -1000
     assert ch.loc[("00982A", "2317"), "shares"] == 0
@@ -61,7 +63,7 @@ def test_ranking_counts_etfs_and_value() -> None:
     assert add["2330"]["net_value"] == round(3000 * 2500 / 1e8, 2)
     assert r["add"][0]["code"] == "2330"  # 跨檔數優先
     red = r["reduce"]
-    assert red[0]["code"] == "2317" and red[0]["etfs"] == 2 and red[0]["net_shares"] == -1500
+    assert red[0]["code"] == "2317" and red[0]["etfs"] == 2 and red[0]["net_shares"] == -2000
     # M2：排行列帶分類——2330 兩檔都是加碼 → add；2454 只有一檔且是新增 → new；2317 一檔減碼＋一檔剔除 → reduce
     assert add["2330"]["kind"] == "add" and add["2454"]["kind"] == "new"
     assert red[0]["kind"] == "reduce"
@@ -170,3 +172,171 @@ def test_market_breadth_counts_ma_and_60d_extremes() -> None:
     assert (b["up"], b["down"], b["flat"], b["n"]) == (1, 1, 1, 2)
     assert b["above_ma20_pct"] == 50.0 and b["n_ma240"] == 2
     assert b["high60"] == 1 and b["low60"] == 1
+
+
+# ------------------------------------------------------------------ §7 加減碼判定（扣除受益權單位數變動）
+def _two_days(rows0, rows1, u0, u1, etf_code="00981A"):
+    cols = ["date", "etf", "code", "name", "shares", "weight", "units"]
+    a = [("2026-09-23", etf_code, c, c, s, w, u0) for c, s, w in rows0]
+    b = [("2026-09-24", etf_code, c, c, s, w, u1) for c, s, w in rows1]
+    return pd.DataFrame(a + b, columns=cols)
+
+
+def test_proportional_creation_is_not_add() -> None:
+    """申購 20%：單位數 ×1.2、每檔股數等比例 ×1.2（四捨五入到整張）→ 全部「不變」；修正前全部算加碼。"""
+    before = [("2330", 100_000, 9.0), ("2317", 37_000, 3.0), ("2454", 8_000, 1.0)]
+    after = [("2330", 120_000, 9.0), ("2317", 44_000, 3.0), ("2454", 10_000, 1.0)]  # 37 張 ×1.2＝44.4 → 44 張
+    ch = etf.holdings_changes(_two_days(before, after, 1e6, 1.2e6)).set_index("code")
+    assert set(ch["basis"]) == {"units"} and ch["flow"].iloc[0] == 1.2
+    assert set(ch["kind"]) == {"hold"}
+    assert set(ch["kind_raw"]) == {"add"}
+    assert ch.loc["2317", "excess_shares"] == 44_000 - 37_000 * 1.2  # −400 股：零股尾差 < 1 張
+    assert etf.kind_counts(ch.reset_index()) == {"new": 0, "add": 0, "reduce": 0, "exit": 0}
+    assert etf.kind_counts(ch.reset_index(), "kind_raw")["add"] == 3
+
+
+def test_redemption_with_one_real_add() -> None:
+    """買回 10%：其餘等比例 ×0.9；2330 另外多買 50 張 → 只有 2330 是加碼，超額股數＝50 張。"""
+    before = [("2330", 100_000, 9.0), ("2317", 30_000, 3.0), ("2454", 10_000, 1.0)]
+    after = [("2330", 140_000, 9.0), ("2317", 27_000, 3.0), ("2454", 9_000, 1.0)]
+    ch = etf.holdings_changes(_two_days(before, after, 1e6, 0.9e6)).set_index("code")
+    assert ch.loc["2330", "kind"] == "add" and ch.loc["2330", "excess_shares"] == 50_000
+    assert round(ch.loc["2330", "per_unit_change"], 4) == round(140 / 90 - 1, 4)
+    assert ch.loc["2317", "kind"] == "hold" and ch.loc["2454", "kind"] == "hold"
+    assert ch.loc["2317", "kind_raw"] == "reduce"  # 修正前：買回造成的等比例減少被當成減碼
+
+
+def test_thresholds_one_lot_and_one_percent() -> None:
+    """門檻：|超額股數| ≥ 1 張 且 |每單位持股數變化| ≥ 1%；新增／剔除不受門檻限制。"""
+    assert etf.flow_kind(10_000, 10_999, 999.0, 0.0999) == "hold"  # 不到 1 張
+    assert etf.flow_kind(500_000, 503_000, 3_000.0, 0.006) == "hold"  # 1 張以上但 < 1%
+    assert etf.flow_kind(500_000, 505_000, 5_000.0, 0.01) == "add"
+    assert etf.flow_kind(500_000, 495_000, -5_000.0, -0.01) == "reduce"
+    assert etf.flow_kind(0, 1_000, None, None) == "new"
+    assert etf.flow_kind(1_000, 0, None, None) == "exit"
+    assert etf.flow_kind(1_000, 2_000, None, None) is None  # 無法估計流量倍數
+
+
+def test_implied_flow_without_units() -> None:
+    """沒有單位數（聯博）：以共同持股股數比的中位數估計；共同持股 < 5 檔時無法分類（新增／剔除照常）。"""
+    before = [(c, 10_000 * (i + 1), 1.0) for i, c in enumerate(["1101", "1102", "1216", "1301", "1303"])]
+    after = [(c, s * 2, w) for c, s, w in before]
+    after[0] = ("1101", 60_000, 1.0)  # 1101：等比例應為 20,000，另外多 40 張
+    after.append(("2330", 5_000, 1.0))
+    ch = etf.holdings_changes(_two_days(before, after, None, None, "00404A")).set_index("code")
+    assert set(ch["basis"]) == {"implied"} and ch["flow"].iloc[0] == 2.0
+    assert ch.loc["1101", "kind"] == "add" and ch.loc["1101", "excess_shares"] == 40_000
+    assert (ch.drop(index=["1101", "2330"])["kind"] == "hold").all()
+    assert ch.loc["2330", "kind"] == "new"
+    few = etf.holdings_changes(_two_days(before[:2], after[:2], None, None, "00404A")).set_index("code")
+    assert few["basis"].isna().all() and few["kind"].isna().all()
+
+
+def _panel() -> SimpleNamespace:
+    dates = [f"2026-09-{d:02d}" for d in range(1, 25)]
+    codes = ["2330", "2317", "2454"]
+    close = pd.DataFrame({"2330": 1000.0, "2317": 200.0, "2454": 1500.0}, index=dates)
+    volume = pd.DataFrame({"2330": 1e7, "2317": 1e7, "2454": 1e6}, index=dates)
+    value = close * volume  # 均價＝收盤；20 日均額：2330 100 億、2317 20 億、2454 15 億
+    return SimpleNamespace(
+        dates=dates,
+        codes=codes,
+        names={"2330": "台積電", "2317": "鴻海", "2454": "聯發科", "00981A": "主動統一台股增長"},
+        close=close,
+        volume=volume,
+        value=value,
+        shares={"2330": 2.6e10, "2317": 1.4e10, "2454": 1.6e9},
+    )
+
+
+def test_cross_items_metrics_and_min_value() -> None:
+    """每列：金額（億）＝超額股數 × 均價、佔 20 日均額 %、佔市值 %、幾檔同向；|金額| < 0.3 億不列入；三種口徑排序。"""
+    h = pd.concat(
+        [
+            _two_days(
+                [("2330", 100_000, 9.0), ("2317", 200_000, 3.0)], [("2330", 160_000, 9.5), ("2454", 1_000, 1.0)], U, U
+            ),
+            _two_days(
+                [("2330", 50_000, 6.0), ("2317", 100_000, 1.0)],
+                [("2330", 70_000, 7.0), ("2317", 0, 0.0)],
+                U,
+                U,
+                "00982A",
+            ),
+        ],
+        ignore_index=True,
+    )
+    mk = etf.Market(_panel())
+    items = {x["code"]: x for x in etf.cross_items(etf.holdings_changes(h), mk, _panel().names)}
+    a = items["2330"]
+    assert (a["dir"], a["kind"], a["etfs_same_dir"]) == ("add", "add", 2)
+    assert a["value_yi"] == 0.8  # (60,000 + 20,000) 股 × 1,000 元
+    assert a["pct_avg20"] == 0.8  # 0.8 億 ÷ 100 億
+    assert a["pct_mcap"] == round(8e7 / (2.6e10 * 1000) * 100, 4)
+    assert {e["code"] for e in a["etfs"]} == {"00981A", "00982A"} and a["etfs"][0]["d_shares"] == 60_000
+    r = items["2317"]
+    assert (r["dir"], r["kind"], r["value_yi"], r["etfs_same_dir"]) == ("reduce", "exit", -0.6, 2)
+    assert r["pct_avg20"] == -3.0
+    assert "2454" not in items  # 新增 1 張＝0.015 億 < 0.3 億
+    by_value = etf.sort_items(list(items.values()), "value")
+    assert [x["dir"] for x in by_value] == ["add", "reduce"]
+    assert etf.DEFAULT_METRIC == "pct_avg20" and set(etf.METRICS) == {"value", "pct_avg20", "pct_mcap"}
+
+
+def test_stock_summary_count_net5_pct() -> None:
+    """個股頁：持有檔數、近 5 日淨變動金額（億）、佔 20 日均成交額 %。"""
+    h = _two_days(
+        [("2330", 100_000, 9.0), ("2317", 200_000, 3.0)], [("2330", 160_000, 9.5), ("2317", 200_000, 3.0)], U, U
+    )
+    s = etf.stock_summary(h, _panel())
+    assert s["2330"] == {"count": 1, "net5_value_yi": 0.6, "pct_avg20": 0.6, "date": "2026-09-24"}
+    assert s["2317"]["count"] == 1 and s["2317"]["net5_value_yi"] == 0.0
+    assert etf.stock_summary(pd.DataFrame(), _panel()) == {}
+
+
+def test_coverage_counts_issuers_and_etfs_separately() -> None:
+    """頁首涵蓋：有資料的 ETF 檔數與其投信家數；已實作的投信家數另列（舊版把兩者寫在同一句：9 家 vs 8 檔）。"""
+    names = {
+        "00980A": "主動野村臺灣優選",
+        "00985A": "主動野村台灣50",
+        "00982A": "主動群益台灣強棒",
+        "00400A": "主動國泰動能高息",
+    }
+    snap = etf.holdings_changes(
+        pd.concat([_two_days([("2330", 1, 1.0)], [("2330", 1, 1.0)], U, U, e) for e in ("00980A", "00985A", "00982A")])
+    )
+    cov = etf.coverage(snap, 32, "2026-09-24", names, [])
+    assert (cov["covered"], cov["total"], cov["issuers"]) == (3, 32, 2)
+    assert cov["issuer_names"] == ["群益投信", "野村投信"]
+    assert cov["implemented_issuers"] >= cov["issuers"] and cov["implemented_etfs"] == 3
+    text = etf.coverage_text(cov)
+    assert (
+        "3／32 檔" in text
+        and "2 家投信（群益、野村）" in text
+        and f"已實作 {cov['implemented_issuers']} 家投信" in text
+    )
+
+
+def test_validation_without_history_is_unverified() -> None:
+    v = etf._empty_validation("尚無兩次以上的持股揭露")
+    assert v["verified"] is False and v["metric"] is None and v["n"] == 0
+    assert etf.unverified_label(v) == "排序口徑未驗證（樣本 0 筆、無）"
+    v2 = {"verified": False, "n": 12, "period": ["2026-01-05", "2026-08-01"]}
+    assert etf.unverified_label(v2) == "排序口徑未驗證（樣本 12 筆、2026-01-05～2026-08-01）"
+    assert etf.unverified_label({"verified": True}) is None
+
+
+def test_creation_into_cash_is_not_reduce() -> None:
+    """實測最常見的情況：申購 5%（單位數 ×1.05）但多數持股股數不變（申購款留現金）→ 不變，不是減碼；
+    同一天實際加買的 2330 才是加碼，計入股數＝min(實際增加, 超額股數)。"""
+    before = [("2330", 100_000, 9.0), ("2317", 30_000, 3.0), ("2454", 10_000, 1.0)]
+    after = [("2330", 120_000, 9.0), ("2317", 30_000, 3.0), ("2454", 10_000, 1.0)]
+    ch = etf.holdings_changes(_two_days(before, after, 1e6, 1.05e6)).set_index("code")
+    assert ch.loc["2317", "excess_shares"] < -1000 and ch.loc["2317", "kind"] == "hold"
+    assert ch.loc["2317", "trade_shares"] == 0
+    assert ch.loc["2330", "kind"] == "add"
+    assert ch.loc["2330", "excess_shares"] == 15_000 and ch.loc["2330", "trade_shares"] == 15_000
+    # 買回時仍加買：實際 +10 張、超額 +20 張 → 計入 10 張
+    assert etf.trade_shares(100_000, 110_000, 20_000.0) == 10_000
+    assert etf.trade_shares(100_000, 100_000, -5_000.0) == 0.0
+    assert etf.trade_shares(100_000, 0, -90_000.0) == -90_000

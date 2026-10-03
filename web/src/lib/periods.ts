@@ -84,6 +84,8 @@ export interface Window {
    * 視窗實際涵蓋的交易日數與起日（週線取樣前；#9）。沒有提供時視窗本身就是日資料，以 dates 計。
    */
   span?: { days: number; since: string };
+  /** 1D／1W：前一交易日收盤（圖上的虛線與期間漲跌的起點）；沒有時以第一點為基準 */
+  base?: number;
 }
 
 /**

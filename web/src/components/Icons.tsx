@@ -68,7 +68,7 @@ export const IconAlert = () => base(<><path d="M12 4.2 20.4 19H3.6L12 4.2Z" /><p
 /** 公事包：主動式 ETF（基金） */
 export const IconBriefcase = () => base(<><rect x="3.5" y="7.5" width="17" height="12" rx="2" /><path d="M9 7.5V5.8A1.8 1.8 0 0 1 10.8 4h2.4A1.8 1.8 0 0 1 15 5.8v1.7M3.5 12.5h17" /></>);
 
-// ---------- 紀律 ----------
+// ---------- 流程 ----------
 export const IconNotebook = () => base(<><path d="M6.5 3.8h11a1.5 1.5 0 0 1 1.5 1.5v13.4a1.5 1.5 0 0 1-1.5 1.5h-11Z" /><path d="M6.5 3.8v16.4M4.5 8h4M4.5 12h4M4.5 16h4M11 8.5h5" /></>);
 export const IconClipboard = () => base(<><path d="M8.5 5H7a1.5 1.5 0 0 0-1.5 1.5v12.5A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V6.5A1.5 1.5 0 0 0 17 5h-1.5" /><rect x="8.5" y="3.5" width="7" height="3" rx="1" /><path d="m9 13.2 2.2 2.2 4-4.4" /></>);
 export const IconBars = () => base(<><path d="M5 19.5V13M10 19.5V8M15 19.5v-4.5M20 19.5V5.5" /></>);
@@ -86,4 +86,13 @@ export const BADGE_ICONS: Record<string, () => preact.JSX.Element> = {
   checklists_10: () => badgeFrame(<><rect x="5.5" y="4.5" width="13" height="16" rx="2" stroke-width="2.4" /><path d="m9 12.5 2.2 2.2 4-4.4" stroke-width="2.4" /></>),
   backtest_own: () => badgeFrame(<><path d="M4.8 12a7.2 7.2 0 1 0 2.1-5.1" stroke-width="2.4" /><path d="M4.5 4.8v3.4h3.4M12 8.2V12l2.6 1.8" stroke-width="2.4" /></>),
   first_backup: () => badgeFrame(<><path d="M12 14.5V4.5M8 8.5l4-4 4 4" stroke-width="2.4" /><path d="M4.5 13.5v4a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-4" stroke-width="2.4" /></>),
+  // 2026-10 流程成就（§8.7）
+  first_compliant: () => badgeFrame(<><rect x="5.5" y="4.5" width="13" height="16" rx="2" stroke-width="2.4" /><path d="m9 12.5 2.2 2.2 4-4.4" stroke-width="2.4" /></>),
+  streak_5: () => badgeFrame(<><rect x="4" y="5.5" width="16" height="14.5" rx="3" stroke-width="2.4" /><path d="M8 13h8" stroke-width="2.4" /></>),
+  streak_20: () => badgeFrame(<><rect x="4" y="5.5" width="16" height="14.5" rx="3" stroke-width="2.4" /><path d="M8 11h8M8 15h8" stroke-width="2.4" /></>),
+  streak_60: () => badgeFrame(<><rect x="4" y="5.5" width="16" height="14.5" rx="3" stroke-width="2.4" /><path d="M8 10h8M8 13h8M8 16h8" stroke-width="2.2" /></>),
+  first_plan_stop: () => badgeFrame(<><path d="M12 3.8 18.8 6.5v5.2c0 4.2-2.9 7.3-6.8 8.5-3.9-1.2-6.8-4.3-6.8-8.5V6.5Z" stroke-width="2.4" /><path d="M8.5 12.5h7" stroke-width="2.4" /></>),
+  reviews_10: () => badgeFrame(<><path d="M7 3.8h7l4 4v12.4H7Z" stroke-width="2.4" /><path d="m10 15.5 5-5 1.5 1.5-5 5H10Z" stroke-width="2.2" /></>),
+  compliant_30: () => badgeFrame(<><rect x="5.5" y="4.5" width="13" height="16" rx="2" stroke-width="2.4" /><path d="M8.5 9.5h7M8.5 13h7M8.5 16.5h4" stroke-width="2.2" /></>),
+  risk_run_20: () => badgeFrame(<><path d="M12 3.8 18.8 6.5v5.2c0 4.2-2.9 7.3-6.8 8.5-3.9-1.2-6.8-4.3-6.8-8.5V6.5Z" stroke-width="2.4" /><path d="m9 12.5 2.2 2.2 4-4.4" stroke-width="2.2" /></>),
 };

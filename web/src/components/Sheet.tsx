@@ -4,6 +4,7 @@
  * - 只用 transform 位移，spring 緩動；減少動態效果時無動畫。
  */
 import type { ComponentChildren } from 'preact';
+import { createPortal } from 'preact/compat';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { IconClose } from './Icons';
 
@@ -100,7 +101,8 @@ export function Sheet({ open, onClose, title, children, detent = 'half', actions
   }
 
   const offset = !shown ? '100%' : drag !== null ? `${Math.max(drag, -24)}px` : pos === 'full' ? '0px' : '42%';
-  return (
+  // 2026-10 改版：導覽列是 sticky＋backdrop-filter（會成為 fixed 子元素的定位容器），面板一律掛到 body
+  return createPortal((
     <>
       <div class={`sheet-backdrop ${shown ? 'open' : ''}`} onClick={onClose} aria-hidden="true" />
       <div ref={sheetRef} tabIndex={-1} class={`sheet ${drag !== null ? 'dragging' : ''}`} role="dialog" aria-modal="true" aria-label={title}
@@ -117,6 +119,6 @@ export function Sheet({ open, onClose, title, children, detent = 'half', actions
         </div>
         <div class="sheet-body">{children}</div>
       </div>
-    </>
+    </>), document.body
   );
 }

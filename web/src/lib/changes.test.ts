@@ -10,3 +10,14 @@ describe('#8 清單列理由：數字在前、格式精簡', () => {
     expect(instReasonText(-2_400_000, 3_428_600)).not.toContain('萬');
   });
 });
+
+describe('stock 2026-10-03：自選股異動的法人理由改成「佔 20 日均量」＋量比倍數', () => {
+  it('summary 有 vol20_lots／vol_ratio 時用新格式', async () => {
+    const { diffRow } = await import('./changes');
+    const r = { code: '2330', name: '台積電', flags: [], close: 100, change: 0, change_pct: 0, foreign_streak: 0, trust_streak: 0, margin_balance: null, margin_change: null,
+      volume_lots: 10_000, foreign_net_lots: 5_000, trust_net_lots: 887, vol20_lots: 7_576, vol_ratio: 1.32 } as never;
+    const c = diffRow(r, undefined);
+    const inst = c.reasons.find((x) => x.kind === 'inst');
+    expect(inst?.text).toBe('外資+投信 +5,887 張（佔 20 日均量 78%）・量 1.32×');
+  });
+});

@@ -4,11 +4,14 @@
  * - 匯出為單一 JSON（含 schemaVersion）；匯入舊版本時先套用資料層遷移（EXPORT_MIGRATIONS）。
  */
 import { normCode } from '../lib/code';
+import { prepareTrade } from '../lib/ritual';
+import { DEFAULT_PORTFOLIO, riskLimitOf, type PortfolioSettings } from '../lib/settings';
+import { migrateV5 } from './migrations';
 import type { Strategy, TrackedSignal } from '../lib/tracking';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
 
 export const DB_NAME = 'twse-money-flow';
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
 /** 自選的來源：自己加入、歡迎卡的範例（可一鍵清除）、從系統清單「熱門動能」複製或挑選。 */
 export type WatchOrigin = 'user' | 'sample' | 'hot';
@@ -38,6 +41,9 @@ export interface ChecklistAnswers {
   reason: string;
 }
 
+/** 出場原因（v5）：停損、時間停損、規則出場（含達目標價）屬於「依計畫出場」；其他＝主觀判斷或未列在計畫中的原因。 */
+export type ExitReason = 'stop' | 'time_stop' | 'rule' | 'other';
+
 export interface Trade {
   id: string;
   code: string;
@@ -60,10 +66,29 @@ export interface Trade {
   adjFactor?: number;
   /** D-01：平倉時的公司行動說明（例：已依 2025/6/18 分割調整） */
   adjNote?: string;
+  // ---- v5（流程頁：合規交易、經驗值）。舊資料由 MIGRATIONS[5]／EXPORT_MIGRATIONS[5] 補上，saveTrade 會為新資料自動填入 ----
+  /** 建立這筆持倉紀錄的時間（ISO）。舊交易補為進場日 00:00（台北），且不晚於遷移時間 */
+  createdAt?: string;
+  /** 進場前檢查表 7 題完成（舊交易依已存的答案推得：lib/checklist.checklistComplete） */
+  checklistDone?: boolean;
+  /** 計畫風險金額＝(進場價 − 停損價) × 股數；沒有有效停損（停損 ≤ 0 或 ≥ 進場價）時不存 */
+  plannedRisk?: number;
+  /** 進場當時的每筆風險上限＝本金 × 每筆風險 %（之後改設定不回溯）；舊交易補為遷移當下的設定 */
+  riskLimit?: number;
+  /** 出場原因；舊交易沒有（未知），不算依計畫出場 */
+  exitReason?: ExitReason;
+  /** 第一次寫下檢討的時間（ISO）；舊交易補為該筆的 review_done 紀錄時間，沒有紀錄時為平倉日 12:00（台北） */
+  reviewedAt?: string;
+  /** 記錄平倉的時間（ISO）；舊交易補為平倉日 12:00（台北），且不晚於遷移時間 */
+  closedRecordedAt?: string;
 }
 
-/** 紀律行為紀錄（遊戲化）：只記錄紀律行為，不記錄下單次數或損益。day＝該晚儀式對應的資料日期。 */
-export type ActivityType = 'brief_read' | 'checklist_done' | 'review_done' | 'ritual_done' | 'backup' | 'backtest_own';
+/**
+ * 流程行為紀錄（遊戲化）：只記錄流程行為，不記錄下單次數或損益。day＝該晚流程對應的資料日期。
+ * - v5 新增 weekly_review（週報頁按下完成）、legacy_xp（遷移時的「既有經驗值」，id 固定 'legacy-xp'，meta: { xp, level }）。
+ * - ritual_done、checklist_done、review_done 是舊版紀錄：保留，不再計經驗值；ritual_done 只用來保留遷移前的連續天數。
+ */
+export type ActivityType = 'brief_read' | 'checklist_done' | 'review_done' | 'ritual_done' | 'backup' | 'backtest_own' | 'weekly_review' | 'legacy_xp';
 export interface Activity {
   id: string;
   type: ActivityType;
@@ -125,6 +150,15 @@ export const MIGRATIONS: Record<number, Migration> = {
     db.createObjectStore('strategies', { keyPath: 'id' });
     const t = db.createObjectStore('tracked', { keyPath: 'key' });
     t.createIndex('strategyId', 'strategyId');
+  },
+  // v5：流程頁（合規交易、經驗值）。交易補上 v5 欄位、既有經驗值與等級原樣寫成一筆 legacy_xp；不刪除、不改動任何既有值
+  5: async (_db, tx) => {
+    const trades = await tx.objectStore('trades').getAll();
+    const activity = await tx.objectStore('activity').getAll();
+    const portfolio = (await tx.objectStore('settings').get('portfolio'))?.value as PortfolioSettings | undefined;
+    const out = migrateV5({ trades, activity, portfolio }, new Date().toISOString());
+    for (const t of out.trades) await tx.objectStore('trades').put(t);
+    for (const a of out.addedActivity) await tx.objectStore('activity').put(a);
   },
 };
 
@@ -247,8 +281,12 @@ export async function listTrades(): Promise<Trade[]> {
   const all = await (await getDb()).getAll('trades');
   return all.sort((a, b) => b.openedAt.localeCompare(a.openedAt));
 }
+/** 儲存交易；v5 欄位（建立時間、檢查表完成、計畫風險、風險上限快照、檢討時間、平倉紀錄時間）缺少時自動補上（lib/ritual.prepareTrade）。 */
 export async function saveTrade(t: Trade): Promise<void> {
-  await (await getDb()).put('trades', { ...t, code: normCode(t.code) });
+  const db = await getDb();
+  const prev = await db.get('trades', t.id);
+  const portfolio = ((await db.get('settings', 'portfolio'))?.value as PortfolioSettings | undefined) ?? DEFAULT_PORTFOLIO;
+  await db.put('trades', prepareTrade(prev, { ...t, code: normCode(t.code) }, riskLimitOf(portfolio), new Date().toISOString()));
   notify();
 }
 export async function deleteTrade(id: string): Promise<void> {

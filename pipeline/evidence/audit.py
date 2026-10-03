@@ -23,7 +23,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from pipeline.core import config
 from pipeline.evidence import engine, stats, verdict
 from pipeline.evidence.run import EventRunner
 
@@ -54,39 +53,50 @@ def concentration(df: pd.DataFrame, period_days: int | None) -> dict[str, Any]:
     }
 
 
+T_CORR_NAME = "校正後 t"
+T_CORR_METHOD = "min(日曆, NW, 區塊)"
+T_CORR_TEXT = (
+    "校正後 t＝日曆時間法 t、Newey-West t、不重疊區塊 t 三者中絕對值最小者（保留正負號）。"
+    "日曆時間法：同一進場日的事件先平均成一個觀測；Newey-West：落後期數＝一個持有期內平均的進場日數"
+    "（每天都有進場時＝持有日數）；不重疊區塊：依進場日每「持有日數」個交易日切一塊、區塊平均後算 t。"
+)
+
+
+def nw_lag(h: int, dates: int, period_days: int | None) -> int:
+    """Newey-West 落後期數（觀測單位）：一個持有期（h 個交易日）內平均有幾個進場日＝ceil(h × 進場日數 ÷ 期間交易日數)，
+    介於 1 與 h 之間；period_days 未知時＝h（視為每天都有進場）。日曆時間序列的相鄰觀測相隔不一定是 1 個交易日，
+    落後期數要換算成「重疊的觀測數」，否則每月進場一次的策略會被過度校正（落後 40 個觀測＝40 個月）。"""
+    if not period_days or dates <= 0:
+        return max(1, int(h))
+    return int(min(max(1, int(h)), max(1, int(np.ceil(h * dates / period_days)))))
+
+
 def corrected_t(
     df: pd.DataFrame, h: int, col: str = "exc_mkt", period_days: int | None = None, ratio: float | None = None
 ) -> dict[str, Any]:
-    """校正後 t（2026-10-02 第二輪，config/evidence.yml t_corr）：
-    同一天集中進場（不重複進場日 ÷ 訊號期間交易日數 < concentration_ratio）→ 一律用日曆時間法 t；
-    其餘取日曆時間法、Newey-West、不重疊區塊三者中**絕對值最小**者（保留正負號）：正的 t 取最小、負的 t 取最接近 0 的，
-    兩個方向都不高估顯著性；不取最大值。period_days 未知時視為不集中。"""
+    """校正後 t（2026-10-03 全站統一，config/evidence.yml t_corr；ratio 參數保留相容、不再使用）：
+    日曆時間法、Newey-West（落後＝nw_lag）、不重疊區塊三者中**絕對值最小**者（保留正負號）：正的 t 取最小、負的 t
+    取最接近 0 的，兩個方向都不高估顯著性；不取最大值。舊版「集中進場只用日曆時間法」的例外取消（同一個名稱只有一種定義）。
+    進場日集中程度（concentration）照常輸出供參考。"""
     cal = stats.calendar_series(df, col)
     x = cal.to_numpy()
     m, _, t = stats.mean_t(x)
-    nw = stats.newey_west_t(x, h)
+    lag = nw_lag(h, int(x.size), period_days)
+    nw = stats.newey_west_t(x, lag)
     bt, nb = block_t(cal, h)
     conc = concentration(df, period_days)
-    if ratio is None:
-        try:
-            ratio = float((config.load("evidence").get("t_corr") or {}).get("concentration_ratio", 0.25))
-        except Exception:  # 測試環境沒有 config 時
-            ratio = 0.25
-    concentrated = bool(conc["ratio"] is not None and conc["ratio"] < ratio)
-    if concentrated:
-        tc = t
-    else:
-        cands = [float(v) for v in (t, nw, bt) if v is not None]
-        tc = min(cands, key=abs) if cands else None
+    cands = [float(v) for v in (t, nw, bt) if v is not None]
+    tc = min(cands, key=abs) if cands else None
     return {
         "mean_excess": stats.pct(m),
         "t": None if t is None else round(float(t), 2),
         "t_nw": None if nw is None else round(float(nw), 2),
+        "nw_lag": lag,
         "t_block": bt,
         "blocks": nb,
         "dates": int(x.size),
         "t_corr": None if tc is None else round(float(tc), 2),
-        "t_corr_method": "日曆時間法（集中進場）" if concentrated else "min(日曆, NW, 區塊)",
+        "t_corr_method": T_CORR_METHOD,
         "concentration": conc,
     }
 

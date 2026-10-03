@@ -5,7 +5,8 @@ import type { Activity, Trade } from '../db/db';
 import { envInfo, tonightMood, type Light } from './envState';
 import { diffRow, makeSnapshot, sinceLabel } from './changes';
 import { holdingAlerts } from './holdings';
-import { badgeMetrics, badges, levelFor, ritualRings, stopRespected, streaks, totalXp } from './ritual';
+import { levelFor, ritualRings, stopRespected, streaks } from './ritual';
+import { badges } from './achievements';
 import { impulseFacts } from './impulse';
 import { holdingsSeries } from './portfolioSeries';
 import { holdConclusion, mineConclusion, tonightConclusion } from './conclusion';
@@ -41,7 +42,8 @@ describe('變化優先', () => {
     expect(diffRow(row({ close: 101 }), snap.rows['2330']).significant).toBe(false);
     const c = diffRow(row({ close: 106, composite: 60 }), snap.rows['2330']);
     expect(c.significant).toBe(true);
-    expect(c.reasons.map((r) => r.kind)).toEqual(expect.arrayContaining(['price', 'composite']));
+    // stock 2026-10-03：綜合分不再是變化原因（SPEC §5.7）
+    expect(c.reasons.map((r) => r.kind)).toEqual(['price']);
   });
   it('新風險旗標一律顯著；沒有快照時用前一交易日', () => {
     const flagged = row({ flags: [{ id: 'attention', label: '注意股', level: 'warn' }], new_flags: ['attention'] });
@@ -76,48 +78,40 @@ describe('持股警示', () => {
   });
 });
 
-describe('紀律（遊戲化只獎勵紀律）', () => {
+describe('流程（遊戲化只獎勵流程）', () => {
   const day = '2026-09-24';
-  it('三環：簡報、檢查表（沒有新持倉視為完成）、檢討', () => {
-    const closed = trade({ id: 'c', status: 'closed', closedAt: '2026-09-20', exit: 95 });
-    let r = ritualRings(day, [], [closed], '2026-09-24');
+  it('三環（相容層）：簡報、進場（沒有新持倉＝不適用）、檢討', () => {
+    const closed = trade({ id: 'c', status: 'closed', openedAt: '2026-09-10', closedAt: '2026-09-18', exit: 95 });
+    let r = ritualRings(day, [], [closed], day);
     expect(r.rings.map((x) => x.done)).toEqual([false, true, false]);
     expect(r.rings[2].action?.href).toContain('review=c');
-    r = ritualRings(day, [act('brief_read', day)], [{ ...closed, review: '依計畫出場' }], '2026-09-24');
+    r = ritualRings(day, [act('brief_read', day)], [{ ...closed, review: '依計畫出場', reviewedAt: '2026-09-19T12:00:00Z' }], day);
     expect(r.complete).toBe(true);
   });
-  it('連續天數只看交易日（休市日不中斷）；今天未完成時算到上一交易日', () => {
+  it('舊版連續天數（相容層）只看交易日', () => {
     const tradingDays = ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24'];
     const acts = ['2026-09-21', '2026-09-22', '2026-09-23'].map((d) => act('ritual_done', d));
     expect(streaks(tradingDays, acts)).toEqual({ current: 3, best: 3 });
-    expect(streaks(tradingDays, [...acts, act('ritual_done', '2026-09-24')]).current).toBe(4);
-    expect(streaks(tradingDays, [act('ritual_done', '2026-09-21')]).current).toBe(0);
   });
-  it('經驗值有每日上限；等級門檻遞增', () => {
-    const acts = [act('brief_read', day), act('brief_read', day, `${day}T14:00:00Z`), ...[1, 2, 3, 4].map((i) => act('review_done', day, `${day}T1${i}:00:00Z`))];
-    expect(totalXp(acts)).toBe(10 + 3 * 30);
+  it('等級門檻 100 × (2^(n−1) − 1)', () => {
     expect(levelFor(0).level).toBe(1);
     expect(levelFor(100).level).toBe(2);
     expect(levelFor(299).level).toBe(2);
     expect(levelFor(300).level).toBe(3);
+    expect(levelFor(699).level).toBe(3);
+    expect(levelFor(700).level).toBe(4);
   });
-  it('徽章不看損益與交易次數：守住停損、檢討、檢查表（含決定不進場）', () => {
+  it('成就不看損益與交易次數；舊規則的守住停損只用於沒有出場原因的舊交易', () => {
     const respected = trade({ id: 'r', status: 'closed', exit: 90, stop: 90 });
-    const ignored = trade({ id: 'i', status: 'closed', exit: 70, stop: 90 });
     expect(stopRespected(respected)).toBe(true);
-    expect(stopRespected(ignored)).toBe(false);
+    expect(stopRespected(trade({ id: 'i', status: 'closed', exit: 70, stop: 90 }))).toBe(false);
     expect(stopRespected({ ...respected, exit: 120 })).toBe(false);
-    const m = badgeMetrics([act('checklist_done', day, undefined, { outcome: 'skip' })], [respected], 0, true);
-    // U-11：只算實際完成的檢查表次數；沒有檢查表紀錄的交易（匯入、補登）不計入
-    expect(m.checklists).toBe(1);
-    const m2 = badgeMetrics([act('checklist_done', day, undefined, { outcome: 'open' }), act('checklist_done', day, `${day}T15:00:00Z`, { outcome: 'skip' })], [respected, ignored, trade({ id: 'x' })], 0, false);
-    expect(m2.checklists).toBe(2);
-    // D-01：分割後以換算的停損判斷是否守住停損（原停損 90、分割因子 0.5 → 45）
+    // D-01：分割後以換算的停損判斷（原停損 90、分割因子 0.5 → 45）
     expect(stopRespected(trade({ id: 's', status: 'closed', exit: 45, stop: 90, adjFactor: 0.5 }))).toBe(true);
-    expect(m.backups).toBe(1);
-    const bs = badges(m);
-    expect(bs.find((b) => b.id === 'first_backup')?.earned).toBe(true);
-    expect(bs.every((b) => !['trades', 'profit', 'orders'].includes(b.metric))).toBe(true);
+    const bs = badges({});
+    expect(bs).toHaveLength(8);
+    expect(bs.every((b) => !['trades', 'profit', 'orders', 'pnl', 'win_rate'].includes(b.metric))).toBe(true);
+    expect(uiConfig.gamification.badges.map((b) => b.metric)).not.toContain('checklists');
   });
 });
 
@@ -141,20 +135,21 @@ describe('持股組合走勢與結論句', () => {
     expect(text).toBe('持股\u00a02\u00a0檔需要注意，資金環境偏保守。');
     expect(text).not.toMatch(/買進|賣出/);
   });
-  it('我的股票結論以自選為主，有持股時再加上持股狀況', () => {
-    expect(mineConclusion({ watchCount: 8, watchChanges: 2, holdings: 0, alerts: 0 })).toBe('自選\u00a08\u00a0檔，其中\u00a02\u00a0檔有顯著變化。');
-    expect(mineConclusion({ watchCount: 8, watchChanges: 2, holdings: 3, alerts: 1 })).toBe('自選\u00a02\u00a0檔有顯著變化，持股\u00a01\u00a0檔需要注意。');
-    expect(mineConclusion({ watchCount: 0, watchChanges: 0, holdings: 0, alerts: 0 })).toBe('還沒有自選股。');
-    expect(holdConclusion({ holdings: 2, alerts: 0, dir: 'up', periodName: '近 3 個月' })).toBe('持股近 3 個月上漲，沒有需要注意的。');
+  it('我的股票頁首副資訊以數字陳述（2026-10-03：不寫敘事句）', () => {
+    expect(mineConclusion({ watchCount: 8, watchChanges: 2, holdings: 0, alerts: 0 })).toBe('自選\u00a08\u00a0檔・異動\u00a02\u00a0檔');
+    expect(mineConclusion({ watchCount: 8, watchChanges: 2, holdings: 3, alerts: 1 })).toBe('自選\u00a08\u00a0檔・異動\u00a02\u00a0檔・持倉\u00a03\u00a0檔・警示\u00a01\u00a0檔');
+    expect(mineConclusion({ watchCount: 0, watchChanges: 0, holdings: 0, alerts: 0 })).toBe('無自選股');
+    expect(holdConclusion({ holdings: 2, alerts: 0, dir: 'up', periodName: '近 3 個月' })).toBe('持倉\u00a02\u00a0檔・近 3 個月上漲・警示\u00a00\u00a0檔');
+    expect(holdConclusion({ holdings: 0, alerts: 0, dir: 'flat', periodName: '' })).toBe('無持倉');
   });
   it('結論句每個子句不超過 12 個全形字寬（手機寬度最多兩行）', () => {
     const width = (s: string) => [...s].reduce((w, ch) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(ch) ? 1 : 0.55), 0);
     const all = [
       tonightConclusion({ holdings: 3, alerts: 12, env: 'conservative', watchChanges: 1 }),
       tonightConclusion({ holdings: 0, alerts: 0, env: 'unknown', watchChanges: 12 }),
-      mineConclusion({ watchCount: 88, watchChanges: 12, holdings: 0, alerts: 0 }),
-      mineConclusion({ watchCount: 88, watchChanges: 12, holdings: 3, alerts: 12 }),
     ];
+    // 我的股票的副資訊是一行 Footnote（寬約 27 個全形字）
+    for (const s of [mineConclusion({ watchCount: 88, watchChanges: 12, holdings: 3, alerts: 12 })]) expect(width(s)).toBeLessThanOrEqual(27);
     for (const s of all) {
       const clauses = s.split(/(?<=[，。])/);
       expect(clauses.length).toBeLessThanOrEqual(2);
@@ -175,7 +170,7 @@ describe('共用版面樣式（styles/*.css）', () => {
   };
   it('內容底部留白＝導覽列＋safe-area＋16px；頁尾上方 32px（不用會歸零邊距的 margin-top: auto）', () => {
     // 內容底部留白＝導覽列高度（e2e ux-fixes 規則 1 的既定規則）；頁尾自己的下邊距提供呼吸空間
-    expect(tokens).toMatch(/--dock-clear:\s*var\(--dock-h\)/);
+    expect(tokens).toMatch(/--dock-clear:\s*calc\(var\(--tabbar-h\) \+ var\(--safe-bottom\) \+ var\(--s-4\)\)/);
     expect(rule(global, '.app')).toMatch(/padding:[^;]*var\(--dock-clear\)/);
     expect(rule(global, '.app > .footer')).toContain('margin-top: var(--s-8)');
     expect(rule(global, '.app > .footer')).not.toContain('auto');
@@ -248,11 +243,11 @@ describe('共用版面樣式（styles/*.css）', () => {
     expect(empty).toContain('text-align: left');
     expect(rule(global, '.empty.compact .ico')).toContain('width: 1.25rem');
   });
-  it('日期工程師要的小修：資料日列緊接狀態列、階段前綴主色、走勢圖 SVG 文字 11px；區間提示框不再往上翻（HeroChart 以 inline top 定位）', () => {
+  it('日期工程師要的小修：資料日列緊接狀態列、階段前綴主色、走勢圖 SVG 文字 13px（2026-10 改版：最小字級 12、每頁 4 種字級）；區間提示框不再往上翻（HeroChart 以 inline top 定位）', () => {
     expect(rule(global, '.asof-line')).toContain('margin-top: 0');
     expect(rule(global, '.stage-prefix')).toContain('color: var(--text-1)');
     const svgText = rule(global, '.chart-hilo text, .chart-dates text');
-    expect(svgText).toContain('font-size: 11px');
+    expect(svgText).toContain('font-size: 13px');
     expect(svgText).toContain('fill: var(--text-2)');
     const tip = rule(global, '.range-tip');
     expect(tip).not.toContain('-100%');
@@ -260,11 +255,12 @@ describe('共用版面樣式（styles/*.css）', () => {
     // 卡片容器用 clip：hidden 會讓裡面的 sticky 表頭黏不住（與 .ev-list、.cd-wrap 同一個做法）
     expect(global).toContain('.card.flush { overflow: clip; }');
   });
-  it('累積超額曲線的無障礙說明：沒有峰值或耗盡日時寫原因，不輸出「第 — 日」', () => {
+  it('累積超額曲線的無障礙說明：沒有峰值時寫原因，不輸出「第 — 日」；2026-10-03 移除 alpha 耗盡、標示峰值在窗邊界', () => {
     const ac = readFileSync(new URL('../components/AlphaCurve.tsx', import.meta.url), 'utf8');
     expect(ac).not.toContain("峰值第 ${line.peak ?? '—'} 日");
     expect(ac).toContain("missing('曲線資料累積中')");
-    expect(ac).toContain('60 日內沒有 alpha 耗盡');
+    expect(ac).not.toContain('耗盡');
+    expect(ac).toContain('EDGE_TEXT');
   });
   it('柱狀圖有日期軸列（11px 下限）；BenchSwitch 不再用玻璃', () => {
     expect(rule(global, '.nb-dates')).toContain('font-size: var(--fs-micro)');

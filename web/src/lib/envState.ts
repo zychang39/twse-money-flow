@@ -37,22 +37,32 @@ export function envInfo(lights: Light[] | undefined | null, cfg = uiConfig.env_s
   return { state, label: ENV_LABEL[state], red, green, yellow, gray, counts: parts.join('・') };
 }
 
+/** 回測驗證（pipeline env.validation）：各狀態的天數占比與之後 20／40 日加權報酬指數的平均報酬與 t。 */
+export interface EnvValidation {
+  period: [string, string];
+  days: number;
+  states: { state: Exclude<EnvState, 'unknown'>; share: number; r20: { mean: number | null; t: number | null; n: number }; r40: { mean: number | null; t: number | null; n: number } }[];
+  show_conclusion: boolean;
+  reason: string;
+}
+
+/** 燈號計數：「風險 3／有利 1／中性 1」（0 項的省略；全部沒有資料時「資料累積中」）。 */
+export function envCounts(env: Pick<EnvInfo, 'red' | 'green' | 'yellow' | 'gray'>): string {
+  const parts = [
+    env.red.length ? `風險 ${env.red.length}` : '',
+    env.green.length ? `有利 ${env.green.length}` : '',
+    env.yellow.length ? `中性 ${env.yellow.length}` : '',
+  ].filter(Boolean);
+  return parts.length ? parts.join('／') : '資料累積中';
+}
+
 /**
- * 判定是怎麼來的（2026-10-02 健檢 M1-7）：「3 項風險 → 保守（任一項風險即保守）」。
- * 指數創高、法人買超時仍可能是「保守」，所以要把規則寫在旁邊，不只給結論。
+ * 「→ 保守」結論：只有回測驗證顯示各狀態之後的報酬確實不同（validation.show_conclusion）才顯示；
+ * 保守占比過高或差異不顯著時只列計數。沒有驗證資料（舊版）時也不下結論。
  */
-export function envVerdict(env: Pick<EnvInfo, 'state' | 'label' | 'red' | 'green' | 'yellow'>, cfg = uiConfig.env_state): string {
-  const red = env.red.length, green = env.green.length;
-  switch (env.state) {
-    case 'conservative':
-      return `${red} 項風險 → ${env.label}（${cfg.conservative_min_red <= 1 ? '任一項風險即保守' : `風險 ≥ ${cfg.conservative_min_red} 項即保守`}）`;
-    case 'aggressive':
-      return `沒有風險、${green} 項有利 → ${env.label}（沒有風險且有利 ≥ ${cfg.aggressive_min_green} 項）`;
-    case 'neutral':
-      return `沒有風險、${green} 項有利 → ${env.label}（有利不足 ${cfg.aggressive_min_green} 項）`;
-    default:
-      return `${env.label}（指標都還沒有資料）`;
-  }
+export function envConclusion(env: Pick<EnvInfo, 'state' | 'label'>, v: EnvValidation | null | undefined): string | null {
+  if (!v || !v.show_conclusion || env.state === 'unknown') return null;
+  return env.label;
 }
 
 /** 今晚頁的環境光：只代表資金環境燈號。有風險＝琥珀；其餘＝中性灰藍。 */

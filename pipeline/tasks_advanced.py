@@ -538,6 +538,7 @@ def run_conference(ctx: RunContext, month: date) -> None:
 # ------------------------------------------------------------------ 主動式 ETF 每日持股（各投信官網，部分涵蓋）
 HOLDING_KEYS = ["date", "etf", "code"]
 HEAL_DAYS = 3  # 投信多在當晚或次一營業日早上公布，最近 3 個交易日缺的都再試一次
+BACKFILL_EMPTY_STOP = 10  # 回補時同一檔 ETF 連續 10 個交易日查無資料（早於掛牌或超過網站保留期間）就停止往前
 
 
 def active_etf_names(ctx: RunContext) -> dict[str, str]:
@@ -634,7 +635,15 @@ class _EtfFetcher:
             if issuer == "fsitc":
                 # ASP.NET WebMethod：POST JSON；pStrDate＝公告日，空字串＝最新
                 body = {"pStrFundID": fund, "pStrDate": slash(d) if d else ""}
-                return eh.parse_fsitc(self.ctx.client.post_json(url, body), etf)
+                res = eh.parse_fsitc(self.ctx.client.post_json(url, body), etf)
+                if not res.df.empty and cfg.get("units_url"):
+                    # §3.4：受益權單位數在同一公告日的申購買回清單摘要（另一個 WebMethod）；取不到不影響持股
+                    try:
+                        units = eh.parse_fsitc_units(self.ctx.client.post_json(str(cfg["units_url"]), body))
+                    except SOURCE_ERRORS:
+                        units = None
+                    res.df["units"] = units if units and units > 0 else None
+                return res
             return eh.parse_fhtrust(_fetch(self.ctx, url.format(fund=fund, ymd=day.strftime("%Y%m%d"))), etf)
         raise ParseError(f"未實作的投信：{issuer}")
 
@@ -677,8 +686,13 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
     stored = ctx.store.read_range("etf_holdings")
     have: dict[str, set[str]] = {}
     if not stored.empty:
-        for d_, e_ in set(zip(stored["date"].astype(str), stored["etf"].astype(str), strict=True)):
-            have.setdefault(e_, set()).add(d_)
+        # §3.4（2026-10-03）：有揭露受益權單位數的投信，舊資料（沒有 units 欄）視為缺漏，回補時重抓
+        has_units = stored["units"].notna() if "units" in stored.columns else pd.Series(False, index=stored.index)
+        for d_, e_, u_ in set(
+            zip(stored["date"].astype(str), stored["etf"].astype(str), has_units.astype(bool), strict=True)
+        ):
+            if u_ or eh.UNITS_FIELD.get(targets.get(e_, ""), None) is None:
+                have.setdefault(e_, set()).add(d_)
     lookback = int(cfg.get("backfill_days", 20))
     recent = ctx.calendar.trading_days(target - timedelta(days=lookback * 2 + 14), target)[::-1]
     fetcher = _EtfFetcher(ctx, issuers)
@@ -696,10 +710,11 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
             return None  # 公告日還沒到 → 查最新一份
         return after[lag - 1]
 
-    def attempt(issuer: str, etf: str, x: date) -> None:
+    def attempt(issuer: str, etf: str, x: date) -> bool | None:
+        """True＝取得持股；False＝查無或失敗；None＝未請求（已問過、投信停用、超時）。"""
         d = request_date(issuer, x)
         if issuer in dead_issuers or (etf, d) in asked or ctx.out_of_time():
-            return
+            return None
         asked.add((etf, d))
         try:
             res = fetcher.fetch(issuer, etf, d)
@@ -707,17 +722,24 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
             errors.append(f"{etf}（{issuers[issuer]['label']}）：{str(exc)[:120]}")
             if isinstance(exc, CircuitOpenError) or "HTTP 4" in str(exc) or issuer in fetcher.list_failed:
                 dead_issuers.add(issuer)
-            return
-        if not res.df.empty:
-            frames.append(res.df)
-            have.setdefault(etf, set()).add(str(res.df["date"].iloc[0]))
+            return False
+        if res.df.empty:
+            return False
+        frames.append(res.df)
+        have.setdefault(etf, set()).add(str(res.df["date"].iloc[0]))
+        return True
 
     for etf, issuer in targets.items():
         first_time = etf not in have
         todo = days if days is not None else recent[:HEAL_DAYS]
+        empty_run = 0
         for x in todo:
+            if days is not None and empty_run >= BACKFILL_EMPTY_STOP:
+                break  # 回補由近到遠：連續查無代表已早於掛牌（或網站保留期限），不再往前請求
             if x.isoformat() not in have.get(etf, set()):
-                attempt(issuer, etf, x)
+                got = attempt(issuer, etf, x)
+                if got is not None:
+                    empty_run = 0 if got else empty_run + 1
         for x in recent[HEAL_DAYS:lookback] if days is None and first_time else []:
             if len(have.get(etf, set())) >= 2:
                 break

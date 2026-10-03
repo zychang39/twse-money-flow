@@ -6,6 +6,7 @@ import type { Flag, StockRow } from '../data/types';
 import { uiConfig } from './config';
 import { fmtLotsUnit } from './format';
 import { eventsFor, factorBetween } from './corpActions';
+import { watchLine, watchLineText } from './stockFacts';
 
 export interface SnapRow { c: number | null; s: number | null; f: string[]; fs: number | null; ts: number | null; mb: number | null }
 export interface Snapshot { at: string; date: string; rows: Record<string, SnapRow> }
@@ -13,7 +14,8 @@ export interface Snapshot { at: string; date: string; rows: Record<string, SnapR
 export function snapRow(r: StockRow): SnapRow {
   return {
     c: r.close,
-    s: (r.composite as number | null | undefined) ?? null,
+    // stock 2026-10-03：綜合分不再使用（SPEC §5.7）；欄位保留 null 讓舊快照格式相容
+    s: null,
     f: (r.flags ?? []).map((f) => f.id),
     fs: r.foreign_streak,
     ts: r.trust_streak,
@@ -25,7 +27,7 @@ export function makeSnapshot(rows: StockRow[], date: string, at = new Date().toI
   return { at, date, rows: Object.fromEntries(rows.map((r) => [r.code, snapRow(r)])) };
 }
 
-export type ReasonKind = 'price' | 'composite' | 'streak' | 'inst' | 'margin' | 'flag';
+export type ReasonKind = 'price' | 'streak' | 'inst' | 'margin' | 'flag';
 export interface Reason { kind: ReasonKind; text: string; dir?: 'up' | 'down'; risk?: boolean; weight: number }
 export interface Change { code: string; row: StockRow; reasons: Reason[]; newFlags: Flag[]; significant: boolean; score: number }
 
@@ -44,13 +46,6 @@ export function diffRow(r: StockRow, prev: SnapRow | undefined, th: Th = uiConfi
   if (pct !== null && pct !== undefined && Number.isFinite(pct) && Math.abs(pct) >= th.price_pct) {
     reasons.push({ kind: 'price', text: `${prev ? '自上次' : '今日'}${pct > 0 ? '漲' : '跌'} ${Math.abs(pct).toFixed(1)}%`, dir: pct > 0 ? 'up' : 'down', weight: Math.abs(pct) });
   }
-  // 綜合分
-  const cur = (r.composite as number | null | undefined) ?? null;
-  const dComp = prev ? (cur !== null && prev.s !== null ? cur - prev.s : null) : ((r.composite_chg as number | null | undefined) ?? null);
-  if (dComp !== null && Math.abs(dComp) >= th.composite_points) {
-    const from = prev?.s ?? (cur !== null ? cur - dComp : null);
-    reasons.push({ kind: 'composite', text: `綜合分 ${from === null ? '—' : Math.round(from)}\u00a0→\u00a0${cur === null ? '—' : Math.round(cur)}`, dir: dComp > 0 ? 'up' : 'down', weight: Math.abs(dComp) * 1.5 });
-  }
   // 法人連買／連賣：新達到門檻或方向反轉
   for (const [who, now, before] of [['外資', r.foreign_streak, prev?.fs], ['投信', r.trust_streak, prev?.ts]] as const) {
     if (now === null || now === undefined) continue;
@@ -63,7 +58,10 @@ export function diffRow(r: StockRow, prev: SnapRow | undefined, th: Th = uiConfi
   const inst = (r.foreign_net_lots ?? 0) + (r.trust_net_lots ?? 0);
   if (vol > 0 && (Math.abs(inst) / vol) * 100 >= th.inst_volume_pct && !reasons.some((x) => x.kind === 'streak')) {
     // #8：數字放前面、格式精簡（清單列窄，原本「（量的 70%）」會被截掉）
-    reasons.push({ kind: 'inst', text: instReasonText(inst, vol), dir: inst > 0 ? 'up' : 'down', weight: (Math.abs(inst) / vol) * 50 });
+    // stock 2026-10-03：文字改成「外資+投信 +5,887 張（佔 20 日均量 12%）・量 1.32×」；舊版 summary 沒有 vol20_lots 時沿用舊格式
+    const w = watchLine(r);
+    const text = w.instPctAvg20 !== null || w.volRatio !== null ? watchLineText(w) : instReasonText(inst, vol);
+    reasons.push({ kind: 'inst', text, dir: inst > 0 ? 'up' : 'down', weight: (Math.abs(inst) / vol) * 50 });
   }
   // 融資
   const mb = r.margin_balance;
@@ -81,7 +79,7 @@ export function diffRow(r: StockRow, prev: SnapRow | undefined, th: Th = uiConfi
   return { code: r.code, row: r, reasons: reasons.sort((a, b) => b.weight - a.weight), newFlags, significant: reasons.length > 0, score };
 }
 
-/** 「外資＋投信 −2.4 萬張・量 70%」：當日外資＋投信淨買賣超與占成交量比例。 */
+/** 舊格式「外資＋投信 −24,000 張・量 70%」：「量 70%」＝當日外資＋投信淨買賣超 ÷ 當日成交量（不是量比）。只在 summary 沒有 vol20_lots／vol_ratio 時使用。 */
 export function instReasonText(inst: number, vol: number): string {
   return `外資＋投信 ${fmtLotsUnit(inst).replace(' ', '\u00a0')}・量\u00a0${Math.round((Math.abs(inst) / vol) * 100)}%`;
 }

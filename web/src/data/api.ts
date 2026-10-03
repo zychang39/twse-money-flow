@@ -77,3 +77,6 @@ export const loadInactive = () =>
 export const loadIndex = () => getJson<import('./types').IndexData>('index.json');
 /** 首頁 1D 盤中走勢；舊版部署或當天尚未取得時為 null。 */
 export const loadIntraday = () => getJson<import('./types').IntradayData>('intraday.json').catch(() => null);
+/** 個股 5 分 K（stock 2026-10）：涵蓋清單與每檔一個小檔；取不到時回傳 null（個股頁不顯示 1D／1W）。 */
+export const loadStockIntradayIndex = () => getJson<import('./types').StockIntradayIndex>('intraday/index.json').catch(() => null);
+export const loadStockIntraday = (code: string) => getJson<import('./types').StockIntraday>(`intraday/${encodeURIComponent(code)}.json`).catch(() => null);

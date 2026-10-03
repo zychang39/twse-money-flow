@@ -228,12 +228,10 @@ def section(d: dict[str, Any], H: str) -> list[str]:
             if not b:
                 continue
             m = b.get("mean") or []
-            pk, exh = b.get("peak"), b.get("exhaust")
-            pts = "、".join(f"第 {k} 日 {f(m[k - 1])}" for k in (1, 5, 10, 20, 40, 60) if k <= len(m))
-            out.append(
-                f"- {name}：{pts}；峰值第 {pk or '—'} 日（{f(m[pk - 1]) if pk else '—'}）；"
-                f"alpha 耗盡日（邊際超額連續 5 日 ≤ 0 的第一天）第 {exh or '—'} 日。"
-            )
+            pk = b.get("peak")
+            pts = "、".join(f"第 {k} 日 {f(m[k - 1])}" for k in (1, 5, 10, 20, 40, 60, 120) if k <= len(m))
+            edge = "（峰值在觀察窗邊界）" if b.get("peak_at_edge") else ""
+            out.append(f"- {name}：{pts}；峰值第 {pk or '—'} 日（{f(m[pk - 1]) if pk else '—'}）{edge}。")
         out.append("")
     out += [f"#### 分組（持有 {H} 日）", ""]
     out += groups_table(hs.get("groups") or {}, d.get("oos"))
@@ -301,7 +299,7 @@ def section(d: dict[str, Any], H: str) -> list[str]:
             "",
             "相對等權：持有天數不固定，以同日等權 universe 的每日指數（前一日收盤到出場前一日收盤）近似。"
             + (
-                f"峰值日固定出場的 N＝第一個訓練窗（{pk['train'][0]}～{pk['train'][1]}）累積超額曲線的峰值日 {pk['day']}，不看全樣本。"
+                f"「第 N 日出場」的 N＝第一個訓練窗（{pk['train'][0]}～{pk['train'][1]}）累積超額曲線的峰值日 {pk['day']}，不看全樣本。"
                 if pk
                 else ""
             ),

@@ -33,6 +33,8 @@ SCHEDULE_TASKS = {
     "0 3 1 4 *": "periodic",
     "*/15 1-5 * * 1-5": "alerts",
     "40 14 * * 1-5": "resume",
+    # 2026-10：個股 5 分 K（Yahoo，非官方）；14:45（台北）收盤行情之後，單次跑不完自動接續
+    "45 6 * * 1-5": "kbar",
 }
 
 # E-05：回補分段執行。每段最多 BACKFILL_SEGMENT_MINUTES 分鐘，結束時提交進度並自動觸發下一段；
@@ -107,6 +109,18 @@ def cmd_run(args: argparse.Namespace) -> int:
             deploy = "true"
         elif task == "probe":
             extra = run_probe(ctx, args)
+        elif task == "kbar":
+            from pipeline import tasks_kbar
+
+            extra = tasks_kbar.run_kbar(ctx)
+            # 涵蓋率有前進就部署（前端 1D／1W 立即可用）；還有剩餘且有前進 → 觸發下一段接續
+            deploy = "true" if extra.get("progressed") else "false"
+            if extra.get("remaining") and extra.get("progressed") and args.chain:
+                from pipeline.notify.github import dispatch_workflow
+
+                extra["chained"] = dispatch_workflow(
+                    "data.yml", {"task": "kbar"}, ref=os.environ.get("GITHUB_REF_NAME", "main")
+                )
         elif task == "periodic":
             tasks.task_periodic(ctx, sources)
             deploy = "true"

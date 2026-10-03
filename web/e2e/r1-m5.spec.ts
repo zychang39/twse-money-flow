@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
+// 2026-10 改版：還原／原始在導覽列「⋯」；只在還原價與原始價不同時顯示「還原」字樣；長按＝十字線、兩指（桌機按住拖曳）＝區間報酬。
 // 第 1 輪 M5（使用者回報）：1) 「還原／原始」切換要讓主角數字、走勢、期間與區間報酬一起切換並標示目前基準；
 // 2) 走勢圖手勢與換股分開：圖表內查價／選區間不換股；換股只在頁首區域滑動、點 ‹ ›、或電腦版方向鍵（焦點不在圖表）。
 // 攔截個股檔：service worker 接手後的請求不經過 page.route，所以停用
@@ -9,7 +10,7 @@ async function openInList(page: Page, code: string, codes = ['2330', '2317', '24
   await page.goto('#/mine');
   await page.evaluate((c) => sessionStorage.setItem('twse:list-context', JSON.stringify({ name: '自選', codes: c })), codes);
   await page.goto(`#/stock/${code}`);
-  await expect(page.locator('.pager-pane:not([inert]) .hero')).toBeVisible();
+  await expect(page.locator('.pager-pane:not([inert]) [data-testid="stock-price"]')).toBeVisible();
   await page.waitForTimeout(1100); // 走勢描繪動畫
 }
 
@@ -26,25 +27,29 @@ async function injectSplit(page: Page) {
   });
 }
 
+async function pickBasis(page: Page, name: '還原價' | '原始價') {
+  await page.getByTestId('stock-more').click();
+  await page.getByTestId('basis-seg').getByRole('button', { name }).click();
+  await page.keyboard.press('Escape');
+}
+
 const pct = async (page: Page) => {
   const t = (await page.getByTestId('hero-period-change').textContent()) ?? '';
-  const m = t.match(/（([\d.]+)%）/);
-  return { text: t, value: m ? Number(m[1]) : NaN, down: t.includes('▼') };
+  const m = t.match(/([+−])([\d.]+)%/);
+  return { text: t, value: m ? Number(m[2]) : NaN, down: m?.[1] === '−' };
 };
 
 test.describe('M5-1 還原／原始切換', () => {
   test.use({ viewport: { width: 393, height: 852 } });
 
-  test('切換到原始價：主角數字旁標示「原始」，期間漲跌反映分割斷層；切回還原則恢復', async ({ page }) => {
+  test('切換到原始價：「還原」字樣消失，期間漲跌反映分割斷層；切回還原則恢復', async ({ page }) => {
     await injectSplit(page);
     await page.goto('#/stock/2330');
     await expect(page.getByTestId('basis-tag')).toHaveText('還原');
-    await expect(page.locator('.hero-label').first()).toHaveText('收盤價（還原）');
     const adj = await pct(page);
-    const basis = page.getByTestId('range-basis');
-    await basis.getByRole('button', { name: '原始價' }).click();
-    await expect(page.getByTestId('basis-tag')).toHaveText('原始');
-    await expect(page.locator('.hero-label').first()).toHaveText('收盤價（原始）');
+    await pickBasis(page, '原始價');
+    await expect(page.getByTestId('basis-tag')).toHaveCount(0);
+    await expect(page.getByTestId('data-time')).toContainText('原始價');
     const raw = await pct(page);
     // 分割 1 拆 4：原始價的期間漲跌至少 −60%，還原價沒有這個斷層
     expect(raw.down).toBe(true);
@@ -54,17 +59,22 @@ test.describe('M5-1 還原／原始切換', () => {
     expect(await page.evaluate(() => localStorage.getItem('tmf-range-basis'))).toBe('raw');
     // 重新開啟仍記得原始價
     await page.reload();
-    await expect(page.getByTestId('basis-tag')).toHaveText('原始');
-    await basis.getByRole('button', { name: '還原價' }).click();
+    await expect(page.getByTestId('data-time')).toContainText('原始價');
+    await pickBasis(page, '還原價');
     await expect(page.getByTestId('basis-tag')).toHaveText('還原');
     expect((await pct(page)).text).toBe(adj.text);
   });
 
-  test('進階 K 線跟著同一個基準', async ({ page }) => {
+  test('沒有還原事件的期間不顯示「還原」字樣', async ({ page }) => {
+    await page.route('**/data/stocks/2330.json', async (route) => {
+      const res = await route.fetch();
+      const h = await res.json();
+      h.af = h.af.map(() => 1);
+      await route.fulfill({ response: res, json: h });
+    });
     await page.goto('#/stock/2330');
-    await page.getByTestId('range-basis').getByRole('button', { name: '原始價' }).click();
-    await page.getByRole('button', { name: '進階' }).click();
-    await expect(page.getByRole('group', { name: '價格模式' }).getByRole('button', { name: '原始' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('stock-price')).toBeVisible();
+    await expect(page.getByTestId('basis-tag')).toHaveCount(0);
   });
 });
 
@@ -86,7 +96,7 @@ test.describe('M5-2 手勢：電腦版', () => {
 
   test('在頁首（股票名稱）拖曳、點 ‹ ›、方向鍵才換股；焦點在圖表時方向鍵是查價', async ({ page }) => {
     await openInList(page, '2317');
-    const head = (await page.locator('.pager-pane:not([inert]) .page-head').boundingBox())!;
+    const head = (await page.locator('.pager-pane:not([inert]) .ui-head').boundingBox())!;
     const y = head.y + head.height / 2;
     await page.mouse.move(head.x + head.width * 0.8, y);
     await page.mouse.down();
@@ -95,7 +105,7 @@ test.describe('M5-2 手勢：電腦版', () => {
     await expect(page).toHaveURL(/#\/stock\/2454$/);
     await page.getByRole('button', { name: '上一檔' }).click();
     await expect(page).toHaveURL(/#\/stock\/2317$/);
-    await page.locator('.pager-pane:not([inert]) .page-head').click();
+    await page.locator('.pager-pane:not([inert]) .ui-head').click();
     await page.keyboard.press('ArrowLeft');
     await expect(page).toHaveURL(/#\/stock\/2330$/);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('台積電');
@@ -104,7 +114,7 @@ test.describe('M5-2 手勢：電腦版', () => {
     await page.keyboard.press('ArrowLeft');
     await page.waitForTimeout(500);
     await expect(page).toHaveURL(/#\/stock\/2330$/);
-    await expect(page.locator('.pager-pane:not([inert]) .hero-change .caption').first()).toHaveText(/\d{4}\/\d+\/\d+（.）/);
+    await expect(page.locator('.pager-pane:not([inert]) [data-testid="hero-change"]').first()).toContainText(/\d{4}\/\d+\/\d+/);
   });
 });
 
@@ -124,18 +134,26 @@ test.describe('M5-2 手勢：手機', () => {
     await cdp.detach();
   }
 
-  test('單指在圖表上左右滑動是查價；按住不動再拖曳是選區間；都不換股', async ({ page }) => {
+  test('單指快速滑過圖表不換股；長按再拖曳是十字線讀值；兩指是區間報酬；都不換股', async ({ page }) => {
     await openInList(page, '2317');
     const b = (await page.locator('.pager-pane:not([inert]) .chart-wrap').boundingBox())!;
-    const y = b.y + b.height / 2;
+    const y = b.y + b.height / 3;
     await touchDrag(page, { x: b.x + b.width * 0.9, y }, { x: b.x + b.width * 0.1, y });
     await page.waitForTimeout(600);
     await expect(page).toHaveURL(/#\/stock\/2317$/);
-    let tip = false;
+    let cross = false;
     await touchDrag(page, { x: b.x + b.width * 0.8, y }, { x: b.x + b.width * 0.3, y }, 600, async () => {
-      tip = await page.getByTestId('range-tip').isVisible();
+      cross = await page.getByTestId('crosshair-tip').isVisible();
     });
-    expect(tip).toBe(true);
+    expect(cross).toBe(true);
+    // 兩指：區間報酬
+    const cdp = await page.context().newCDPSession(page);
+    const p1 = { x: b.x + b.width * 0.2, y }, p2 = { x: b.x + b.width * 0.7, y };
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...p1, id: 1 }, { ...p2, id: 2 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...p1, id: 1 }, { x: p2.x + 10, y, id: 2 }] });
+    await expect(page.getByTestId('range-tip')).toBeVisible();
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await cdp.detach();
     await page.waitForTimeout(600);
     await expect(page).toHaveURL(/#\/stock\/2317$/);
   });

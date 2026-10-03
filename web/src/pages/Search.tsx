@@ -225,7 +225,7 @@ export default function Search() {
               </Section>
             ) : null}
             {hot.length ? (
-              <Section title="熱門動能前 5 名（依規則產生，非推薦）">
+              <Section title="熱門動能前 5 名・依規則產生，非推薦">
                 {hot.map((h) => {
                   const r = pick(h.code);
                   return r ? <ResultRow key={h.code} row={r} sub={h.reason} watched={watched.has(h.code)} onOpen={() => open(h.code)} onAdd={() => add(r)} /> : null;

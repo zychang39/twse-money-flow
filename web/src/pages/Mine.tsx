@@ -1,6 +1,6 @@
 /**
  * 我的股票：自選與持股合併在同一頁（分段控制「自選｜持股」，自選在左、預設）。
- * 回答「自選股有什麼新變化？」與「我的持股有沒有出事？」。
+ * 自選股異動與持倉狀態（2026-10-03：頁首與說明套用共用元件）。
  * - 自選：使用者群組＋系統清單「熱門動能」（唯讀，依規則產生，非推薦；可一鍵複製成自己的群組或挑幾檔加入）。
  * - 新用戶還沒有自選時顯示歡迎卡：主要動作「搜尋並加入股票」（與右上角「＋」同一個搜尋面板）；
  *   次要：加入範例自選（config/ui.yml，標示「範例」、可一鍵清除）或從熱門動能挑選。
@@ -8,7 +8,8 @@
  */
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { HotItem, Lists } from '../data/types';
-import { Ambient, PageHead, TopBar } from '../components/Chrome';
+import { Ambient, TopBar } from '../components/Chrome';
+import { Info, PageTitle } from '../components/ui';
 import { DataStatus, ErrorState, Loading } from '../components/DataStatus';
 import { HeroChart, usePeriod } from '../components/HeroChart';
 import { StockListRow, type RowAction } from '../components/StockRow';
@@ -27,8 +28,7 @@ import type { StockRow } from '../data/types';
 import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
 import { DEFAULT_COSTS, type CostSettings } from '../lib/costs';
 import { holdingsSeries } from '../lib/portfolioSeries';
-import { PERIOD_LABEL, change, sliceWindow } from '../lib/periods';
-import { holdConclusion, mineConclusion } from '../lib/conclusion';
+import { change, sliceWindow } from '../lib/periods';
 import { uiConfig } from '../lib/config';
 import { PAGE_SOURCES } from '../lib/health';
 import { diffAll, makeSnapshot, type Snapshot } from '../lib/changes';
@@ -44,7 +44,7 @@ import { navigate, useRoute } from '../router';
 type Seg = 'watch' | 'hold';
 /** 系統清單的群組 id（不會與使用者群組名稱衝突） */
 const HOT = '\u0000hot';
-type SortKey = 'change' | 'pct' | 'composite' | 'foreign' | 'trust' | 'custom';
+type SortKey = 'change' | 'pct' | 'rs' | 'foreign' | 'trust' | 'custom';
 /** 熱門動能清單的排序（M2，2026-10-03）：每檔列實際數值，可依 RS、成交值、20 日乖離、漲跌幅排序 */
 type HotSortKey = 'rs' | 'value' | 'bias' | 'pct';
 const HOT_SORTS: [HotSortKey, string][] = [['rs', 'RS 百分位'], ['value', '成交值'], ['bias', '20 日乖離'], ['pct', '漲跌幅']];
@@ -59,7 +59,7 @@ export function hotSub(h: HotItem): string {
   if (h.ma20_gap !== null && h.ma20_gap !== undefined) parts.push(`乖離\u00a0${pctSigned(h.ma20_gap)}`);
   return parts.join('・');
 }
-const SORTS: [SortKey, string][] = [['change', '依變化'], ['pct', '漲跌幅'], ['composite', '綜合分'], ['foreign', '外資'], ['trust', '投信'], ['custom', '自訂順序']];
+const SORTS: [SortKey, string][] = [['change', '依變化'], ['pct', '漲跌幅'], ['rs', 'RS 百分位'], ['foreign', '外資'], ['trust', '投信'], ['custom', '自訂順序']];
 
 function AddWatchSheet({ open, onClose, rows, group, groups }: { open: boolean; onClose: () => void; rows: StockRow[]; group: string; groups: string[] }) {
   const [importText, setImportText] = useState('');
@@ -127,8 +127,8 @@ function mdLabel(iso: string | undefined): string {
 function WelcomeCard({ onSearch, onSample, onHot, hotCount, sampleNames }: { onSearch: () => void; onSample: () => void; onHot: () => void; hotCount: number; sampleNames: string }) {
   return (
     <section class="card welcome" aria-labelledby="welcome-title">
-      <h2 id="welcome-title" class="section">先追蹤幾檔股票</h2>
-      <p class="caption muted">加入自選後，每晚只會列出自上次查看以來有顯著變化的股票。</p>
+      <h2 id="welcome-title" class="section">無自選股</h2>
+      <p class="caption muted">自選股每晚只列出自上次查看以來有顯著變化的股票。</p>
       <button class="btn primary block welcome-main" onClick={onSearch}>搜尋並加入股票</button>
       <div class="welcome-actions">
         <button class="btn" onClick={onSample}>加入範例自選</button>
@@ -187,10 +187,13 @@ function HotHeader({ lists, onCopy, onPick, copied }: { lists: Lists; onCopy: ()
         <span class="tag">依規則產生，非推薦</span>
         <span class="caption muted">{mdLabel(lists.date)} 收盤後產生・唯讀</span>
       </div>
-      <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>
-        規則：成交值排名前 {r.value_rank_top} 名、RS 百分位 ≥ {r.min_rs_percentile}、沒有危險級風險旗標且注意級最多 {r.max_warn_flags} 個，依 RS 百分位取前 {r.size} 檔{r.exclude_etf ? '（不含 ETF）' : ''}。
-        每檔列出 RS 百分位、成交值排名與金額、20 日乖離；標記處置／注意股、20 日乖離 &gt; {r.mark_bias_above ?? 20}%、漲停（漲幅 ≥ {r.mark_limit_up_pct ?? 9.5}%）、流動性不足（成交值 &lt; {fmtNum((r.mark_low_value_million ?? 100) / 100, 0)} 億）。詳見方法說明。
-      </p>
+      <div class="row between" style={{ marginTop: 'var(--s-2)' }}>
+        <span class="caption muted">成交值前 {r.value_rank_top} 名・RS 百分位 ≥ {r.min_rs_percentile}・前 {r.size} 檔</span>
+        <Info title="熱門動能的規則">
+          <p>成交值排名前 {r.value_rank_top} 名、RS 百分位 ≥ {r.min_rs_percentile}、沒有危險級風險旗標且注意級最多 {r.max_warn_flags} 個，依 RS 百分位取前 {r.size} 檔{r.exclude_etf ? '（不含 ETF）' : ''}。</p>
+          <p>每檔列出 RS 百分位、成交值排名與金額、20 日乖離；標記處置／注意股、20 日乖離 &gt; {r.mark_bias_above ?? 20}%、漲停（漲幅 ≥ {r.mark_limit_up_pct ?? 9.5}%）、流動性不足（成交值 &lt; {fmtNum((r.mark_low_value_million ?? 100) / 100, 0)} 億）。</p>
+        </Info>
+      </div>
       <div class="row wrap" style={{ gap: 'var(--s-2)', marginTop: 'var(--s-3)' }}>
         <button class="btn small" onClick={onCopy}>複製成我的群組</button>
         <button class="btn small" onClick={onPick}>挑幾檔加入</button>
@@ -263,7 +266,7 @@ export default function Mine() {
     const r = c.row;
     switch (sort) {
       case 'pct': return r.change_pct ?? -Infinity;
-      case 'composite': return (r.composite as number | null) ?? -Infinity;
+      case 'rs': return (r.rs_percentile as number | null) ?? -Infinity;
       case 'foreign': return r.foreign_net_lots ?? -Infinity;
       case 'trust': return r.trust_net_lots ?? -Infinity;
       case 'custom': return -(watch.find((w) => w.code === c.code)?.order ?? 0);
@@ -285,9 +288,6 @@ export default function Mine() {
   const latestValue = series ? series.values[series.values.length - 1] : null;
   useEffect(() => { if (seen !== undefined) commitHero('portfolio', latestValue); }, [seen, latestValue]);
 
-  const conclusion = seg === 'watch'
-    ? mineConclusion({ watchCount: watch.length, watchChanges: watchSig, holdings: holdCodes.length, alerts: risky.size })
-    : holdConclusion({ holdings: holdCodes.length, alerts: risky.size, dir, periodName: PERIOD_LABEL[period] });
   const setSeg = (s: Seg) => navigate(s === 'hold' ? '/mine?seg=hold' : '/mine', true);
   const sample = uiConfig.sample_watchlist;
   const sampleNames = sample.codes.map((c) => byCode?.get(c)?.name ?? c).join('、');
@@ -347,7 +347,7 @@ export default function Mine() {
       <TopBar caption="我的股票" actions={
         <button class="icon-btn" aria-label={seg === 'hold' ? '新增持倉（新增持倉前檢查表）' : '加入自選股'} onClick={() => setAdding(true)}><IconPlus /></button>
       } />
-      <PageHead twoLine eyebrow={seg === 'hold' ? '我的持股有沒有出事？' : '自選股出現了什麼新變化？'} title={user && summary.data ? conclusion : '我的股票'} />
+      <PageTitle title="我的股票" sub={user && summary.data ? (seg === 'watch' ? `自選 ${watch.length} 檔・異動 ${watchSig} 檔` : `持倉 ${holdCodes.length} 檔・警示 ${risky.size} 檔`) : undefined} />
       <DataStatus date={summary.data?.date} uses={PAGE_SOURCES.mine} asof={['quotes', 'insti', 'credit']} />
       {summary.error ? <ErrorState error={summary.error} /> : null}
 
@@ -418,7 +418,7 @@ export default function Mine() {
           // M1-10：沒有持倉時只佔一列（主要動作就在列上），不用整塊高的空狀態
           <div class="list">
             <button class="list-item brand" onClick={() => setAdding(true)} data-testid="holdings-empty-row">
-              <span class="grow" style={{ textAlign: 'left' }}><span class="body">開始新增持倉前檢查表</span><span class="caption muted" style={{ display: 'block' }}>還沒有持倉；之後持股的停損與風險旗標會出現在這裡與今晚頁</span></span>
+              <span class="grow" style={{ textAlign: 'left' }}><span class="body">新增持倉前檢查表</span><span class="caption muted" style={{ display: 'block' }}>無持倉</span></span>
               <span class="chev"><IconChevron /></span>
             </button>
           </div>
@@ -434,7 +434,7 @@ export default function Mine() {
         {group !== HOT && quiet.length ? (
           <>
             <button class="collapsed-row" aria-expanded={showQuiet || !main.length} onClick={() => setShowQuiet(!showQuiet)}>
-              <span>{main.length ? `${quiet.length} 檔變化低於門檻` : `${quiet.length} 檔都沒有顯著變化`}</span><IconChevronDown />
+              <span>{main.length ? `其餘 ${quiet.length} 檔未達門檻` : `${quiet.length} 檔未達門檻`}</span><IconChevronDown />
             </button>
             {showQuiet || !main.length ? quiet.map((c) => (
               <StockListRow key={c.code} code={c.code} row={c.row} hist={hist.get(c.code)} sub={sub(c.code, [])}

@@ -1,509 +1,447 @@
 /**
- * 策略庫（M2）：指標效度評估包成的內建策略，依資料重新分級（有效／觀察中／停用）。
- * #/explore/strategies：清單；#/explore/strategies/:id：策略頁（健康度、今日新觸發、多期間與逐年報表、出場規則、樣本範圲）。
- * 策略清單依規則產生，非推薦；不提供下單。
- *
- * 2026-10-02 健檢：
- * - 數字只有一個來源：策略數＝lib/status.gradeCounts；基準切換時超額、t、勝率整組一起換，判定用的等權數字另外固定標「判定（等權）」。
- * - 勝率分成「絕對勝率」（報酬 > 0）與「超額勝率（相對 X）」（超額 > 0）。
- * - 卡片改成指標格（名稱＋標籤／一句規則／2×2 指標／未達列）；缺值一律附原因。
+ * 策略庫（2026-10-03 改版，SPEC §6）。依規則產生，非推薦；不提供下單。
+ * #/explore/strategies：清單（上架一張卡、無效收在摺疊列）；每列＝名稱｜副標條件｜單一分級標籤。
+ * #/explore/strategies/:id：規則一句話 → 判定卡（(a) 機會成本・相對 0050｜(b) 訊號檢定・相對等權）→ 健康度 →
+ *   事件研究（累積超額 120 日、多期間、逐年訊號超額）→ 組合回測（對數權益曲線、逐年 5 檔｜0050｜差額、隨機選股模擬）→
+ *   出場規則（2021 年底前選、2022 起樣本外）→ 樣本與成本 → 新觸發。
+ * 數字全部來自 strategies.json（pipeline/evidence/judge.py）；t 全站只有「校正後 t」一種。說明、公式、門檻都在 ⓘ。
  */
 import { useMemo, useState } from 'preact/hooks';
-import { PageHead, TopBar } from '../components/Chrome';
+import { TopBar } from '../components/Chrome';
 import { ErrorState, Loading } from '../components/DataStatus';
+import { Card, CardLabel, EmptyRow, List, Num, PageTitle, Row, Section, Seg, Signed, StatGrid, Table, Tag, Warn } from '../components/ui';
+import { Sheet } from '../components/Sheet';
+import { EquityChart } from '../components/EquityChart';
+import { AlphaCurve } from '../components/AlphaCurve';
+import { SwingCard } from '../components/SwingCard';
+import { GradeTag, JudgeInfo, keepNum } from '../components/StrategyBits';
 import { useAsync, useDb } from '../hooks';
 import { loadJson } from '../data/api';
 import { addWatchMany, listStrategies, saveStrategy, uid } from '../db/db';
 import { LAB_PREFIX } from '../lib/config';
-import { EquityChart } from '../components/EquityChart';
-import { AlphaCurve } from '../components/AlphaCurve';
-import { BenchSwitch, useBenchState } from '../components/BenchSwitch';
-import { SortMenu } from '../components/SortMenu';
-import { SwingCard } from '../components/SwingCard';
-import { KeyValueList, MetricGrid, type MetricItem } from '../components/Metrics';
-import { type Hindsight, coverageText } from '../lib/evidence';
-import { fmtCount, md, missing, pctPlain, pctSigned, ratioPct, ratioText, tText } from '../lib/format';
-import { BENCH_LONG, type BenchKey } from '../lib/bench';
-import { type CurveLine, curveSummary } from '../lib/curve';
-import { STRATEGY_SORT, type SortState, loadSort, saveSort, sortItems } from '../lib/sorting';
-import { type GradeCounts, gradeCounts, gradeSummary, isListed, verdictDefinition, DEFAULT_GRADING } from '../lib/status';
+import { fmtCount, md, pctPlain, ratioText, tText } from '../lib/format';
+import { BENCH_KEYS, BENCH_LABEL, type BenchKey, loadBench, saveBench } from '../lib/bench';
+import { type CurveLine, EDGE_TEXT, peakAtEdge } from '../lib/curve';
+import { isListed } from '../lib/status';
 import {
-  type BenchCompare, type Grade, type Perf, type StrategiesFile, type StrategyItem, BENCH_KEYS, BENCH_LABEL, PERF_ROWS, basisText,
-  benchTable, envLine, gradeOf, gradeTone, groupName, healthTone, judgeHold, judged, netExcess, paramRows,
+  type StrategiesFile, type StrategyItem, GRADE_ORDER, envLine, gradeNotes, gradeOf, groupName, healthLong, healthTone, paramRows,
 } from '../lib/strategies';
-import { IconChevron } from '../components/Icons';
-import '../styles/evidence.css';
-
-/** 回測成本（策略頁與策略庫頁尾共用；個人試算另用設定的券商折扣） */
-const COST_NOTE = '回測成本：牌告手續費 0.1425%×2、證交稅 0.3%、滑價 0.1%×2；個人試算用你在設定的券商折扣。';
-const benchNote = (hold: number) => `判定一律用同日等權（${hold} 日、扣成本），不隨切換改變；切換只改變「相對基準」那一組的超額、t、超額勝率。`;
-const relLabel = (bench: BenchKey) => (bench === '0050' ? '0050 含息' : BENCH_LABEL[bench]);
+import '../styles/strategy.css';
 
 export const loadStrategies = () => loadJson<StrategiesFile>('strategies.json');
 
-/** 分級標籤：有效＝強調、觀察中＝一般、停用＝弱化；琥珀只給樣本範圍受限與健康度風險。 */
-function GradeTag({ s }: { s: StrategyItem }) {
-  const g = gradeOf(s);
-  const tone = gradeTone(g);
-  return <span class={`tag ev-verdict${tone === 'strong' ? ' strong' : tone === 'muted' ? ' muted' : ''}`} data-testid="grade-tag" data-grade={g}>{s.grade_label ?? g}</span>;
+const sigT = (s: StrategyItem) => s.judge?.sig.t ?? s.t_corr ?? -99;
+const byGrade = (a: StrategyItem, b: StrategyItem) => GRADE_ORDER[gradeOf(a)] - GRADE_ORDER[gradeOf(b)] || sigT(b) - sigT(a);
+const pctOr = (v: number | null | undefined) => <Signed v={v ?? null} unit="%" tone="plain" />;
+const nowrap = (t: string) => <span class="ui-num">{t}</span>;
+/** 不帶號的百分比（勝率、涵蓋率）：與 Signed 同一種數字＋單位排法。 */
+const pctN = (v: number | null | undefined) => <Num v={v ?? null} digits={2} unit="%" />;
+
+/** 頁面層級的基準（記在 localStorage tmf-bench；切換時保持捲動位置）。 */
+function useBench(): [BenchKey, (k: BenchKey) => void] {
+  const [bench, setBench] = useState<BenchKey>(loadBench);
+  const set = (k: BenchKey) => {
+    const y = window.scrollY;
+    saveBench(k);
+    setBench(k);
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (Math.abs(window.scrollY - y) > 0) window.scrollTo(0, y); }));
+  };
+  return [bench, set];
 }
 
-function Tags({ s }: { s: StrategyItem }) {
-  return (
-    <span class="tags">
-      <GradeTag s={s} />
-      {s.limited ? <span class="tag risk">資料不足</span> : s.verdict === '樣本範圍受限' ? <span class="tag risk">{s.verdict}</span> : null}
-      {s.enabled && s.health && s.health.status !== '資料累積中' ? <span class={`tag ${healthTone(s.health.status) === 'risk' ? 'risk' : ''}`}>{s.health.status}</span> : null}
-    </span>
-  );
-}
-
-/** 卡片與頁首共用的 2×2 指標：判定（等權）兩格固定，相對基準一格隨切換，每月觸發一格。 */
-function coreMetrics(s: StrategyItem, bench: BenchKey, compact: boolean): MetricItem[] {
-  const j = judged(s, bench);
-  const ew = judged(s, 'ew');
-  const hold = judgeHold(s);
-  const items: MetricItem[] = [
-    { k: '校正後 t（判定・等權）', v: tText(s.t_corr), sub: compact ? undefined : `日曆時間法 t ${tText(ew.t)}` },
-    { k: `${hold} 日扣成本超額（判定・等權）`, v: pctSigned(netExcess(s)), sub: compact ? undefined : `超額勝率 ${pctPlain(ew.win)}・絕對勝率 ${pctPlain(s.win)}` },
-  ];
-  if (bench === 'ew') items.push({ k: '超額勝率（相對等權）', v: pctPlain(ew.win), sub: `絕對勝率 ${pctPlain(s.win)}` });
-  else items.push({ k: `${hold} 日超額（相對 ${relLabel(bench)}）`, v: pctSigned(j.excess), sub: `t ${tText(j.t)}・超額勝率 ${pctPlain(j.win)}` });
-  items.push({ k: '每月觸發', v: s.per_month === null || s.per_month === undefined ? missing('沒有樣本') : `${s.per_month} 檔`, sub: compact ? undefined : `去重樣本 ${fmtCount(s.n)} 筆` });
-  return items;
-}
-
-function sortRows(list: StrategyItem[], sort: SortState, bench: BenchKey) {
-  return sortItems(
-    list.map((s) => {
-      const j = judged(s, bench);
-      return {
-        s, label: s.label, verdict: s.verdict, t: j.t, excess: j.excess, health: s.health?.recent ?? null, today: s.today?.length ?? 0,
-        rank: s.rank ?? null, t_corr: s.t_corr ?? null, win: j.win, per_month: s.per_month ?? null, family: s.family ?? s.selection?.family ?? null,
-      };
-    }),
-    sort,
-  ).map((x) => x.s);
-}
-
-/** 策略卡：名稱＋標籤／一句規則／2×2 指標／未達列（只列未達，已通過的不列）。 */
-function Row({ s, bench, off }: { s: StrategyItem; bench: BenchKey; off?: boolean }) {
-  return (
-    <a class="ev-row st-row st-card" href={`#/explore/strategies/${s.id}`} data-testid={`st-row-${s.id}`}>
-      <span class="ev-main">
-        <span class="st-card-head"><span class="ev-label">{s.label}</span><Tags s={s} /></span>
-        <span class="ev-sub st-rule">{s.subtitle}</span>
-        {off ? (
-          <span class="ev-sub st-unmet">{s.grade_reason || s.reasons.join('；') || '未達分級門檻'}</span>
-        ) : (
-          <>
-            <MetricGrid items={coreMetrics(s, bench, true)} label={`${s.label} 的指標`} testid="st-metrics" />
-            <span class="ev-sub">{envLine(s)}・今日新觸發 {s.today?.length ?? 0} 檔{s.rank ? `・排名 ${s.rank}` : ''}</span>
-            {s.grade_reason ? <span class="ev-sub st-unmet" data-testid="st-unmet">{s.grade_reason}</span> : null}
-            {s.limited && s.limited_note ? <span class="ev-sub risk-text">{s.limited_note}</span> : null}
-          </>
-        )}
-      </span>
-    </a>
-  );
-}
-
-const GRADES: Grade[] = ['有效', '觀察中', '停用'];
-const SECTION_TITLE: Record<Grade, string> = { 有效: '有效', 觀察中: '觀察中', 停用: '停用與未通過' };
-function emptyText(g: Grade): string {
-  if (g === '有效') return `目前沒有分級為「有效」的策略。${verdictDefinition(DEFAULT_GRADING)}`;
-  if (g === '觀察中') return '目前沒有分級為「觀察中」的策略（40 日扣成本超額 > 0 且校正後 t ≥ 2，但未達有效）。';
-  return '沒有停用的策略。';
-}
+// ---------------------------------------------------------------- 清單
 
 function StrategyList({ data }: { data: StrategiesFile }) {
-  const [bench, setBench] = useBenchState();
-  const [sort, setSortState] = useState<SortState>(() => loadSort('strategies', STRATEGY_SORT));
-  const setSort = (x: SortState) => { saveSort('strategies', x); setSortState(x); };
   const [openOff, setOpenOff] = useState(false);
-  const groups = useMemo(() => {
-    const by: Record<Grade, StrategyItem[]> = { 有效: [], 觀察中: [], 停用: [] };
-    for (const s of data.strategies) by[gradeOf(s)].push(s);
-    // 資料不足區的策略不排名：放在同一分級的最後
-    const lim = (l: StrategyItem[]) => [...l.filter((s) => !s.limited), ...l.filter((s) => s.limited)];
-    return { 有效: lim(sortRows(by['有效'], sort, bench)), 觀察中: lim(sortRows(by['觀察中'], sort, bench)), 停用: sortRows(by['停用'], sort, bench) };
-  }, [data.strategies, sort, bench]);
+  const { listed, off } = useMemo(() => {
+    const all = [...data.strategies].sort(byGrade);
+    return { listed: all.filter((s) => isListed(s)), off: all.filter((s) => !isListed(s)) };
+  }, [data.strategies]);
+  const row = (s: StrategyItem) => (
+    <Row key={s.id} label={<>{s.label}<GradeTag s={s} /></>} sub={keepNum(s.subtitle)} href={`#/explore/strategies/${s.id}`} testid={`st-row-${s.id}`} />
+  );
   return (
     <>
-      <BenchSwitch value={bench} onChange={setBench} note={`${benchNote(data.horizon)}目前：${BENCH_LONG[bench]}`} />
-      <SortMenu id="strategies" value={sort} onChange={setSort} options={STRATEGY_SORT} />
-      {GRADES.map((g) => {
-        const list = groups[g];
-        const id = `st-sec-${g}`;
-        if (g === '停用') {
-          return (
-            <section key={g} class="st-sec" data-testid={id}>
-              <button type="button" class="collapsed-row st-fold" aria-expanded={openOff} aria-controls={`${id}-list`} onClick={() => setOpenOff(!openOff)}>
-                <span class="section st-sec-h">{SECTION_TITLE[g]}（{list.length}）</span>
-                <IconChevron />
-              </button>
-              {openOff ? (
-                <div class="list ev-list" id={`${id}-list`} data-testid={`${id}-list`}>
-                  {list.length ? list.map((s) => <Row key={s.id} s={s} bench={bench} off />) : <p class="list-item caption muted">{emptyText(g)}</p>}
-                </div>
-              ) : null}
-            </section>
-          );
-        }
-        return (
-          <section key={g} class="st-sec" data-testid={id}>
-            <h2 class="section st-sec-h">{SECTION_TITLE[g]}（{list.length}）</h2>
-            <div class="list ev-list" data-testid={`${id}-list`}>
-              {list.length ? list.map((s) => <Row key={s.id} s={s} bench={bench} />) : <p class="list-item caption muted">{emptyText(g)}</p>}
-            </div>
-          </section>
-        );
-      })}
-      <p class="caption muted ev-foot" data-testid="cost-note">{COST_NOTE}</p>
+      <PageTitle title="策略庫" sub={`資料至 ${md(data.date)}・依規則產生，非推薦`} />
+      <Section title="上架" aside={`${listed.length} 套`} info={<JudgeInfo meta={data.judge_meta} multi={data.multi_test} />} testid="st-sec-listed">
+        <List chev class="st-list" testid="st-sec-listed-list">
+          {listed.length ? listed.map(row) : <EmptyRow>無上架策略</EmptyRow>}
+        </List>
+      </Section>
+      <Section title="無效" aside={`${off.length} 套`} testid="st-sec-off">
+        <List chev class="st-list" testid="st-sec-off-list">
+          <Row label={openOff ? '收合' : `展開 ${off.length} 套`} onClick={() => setOpenOff(!openOff)} testid="st-fold" ariaLabel={openOff ? '收合無效的策略' : '展開無效的策略'} />
+          {openOff ? off.map(row) : null}
+        </List>
+      </Section>
     </>
   );
 }
 
-/** v3 M5-5 今日新觸發：每列可展開，列出各條件的當日數值（觸發依據）；0 檔時說明原因。 */
-function TodayList({ s, date }: { s: StrategyItem; date: string }) {
-  const [open, setOpen] = useState<string | null>(null);
-  if (!s.today?.length) {
-    return <div class="list"><div class="list-item caption muted" data-testid="today-empty">今天沒有新觸發：{s.today_note ?? '沒有股票首次同時符合全部條件。'}</div></div>;
+// ---------------------------------------------------------------- 策略頁
+
+function JudgeSection({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
+  const j = s.judge;
+  const h = j?.horizon ?? 40;
+  if (!j) {
+    return <Section title="判定"><List><EmptyRow>沒有判定卡資料（重新部署後產生）</EmptyRow></List></Section>;
+  }
+  const g = typeof s.grade === 'object' ? s.grade : null;
+  const p = j.opp.port, b = j.opp.bench_port;
+  const rows = [
+    { k: '年化報酬', p: pctOr(p.cagr), b: pctOr(b.cagr) },
+    { k: 'Sharpe', p: ratioText(p.sharpe), b: ratioText(b.sharpe) },
+    { k: '最大回撤', p: pctOr(p.mdd), b: pctOr(b.mdd) },
+  ];
+  return (
+    <Section title="判定" aside={`${h} 日・扣成本`} info={<JudgeInfo meta={data.judge_meta} multi={data.multi_test} />} testid="st-judge">
+      <Card testid="st-judge-card">
+        <StatGrid testid="st-judge-grid" items={[
+          { label: '(a) 機會成本・0050', value: pctOr(j.opp.excess), testid: 'judge-opp' },
+          { label: '(b) 訊號檢定・等權', value: pctOr(j.sig.excess), testid: 'judge-sig' },
+          { label: '校正後 t', value: tText(j.opp.t) },
+          { label: '校正後 t', value: tText(j.sig.t) },
+          { label: '超額勝率', value: pctN(j.opp.win) },
+          { label: '樣本', value: <>{fmtCount(j.sig.n)}<span class="ui-unit">筆</span></> },
+        ]} />
+        <CardLabel aside={j.opp.period ? `${md(j.opp.period[0])}（${j.opp.period[0].slice(0, 4)}）起` : undefined}>{j.opp.slots} 檔組合 vs 0050</CardLabel>
+        <Table
+          caption={`${j.opp.slots} 檔組合與同期 0050`}
+          cols={[
+            { key: 'k', label: '指標', render: (r) => r.k },
+            { key: 'p', label: `${j.opp.slots} 檔組合`, align: 'r', width: '30%', render: (r) => r.p },
+            { key: 'b', label: '0050', align: 'r', width: '30%', render: (r) => r.b },
+          ]}
+          rows={rows}
+          rowKey={(r) => r.k}
+        />
+      </Card>
+      {g && (g.reasons?.length || g.notes.length) ? (
+        <List testid="grade-reason">
+          {(g.reasons ?? []).map((r) => <Row key={r} label={r} />)}
+          {g.notes.map((n) => <Row key={n} label={n} sub={NOTE_TEXT[n]} />)}
+        </List>
+      ) : null}
+    </Section>
+  );
+}
+
+const NOTE_TEXT: Record<string, string> = {
+  樣本不足: '樣本期間 < 3 年或去重樣本 < 300 筆，最高觀察中',
+  待前瞻驗證: '合併後的新訊號滿 60 個交易日才比對',
+};
+
+function HealthSection({ s }: { s: StrategyItem }) {
+  const h = s.health;
+  if (!h) return null;
+  const r = h.recent60 ?? { excess: h.recent, n: h.recent_n };
+  const risk = healthTone(h.status) === 'risk';
+  return (
+    <Section title="健康度" info={<><p>近 60 日＝最近 60 個交易日內、已完成 40 日持有的去重事件；長期＝全部訊號期間。皆為相對同日等權的扣成本超額。</p><p>近期樣本少於 20 筆時不比較。{envLine(s)}。</p></>}>
+      <List>
+        <Row
+          testid="st-health"
+          label={<>近 60 日 {pctOr(r.excess)} {nowrap(`(${fmtCount(r.n)} 筆)`)}｜長期 {pctOr(healthLong(h))}</>}
+          value={risk ? <Tag tone="risk">{h.status}</Tag> : undefined}
+        />
+      </List>
+    </Section>
+  );
+}
+
+type CurveFile = { curve?: Partial<Record<BenchKey, CurveLine>> & { n?: number; days?: number } };
+
+function EventSection({ s, bench, setBench }: { s: StrategyItem; bench: BenchKey; setBench: (k: BenchKey) => void }) {
+  const curve = useAsync(() => loadJson<CurveFile>(`evidence/${s.test}.json`).catch((): CurveFile => ({})), [s.test]);
+  const line = curve.data?.curve?.[bench];
+  const hs = Object.entries(s.h ?? {}).sort((a, b) => Number(a[0]) - Number(b[0]));
+  const yearly = s.event?.yearly ?? [];
+  const days = curve.data?.curve?.days ?? line?.mean.length ?? 120;
+  const info = (
+    <>
+      <p>累積超額：判定持有期（40 日）的去重事件，進場後第 k 個交易日收盤的累積報酬減去同期基準（不扣成本），同一進場日先平均再對日期平均；灰帶為 95% 區間（日期分層 bootstrap）。觀察窗 {days} 日；峰值落在第 {days} 日時標「{EDGE_TEXT}」，真正的峰值可能在窗外。</p>
+      <p>多期間：各持有天數各自去重、扣成本；120 日只做參考。逐年訊號超額：相對同日等權、扣成本。</p>
+      <p>基準切換只改變比較對象；分級以判定卡為準。</p>
+    </>
+  );
+  const pick = (v: NonNullable<StrategyItem['h']>[string]) => (bench === 'ew' ? { mean_excess: v.mean_excess ?? null, win: v.bench?.ew?.win ?? null } : { mean_excess: v.bench?.[bench]?.mean_excess ?? null, win: v.bench?.[bench]?.win ?? null });
+  return (
+    <Section title="事件研究" info={info} testid="st-event">
+      <Seg options={BENCH_KEYS.map((k) => [k, BENCH_LABEL[k]] as const)} value={bench} onChange={setBench} label="比較基準" sticky testid="bench-switch" />
+      <Card>
+        <CardLabel aside={line ? (peakAtEdge(line) ? EDGE_TEXT : line.peak ? `峰值第 ${line.peak} 日` : undefined) : undefined}>累積超額・相對{BENCH_LABEL[bench]}</CardLabel>
+        {line ? <AlphaCurve line={line} label={`相對${BENCH_LABEL[bench]}`} n={curve.data?.curve?.n} />
+          : <EmptyRow>{curve.loading ? '載入中' : '這個基準沒有曲線資料'}</EmptyRow>}
+      </Card>
+      {hs.length ? (
+        <Card>
+          <CardLabel>多期間・相對{BENCH_LABEL[bench]}</CardLabel>
+          <Table
+            caption={`各持有天數的超額，相對${BENCH_LABEL[bench]}`}
+            cols={[
+              { key: 'h', label: '持有', render: ([k]) => `${k} 日` },
+              { key: 'e', label: '超額', align: 'r', render: ([, v]) => pctOr(pick(v).mean_excess) },
+              { key: 'w', label: '超額勝率', align: 'r', render: ([, v]) => pctN(pick(v).win) },
+              { key: 'n', label: '樣本', align: 'r', render: ([, v]) => fmtCount(v.n ?? 0) },
+            ]}
+            rows={hs}
+            rowKey={([k]) => k}
+          />
+        </Card>
+      ) : null}
+      {yearly.length ? (
+        <Card testid="st-event-yearly">
+          <CardLabel>逐年訊號超額・相對等權</CardLabel>
+          <Table
+            caption="逐年訊號超額"
+            cols={[
+              { key: 'y', label: '年份', render: (r) => r.year },
+              { key: 'e', label: '超額', align: 'r', render: (r) => pctOr(r.excess) },
+              { key: 'n', label: '筆數', align: 'r', render: (r) => fmtCount(r.n) },
+            ]}
+            rows={yearly}
+            rowKey={(r) => r.year}
+          />
+        </Card>
+      ) : null}
+    </Section>
+  );
+}
+
+function PortfolioSection({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
+  const slots = s.curve?.slots ?? data.judge_meta?.slots ?? 5;
+  const sel = s.selection;
+  const rnd = sel?.random;
+  const info = (
+    <>
+      <p>{sel?.rule_text ?? data.judge_meta?.selection_rule}</p>
+      {rnd ? <p>隨機選股：同一天觸發多於空位時改用隨機順序，其餘規則相同，{rnd.n} 次（種子 {rnd.seed}）；列出年化報酬與最大回撤的中位數與 5%～95% 分位。</p> : null}
+      <p>權益曲線每週取樣、期初＝1、Y 軸對數；基準為同期持有不動（還原價、含息，不扣成本）。00631L 為 2 倍槓桿 ETF（每日再平衡），預設隱藏。首尾年份不是完整年度。</p>
+    </>
+  );
+  const yearly = s.yearly ?? [];
+  return (
+    <Section title="組合回測" aside={`${slots} 檔・固定 ${data.judge_meta?.horizon ?? 40} 日`} info={info} testid="st-portfolio">
+      {s.curve?.dates?.length ? (
+        <Card>
+          <EquityChart
+            dates={s.curve.dates}
+            series={[
+              { key: 'strategy', label: `${slots} 檔`, values: s.curve.equity },
+              { key: '0050', label: '0050', values: s.curve.etf?.['0050'] ?? [], missing: s.curve.missing?.['0050'] ?? '沒有 0050 序列' },
+              { key: 'tr', label: '加權報酬', values: s.curve.bench ?? [], missing: s.curve.missing?.tr ?? '沒有加權報酬指數序列' },
+              { key: '00631L', label: '00631L', values: s.curve.etf?.['00631L'] ?? [], missing: s.curve.missing?.['00631L'] ?? '沒有 00631L 序列' },
+            ]}
+          />
+        </Card>
+      ) : <List><EmptyRow>沒有週權益序列</EmptyRow></List>}
+      {yearly.length ? (
+        <Card testid="st-yearly">
+          <CardLabel>逐年報酬</CardLabel>
+          <Table
+            caption={`逐年：${slots} 檔組合、0050、差額`}
+            cols={[
+              { key: 'y', label: '年份', render: (r) => r.year },
+              { key: 'p', label: `${slots} 檔組合`, align: 'r', render: (r) => pctOr(r.port) },
+              { key: 'b', label: '0050', align: 'r', render: (r) => pctOr(r.bench) },
+              { key: 'd', label: '差額', align: 'r', render: (r) => <Signed v={r.diff} unit="%" tone="plain" /> },
+            ]}
+            rows={yearly}
+            rowKey={(r) => r.year}
+          />
+        </Card>
+      ) : null}
+      {rnd && sel?.spec ? (
+        <Card testid="st-random">
+          <CardLabel aside={`隨機 ${rnd.n} 次`}>選股規則 vs 隨機選股</CardLabel>
+          <Table
+            caption="選股規則與隨機選股模擬"
+            cols={[
+              { key: 'k', label: '指標', render: (r) => r.k },
+              { key: 'r', label: '規則', align: 'r', width: '23%', render: (r) => pctOr(r.spec) },
+              { key: 'm', label: '中位數', align: 'r', width: '23%', render: (r) => pctOr(r.q.p50) },
+              { key: 'q', label: '5～95%', align: 'r', width: '30%', render: (r) => nowrap(`${pctRange(r.q.p5)}～${pctRange(r.q.p95)}`) },
+            ]}
+            rows={[
+              { k: '年化報酬', spec: sel.spec.cagr, q: rnd.cagr },
+              { k: '最大回撤', spec: sel.spec.mdd, q: rnd.mdd },
+            ]}
+            rowKey={(r) => r.k}
+          />
+        </Card>
+      ) : null}
+    </Section>
+  );
+}
+
+/** 區間端點：整數百分比、帶號（U+2212）；單位在表頭。 */
+function pctRange(v: number | null | undefined): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+  const a = Math.abs(v).toFixed(0);
+  return `${v > 0 ? '+' : v < 0 ? '−' : ''}${a}`;
+}
+
+/** 出場規則的短名（表格用）。 */
+export function exitShort(rule: string, p: string): string {
+  const n = p.replace('-', '−');
+  switch (rule) {
+    case 'fixed': return `固定 ${p} 日`;
+    case 'ma': return `跌破 ${p} 日線`;
+    case 'stop': return `停損 ${n}%`;
+    case 'trailing': return `高點回落 ${p}%`;
+    case 'atr': return `回落 ${p} 倍 ATR`;
+    case 'entry_low': return '跌破進場日低點';
+    case 'exhaust': return '量縮且漲跌 ≤ 2%';
+    case 'peak': return `第 ${p} 日出場`;
+    default: return `${rule} ${p}`;
+  }
+}
+
+function ExitSection({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
+  const ex = s.exits;
+  const train = (ex?.train_end ?? data.judge_meta?.exits_train_end ?? '2021-12-31').slice(0, 4);
+  const info = (
+    <>
+      <p>同樣的進場、不同的出場（固定持有、跌破均線、停損、高點回落、ATR 回落、跌破進場日低點、量縮整理、固定第 N 日；最長 {ex?.max_days ?? 60} 日）。</p>
+      <p>每種出場的參數與「選定」的出場，只用 {train} 年底以前的訊號選（{ex?.metric ?? '樣本內相對 0050 平均超額'}，樣本內 ≥ {ex?.min_events ?? 30} 筆）；{ex?.oos_start?.slice(0, 4) ?? '2022'} 年起的結果列為樣本外，不參與選擇。數字為事件平均、扣成本、相對 0050。</p>
+      <p>「第 N 日出場」的 N＝樣本內累積超額曲線的峰值日。</p>
+      <p>{data.judge_meta?.exit_note ?? '分級、組合回測與槓桿風險一律用固定 40 日出場；出場規則比較只供參考。'}</p>
+      {ex?.note ? <p>{ex.note}</p> : null}
+    </>
+  );
+  if (!ex || !ex.rules.length) {
+    return <Section title="出場規則" info={info}><List><EmptyRow>沒有出場規則比較</EmptyRow></List></Section>;
   }
   return (
-    <div class="list" data-testid="today-list">
-      {s.today.map((x) => (
-        <div key={x.code} class="st-trig">
-          <button type="button" class="ev-row" aria-expanded={open === x.code} onClick={() => setOpen(open === x.code ? null : x.code)}>
-            <span class="ev-main"><span class="ev-label">{x.name} <span class="muted">{x.code}</span></span><span class="ev-sub">觸發依據（{md(date)}）</span></span>
-            <span aria-hidden="true" class="muted">{open === x.code ? '▲' : '▼'}</span>
-          </button>
-          {open === x.code ? (
-            <div class="ev-detail">
-              <ul class="st-basis">{(x.basis ?? []).map((b) => <li key={b.label} class="caption">{basisText(b)}</li>)}</ul>
-              <a class="btn small" href={`#/stock/${x.code}`}>看個股頁</a>
-            </div>
-          ) : null}
-        </div>
-      ))}
-    </div>
+    <Section title="出場規則" aside={`${train} 年底前選`} info={info} testid="st-exits">
+      <Card>
+        <CardLabel aside="相對 0050">選定：{ex.chosen ? exitShort(ex.chosen.rule, ex.chosen.param) : '—'}{ex.chosen?.basis === 'fallback' ? '（預設）' : ''}</CardLabel>
+        <Table
+          caption="出場規則：樣本內與樣本外"
+          cols={[
+            { key: 'r', label: '出場', render: (r) => <span class={r.chosen ? 'ui-strong' : ''}>{exitShort(r.rule, r.param)}</span> },
+            { key: 'i', label: '樣本內', align: 'r', width: '28%', render: (r) => pctOr(r.in_sample.rel?.['0050']) },
+            { key: 'o', label: '樣本外', align: 'r', width: '28%', render: (r) => pctOr(r.oos.rel?.['0050']) },
+          ]}
+          rows={ex.rules}
+          rowKey={(r) => `${r.rule}:${r.param}`}
+        />
+      </Card>
+    </Section>
   );
 }
 
-function HindsightCard({ h }: { h: Hindsight }) {
+function SampleSection({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
+  const [swingOpen, setSwingOpen] = useState(false);
+  const gm = data.judge_meta?.sample;
+  const smp = s.sample;
+  const params = paramRows(s.param);
+  const revenue = /營收/.test(`${s.definition ?? ''}${s.subtitle}`);
+  const gates = s.swing?.gates;
+  const passed = gates ? Object.values(gates.checks ?? {}).filter(Boolean).length : 0;
+  const total = gates ? Object.keys(gates.checks ?? {}).length : 0;
+  const info = (
+    <>
+      <p>{smp?.universe_text ?? gm?.universe_text}</p>
+      {gm ? <p>2017 年起曾進入股票池 {fmtCount(gm.universe_stocks)} 檔，其中 {fmtCount(gm.stopped_stocks)} 檔在資料最後一個月已無收盤價、{fmtCount(gm.official_delisted)} 檔名列官方終止上市櫃。</p> : null}
+      {revenue && gm ? <p>{gm.revenue_timing}</p> : null}
+      <p>成本：手續費 0.1425%（買賣各一次、不打折）、證交稅 0.3%、滑價 0.1%（買賣各一次），來回約 0.79%。基準不扣成本。</p>
+      {s.definition ? <p>{s.definition}</p> : null}
+      {s.note ? <p>{s.note}</p> : null}
+    </>
+  );
   return (
-    <div class="card" data-testid="hindsight-card">
-      <p class="body"><b>原 31 檔 vs 全市場</b></p>
-      {h.status === 'waiting' ? (
-        <p class="caption muted">全市場集保回補中：涵蓋率 {ratioPct(h.coverage)}，達 {ratioPct(h.threshold ?? 0.9, 0)} 後自動計算。原 31 檔是 2026-09 依成交值挑的熱門股，有後見之明偏差。</p>
-      ) : (
-        <p class="caption">原 31 檔 {pctSigned(h.orig?.mean_excess)}（t {tText(h.orig?.t)}，{fmtCount(h.orig?.n ?? 0)} 筆）；全市場 {pctSigned(h.full?.mean_excess)}（t {tText(h.full?.t)}，{fmtCount(h.full?.n ?? 0)} 筆）；選樣偏差估計 {pctSigned(h.bias)}。</p>
-      )}
-    </div>
+    <Section title="樣本與成本" info={info} testid="st-sample">
+      <List>
+        <Row label="含下市股票" value={smp ? (smp.includes_delisted ? '是' : '否') : '—'} testid="st-delisted" />
+        <Row label="股票池" sub="普通股・成交值 ≥ 5,000 萬" value={gm ? <>{fmtCount(gm.universe_stocks)}<span class="ui-unit">檔</span></> : '—'} />
+        <Row label="訊號期間" value={s.signal_start ? `${s.signal_start.slice(0, 7)} 起` : '—'} />
+        <Row label="去重樣本" value={<>{fmtCount(s.judge?.sig.n ?? s.n ?? 0)}<span class="ui-unit">筆</span></>} />
+        <Row label="持有期間下市" value={<>{fmtCount(smp?.delisted_events ?? 0)}<span class="ui-unit">筆</span></>} />
+        {s.coverage ? <Row label="涵蓋率" sub={`每日平均 ${fmtCount(s.coverage.included)}／${fmtCount(s.coverage.universe)} 檔`} value={pctN(s.coverage.ratio * 100)} /> : null}
+        {revenue ? <Row label="月營收生效" sub="遇休市順延，不提前" value="次月 10 日" /> : null}
+        <Row label="交易成本" sub="手續費・證交稅・滑價，來回" value={<Num v={0.79} digits={2} unit="%" />} />
+        {params.length ? <Row label="參數" sub={params.map((p) => `${p.label} ${p.value}`).join('・')} /> : null}
+        {s.hindsight?.status === 'waiting' ? <Row label="原 31 檔 vs 全市場" sub={`涵蓋率達 ${pctPlain((s.hindsight.threshold ?? 0.9) * 100, 0)} 後計算`} value="—" /> : null}
+        {gates ? <Row label="上線門檻" value={`${passed}/${total}`} onClick={() => setSwingOpen(true)} testid="st-gates" /> : null}
+      </List>
+      {s.limited && s.limited_note ? <Warn>{keepNum(s.limited_note)}</Warn> : null}
+      {s.swing ? (
+        <Sheet open={swingOpen} onClose={() => setSwingOpen(false)} title="上線門檻">
+          <SwingCard sw={s.swing} hold={s.swing.hold} />
+        </Sheet>
+      ) : null}
+    </Section>
   );
 }
 
-function Actions({ s, date, horizon }: { s: StrategyItem; date: string; horizon: number }) {
+function TriggerSection({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
   const tracked = useDb(() => listStrategies(), []);
   const [msg, setMsg] = useState('');
   const presetId = LAB_PREFIX + s.id;
   const isTracked = (tracked ?? []).some((t) => t.presetId === presetId && t.active);
   const codes = (s.today ?? []).map((x) => x.code);
+  const listed = isListed(s);
   return (
-    <div class="st-actions">
-      {codes.length ? (
-        <button class="btn" onClick={async () => {
-          const n = await addWatchMany(codes, groupName(s));
-          setMsg(n ? `已加入自選群組「${groupName(s)}」${n} 檔` : '這些股票已經在群組裡');
-        }}>今日觸發全部加入自選群組</button>
-      ) : null}
-      <button class="btn" disabled={isTracked} onClick={async () => {
-        await saveStrategy({ id: uid(), presetId, name: s.label, conditions: [], horizon, startAfter: date, enabledAt: new Date().toISOString(), active: true });
-        setMsg(`已設為訊號追蹤：${md(date)} 之後的新觸發開始記錄（紀律 → 訊號追蹤）`);
-      }}>{isTracked ? '已在訊號追蹤' : '設為訊號追蹤'}</button>
-      {msg ? <p class="caption" role="status">{msg}</p> : null}
-    </div>
-  );
-}
-
-function perfText(p: Perf | undefined, key: keyof Perf, kind: 'pct' | 'ratio' | 'days'): string {
-  const v = p?.[key];
-  if (v === null || v === undefined || typeof v === 'object') return '—';
-  if (kind === 'pct') return pctSigned(v);
-  if (kind === 'days') return fmtCount(v);
-  return ratioText(v);
-}
-
-/** v3 M2-3：組合與 (b)(c)(d) 同期的績效指標，以及月報酬對加權報酬指數的迴歸。 */
-function CompareTable({ c, slots }: { c: BenchCompare; slots: number }) {
-  const cols: [string, Perf | undefined][] = [[`${slots} 檔組合`, c.strategy], ['加權報酬', c.tr], ['0050', c['0050']], ['00631L', c['00631L']]];
-  const r = c.regression;
-  return (
-    <>
-      <h2 class="section st-h">與基準同期比較</h2>
-      <table class="ev-table ev-static" aria-label="策略與基準的績效指標">
-        <thead><tr><th scope="col">指標</th>{cols.map(([k]) => <th key={k} scope="col">{k}</th>)}</tr></thead>
-        <tbody>
-          {PERF_ROWS.map((row) => (
-            <tr key={row.key}><th scope="row">{row.label}</th>{cols.map(([k, p]) => <td key={k}>{perfText(p, row.key, row.kind)}</td>)}</tr>
-          ))}
-        </tbody>
-      </table>
-      <p class="caption muted">
-        {c.period ? `${c.period[0]}～${c.period[1]}。` : ''}
-        {r && r.months >= 6
-          ? `月報酬對加權報酬指數迴歸：β ${ratioText(r.beta)}、年化 α ${pctSigned(r.alpha_ann)}（t ${tText(r.alpha_t)}）、R² ${ratioText(r.r2)}（${r.months} 個月）。`
-          : `月報酬迴歸：—（同期月數 ${r?.months ?? 0} 個，不足 6 個月）。`}
-        Sharpe 以無風險利率 0 計；回撤天數＝最長的回撤持續交易日數。
-      </p>
-    </>
-  );
-}
-
-/** 健康度卡：資料累積中時寫清楚缺什麼，不印「— 起」。 */
-function HealthCard({ s, minRecent = 20 }: { s: StrategyItem; minRecent?: number }) {
-  const h = s.health;
-  const hold = judgeHold(s);
-  if (!h) return <div class="card"><p class="caption muted">健康度：—（這套策略沒有近期統計）。</p></div>;
-  const items: MetricItem[] = [
-    { k: '近 60 個交易日平均超額', v: h.recent_n >= minRecent ? pctSigned(h.recent) : missing(`樣本 ${h.recent_n} 筆，需 ${minRecent} 筆`), sub: `已完成 ${hold} 日持有的 ${fmtCount(h.recent_n)} 筆${h.since ? `・${md(h.since)} 起` : ''}` },
-    { k: '長期平均超額', v: pctSigned(h.long), sub: '相對同日等權、扣成本' },
-  ];
-  return (
-    <div class="card">
-      <p class="body"><b>{h.status}</b></p>
-      <MetricGrid items={items} label="健康度" />
-      <p class="caption">{envLine(s)}</p>
-    </div>
-  );
-}
-
-/** 出場規則卡：沒有比較結果時寫原因，不印整段破折號。 */
-function ExitCard({ s }: { s: StrategyItem }) {
-  const [showAlt, setShowAlt] = useState(false);
-  const ex = s.exit;
-  const hold = judgeHold(s);
-  const st = ex?.stats ?? {};
-  const hasStats = st.n !== undefined && st.n !== null;
-  return (
-    <div class="card">
-      <p class="body"><b>{ex?.label ?? `固定 ${hold} 日`}</b></p>
-      {hasStats ? (
-        <MetricGrid items={[
-          { k: '期望值（扣成本）', v: pctSigned(st.ev) },
-          { k: '相對加權報酬', v: pctSigned(st.exc_idx) },
-          { k: '絕對勝率', v: pctPlain(st.win) },
-          { k: '平均持有', v: st.hold === null || st.hold === undefined ? '—' : `${st.hold.toFixed(1)} 日` },
-          { k: '最大不利波動平均', v: pctSigned(st.mae) },
-          { k: '跌停鎖死', v: `${st.locked ?? 0} 次` },
-        ]} label="出場規則統計" />
-      ) : (
-        <p class="caption muted">出場規則比較：—（{s.kind === 'swing' ? '波段策略以固定持有日出場，不另比較出場規則' : '指標判定未達有效／環境依賴時不計算出場規則比較'}）。</p>
-      )}
-      <p class="caption muted">依出場規則比較（相對加權報酬最高者）選用；勝率為絕對勝率（扣成本報酬 &gt; 0）。</p>
-      {ex?.alternatives?.length ? (
-        <>
-          <button class="btn small" aria-expanded={showAlt} onClick={() => setShowAlt(!showAlt)}>{showAlt ? '收起其他出場規則' : '看其他出場規則'}</button>
-          {showAlt ? (
-            <table class="ev-table ev-static" aria-label="出場規則比較">
-              <thead><tr><th scope="col">出場</th><th scope="col">相對加權報酬</th><th scope="col">絕對勝率</th><th scope="col">持有日</th></tr></thead>
-              <tbody>
-                {ex.alternatives.map((r) => (
-                  <tr key={r.label}><th scope="row" class="ev-wrap">{r.label}</th><td>{pctSigned(r.exc_idx)}</td><td>{pctPlain(r.win)}</td><td>{r.hold === null ? '—' : r.hold.toFixed(1)}</td></tr>
-                ))}
-              </tbody>
-            </table>
+    <Section title="新觸發" aside={md(data.date)} testid="st-today">
+      <List chev={codes.length > 0}>
+        {codes.length
+          ? (s.today ?? []).map((x) => <Row key={x.code} label={`${x.name} ${x.code}`} href={`#/stock/${x.code}`} />)
+          : <EmptyRow testid="today-empty">{md(data.date)} 無新觸發</EmptyRow>}
+      </List>
+      {listed ? (
+        <List chev>
+          {codes.length ? (
+            <Row label="加入自選群組" sub={groupName(s)} onClick={async () => {
+              const n = await addWatchMany(codes, groupName(s));
+              setMsg(n ? `已加入 ${n} 檔` : '已在群組裡');
+            }} value={msg || undefined} />
           ) : null}
-        </>
+          <Row label={isTracked ? '已在訊號追蹤' : '設為訊號追蹤'} sub={`${md(data.date)} 之後的新觸發`} testid="st-track"
+            onClick={isTracked ? undefined : async () => {
+              await saveStrategy({ id: uid(), presetId, name: s.label, conditions: [], horizon: data.horizon, startAfter: data.date, enabledAt: new Date().toISOString(), active: true });
+              setMsg('已設為訊號追蹤');
+            }} />
+          <Row label="槓桿風險" href={`#/explore/leverage?s=${s.id}`} />
+        </List>
       ) : null}
-    </div>
+    </Section>
   );
-}
-
-/** 樣本範圍：指標判定與策略分級分開寫（不再出現「判定：無效」配頁首「觀察中」）；參數用中文標籤並另列原始參數。 */
-function ScopeList({ s }: { s: StrategyItem }) {
-  const hold = judgeHold(s);
-  const gates = s.swing?.gates;
-  const passed = gates ? Object.values(gates.checks ?? {}).filter(Boolean).length : 0;
-  const total = gates ? Object.keys(gates.checks ?? {}).length : 0;
-  const params = paramRows(s.param);
-  const rows = [
-    s.kind === 'swing'
-      ? { k: '上線門檻', v: total ? `${passed}／${total} 項通過` : '—（最終測試段只在部署時計算）', sub: '波段策略不做指標判定；策略分級見頁首' }
-      : { k: '指標判定', v: `${s.verdict}`, sub: `等權 ${hold} 日 t ${tText(s.t)}（指標效度表的判定）；策略分級見頁首` },
-    { k: '涵蓋率', v: coverageText(s.coverage) },
-    { k: '資料起始', v: s.data_start ?? missing('沒有這個資料集的起始日') },
-    { k: '訊號期間', v: s.signal_start ? `${s.signal_start}～${s.signal_end ?? '資料結束'}` : missing('沒有訊號') },
-    { k: '去重樣本', v: `${fmtCount(s.n ?? 0)} 筆` },
-    ...(params.length ? [{ k: '參數', v: params.map((p) => `${p.label} ${p.value}`).join('、'), sub: `原始參數：${s.param}` }] : []),
-  ];
-  return <KeyValueList rows={rows} label="樣本範圍" />;
 }
 
 function Detail({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
-  const [yearView, setYearView] = useState<'strategy' | 'bench'>('strategy');
-  const hold = judgeHold(s);
-  const slots = s.curve?.slots ?? s.swing?.portfolio?.slots ?? 5;
-  const p5 = s.portfolio?.[String(slots)] ?? s.portfolio?.['5'];
-  const cmp = s.compare;
-  const listed = isListed(s);
-  const [bench, setBench] = useBenchState();
-  type CurveFile = { curve?: Partial<Record<BenchKey, CurveLine>> & { n?: number } };
-  const curve = useAsync(() => loadJson<CurveFile>(`evidence/${s.test}.json`).catch((): CurveFile => ({})), [s.test]);
-  const curveLine = curve.data?.curve?.[bench];
-  const years = Object.keys({ ...(s.years ?? {}), ...(p5?.yearly ?? {}) }).sort();
-  const bt = benchTable(s);
-  const hs = Object.entries(s.h ?? {}).sort((a, b) => Number(a[0]) - Number(b[0]));
+  const [bench, setBench] = useBench();
+  const notes = gradeNotes(s);
   return (
     <>
-      <PageHead eyebrow={s.subtitle} title={s.label}>
-        <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>依規則產生，非推薦・資料至 {md(data.date)}</p>
-        <Tags s={s} />
-        {s.grade_reason ? <p class="caption risk-text" data-testid="grade-reason" style={{ marginTop: 'var(--s-1)' }}>{s.grade_reason}</p> : null}
-        {s.limited && s.limited_note ? <p class="caption risk-text" style={{ marginTop: 'var(--s-1)' }}>{s.limited_note}</p> : null}
-        <MetricGrid items={coreMetrics(s, bench, false)} label="策略的判定與目前基準" testid="st-head-metrics" />
-        {s.excess_h?.['20'] !== undefined && hold !== 20 ? <p class="caption muted">20 日扣成本超額（等權）{pctSigned(s.excess_h['20'])}{s.mean_gross_excess !== undefined ? `・毛超額 ${pctSigned(s.mean_gross_excess)}` : ''}{s.family ? `・${s.family}` : ''}</p> : null}
-        {s.split2022 ? (
-          <p class="caption muted" data-testid="split2022" style={{ marginTop: 'var(--s-1)' }}>
-            {s.split2022.date.slice(0, 4)} 前 {pctSigned(s.split2022.pre?.mean_excess)}（t {tText(s.split2022.pre?.t)}、{fmtCount(s.split2022.pre?.n ?? 0)} 筆）／後 {pctSigned(s.split2022.post?.mean_excess)}（t {tText(s.split2022.post?.t)}、{fmtCount(s.split2022.post?.n ?? 0)} 筆）
-          </p>
-        ) : null}
-      </PageHead>
-
-      <h2 class="section st-h">健康度</h2>
-      <HealthCard s={s} />
-
-      <h2 class="section st-h">今日新觸發（{md(data.date)}）</h2>
-      <TodayList s={s} date={data.date} />
-      {s.env && !s.env.today ? <p class="caption risk-text">今日大盤環境不符合這個策略的啟用條件。</p> : null}
-      {s.enabled ? <Actions s={s} date={data.date} horizon={data.horizon} /> : <p class="caption muted">分級為「{gradeOf(s)}」（{s.grade_reason || s.reasons.join('；') || '未達分級門檻'}），不能設為訊號追蹤。</p>}
-
-      {s.hindsight ? <HindsightCard h={s.hindsight} /> : null}
-      {s.swing ? <SwingCard sw={s.swing} hold={s.swing.hold} /> : null}
-
-      <BenchSwitch value={bench} onChange={setBench} note={`${benchNote(hold)}目前：${BENCH_LONG[bench]}`} />
-      <h2 class="section st-h">多期間表現（相對{BENCH_LABEL[bench]}）</h2>
-      <table class="ev-table ev-static" aria-label={`各持有天數的超額報酬，相對${BENCH_LABEL[bench]}`}>
-        <thead><tr><th scope="col">持有</th><th scope="col">超額</th><th scope="col">t</th><th scope="col">超額勝率</th><th scope="col">樣本</th></tr></thead>
-        <tbody>
-          {hs.map(([k, v]) => {
-            const b = bench === 'ew' ? { mean_excess: v.mean_excess, t: v.t, win: v.bench?.ew?.win } : v.bench?.[bench] ?? {};
-            return (
-              <tr key={k} class={Number(k) === hold ? 'ev-chosen' : undefined}>
-                <th scope="row">{k} 日{k === '120' ? '＊' : ''}</th><td>{pctSigned(b.mean_excess)}</td><td>{tText(b.t)}</td><td>{pctPlain(b.win)}</td><td>{fmtCount(v.n ?? 0)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <p class="caption muted">超額扣成本，各持有天數各自去重（同一檔在持有期間內不重複計入），所以每一列的樣本不同；判定以 {hold} 日為主、20 日並列，其餘只供參考；＊120 日只做參考。t 為日曆時間法（未校正）；判定用的校正後 t 在頁首。</p>
-      <h2 class="section st-h">累積超額曲線（相對{BENCH_LABEL[bench]}）</h2>
-      {curveLine ? (
-        <>
-          <AlphaCurve line={curveLine} label={`相對${BENCH_LABEL[bench]}`} n={curve.data?.curve?.n} />
-          <p class="caption">{curveSummary(curveLine)}</p>
-          <p class="caption muted">曲線樣本＝{hold} 日去重事件 {fmtCount(curve.data?.curve?.n ?? 0)} 筆，看進場後第 k 日收盤的累積超額、不扣成本；與上表（各持有天數各自去重、扣成本）的筆數與數值不同。</p>
-        </>
-      ) : <p class="caption muted">累積超額曲線：—（{curve.loading ? '載入中' : curve.data?.curve ? `這個基準沒有曲線資料（pipeline 沒有 ${BENCH_LABEL[bench]} 的序列）` : '這套策略沒有曲線檔；重新部署後產生'}）。</p>}
-
-      {listed && (p5 || s.curve?.dates?.length) ? (
-        <>
-          <h2 class="section st-h">{slots} 檔組合</h2>
-          <p class="caption muted">同時最多持有 {slots} 檔、每檔 1/{slots} 權益、依出場規則，扣成本{s.kind === 'swing' ? '；含共用規則（大盤 240 日線下不開新倉、20 日乖離 &gt; 20% 不進場）' : ''}。基準為同期持有不動（還原價、含息，不扣成本）；首尾年份不是完整年度。</p>
-          {s.curve?.dates?.length ? (
-            <EquityChart
-              dates={s.curve.dates}
-              series={[
-                { key: 'strategy', label: `${slots} 檔組合`, values: s.curve.equity },
-                { key: '0050', label: '0050', values: s.curve.etf?.['0050'] ?? [], missing: s.curve.missing?.['0050'] ?? '資料檔沒有 0050 序列' },
-                { key: 'tr', label: '加權報酬', values: s.curve.bench ?? [], missing: s.curve.missing?.tr ?? '資料檔沒有加權報酬指數序列' },
-                { key: '00631L', label: '00631L', values: s.curve.etf?.['00631L'] ?? [], missing: s.curve.missing?.['00631L'] ?? '資料檔沒有 00631L 序列' },
-              ]}
-            />
-          ) : <p class="caption muted">權益曲線：—（這套策略沒有週權益序列）。</p>}
-          <h3 class="ev-h">逐年報酬</h3>
-          {p5 && cmp ? (
-            <div class="segmented st-seg" role="group" aria-label="逐年報酬的欄位">
-              <button aria-pressed={yearView === 'strategy'} onClick={() => setYearView('strategy')}>策略</button>
-              <button aria-pressed={yearView === 'bench'} onClick={() => setYearView('bench')}>對照基準</button>
-            </div>
-          ) : null}
-          {yearView === 'strategy' || !p5 || !cmp ? (
-            <table class="ev-table ev-static" aria-label="逐年報酬">
-              <thead><tr><th scope="col">年份</th>{p5 ? <th scope="col">{slots} 檔組合</th> : null}<th scope="col">訊號超額</th>{s.trades ? <th scope="col">筆數</th> : null}</tr></thead>
-              <tbody>
-                {years.map((y) => (
-                  <tr key={y}><th scope="row">{y}</th>{p5 ? <td>{pctSigned(p5.yearly?.[y])}</td> : null}<td>{pctSigned(s.years?.[y])}</td>{s.trades ? <td>{fmtCount(s.trades.yearly?.[y]?.n ?? 0)}</td> : null}</tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <table class="ev-table ev-static" aria-label="逐年報酬與基準">
-              <thead><tr><th scope="col">年份</th><th scope="col">{slots} 檔組合</th><th scope="col">加權報酬</th><th scope="col">0050</th><th scope="col">00631L</th></tr></thead>
-              <tbody>
-                {years.map((y) => (
-                  <tr key={y}><th scope="row">{y}</th><td>{pctSigned(p5?.yearly?.[y])}</td><td>{pctSigned(cmp?.tr?.yearly?.[y])}</td><td>{pctSigned(cmp?.['0050']?.yearly?.[y])}</td><td>{pctSigned(cmp?.['00631L']?.yearly?.[y])}</td></tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {cmp ? <CompareTable c={cmp} slots={slots} /> : null}
-        </>
-      ) : (
-        <p class="caption muted st-h">{listed ? `組合模擬：—（這套策略沒有組合模擬資料）。` : `分級為「${gradeOf(s)}」：不顯示組合模擬與權益曲線（只對上架的策略模擬）。`}</p>
-      )}
-
-      {bt ? (
-        <>
-          <h2 class="section st-h">訊號對四種基準（{hold} 日）</h2>
-          <table class="ev-table ev-static" aria-label="訊號相對四種基準的超額">
-            <thead><tr><th scope="col">基準</th><th scope="col">超額</th><th scope="col">t</th><th scope="col">超額勝率</th></tr></thead>
-            <tbody>
-              {BENCH_KEYS.map((k) => {
-                const b = bt[k];
-                return <tr key={k} class={k === bench ? 'ev-chosen' : undefined}><th scope="row">{BENCH_LABEL[k]}</th><td>{pctSigned(b?.mean_excess)}</td><td>{tText(b?.t)}</td><td>{pctPlain(b?.win)}</td></tr>;
-              })}
-            </tbody>
-          </table>
-          <p class="caption muted">判定以等權為準；超額勝率＝超額 &gt; 0 的比例（絕對勝率見頁首）。{s.large_cap ? `相對 0050 不顯著（t ${tText(s.t_0050)}）：${s.large_cap}。` : ''}00631L 為 2 倍槓桿 ETF（每日再平衡，長期有波動耗損），用來對照任何槓桿情境。</p>
-        </>
-      ) : null}
-
-      <h2 class="section st-h">出場規則</h2>
-      <ExitCard s={s} />
-
-      <h2 class="section st-h">樣本範圍</h2>
-      <ScopeList s={s} />
-      {s.note ? <p class="caption risk-text">{s.note}</p> : null}
-      <p class="caption muted">{s.definition}</p>
-      <p class="caption muted" data-testid="cost-note">{COST_NOTE}</p>
-      <div class="st-actions">
-        <a class="btn" href={`#/explore/leverage?s=${s.id}`}>槓桿風險計算</a>
-        <a class="btn" href="#/explore/evidence">指標效度表</a>
-      </div>
+      <PageTitle title={s.label} sub={`資料至 ${md(data.date)}・依規則產生，非推薦`} aside={<GradeTag s={s} />} />
+      <Section title="規則">
+        <Card testid="st-rule">
+          <p class="st-rule">{keepNum(s.subtitle)}</p>
+          {notes.length ? <p class="st-notes ui-foot ui-muted" data-testid="grade-notes">{notes.join('・')}</p> : null}
+        </Card>
+      </Section>
+      <JudgeSection s={s} data={data} />
+      <HealthSection s={s} />
+      <EventSection s={s} bench={bench} setBench={setBench} />
+      <PortfolioSection s={s} data={data} />
+      <ExitSection s={s} data={data} />
+      <SampleSection s={s} data={data} />
+      <TriggerSection s={s} data={data} />
     </>
   );
-}
-
-function headTitle(c: GradeCounts): string {
-  return `策略庫：${gradeSummary(c)}`;
 }
 
 export default function Strategies({ id }: { id?: string }) {
   const d = useAsync(loadStrategies, []);
   const s = id ? d.data?.strategies.find((x) => x.id === id) : undefined;
   return (
-    <div class="page has-bench">
-      <TopBar back={id ? '/explore/strategies' : '/explore'} />
-      {!id ? (
-        <PageHead eyebrow="依指標效度評估包成的策略" title={d.data ? headTitle(gradeCounts(d.data.strategies)) : '策略庫'}>
-          <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>依規則產生，非推薦。每日依資料重新分級：有效、觀察中會上架並可設為訊號追蹤；停用與未通過的只列在下方供查閱。</p>
-        </PageHead>
-      ) : null}
+    <div class="page">
+      <TopBar back={id ? '/explore/strategies' : '/explore'} caption={id && s ? '策略' : undefined} />
       {d.loading ? <Loading /> : null}
       {d.error ? <ErrorState error={d.error} /> : null}
       {d.data && !id ? <StrategyList data={d.data} /> : null}
-      {d.data && id ? (s ? <Detail key={s.id} s={s} data={d.data} /> : <p class="caption">找不到這個策略。</p>) : null}
+      {d.data && id ? (s ? <Detail key={s.id} s={s} data={d.data} /> : <List><EmptyRow>找不到這個策略</EmptyRow></List>) : null}
     </div>
   );
 }

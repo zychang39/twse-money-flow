@@ -1,0 +1,54 @@
+/*
+ * 策略庫、策略頁、槓桿頁、指標效度頁（2026-10-03）：只補共用元件沒有的部分；數值全部取自 tokens.css（4 的倍數）。
+ */
+
+/* 圖表：寬度 100%、左右緣＝卡片內容緣 */
+.st-chart > svg, .st-eq .chart-wrap > svg { display: block; width: 100%; height: auto; }
+.st-read { margin-top: var(--s-2); }
+.ui-card > .st-chart + .ui-list, .ui-card > .st-eq + .ui-list { margin-top: var(--s-2); }
+
+/* 權益曲線圖例：一行可切換的勾選列（不是按鈕） */
+.st-legend { display: flex; flex-wrap: nowrap; gap: var(--s-2); margin-top: var(--s-2); overflow: hidden; }
+.st-legend-item { display: inline-flex; align-items: center; gap: var(--s-1); font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-1); white-space: nowrap; cursor: pointer; min-height: var(--tap); }
+.st-legend-item input { margin: 0; width: var(--s-4); height: var(--s-4); accent-color: var(--brand); }
+.st-legend-item svg { flex: none; }
+.st-legend-item:has(input:disabled) { color: var(--text-3); cursor: default; }
+
+/* 策略頁的文字段落（規則一句話、出場規則名稱）：卡片內一律對齊 x=32 */
+.st-rule { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); }
+.st-notes { margin: var(--s-2) 0 0; }
+.ui-card > .ui-stats + .ui-table, .ui-card > .ui-stats + .ui-list, .ui-card > .ui-table + .ui-list { margin-top: var(--s-3); }
+
+/* 槓桿頁輸入 */
+.lv-field { display: inline-flex; align-items: baseline; }
+.lv-input {
+  width: 7rem; height: var(--s-8); padding: 0 var(--s-2); margin: 0;
+  border: 0; border-radius: var(--r-xs); background: var(--surface-2); color: var(--text-1);
+  font: inherit; font-variant-numeric: tabular-nums; text-align: right;
+}
+.lv-select { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: var(--s-3); }
+.lv-select .select { margin: 0; }
+.ui-card > .ui-seg { margin-top: var(--s-2); }
+.ui-card > .ui-seg + .ui-list { margin-top: var(--s-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .st-legend-item, .st-chart, .st-eq { transition: none; animation: none; }
+}
+
+/* 策略清單：副標是策略的條件（產品原則 9），完整顯示、可換行 */
+.st-list .ui-row-sub { white-space: normal; overflow: visible; }
+
+/* 累積超額曲線：拖曳讀值（垂直仍可捲動） */
+.ac-svg { display: block; touch-action: pan-y; cursor: crosshair; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.ac-svg:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-sm); }
+.st-read { min-height: var(--lh-foot); font-variant-numeric: tabular-nums; }
+
+/* 列名後面的分級標籤（策略清單、個股頁策略訊號）：與名稱同一行、基線對齊 */
+.ui-row-label > .st-gtag { margin-left: var(--s-2); }
+.st-gtag { display: inline-flex; vertical-align: baseline; }
+
+/* 方法說明頁：卡片內的段落與清單 */
+.md-body > * + * { margin-top: var(--s-2); }
+.md-item { padding: var(--s-2) 0; }
+.md-list { margin: 0; padding-left: var(--s-5); }
+.md-list li + li { margin-top: var(--s-1); }

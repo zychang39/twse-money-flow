@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { revealAllSections } from './helpers';
+import { gotoStockSeg, revealAllSections } from './helpers';
 
 // 第 1 輪 M6：U-03 點擊區域 ≥ 44pt、U-04 表頭不斷行、U-05 理由兩行、U-06 中文不斷在詞中間；375 與 393pt 寬度。
 
@@ -36,7 +36,7 @@ for (const width of [375, 393]) {
       await revealAllSections(page);
       expect(await smallTargets(page)).toEqual([]);
       // ::before 擴大的範圍真的可以點到：點在分段按鈕視覺範圍上方 3px 仍命中該按鈕
-      const seg = page.locator('#sec-institutional .segmented button').nth(1);
+      const seg = page.getByTestId('risk-calc').getByRole('button', { name: '3 倍 ATR' });
       await seg.scrollIntoViewIfNeeded();
       const b = (await seg.boundingBox())!;
       expect(b.height).toBeLessThan(44);
@@ -50,23 +50,17 @@ for (const width of [375, 393]) {
       }
     });
 
-    test('U-04：區間統計的列標題與「自營商」表頭不斷行，單位在下方小字', async ({ page }) => {
-      await page.goto('#/stock/2330');
-      await revealAllSections(page);
-      const table = page.locator('table.chip-stats');
-      await table.scrollIntoViewIfNeeded();
-      const lines = await table.evaluate((t) => [...t.querySelectorAll('th')].map((th) => {
-        const node = [...th.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim()) ?? th.firstElementChild?.firstChild;
-        if (!node) return { text: '', lines: 0 };
+    test('U-04（2026-10 改版）：法人表、信用表、股權分散表的表頭都單行、不截斷', async ({ page }) => {
+      await gotoStockSeg(page, '#/stock/2330', '籌碼');
+      await expect(page.getByTestId('insti-table')).toBeVisible();
+      const heads = await page.locator('.ui-table th').evaluateAll((ths) => ths.map((th) => {
         const range = document.createRange();
-        range.selectNodeContents(node);
-        const tops = new Set([...range.getClientRects()].map((r) => Math.round(r.top)));
-        return { text: node.textContent!.trim(), lines: tops.size };
+        range.selectNodeContents(th);
+        const tops = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+        return { text: (th.textContent ?? '').trim(), lines: tops.size, clipped: th.scrollWidth > th.clientWidth + 1 };
       }).filter((x) => x.text));
-      expect(lines.length).toBeGreaterThan(5);
-      for (const l of lines) expect(l.lines, l.text).toBe(1);
-      await expect(table.locator('th .th-unit').first()).toBeVisible();
-      await expect(table.getByRole('rowheader', { name: '佔區間成交量（%）' })).toBeVisible();
+      expect(heads.length).toBeGreaterThan(8);
+      for (const h of heads) { expect(h.lines, h.text).toBe(1); expect(h.clipped, h.text).toBe(false); }
     });
 
     test('U-05／#8：清單列的變化理由可以換行、不截斷', async ({ page }) => {
@@ -78,11 +72,11 @@ for (const width of [375, 393]) {
       expect(await sub.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('normal');
     });
 
-    test('U-06：探索頁卡片的說明只在「・」或空白後換行，不斷在詞中間', async ({ page }) => {
+    test('U-06：探索頁入口列的副資訊單行（2026-10 改版：副資訊最多一行），不斷在詞中間', async ({ page }) => {
       await page.goto('#/explore');
-      await expect(page.locator('.tile-status').first()).toBeVisible();
+      await expect(page.locator('.ui-row-sub').first()).toBeVisible();
       await page.waitForTimeout(600);
-      const breaks = await page.locator('.tile-status').evaluateAll((els) => els.flatMap((el) => {
+      const breaks = await page.locator('.ui-row-sub').evaluateAll((els) => els.flatMap((el) => {
         const text = el.firstChild;
         if (!text || text.nodeType !== Node.TEXT_NODE) return [];
         const s = text.textContent!;

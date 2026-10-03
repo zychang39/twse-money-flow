@@ -10,8 +10,8 @@ risk_flags:
     label: 處置股
     description: 目前處於處置期間（分盤撮合、預收款券）。
   disposition_risk:
-    label: 處置風險
-    description: 注意股累計次數接近處置標準，或出現在官方「注意累計次數可能達處置標準」名單。
+    label: 注意累計（官方公布）
+    description: 出現在證交所／櫃買中心公布的注意累計次數名單（官方名稱「公布注意累計次數可能達處置標準之有價證券」）；只呈現公布的事實，不自行推測是否會被處置。
   insider_transfer:
     label: 內部人申報轉讓
     description: 內部人（董監、經理人、大股東）已申報持股轉讓且仍在有效轉讓期間。
@@ -32,12 +32,6 @@ risk_flags:
     label: 資料過期
     description: 個股最新資料日期落後市場最新交易日超過門檻（交易日）。
     max_lag_days: 2
-
-# 處置風險預警（依公開的注意／處置標準簡化，官方名單優先）
-disposition_warning:
-  consecutive_days: 2      # 已連續 2 日注意 → 再 1 日即達「連續三個營業日」
-  within_10_days: 5        # 近 10 日已 5 次 → 再 1 次即達「10 日內 6 次」
-  within_30_days: 11       # 近 30 日已 11 次 → 再 1 次即達「30 日內 12 次」
 
 # 資料驗證
 validation:

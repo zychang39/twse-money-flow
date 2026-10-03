@@ -1,6 +1,8 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { addWatch, addWatchMany, clearSampleWatch, getSetting, listRecentSearches, listTrades, listWatch, pushRecentSearch, resetDbConnection, saveTrade, setSetting, DB_VERSION, RECENT_MAX } from './db';
+import { addWatch, addWatchMany, clearSampleWatch, getSetting, listActivity, listRecentSearches, listTrades, listWatch, pushRecentSearch, resetDbConnection, saveTrade, setSetting, DB_VERSION, RECENT_MAX } from './db';
+import { flowLevel, flowXp } from '../lib/ritual';
+import { makeCalendar } from '../lib/tradingCalendar';
 import { EXPORT_MIGRATIONS, exportAll, importAll, migrateBackup, previewImport, type BackupFile } from './backup';
 
 beforeEach(async () => {
@@ -140,5 +142,75 @@ describe('IndexedDB 與備份', () => {
     const old: BackupFile = { app: 'twse-money-flow', schemaVersion: 2, exportedAt: '', stores: { watchlist: [{ code: '2330', group: '預設', addedAt: '', order: 0 }] } };
     const up = migrateBackup(old);
     expect((up.stores.watchlist as { origin: string }[])[0].origin).toBe('user');
+  });
+
+  it('v4 → v5 升級：既有 60 經驗值原樣保留（legacy_xp）、交易補上 v5 欄位，不清空任何資料', async () => {
+    const CK = { market: '中性', trend: '多頭（年線、季線之上）', revenue: '成長', valuation: '合理', reason: '投信連買' };
+    const acts = [
+      { id: 'a1', type: 'brief_read', day: '2026-09-24', at: '2026-09-24T12:00:00.000Z' },
+      { id: 'a2', type: 'checklist_done', day: '2026-09-24', at: '2026-09-24T12:10:00.000Z', meta: { outcome: 'open', code: '2330' } },
+      { id: 'a3', type: 'ritual_done', day: '2026-09-24', at: '2026-09-24T12:20:00.000Z' },
+      { id: 'a4', type: 'brief_read', day: '2026-09-25', at: '2026-09-25T12:00:00.000Z' },
+    ];
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open('twse-money-flow', 4);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        const w = db.createObjectStore('watchlist', { keyPath: 'code' });
+        w.createIndex('group', 'group');
+        w.createIndex('origin', 'origin');
+        db.createObjectStore('settings', { keyPath: 'key' });
+        db.createObjectStore('screens', { keyPath: 'id' });
+        const t = db.createObjectStore('trades', { keyPath: 'id' });
+        t.createIndex('status', 'status');
+        t.createIndex('code', 'code');
+        const a = db.createObjectStore('activity', { keyPath: 'id' });
+        a.createIndex('type', 'type');
+        a.createIndex('day', 'day');
+        db.createObjectStore('strategies', { keyPath: 'id' });
+        db.createObjectStore('tracked', { keyPath: 'key' }).createIndex('strategyId', 'strategyId');
+        acts.forEach((x) => a.put(x));
+        t.put({ id: 't1', code: '2330', name: '台積電', status: 'open', openedAt: '2026-09-24', entry: 100, shares: 1000, stop: 95, target: 120, reasonType: '籌碼', checklist: CK });
+        req.transaction!.objectStore('settings').put({ key: 'portfolio', value: { capital: 1_000_000, riskPct: 1, oddLot: false } });
+        w.put({ code: '2330', group: '預設', addedAt: '', order: 0, origin: 'user' });
+      };
+      req.onsuccess = () => { req.result.close(); resolve(); };
+      req.onerror = () => reject(req.error);
+    });
+    const activity = await listActivity();
+    const trades = await listTrades();
+    expect(activity.filter((a) => a.type !== 'legacy_xp').map((a) => a.id).sort()).toEqual(['a1', 'a2', 'a3', 'a4']);
+    expect(activity.find((a) => a.type === 'legacy_xp')?.meta).toMatchObject({ xp: 60, level: 1 });
+    expect(trades[0]).toMatchObject({ id: 't1', checklistDone: true, plannedRisk: 5000, riskLimit: 10_000 });
+    expect((await listWatch()).map((w) => w.code)).toEqual(['2330']);
+    const input = { cal: makeCalendar(null), activities: activity, trades, riskLimit: 10_000, now: new Date().toISOString() };
+    expect(flowXp(input)).toBe(60);
+    expect(flowLevel(input).text).toBe('60 / 100');
+  });
+
+  it('saveTrade 自動補上 v5 欄位；風險上限取設定的本金 × 每筆風險 %', async () => {
+    await setSetting('portfolio', { capital: 500_000, riskPct: 2, oddLot: false });
+    const base = { id: 'n1', code: '2330', name: '台積電', status: 'open' as const, openedAt: '2026-10-02', entry: 100, shares: 1000, stop: 95, target: 120, reasonType: '籌碼', checklist: { market: '中性', trend: '多頭', revenue: '成長', valuation: '合理', reason: 'x' } };
+    await saveTrade(base);
+    const [t] = await listTrades();
+    expect(t).toMatchObject({ checklistDone: true, plannedRisk: 5000, riskLimit: 10_000 });
+    expect(typeof t.createdAt).toBe('string');
+    await setSetting('portfolio', { capital: 100_000, riskPct: 1, oddLot: false });
+    await saveTrade({ ...t, status: 'closed', closedAt: '2026-10-05', exit: 101, review: '檢討' });
+    const [c] = await listTrades();
+    expect(c.riskLimit).toBe(10_000); // 進場當時的快照，不回溯
+    expect(typeof c.reviewedAt).toBe('string');
+    expect(typeof c.closedRecordedAt).toBe('string');
+  });
+
+  it('v4 備份檔匯入：補上 legacy_xp（遷移時間＝匯出時間）', () => {
+    const old: BackupFile = { app: 'twse-money-flow', schemaVersion: 4, exportedAt: '2026-10-01T00:00:00.000Z', stores: {
+      watchlist: [], settings: [], screens: [], strategies: [], tracked: [],
+      trades: [], activity: [{ id: 'a', type: 'brief_read', day: '2026-09-30', at: '2026-09-30T12:00:00.000Z' }],
+    } };
+    const up = migrateBackup(old);
+    const legacy = (up.stores.activity as { type: string; at: string; meta: { xp: number } }[]).find((a) => a.type === 'legacy_xp');
+    expect(legacy).toMatchObject({ at: '2026-10-01T00:00:00.000Z', meta: { xp: 10 } });
+    expect(up.stores.activity).toHaveLength(2);
   });
 });

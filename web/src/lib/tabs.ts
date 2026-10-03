@@ -9,11 +9,11 @@ export interface TabDef {
 }
 
 export const TAB_DEFS: TabDef[] = [
-  { path: '/', label: '今晚', match: (p) => p === '/' },
+  { path: '/', label: '簡報', match: (p) => p === '/' },
   { path: '/mine', label: '我的股票', match: (p) => p.startsWith('/mine') || p.startsWith('/stock') },
   { path: '/explore', label: '探索', match: (p) => p.startsWith('/explore') },
   { path: '/search', label: '搜尋', match: (p) => p.startsWith('/search') },
-  { path: '/discipline', label: '紀律', match: (p) => p.startsWith('/discipline') },
+  { path: '/discipline', label: '流程', match: (p) => p.startsWith('/discipline') },
 ];
 
 /** 路徑所屬的分頁（-1＝不屬於任何分頁，例：我的 → 設定）。 */

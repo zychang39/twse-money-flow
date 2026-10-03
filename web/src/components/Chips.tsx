@@ -157,7 +157,7 @@ export function Concentration({ block }: { block: ChipBlock }) {
           : c.withData < c.available ? `${c.withData}／${c.available} 日有法人資料` : c.start && c.end ? `${mdLabel(c.start)}–${mdLabel(c.end)}` : undefined,
       }))} />
       <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>
-        這裡的集中度＝三大法人合計淨買賣超股數 ÷ 同期成交股數（只計有法人資料的日子），不是券商分點的買賣集中度；分點進出資料的官方查詢頁有驗證碼，依規則不提供（METHODOLOGY §4.7.1）。
+        這裡的集中度＝三大法人合計淨買賣超股數 ÷ 同期成交股數（只計有法人資料的日子），不是券商分點的買賣集中度；分點進出資料的官方查詢頁有驗證碼，依規則不提供。
       </p>
     </section>
   );

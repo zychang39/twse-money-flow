@@ -28,8 +28,7 @@ secondary_horizon: 20           # 並列判定的第二持有天數（分級要�
 
 # v3 M3 事件時間累積超額曲線（有效、環境依賴的指標與三方同買）
 curve:
-  days: 60                      # 進場後第 1～60 個交易日
-  exhaust_run: 5                # 邊際超額連續 5 日 ≤ 0 的第一天＝alpha 耗盡日
+  days: 120                     # 進場後第 1～120 個交易日（2026-10-03：原 60 日；峰值在第 120 日時標「峰值在觀察窗邊界」；alpha 耗盡日已移除）
   per_day_scale: 250            # 每持有日超額年化：超額 ÷ N × 250
   extra_tests: [combo_three]    # 判定不是有效／環境依賴也要畫的指標
 
@@ -40,10 +39,11 @@ costs:
   slippage: 0.001
 benchmark_net_of_costs: false
 
-# 1.4a 校正後 t 的取法（2026-10-02 第二輪，AUDIT.md 第二節第 4 點）：
-# 同一天集中進場的策略（不重複進場日 ÷ 訊號期間交易日數 < concentration_ratio）一律用日曆時間法 t；
-# 其餘取日曆時間法、Newey-West、不重疊區塊三者的最小值。不可取最大值。
+# 1.4a 校正後 t 的取法（2026-10-03 全站統一，只有一個名稱與定義）：日曆時間法、Newey-West、不重疊區塊三者取絕對值最小者
+# （保留正負號；不可取最大值）。Newey-West 落後期數＝一個持有期內平均的進場日數 ceil(持有日數 × 進場日數 ÷ 期間交易日數)。
+# 2026-10-02 第二輪「集中進場只用日曆時間法」的例外取消；concentration_ratio 只用來標示進場日集中程度，不再影響 t。
 t_corr:
+  method: min_abs_calendar_nw_block
   concentration_ratio: 0.25
 
 # 1.5 統計
@@ -157,3 +157,27 @@ swing_gates:
   forward_since: "2026-10-02"                # 前瞻驗證起算日（合併日）；滿 forward_days 個交易日後在策略頁顯示
   forward_days: 60
   max_trials: 9                              # 本輪嘗試上限（累計上限 14）
+
+# ------------------------------------------------------------------
+# 2026-10-03 判定卡與分級（pipeline/evidence/judge.py；METHODOLOGY §11.4）。門檻在重算前寫死，不依結果調整。
+# 取代上面 grading 的分級（grading 只剩舊欄位與報告沿用）。t 一律為「校正後 t」（t_corr）。
+judge:
+  horizon: 40                   # 判定持有期：事件研究、5 檔組合、逐年表、槓桿風險都用固定 40 日出場
+  slots: 5                      # 判定卡的組合檔數
+  grade:
+    sig_t_min: 3.0              # (b) 訊號檢定（相對同日等權）t 門檻；理由見 multi_test
+    opp_t_min: 2.0              # (a) 機會成本（相對 0050 含息）t 門檻
+    watch_t_min: 2.0            # 觀察中：2.0 ≤ (b) t < 3.0
+    min_years: 3                # 樣本期間 < 3 年 → 最高觀察中（附註樣本不足）
+    min_events: 300             # 去重樣本 < 300 筆 → 最高觀察中（附註樣本不足）
+  random:
+    n: 200                      # 5 檔組合：同日觸發多於空位時改隨機排序的模擬次數
+    seed: 20261003
+  exits_train_end: "2021-12-31" # 出場規則只用這天以前的訊號選；之後為樣本外
+  trigger_window: 40            # 個股頁「策略訊號」：近 40 個交易日內觸發（與判定持有期一致）
+  recent_days: 60               # 健康度：近 60 個交易日（已出場）
+  max_listed: 15                # 非無效最多 15 套上架
+  multi_test:
+    swing_trials: 11            # docs/swing/TRIALS.md 記錄的波段策略嘗試次數（第一輪 5、第二輪 6）
+    judge_horizons_used: 2      # 判定持有期先後用過 10 日（2026-10-02 前）與 40 日
+

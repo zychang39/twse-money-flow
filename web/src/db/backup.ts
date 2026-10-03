@@ -1,5 +1,7 @@
 /** 單一 JSON 匯出／匯入。匯入舊版匯出檔時，依 EXPORT_MIGRATIONS 逐版升級資料格式。 */
-import { DB_VERSION, STORES, getDb, setSetting, type StoreName } from './db';
+import { DB_VERSION, STORES, getDb, setSetting, type Activity, type StoreName, type Trade } from './db';
+import { migrateV5 } from './migrations';
+import type { PortfolioSettings } from '../lib/settings';
 
 export const APP_ID = 'twse-money-flow';
 
@@ -22,6 +24,14 @@ export const EXPORT_MIGRATIONS: Record<number, ExportMigration> = {
   }),
   // v4：訊號追蹤（追蹤策略、已記錄的觸發）
   4: (d) => ({ ...d, stores: { ...d.stores, strategies: d.stores.strategies ?? [], tracked: d.stores.tracked ?? [] } }),
+  // v5：流程頁。交易補上 v5 欄位、既有經驗值與等級寫成 legacy_xp（遷移時間＝備份的匯出時間）；規則見 migrations.ts
+  5: (d) => {
+    const activity = (d.stores.activity ?? []) as Activity[];
+    const portfolio = ((d.stores.settings ?? []) as { key: string; value: unknown }[]).find((r) => r.key === 'portfolio')?.value as PortfolioSettings | undefined;
+    const cutoff = Number.isFinite(Date.parse(d.exportedAt)) ? new Date(d.exportedAt).toISOString() : new Date().toISOString();
+    const out = migrateV5({ trades: (d.stores.trades ?? []) as Trade[], activity, portfolio }, cutoff);
+    return { ...d, stores: { ...d.stores, trades: out.trades, activity: [...activity, ...out.addedActivity] } };
+  },
 };
 
 export async function exportAll(): Promise<BackupFile> {

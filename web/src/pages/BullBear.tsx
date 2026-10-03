@@ -78,7 +78,7 @@ export default function BullBear({ code }: { code: string }) {
       <details class="tech cd-notes">
         <summary>規則與限制</summary>
         <p class="caption muted">
-          每一項條件的門檻固定（見方法論與 config/ui.yml），權重相同；多方＝偏多的依據，空方＝需要留意的依據。
+          每一項條件的門檻固定（見方法說明），權重相同；多方＝偏多的依據，空方＝需要留意的依據。
           項數多寡只是條件統計，不代表上漲或下跌的機率，同一件事也可能同時出現在兩邊（例：營收成長但本益比偏高）。
           技術面使用還原收盤價；籌碼與基本面使用最新一個交易日（或最新一期）的資料。
         </p>

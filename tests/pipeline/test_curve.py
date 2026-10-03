@@ -1,4 +1,4 @@
-"""v3 M3-2：事件時間累積超額曲線、峰值日與 alpha 耗盡日（手算預期值）。"""
+"""v3 M3-2：事件時間累積超額曲線、峰值日與峰值是否落在觀察窗邊界（手算預期值；2026-10-03 移除 alpha 耗盡日）。"""
 
 from __future__ import annotations
 
@@ -11,14 +11,17 @@ from pipeline.evidence import curve, engine
 NaN = np.nan
 
 
-def test_peak_and_exhaustion_day():
-    """累積超額 [1, 2, 3, 3, 2.5, 2.4, 2.4, 2.3, 2.5]：峰值第 3、4 日（取第一個＝3）；
-    邊際 [1, 1, 1, 0, −0.5, −0.1, 0, −0.1, +0.2] → 第 4 日起連續 5 日 ≤ 0 → 耗盡日 4。"""
+def test_peak_day_and_edge_flag():
+    """累積超額 [1, 2, 3, 3, 2.5, 2.4, 2.4, 2.3, 2.5]：峰值第 3、4 日（取第一個＝3），不在窗邊界；
+    一路上升的曲線峰值在最後一天（第 K 日）→ peak_at_edge。alpha 耗盡日已移除。"""
     m = np.array([1, 2, 3, 3, 2.5, 2.4, 2.4, 2.3, 2.5])
     assert curve.peak_day(m) == 3
-    assert curve.exhaustion_day(m) == 4
-    assert curve.exhaustion_day(np.array([1.0, 2, 3, 4, 5, 6])) is None
+    assert not curve.at_edge(3, len(m))
+    up = np.array([1.0, 2, 3, 4, 5, 6])
+    assert curve.peak_day(up) == 6 and curve.at_edge(6, 6)
     assert curve.peak_day(np.array([NaN, NaN])) is None
+    assert not curve.at_edge(None, 120)
+    assert not hasattr(curve, "exhaustion_day")
 
 
 def _market(close: np.ndarray, uni: np.ndarray) -> engine.Market:
@@ -62,6 +65,7 @@ def test_curve_ew_and_0050_by_hand():
     # 0050 開盤 50、收盤 50、51、52 → 0%、2%、4% → 相對 0050：0、8、6%
     assert out["0050"]["mean"] == pytest.approx([0.0, 8.0, 6.0])
     assert out["ew"]["peak"] == 2 and out["0050"]["peak"] == 2
+    assert out["ew"]["peak_at_edge"] is False and "exhaust" not in out["ew"] and out["days"] == 3
 
 
 def test_boot_band_constant_series():

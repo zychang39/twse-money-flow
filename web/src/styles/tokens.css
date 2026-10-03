@@ -1,49 +1,68 @@
 /*
- * 設計 tokens（唯一來源）：色彩、字級、間距、圓角、陰影、光暈、動畫時長與緩動曲線。
- * 深色為主；淺色同等完整。元件只引用這裡的變數，不寫死數值。
+ * 設計 tokens（唯一來源，2026-10 改版）：色彩、字級、間距、圓角、動畫。元件只引用這裡的變數，不寫死數值。
  *
- * 色彩預算：灰階為主；--up／--down 只代表漲跌（紅漲綠跌）；--risk（琥珀）只代表風險；
- * --brand（電光藍）只給可互動元素。除此之外不使用其他顏色。
+ * 基準裝置：iPhone 18 Pro 402×874 pt（Safari 直向）；次要 440×956；最小 375 寬。
+ * 格線：只有兩條左緣——頁邊 x=16（--gutter）與卡片內容 x=32（--gutter + --card-pad）；右緣對稱。
+ * 間距一律 4 的倍數（主要用 8 的倍數）；列高 ≥ 44；觸控目標 ≥ 44×44。
+ *
+ * 色彩預算：灰階為主；--up／--down 只代表價格與買賣超（紅漲綠跌，同時帶 ▲▼ 或 +−）；
+ * --risk（橘）只代表風險／警示；--brand（藍）只給可互動元素；流程三環有自己的三個藍紫色（--ring-1～3）。
  */
 :root {
   color-scheme: light dark;
 
-  /* ---------- 字體與字級（M3：對應 iOS 文字樣式，rem 跟隨使用者的系統文字大小；見 docs/UI_GUIDE.md） ---------- */
-  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang TC', sans-serif;
-  --fs-hero: 3.25rem;     --lh-hero: 3.5rem;      /* 52 / 56 主角數字（Large Title 之上的例外，只用於一個數字） */
-  --fs-title: 1.75rem;    --lh-title: 2.125rem;   /* 28 / 34 頁面標題（Title 1） */
-  --fs-section: 1.0625rem; --lh-section: 1.5rem;  /* 17 / 24 區塊標題（Headline，半粗體） */
-  --fs-body: 1.0625rem;   --lh-body: 1.5rem;      /* 17 / 24 內文（Body） */
-  --fs-sub: 0.9375rem;    --lh-sub: 1.25rem;      /* 15 / 20 表格數字（Subheadline） */
-  --fs-caption: 0.8125rem; --lh-caption: 1.125rem; /* 13 / 18 表頭與註解（Footnote） */
-  /* 資料表（每日籌碼）：列高約 52pt，日期 15pt、日期下方收盤與漲跌 12pt（v3，依 Apple HIG 表格） */
-  --fs-table-date: 0.9375rem; --lh-table-date: 1.25rem;
-  --fs-table-sub: 0.75rem;    --lh-table-sub: 1rem;
-  --row-table: 3.25rem;
-  /* 例外：11 / 14（HIG caption2）只用在密集表格的次要小字（例：每日籌碼日期下的收盤與漲跌、欄位標題下的連買天數），不當內文 */
-  --fs-micro: 0.6875rem;  --lh-micro: 0.875rem;
-  --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600;
-  --track-hero: -0.035em;
+  /* ---------- 字體與字級（px／行高；rem 跟隨系統文字大小；每頁最多 4 種字級） ---------- */
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang TC', 'Noto Sans TC', sans-serif;
+  --fs-large: 2.125rem;    --lh-large: 2.5625rem;   /* LargeTitle 34/41 bold（每頁一個） */
+  --fs-title2: 1.375rem;   --lh-title2: 1.75rem;    /* Title2 22/28 bold */
+  --fs-headline: 1.0625rem; --lh-headline: 1.375rem; /* Headline 17/22 semibold */
+  --fs-body: 1.0625rem;    --lh-body: 1.375rem;     /* Body 17/22 */
+  --fs-sub: 0.9375rem;     --lh-sub: 1.25rem;       /* Subheadline 15/20 */
+  --fs-foot: 0.8125rem;    --lh-foot: 1.125rem;     /* Footnote 13/18 */
+  --fs-cap: 0.75rem;       --lh-cap: 1rem;          /* Caption 12/16（最小字級） */
+  --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600; --fw-bold: 700;
+
+  /* 舊名稱 → 新字級（既有元件沿用；不再有 52pt 主角數字與 11pt 微字） */
+  --fs-hero: var(--fs-title2);      --lh-hero: var(--lh-title2);   /* 主角數字（指數、股價）＝Title2；LargeTitle 只給頁面標題 */
+  --fs-title: var(--fs-large);      --lh-title: var(--lh-large);
+  --fs-section: var(--fs-headline); --lh-section: var(--lh-headline);
+  --fs-caption: var(--fs-foot);     --lh-caption: var(--lh-foot);
+  --fs-micro: var(--fs-cap);        --lh-micro: var(--lh-cap);
+  --fs-table-date: var(--fs-sub);   --lh-table-date: var(--lh-sub);
+  --fs-table-sub: var(--fs-cap);    --lh-table-sub: var(--lh-cap);
+  --track-hero: -0.01em;
 
   /* ---------- 4pt 間距 ---------- */
   --s-1: 0.25rem; --s-2: 0.5rem; --s-3: 0.75rem; --s-4: 1rem; --s-5: 1.25rem; --s-6: 1.5rem;
   --s-8: 2rem; --s-10: 2.5rem; --s-12: 3rem; --s-16: 4rem;
-  --gutter: 1rem; /* 左右內距 16px（另加 safe-area）；402px 寬時內容 370px */
-  --tap: 2.75rem; /* 44pt 最小點擊區域 */
+  --gutter: 1rem;          /* 頁邊 16 */
+  --card-pad: 1rem;        /* 卡片內距 16 → 卡片內容 x=32 */
+  --block-gap: 2rem;       /* 區塊間 32 */
+  --row-pad: 0.75rem;      /* 列的上下內距 12（列高 ≥ 44） */
+  --row-gap: 0.75rem;      /* 列內欄距 12 */
+  --tap: 2.75rem;          /* 44 最小點擊區域 */
+  --row-min: 2.75rem;      /* 列高下限 44 */
+  --tag-w: 4rem;           /* 標籤欄固定寬 64（「風險」「有利」「觸發」「觀察中」單行） */
+  --tag-h: 1.5rem;         /* 標籤高 24 */
+  --seg-h: 2.25rem;        /* 分段控制每格 36（外框內距 4 → 整列 44） */
+  --ring-sm: 1.5rem;       /* 簡報頁流程列的小環 24 */
+  --ring-lg: 7.5rem;       /* 流程頁三環直徑 120 */
+  --icon: 1.5rem;          /* 列圖示 24 */
+  --info: 1.25rem;         /* ⓘ 圖示 20（點擊區域 44） */
 
   /* ---------- 圓角 ---------- */
-  --r-xs: 0.375rem; --r-sm: 0.75rem; --r-md: 1rem; --r-card: 1.25rem; --r-sheet: 1.75rem; --r-pill: 999px;
+  --r-xs: 0.25rem; --r-sm: 0.5rem; --r-md: 0.75rem; --r-card: 0.75rem; --r-sheet: 1.5rem; --r-pill: 999px;
 
   /* ---------- 動畫 ---------- */
   --dur-press: 120ms;
   --dur-fast: 180ms;
-  --dur-base: 240ms;   /* M3：切換與展開動畫 ≤ 250ms */
-  --dur-slow: 250ms;
-  --dur-draw: 900ms;
-  --dur-roll: 800ms;
+  --dur-base: 240ms;
+  --dur-slow: 240ms;
+  --dur-draw: 600ms;
+  --dur-roll: 600ms;
+  --dur-ring: 600ms;       /* 流程環填滿一次 0.6 秒 ease-out */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  /* 低彈性 spring（約 3% 過衝），不支援 linear() 的瀏覽器退回 ease-out */
   --ease-spring: var(--ease-out);
 
   /* ---------- 版面 ---------- */
@@ -51,73 +70,73 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
-  --tabbar-h: 3.625rem;        /* 58：底部導覽膠囊（5 個分頁，搜尋在第 4 格） */
-  --tabbar-h-compact: 2.875rem; /* 46：往下捲動時的精簡型態 */
-  --tab-pad: 0.3125rem;        /* 選取膠囊與導覽列邊緣的距離 */
-  /* 底部導覽下緣的留白＝safe-area（瀏覽器模式；Safari 網址列就在下方） */
+  --navbar-h: 2.75rem;          /* 頂部導覽列 44 */
+  --tabbar-h: 4rem;             /* 分頁列展開 64（圖示 24＋標籤 16＋上下 12） */
+  --tabbar-h-compact: 3rem;     /* 收合 48（只有圖示） */
+  --tab-pad: 0.25rem;
   --dock-pad: var(--safe-bottom);
-  --dock-h: calc(var(--tabbar-h) + var(--dock-pad)); /* 底部導覽實際佔用的高度 */
-  /* 每一頁底部要留的空間＝導覽列＋safe-area＋16px：最後一段內容（頁尾免責聲明）完整露出在導覽列上方 */
-  --dock-clear: var(--dock-h); /* 內容底部留白＝導覽列高度（e2e ux-fixes 規則 1）；頁尾自己的下邊距 --s-4 提供呼吸空間 */
-  /* 基準分段控制列（.bench-bar）的實際高度：上下內距 4+4、分段控制內距 3+3、按鈕 44 ＝ 58px。
-     sticky 表頭（.ev-sticky）與標題的 scroll-margin-top 都以它為準，不再寫魔術數字 */
-  --bench-h: calc(var(--tap) + 2 * 0.1875rem + 2 * var(--s-1));
+  --dock-h: calc(var(--tabbar-h) + var(--dock-pad));
+  /* 頁面底部留白＝分頁列高＋safe-area＋16 */
+  --dock-clear: calc(var(--tabbar-h) + var(--safe-bottom) + var(--s-4));
+  /* sticky 分段控制列的高度（上下 4＋44） */
+  --bench-h: calc(var(--tap) + 2 * var(--s-1));
   --content-max: 40rem;
 
-  /* ---------- 淺色 ---------- */
-  --bg: #f4f4f6;
-  --surface-1: #ffffff;
-  --surface-2: #ebebef;
-  --surface-3: #ffffff;
-  --surface-row: rgba(120, 120, 128, 0.06);
-  --line: rgba(60, 60, 67, 0.22);      /* 1px 分隔線（深淺色都看得見） */
-  --text-1: #0b0b0d;
-  --text-2: rgba(40, 40, 48, 0.72);
-  --text-3: rgba(40, 40, 48, 0.30);   /* 只用於裝飾（基準虛線、軌道），不用於文字 */
-  /* 四級灰階墨色（圖形用，不是文字色）：分數四環、紀律三環、籌碼結構比例條。
-     每一級對 bg／surface-1／surface-2 都 ≥ 3:1（WCAG 非文字對比），相鄰兩級對比 ≥ 1.5:1 才分得出來；scripts/contrast.py 檢查 */
-  --ink-1: #0b0b0d;
-  --ink-2: #3a3a42;
-  --ink-3: #5c5c66;
-  --ink-4: #7c7c86;
-  --up: #b81f15;
-  --down: #066b34;
-  --up-tint: rgba(204, 36, 25, 0.10);
-  --down-tint: rgba(11, 122, 62, 0.10);
-  --risk: #8a4600;          /* 文字用琥珀（對比 ≥ 4.5:1，含光暈上） */
-  --risk-fill: #f59e0b;     /* 點、環等非文字元素 */
-  --risk-tint: rgba(245, 158, 11, 0.16);
-  --brand: #0850c0;
-  --brand-fill: #0a5bd8;
+  /* ---------- 淺色（AA 對比：文字色對 bg／卡片 ≥ 4.5:1） ---------- */
+  --bg: #f2f2f7;
+  --surface-1: #ffffff;        /* 卡片 */
+  --surface-2: #e9e9ee;        /* 次層（軌道、選取格、輸入框） */
+  --surface-3: #ffffff;        /* 分段控制的選取格 */
+  --surface-row: rgba(120, 120, 128, 0.08);
+  --line: rgba(60, 60, 67, 0.29);      /* 分隔線 */
+  --text-1: #000000;
+  --text-2: rgba(60, 60, 67, 0.78);
+  --text-3: rgba(60, 60, 67, 0.30);    /* 只用於裝飾（前收虛線、軌道），不用於文字 */
+  --ink-1: #1c1c1e;
+  --ink-2: #48484a;
+  --ink-3: #636366;
+  --ink-4: #848488;
+  --up: #c4271c;
+  --down: #12763a;
+  --up-tint: rgba(255, 59, 48, 0.10);
+  --down-tint: rgba(52, 199, 89, 0.12);
+  --risk: #a35200;             /* 文字用橘（AA） */
+  --risk-fill: #ff9500;        /* 點、條等非文字元素 */
+  --risk-tint: rgba(255, 149, 0, 0.14);
+  --brand: #0062d6;
+  --brand-fill: #0066d6;   /* 白字填色按鈕（白字 5.4:1）；連結文字用 --brand */
   --on-brand: #ffffff;
-  --brand-tint: rgba(10, 91, 216, 0.10);
-  --glass: rgba(255, 255, 255, 0.70);
-  --glass-strong: rgba(255, 255, 255, 0.86);
+  --brand-tint: rgba(0, 122, 255, 0.10);
+  --ring-1: #007aff;           /* 簡報環 */
+  --ring-2: #2fa7d9;           /* 進場環 */
+  --ring-3: #5856d6;           /* 檢討環 */
+  --ring-track: rgba(120, 120, 128, 0.16);
+  --glass: rgba(249, 249, 249, 0.78);
+  --glass-strong: rgba(249, 249, 249, 0.94);
   --glass-hi: rgba(255, 255, 255, 0.95);
-  /* 底部導覽（Instagram 樣式的玻璃膠囊）：半透明底、細框、上緣高光、柔和陰影；選取膠囊較亮 */
-  --tab-bg: rgba(255, 255, 255, 0.72);
-  --tab-bg-solid: rgba(250, 250, 252, 0.97);
-  --tab-edge: rgba(0, 0, 0, 0.08);
+  --tab-bg: rgba(249, 249, 249, 0.78);
+  --tab-bg-solid: rgba(249, 249, 249, 0.97);
+  --tab-edge: rgba(0, 0, 0, 0.10);
   --tab-hi: rgba(255, 255, 255, 0.9);
-  --tab-shadow: 0 10px 30px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.06);
-  --tab-sel: rgba(0, 0, 0, 0.07);
+  --tab-shadow: 0 8px 24px rgba(0, 0, 0, 0.10);
+  --tab-sel: rgba(0, 0, 0, 0.06);
   --tab-sel-hi: rgba(255, 255, 255, 0.6);
   --tab-sel-lens: rgba(0, 0, 0, 0.1);
-  --tab-icon: rgba(11, 11, 13, 0.8);
-  --tab-icon-on: #0b0b0d;
+  --tab-icon: rgba(60, 60, 67, 0.78);
+  --tab-icon-on: #0062d6;
   --scrim: rgba(0, 0, 0, 0.28);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-card: none;
   --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.12);
   --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.12);
-  --line-glow-opacity: 0.22;
-  /* 環境光（靜態漸層；強度刻意壓低，不影響文字對比） */
-  --glow-up: rgba(230, 70, 50, 0.12);
-  --glow-down: rgba(20, 160, 90, 0.11);
-  --glow-risk: rgba(245, 158, 11, 0.16);
-  --glow-neutral: rgba(110, 135, 175, 0.10);
-  --status-bar: #f4f4f6;
+  --line-glow-opacity: 0;
+  --glow-up: rgba(255, 59, 48, 0);
+  --glow-down: rgba(52, 199, 89, 0);
+  --glow-risk: rgba(255, 149, 0, 0);
+  --glow-neutral: rgba(120, 120, 128, 0);
+  --status-bar: #f2f2f7;
+  --chart-bar: rgba(60, 60, 67, 0.30);   /* 長條圖非當日柱（灰） */
 
-  /* 舊元件相容別名（逐步淘汰） */
+  /* 舊元件相容別名 */
   --label: var(--text-1);
   --label-2: var(--text-2);
   --label-3: var(--text-3);
@@ -131,130 +150,118 @@
   --flat: var(--text-2);
 }
 
-@supports (transition-timing-function: linear(0, 1)) {
-  :root {
-    --ease-spring: linear(0, 0.063, 0.221 5.8%, 0.645 13.5%, 0.846 18.3%, 0.964 23.6%, 1.012 28.6%, 1.028 33%, 1.029 38.6%, 1.012 49.4%, 1.001 61%, 0.998 75.4%, 1);
-  }
-}
-
-/* ---------- 深色（跟隨系統或手動指定） ---------- */
+/* ---------- 深色（預設；跟隨系統或手動指定） ---------- */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     --bg: #000000;
-    --surface-1: #111113;
-    --surface-2: #1c1c1f;
-    --surface-3: #2c2c30;
-    --surface-row: rgba(255, 255, 255, 0.035);
-    --line: rgba(235, 235, 245, 0.18);
-    --text-1: #f5f5f7;
-    --text-2: rgba(235, 235, 245, 0.64);
-    --text-3: rgba(235, 235, 245, 0.30);
-    --ink-1: #f5f5f7;
-    --ink-2: #c0c0c8;
-    --ink-3: #96969e;
-    --ink-4: #70707a;
-    --up: #ff6656;
-    --down: #2ed47a;
-    --up-tint: rgba(255, 92, 77, 0.16);
-    --down-tint: rgba(46, 212, 122, 0.14);
-    --risk: #ffb224;
-    --risk-fill: #ffb224;
-    --risk-tint: rgba(255, 178, 36, 0.14);
-    --brand: #5c9dff;
-    --brand-fill: #1766f5;
+    --surface-1: #1c1c1e;
+    --surface-2: #2c2c2e;
+    --surface-3: #3a3a3c;
+    --surface-row: rgba(255, 255, 255, 0.04);
+    --line: rgba(84, 84, 88, 0.65);
+    --text-1: #ffffff;
+    --text-2: rgba(235, 235, 245, 0.6);
+    --text-3: rgba(235, 235, 245, 0.3);
+    --ink-1: #ffffff;
+    --ink-2: #c7c7cc;
+    --ink-3: #98989d;
+    --ink-4: #78787d;
+    --up: #ff453a;
+    --down: #30d158;
+    --up-tint: rgba(255, 69, 58, 0.10);
+    --down-tint: rgba(48, 209, 88, 0.14);
+    --risk: #ff9f0a;
+    --risk-fill: #ff9f0a;
+    --risk-tint: rgba(255, 159, 10, 0.16);
+    --brand: #0a84ff;
+    --brand-fill: #0066d6;
     --on-brand: #ffffff;
-    --brand-tint: rgba(77, 148, 255, 0.14);
-    --glass: rgba(28, 28, 32, 0.62);
-    --glass-strong: rgba(28, 28, 32, 0.82);
+    --brand-tint: rgba(10, 132, 255, 0.10);
+    --ring-1: #0a84ff;
+    --ring-2: #64d2ff;
+    --ring-3: #5e5ce6;
+    --ring-track: rgba(235, 235, 245, 0.12);
+    --glass: rgba(22, 22, 24, 0.72);
+    --glass-strong: rgba(22, 22, 24, 0.92);
     --glass-hi: rgba(255, 255, 255, 0.10);
-    --tab-bg: rgba(36, 36, 40, 0.72);
-    --tab-bg-solid: rgba(32, 32, 36, 0.97);
-    --tab-edge: rgba(255, 255, 255, 0.12);
-    --tab-hi: rgba(255, 255, 255, 0.10);
-    --tab-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
-    --tab-sel: rgba(255, 255, 255, 0.14);
-    --tab-sel-hi: rgba(255, 255, 255, 0.18);
+    --tab-bg: rgba(22, 22, 24, 0.72);
+    --tab-bg-solid: rgba(22, 22, 24, 0.97);
+    --tab-edge: rgba(255, 255, 255, 0.10);
+    --tab-hi: rgba(255, 255, 255, 0.08);
+    --tab-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    --tab-sel: rgba(255, 255, 255, 0.12);
+    --tab-sel-hi: rgba(255, 255, 255, 0.16);
     --tab-sel-lens: rgba(255, 255, 255, 0.2);
-    --tab-icon: rgba(255, 255, 255, 0.86);
-    --tab-icon-on: #ffffff;
+    --tab-icon: rgba(235, 235, 245, 0.6);
+    --tab-icon-on: #0a84ff;
     --scrim: rgba(0, 0, 0, 0.55);
     --shadow-card: none;
     --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.45);
     --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.6);
-    --line-glow-opacity: 0.55;
-    --glow-up: rgba(255, 84, 62, 0.24);
-    --glow-down: rgba(38, 196, 120, 0.20);
-    --glow-risk: rgba(255, 170, 40, 0.22);
-    --glow-neutral: rgba(120, 146, 186, 0.16);
     --status-bar: #000000;
+    --chart-bar: rgba(235, 235, 245, 0.3);
   }
 }
 :root[data-theme='dark'] {
   --bg: #000000;
-  --surface-1: #111113;
-  --surface-2: #1c1c1f;
-  --surface-3: #2c2c30;
-  --surface-row: rgba(255, 255, 255, 0.035);
-  --line: rgba(235, 235, 245, 0.18);
-  --text-1: #f5f5f7;
-  --text-2: rgba(235, 235, 245, 0.64);
-  --text-3: rgba(235, 235, 245, 0.30);
-  --ink-1: #f5f5f7;
-  --ink-2: #c0c0c8;
-  --ink-3: #96969e;
-  --ink-4: #70707a;
-  --up: #ff6656;
-  --down: #2ed47a;
-  --up-tint: rgba(255, 92, 77, 0.16);
-  --down-tint: rgba(46, 212, 122, 0.14);
-  --risk: #ffb224;
-  --risk-fill: #ffb224;
-  --risk-tint: rgba(255, 178, 36, 0.14);
-  --brand: #5c9dff;
-  --brand-fill: #1766f5;
+  --surface-1: #1c1c1e;
+  --surface-2: #2c2c2e;
+  --surface-3: #3a3a3c;
+  --surface-row: rgba(255, 255, 255, 0.04);
+  --line: rgba(84, 84, 88, 0.65);
+  --text-1: #ffffff;
+  --text-2: rgba(235, 235, 245, 0.6);
+  --text-3: rgba(235, 235, 245, 0.3);
+  --ink-1: #ffffff;
+  --ink-2: #c7c7cc;
+  --ink-3: #98989d;
+  --ink-4: #78787d;
+  --up: #ff453a;
+  --down: #30d158;
+  --up-tint: rgba(255, 69, 58, 0.10);
+  --down-tint: rgba(48, 209, 88, 0.14);
+  --risk: #ff9f0a;
+  --risk-fill: #ff9f0a;
+  --risk-tint: rgba(255, 159, 10, 0.16);
+  --brand: #0a84ff;
+  --brand-fill: #0066d6;
   --on-brand: #ffffff;
-  --brand-tint: rgba(77, 148, 255, 0.14);
-  --glass: rgba(28, 28, 32, 0.62);
-  --glass-strong: rgba(28, 28, 32, 0.82);
+  --brand-tint: rgba(10, 132, 255, 0.10);
+  --ring-1: #0a84ff;
+  --ring-2: #64d2ff;
+  --ring-3: #5e5ce6;
+  --ring-track: rgba(235, 235, 245, 0.12);
+  --glass: rgba(22, 22, 24, 0.72);
+  --glass-strong: rgba(22, 22, 24, 0.92);
   --glass-hi: rgba(255, 255, 255, 0.10);
-  --tab-bg: rgba(36, 36, 40, 0.72);
-  --tab-bg-solid: rgba(32, 32, 36, 0.97);
-  --tab-edge: rgba(255, 255, 255, 0.12);
-  --tab-hi: rgba(255, 255, 255, 0.10);
-  --tab-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
-  --tab-sel: rgba(255, 255, 255, 0.14);
-  --tab-sel-hi: rgba(255, 255, 255, 0.18);
+  --tab-bg: rgba(22, 22, 24, 0.72);
+  --tab-bg-solid: rgba(22, 22, 24, 0.97);
+  --tab-edge: rgba(255, 255, 255, 0.10);
+  --tab-hi: rgba(255, 255, 255, 0.08);
+  --tab-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --tab-sel: rgba(255, 255, 255, 0.12);
+  --tab-sel-hi: rgba(255, 255, 255, 0.16);
   --tab-sel-lens: rgba(255, 255, 255, 0.2);
-  --tab-icon: rgba(255, 255, 255, 0.86);
-  --tab-icon-on: #ffffff;
+  --tab-icon: rgba(235, 235, 245, 0.6);
+  --tab-icon-on: #0a84ff;
   --scrim: rgba(0, 0, 0, 0.55);
   --shadow-card: none;
   --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.45);
   --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.6);
-  --line-glow-opacity: 0.55;
-  --glow-up: rgba(255, 84, 62, 0.24);
-  --glow-down: rgba(38, 196, 120, 0.20);
-  --glow-risk: rgba(255, 170, 40, 0.22);
-  --glow-neutral: rgba(120, 146, 186, 0.16);
   --status-bar: #000000;
+  --chart-bar: rgba(235, 235, 245, 0.3);
 }
 
 /*
  * 加入主畫面（standalone）：視窗延伸到螢幕底緣，底下沒有 Safari 網址列。
- * Face ID 機型 safe-area ≈ 34px（導覽列浮在 Home 指示條上方，距離只有 safe-area）；
- * 有實體 Home 鍵的機型 safe-area 為 0，才用 8px 下限避免膠囊貼齊螢幕邊緣。
+ * 有實體 Home 鍵的機型 safe-area 為 0，才用 8px 下限避免分頁列貼齊螢幕邊緣。
  */
 @media (display-mode: standalone) {
   :root { --dock-pad: max(var(--safe-bottom), var(--s-2)); }
 }
 :root.standalone { --dock-pad: max(var(--safe-bottom), var(--s-2)); }
 
-/*
- * A「夜間簡報」：關閉環境光（設定）、或系統要求減少透明度／動態效果時，
- * 玻璃改為不透明表面、光暈隱藏（由 html[data-ambient='off'] 與媒體查詢控制，見 global.css）。
- */
-
-/* M3：提高對比（prefers-contrast: more）→ 分隔線與次要文字加深、玻璃改為實色（global.css 另處理） */
+/* 提高對比：分隔線與次要文字加深 */
 @media (prefers-contrast: more) {
   :root { --line: rgba(60, 60, 67, 0.5); --text-2: rgba(20, 20, 28, 0.86); }
   :root[data-theme='dark'] { --line: rgba(235, 235, 245, 0.45); --text-2: rgba(235, 235, 245, 0.86); }

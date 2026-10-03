@@ -40,6 +40,14 @@ def _load(path: Path) -> Any | None:
         return None
 
 
+def _listed(s: dict[str, Any]) -> bool:
+    """上架：2026-10-03 起 grade 為物件（id＝valid／sig_only／watch／invalid）；舊版為字串（有效／觀察中／停用）。"""
+    g = s.get("grade")
+    if isinstance(g, dict):
+        return g.get("id") in ("valid", "sig_only", "watch") and bool(s.get("enabled", True))
+    return g in ("有效", "觀察中")
+
+
 def check(out: Path, previous: Path | None) -> dict[str, Any]:
     """回傳 {"ok": bool, "errors": [...], "warnings": [...], "compared": bool}。"""
     errors: list[str] = []
@@ -96,9 +104,9 @@ def check(out: Path, previous: Path | None) -> dict[str, Any]:
                 if not s.get(k):
                     errors.append(f"strategies.json 的 {s.get('id') or '?'} 缺少 {k}")
                     break
-        live = [s for s in strategies["strategies"] if s.get("grade") in ("有效", "觀察中")]
+        live = [s for s in strategies["strategies"] if _listed(s)]
         if isinstance(p_strategies, dict):
-            p_live = [s for s in p_strategies.get("strategies", []) if s.get("grade") in ("有效", "觀察中")]
+            p_live = [s for s in p_strategies.get("strategies", []) if _listed(s)]
             if p_live and not live:
                 warnings.append(f"上架策略由 {len(p_live)} 套變為 0 套（分級是資料驅動，記錄但不擋部署）")
         # 5. 權益曲線的基準線起訖

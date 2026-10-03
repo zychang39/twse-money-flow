@@ -38,6 +38,7 @@ const Search = lazy(() => import('./pages/Search'));
 const Institutional = lazy(() => import('./pages/Institutional'));
 const Holders = lazy(() => import('./pages/Holders'));
 const BullBear = lazy(() => import('./pages/BullBear'));
+const StockDaily = lazy(() => import('./pages/StockDaily'));
 const Evidence = lazy(() => import('./pages/Evidence'));
 const Strategies = lazy(() => import('./pages/Strategies'));
 const Leverage = lazy(() => import('./pages/Leverage'));
@@ -57,6 +58,7 @@ function Page({ parts }: { parts: string[] }) {
         case 'institutional': return <Institutional code={code} />;
         case 'holders': return <Holders code={code} />;
         case 'bullbear': return <BullBear code={code} />;
+        case 'daily': return <StockDaily code={code} />;
         default: return <Placeholder title="找不到頁面" back={`/stock/${b}`} />;
       }
     }

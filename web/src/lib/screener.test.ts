@@ -3,8 +3,8 @@ import { backtestCustom, decodeConditions, encodeConditions, matches, sameCondit
 import { screenerConfig, type Condition } from './config';
 
 const rows = [
-  { code: 'A', composite: 70, trust_streak: 4, revenue_yoy_3m: 25 },
-  { code: 'B', composite: 80, trust_streak: 1, revenue_yoy_3m: 30 },
+  { code: 'A', composite: 70, rs_percentile: 70, trust_streak: 4, revenue_yoy_3m: 25 },
+  { code: 'B', composite: 80, rs_percentile: 80, trust_streak: 1, revenue_yoy_3m: 30 },
   { code: 'C', composite: 60, trust_streak: 5, revenue_yoy_3m: null },
 ];
 
@@ -15,7 +15,7 @@ describe('screener', () => {
     expect(testCondition(rows[0], { field: 'composite', op: 'between', value: [60, 70] })).toBe(true);
     expect(testCondition(rows[2], { field: 'revenue_yoy_3m', op: '<', value: 100 })).toBe(false); // 缺值不成立
   });
-  it('AND 組合並依綜合分排序', () => {
+  it('AND 組合並依 RS 百分位排序（綜合分已移除）', () => {
     const out = screen(rows, [{ field: 'trust_streak', op: '>=', value: 1 }, { field: 'revenue_yoy_3m', op: '>=', value: 20 }]);
     expect(out.map((r) => r.code)).toEqual(['B', 'A']);
     expect(matches(rows[2], [])).toBe(true);

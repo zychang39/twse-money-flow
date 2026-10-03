@@ -310,8 +310,8 @@ def choose_n(frames: dict[int, pd.DataFrame], wins: list[tuple[str, str]], c: di
 
 
 def curve_summary(cv: dict[str, Any]) -> dict[str, Any]:
-    """總表用：等權與 0050 的峰值日、alpha 耗盡日與峰值累積超額。"""
-    out: dict[str, Any] = {"n": cv.get("n", 0)}
+    """總表用：等權與 0050 的峰值日、峰值累積超額與峰值是否落在觀察窗邊界（2026-10-03 移除 alpha 耗盡日）。"""
+    out: dict[str, Any] = {"n": cv.get("n", 0), "days": cv.get("days") or len(cv.get("k") or [])}
     for key in ("ew", "0050"):
         b = cv.get(key) or {}
         if not b:
@@ -319,7 +319,7 @@ def curve_summary(cv: dict[str, Any]) -> dict[str, Any]:
         pk = b.get("peak")
         out[key] = {
             "peak": pk,
-            "exhaust": b.get("exhaust"),
+            "peak_at_edge": bool(b.get("peak_at_edge")),
             "peak_value": b["mean"][pk - 1] if pk else None,
             "at10": b["mean"][9] if len(b.get("mean", [])) >= 10 else None,
         }
@@ -442,11 +442,17 @@ def evaluate(
         # 近期表現（策略健康度用）：最近 recent_days 個交易日內已完成的訊號 vs 全期間
         mf = res["main_frames"]
         recent = None
+        t_corr = None
         if mf is not None:
             d_all = engine.dedupe(mf[int(H)])
             cut = len(ev.dates) - 1 - int(H) - int(c.get("recent_days", 60))
             recent = stats.brief(d_all[d_all["t"] >= cut], c)
             recent["since"] = ev.dates[max(cut, 0)]
+            # 2026-10-03：全站統一的校正後 t（指標效度頁顯示用；指標判定仍以日曆時間法 t 為門檻）
+            from pipeline.evidence import audit
+
+            pdays = int((np.asarray(ev.dates) >= start).sum())
+            t_corr = audit.corrected_t(d_all, int(H), period_days=pdays)["t_corr"] if len(d_all) else None
         main_mask = test.variants["main"][1]
         keep[test.id] = {"mask": main_mask, "start": start, "basis": test.basis}
         # 月營收一個月只觸發一次：近 25 個交易日；其他指標為判定用的持有天數
@@ -458,6 +464,7 @@ def evaluate(
             "raw": res["variants"]["main"]["raw"],
             "t": main.get("t"),
             "t_nw": main.get("t_nw"),
+            "t_corr": t_corr,
             "mean_excess": main.get("mean_excess"),
             "ci": main.get("ci"),
             "win": main.get("win"),
@@ -518,16 +525,16 @@ def evaluate(
             detail["curve"] = curve.curve(
                 mk,
                 ded,
-                int(cc.get("days", 60)),
+                int(cc.get("days", 120)),
                 int(c["stats"]["bootstrap"]),
                 int(c["stats"]["seed"]),
-                int(cc.get("exhaust_run", 5)),
             )
             row["curve"] = curve_summary(detail["curve"])
-            # 峰值日固定出場：只用第一個 walk-forward 訓練窗的事件找峰值（不看全樣本）
+            # 第 N 日出場（訓練期峰值）：只用第一個 walk-forward 訓練窗的事件找峰值（不看全樣本）
             w0 = windows(start, end)[0]
             train = ded[ded["date"] < w0[1]] if len(windows(start, end)) > 1 else ded.iloc[: max(1, len(ded) * 2 // 3)]
-            tc = curve.curve(mk, train, int(cc.get("days", 60)), 0, 0, int(cc.get("exhaust_run", 5)))
+            # 峰值日出場的 N 不超過出場上限（exits.max_days），所以訓練期曲線只看到第 max_days 日
+            tc = curve.curve(mk, train, int(c["exits"]["max_days"]), 0, 0)
             peak_train = (tc.get("ew") or {}).get("peak")
         if with_exits and usable and mf is not None:
             cand = mf[int(H)]
@@ -571,6 +578,7 @@ def evaluate(
                 "swing_gates",
                 "t_corr",
                 "curve",
+                "judge",
             )
             if k in c
         },
@@ -715,12 +723,9 @@ def notify_verdict_changes(rows: list[dict[str, Any]]) -> list[str]:
 
 def run_and_write(ev: EvData, out: Any = None, doc: Any = None) -> dict[str, Any]:
     from pipeline.derive.export import write_json
-    from pipeline.evidence import report, strategies
+    from pipeline.evidence import judge, report, strategies
 
     res = evaluate(ev)
-    rep = report.write(res, out, doc)
-    if out is not None:
-        rep["verdict_changes"] = notify_verdict_changes(res["rows"])
     lib = strategies.build(res)
     res["strategy_signals"] = lib.pop("_signals")
     # 2026-10-01 波段策略（新檔案 swing.py）：併入策略庫與訊號追蹤；最終測試段的結果只在這裡計算（部署時）
@@ -729,14 +734,34 @@ def run_and_write(ev: EvData, out: Any = None, doc: Any = None) -> dict[str, Any
     sw = swing.build(res)
     lib["strategies"].extend(sw["strategies"])
     res["strategy_signals"].update(sw["_signals"])
-    if out is not None:
-        for sid, det in sw["details"].items():
-            write_json(out / "evidence" / f"{sid}.json", det)
     # 2026-10-01 精簡清單（新檔案 selection.py）：校正後 t、每月觸發、處置與排名寫進 strategies.json
     from pipeline.evidence import selection
 
     selection.annotate(lib, res)
+    # 2026-10-03 判定卡與新分級（judge.py）：覆寫 grade／enabled／rank，組合與槓桿改用固定 40 日；
+    # 累積超額曲線（120 日）寫回 evidence/{id}.json，近 40 日觸發寫進 evidence_today.json 的 strategies
+    jd = judge.annotate(lib, res, sw.get("_masks") or {})
+    for key, cd in jd["curves"].items():
+        if not cd:
+            continue
+        if key in res["details"]:
+            res["details"][key]["curve"] = cd
+        elif key in sw["details"]:
+            sw["details"][key]["curve"] = cd
+    if res.get("today") is not None:
+        res["today"]["strategies"] = {
+            s["id"]: {"window": jd["window"], "t": jd["triggers"].get(s["id"], {})}
+            for s in lib["strategies"]
+            if s.get("enabled")
+        }
+        res["today"]["window"] = jd["window"]
+    listed = {s["id"] for s in lib["strategies"] if s.get("enabled")}
+    res["strategy_signals"] = {k: v for k, v in res["strategy_signals"].items() if k in listed}
+    rep = report.write(res, out, doc)
     if out is not None:
+        rep["verdict_changes"] = notify_verdict_changes(res["rows"])
+        for sid, det in sw["details"].items():
+            write_json(out / "evidence" / f"{sid}.json", det)
         rep["strategies_bytes"] = write_json(out / "strategies.json", lib)
     rep["strategies"] = sum(1 for s in lib["strategies"] if s.get("enabled"))
     verdicts: dict[str, int] = {}

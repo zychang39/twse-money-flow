@@ -1,13 +1,13 @@
 /** 產業資金輪動：熱力圖（紅＝法人淨買超／上漲、綠＝淨賣超／下跌，以濃淡表示強度），點選查看產業內個股。 */
 import { useMemo } from 'preact/hooks';
-import { PageHead, TopBar } from '../components/Chrome';
-import { DataStatus, ErrorState, Loading } from '../components/DataStatus';
-import { StockListRow } from '../components/StockRow';
+import { TopBar } from '../components/Chrome';
+import { ErrorState, Loading } from '../components/DataStatus';
+import { EmptyRow, List, PageTitle, Row, Section, Seg, Signed } from '../components/ui';
 import { useAsync, useRestoredState } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { loadMarket } from '../data/api';
 import { setListContext } from '../lib/listContext';
-import { dirColor, fmtLots, fmtNum, missing, orMissing, pctPlain, pctSigned } from '../lib/format';
+import { dirColor, fmtNum, missing, orMissing, pctPlain, pctSigned } from '../lib/format';
 import { navigate } from '../router';
 
 function heat(v: number | null, scale: number): string {
@@ -25,16 +25,17 @@ function SectorStocks({ industry }: { industry: string }) {
   return (
     <div class="page">
       <TopBar back="/explore/sectors" />
-      <PageHead eyebrow="產業資金輪動" title={industry}>
-        <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>依外資＋投信近 5 日淨買超金額排序・{rows.length} 檔</p>
-      </PageHead>
+      <PageTitle title={industry} sub={`${rows.length} 檔・依外資＋投信近 5 日淨買超金額排序`} />
       {summary.loading ? <Loading /> : null}
-      <div class="stock-list">
-        {rows.map((r) => (
-          <StockListRow key={r.code} code={r.code} row={r} sub={`5 日 ${fmtLots((r.foreign_net_5d ?? 0) + (r.trust_net_5d ?? 0))} 張`}
-            onOpen={() => { setListContext({ name: industry, codes }); navigate(`/stock/${r.code}`); }} />
-        ))}
-      </div>
+      <Section title="個股" info={<p>外資＋投信近 5 日淨買超張數 × 收盤價排序；副資訊為近 5 日外資＋投信淨買超張數。</p>}>
+        <List chev>
+          {rows.length ? rows.map((r) => (
+            <Row key={r.code} label={<>{r.name} <span class="ui-muted">{r.code}</span></>}
+              value={<Signed v={(r.foreign_net_5d ?? 0) + (r.trust_net_5d ?? 0)} digits={0} unit="張" />}
+              href={`#/stock/${r.code}`} onClick={() => setListContext({ name: industry, codes })} />
+          )) : <EmptyRow>無</EmptyRow>}
+        </List>
+      </Section>
     </div>
   );
 }
@@ -51,20 +52,19 @@ export default function Sectors({ industry }: { industry?: string }) {
   return (
     <div class="page">
       <TopBar back="/explore" />
-      <PageHead eyebrow="資金流向哪些產業？" title={sorted[0] ? <>近 {period} 日法人淨買超最多：<br />{sorted[0].industry}</> : '產業資金輪動'} />
-      <DataStatus date={m?.date} />
+      <PageTitle title="產業資金輪動" sub={sorted[0] ? `近 ${period} 日法人淨買超最多：${sorted[0].industry}` : undefined} />
       {market.error ? <ErrorState error={market.error} /> : null}
       {market.loading ? <Loading /> : null}
       {m ? (
-        <>
-          <div class="segmented" role="group" aria-label="期間" style={{ marginTop: 'var(--s-5)' }}>
-            {([1, 5, 20] as const).map((k) => <button key={k} aria-pressed={period === k} onClick={() => setPeriod(k)}>{k} 日</button>)}
-          </div>
-          <div class="segmented" role="group" aria-label="指標" style={{ marginTop: 'var(--s-2)' }}>
-            <button aria-pressed={metric === 'net'} onClick={() => setMetric('net')}>法人淨買超</button>
-            <button aria-pressed={metric === 'ret'} onClick={() => setMetric('ret')}>漲跌幅</button>
-          </div>
-          <div class="heat" style={{ marginTop: 'var(--s-4)' }}>
+        <Section title="產業" info={
+          <>
+            <p>法人淨買超金額＝Σ（三大法人淨買超股數 × 收盤價）；漲跌幅為產業內個股還原報酬的中位數。</p>
+            <p>顏色：紅＝淨買超／上漲、綠＝淨賣超／下跌，濃淡為相對強度。點選產業查看個股。</p>
+          </>
+        }>
+          <Seg options={[['1', '1 日'], ['5', '5 日'], ['20', '20 日']] as const} value={String(period) as '1' | '5' | '20'} onChange={(v) => setPeriod(Number(v) as 1 | 5 | 20)} label="期間" />
+          <Seg options={[['net', '法人淨買超'], ['ret', '漲跌幅']] as const} value={metric} onChange={setMetric} label="指標" />
+          <div class="heat" data-audit-skip>
             {m.sectors.map((s) => {
               const v = s[`${metric}_${period}`] as number | null;
               const r = s[`ret_${period}`] as number | null;
@@ -81,8 +81,7 @@ export default function Sectors({ industry }: { industry?: string }) {
               );
             })}
           </div>
-          <p class="caption muted" style={{ marginTop: 'var(--s-3)' }}>法人淨買超金額 = Σ(三大法人淨買超股數 × 收盤價)；漲跌幅為產業內個股還原報酬的中位數。</p>
-        </>
+        </Section>
       ) : null}
     </div>
   );

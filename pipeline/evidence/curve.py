@@ -1,4 +1,4 @@
-"""v3 M3-2 事件時間累積超額曲線與 alpha 衰減（METHODOLOGY §10.12）。
+"""v3 M3-2 事件時間累積超額曲線（METHODOLOGY §10.12；2026-10-03：觀察窗 120 日、移除 alpha 耗盡）。
 
 事件：主結果（判定用持有天數）的去重事件，與總表同一組。每筆事件在進場後第 k 個交易日（k＝1…K）收盤的累積報酬
   R_k ＝ 收盤(e+k−1) ÷ 開盤(e) − 1（還原價；停牌、下市後沿用最後收盤；不扣成本，曲線看的是形狀與時間）
@@ -7,7 +7,8 @@
   (b) 加權報酬指數：收盤(e+k−1) ÷ 收盤(e−1) − 1（只有收盤，近似開盤進場）；
   (c) 0050、(d) 00631L：還原收盤(e+k−1) ÷ 還原開盤(e) − 1。
 日曆時間法：同一進場日的事件先平均，再對日期平均；95% 帶＝日期分層 bootstrap（同一組重抽權重用在每一個 k）。
-峰值日＝平均累積超額最大的 k；alpha 耗盡日＝邊際超額（第 k 日 − 第 k−1 日）連續 5 日 ≤ 0 的第一天。
+峰值日＝平均累積超額最大的 k；峰值落在觀察窗右邊界（第 K 日）時 peak_at_edge＝True
+（真正的峰值可能在窗外，不能讀成「超額在第 K 日停止累積」）。舊版的「alpha 耗盡日」已移除（2026-10-03）。
 """
 
 from __future__ import annotations
@@ -126,25 +127,19 @@ def peak_day(mean: np.ndarray) -> int | None:
     return int(np.nanargmax(mean)) + 1
 
 
-def exhaustion_day(mean: np.ndarray, run: int = 5) -> int | None:
-    """alpha 耗盡日：邊際超額（第 k 日 − 第 k−1 日）連續 run 日 ≤ 0 的第一天 k（第 1 日的邊際＝第 1 日本身）。"""
-    m = np.asarray(mean, dtype=float)
-    marg = np.diff(np.concatenate([[0.0], m]))
-    bad = ~(marg > 0)  # ≤ 0（空值也視為沒有新增超額）
-    for k in range(len(m) - run + 1):
-        if bad[k : k + run].all():
-            return k + 1
-    return None
+def at_edge(peak: int | None, K: int) -> bool:
+    """峰值落在觀察窗右邊界（第 K 日）：曲線到窗尾仍在創高，真正的峰值可能在窗外。"""
+    return peak is not None and peak >= K
 
 
-def curve(mk: Market, events: pd.DataFrame, K: int, reps: int, seed: int, run: int = 5) -> dict[str, Any]:
-    """一組（已去重、可進場）事件的累積超額曲線：等權與 0050 各一條，附 95% 帶、峰值日與 alpha 耗盡日。"""
+def curve(mk: Market, events: pd.DataFrame, K: int, reps: int, seed: int) -> dict[str, Any]:
+    """一組（已去重、可進場）事件的累積超額曲線：四種基準各一條，附 95% 帶、峰值日與是否落在觀察窗邊界。"""
     if events.empty:
         return {"n": 0}
     e = events["e"].to_numpy(dtype=np.int64)
     c = events["c"].to_numpy(dtype=np.int64)
     R = event_paths(mk, e, c, K)
-    out: dict[str, Any] = {"n": len(events), "k": list(range(1, K + 1))}
+    out: dict[str, Any] = {"n": len(events), "k": list(range(1, K + 1)), "days": K}
     benches: dict[str, np.ndarray | None] = {
         "ew": market_paths(mk, K),
         "tr": index_paths(mk, K),
@@ -164,8 +159,8 @@ def curve(mk: Market, events: pd.DataFrame, K: int, reps: int, seed: int, run: i
             "lo": [_r(v) for v in lo],
             "hi": [_r(v) for v in hi],
             "dates": [int(v) for v in np.isfinite(D).sum(axis=0)],
-            "peak": peak_day(mean),
-            "exhaust": exhaustion_day(mean, run),
+            "peak": (pk := peak_day(mean)),
+            "peak_at_edge": at_edge(pk, K),
         }
     return out
 

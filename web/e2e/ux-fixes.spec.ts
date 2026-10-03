@@ -45,11 +45,11 @@ test.describe('1. 底部導覽列', () => {
     expect(Math.round(dock.y + dock.height)).toBe(H); // 固定元素本身 bottom: 0
   });
 
-  test('內容底部保留剛好等於導覽列的高度，頁尾免責聲明不被遮住（兩種模式）', async ({ page }) => {
+  test('內容底部留白＝分頁列高＋safe-area＋16，頁尾免責聲明不被遮住（兩種模式）', async ({ page }) => {
     for (const standalone of [false, true]) {
       if (standalone) await simulateStandalone(page);
       await page.goto('#/me/methodology');
-      await expect(page.locator('h1.title')).toBeVisible();
+      await expect(page.locator('h1.ui-large')).toBeVisible();
       await page.waitForLoadState('networkidle');
       await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
       await expect(page.locator('.dock')).not.toHaveClass(/compact/, { timeout: 2000 }); // 停止捲動後導覽列恢復
@@ -57,7 +57,8 @@ test.describe('1. 底部導覽列', () => {
       await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
       const pad = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.app')!).paddingBottom));
       const dock = await box(page, '.dock');
-      expect(Math.round(pad)).toBe(Math.round(dock.height));
+      // 2026-10 改版：底部 padding＝分頁列高＋env(safe-area-inset-bottom)＋16（dock 高度＝分頁列＋safe-area）
+      expect(Math.round(pad)).toBe(Math.round(dock.height) + 16);
       const footer = await box(page, '.footer');
       const tab = await box(page, '.tabbar');
       expect(footer.y + footer.height).toBeLessThanOrEqual(tab.y + 0.5);
@@ -176,7 +177,7 @@ test.describe('3. 我的股票：自選優先與新用戶', () => {
 
   test('新用戶：歡迎卡 → 加入範例自選（標示範例）→ 一鍵清除', async ({ page }) => {
     await page.goto('#/mine');
-    const welcome = page.getByRole('region', { name: '先追蹤幾檔股票' });
+    const welcome = page.getByRole('region', { name: '無自選股' });
     await expect(welcome).toBeVisible();
     await welcome.getByRole('button', { name: '加入範例自選' }).click();
     await page.getByRole('combobox', { name: '排序' }).selectOption('pct'); // 列出全部（不收合低於門檻的）
@@ -184,7 +185,7 @@ test.describe('3. 我的股票：自選優先與新用戶', () => {
     await expect(page.locator('.srow', { hasText: '鴻海' })).toBeVisible();
     await expect(page.getByRole('button', { name: '範例', exact: true })).toBeVisible(); // 範例群組
     await expect(page.getByText(/範例自選/)).toBeVisible();
-    await expect(page.locator('h1.title')).toContainText('自選');
+    await expect(page.locator('.ui-head')).toContainText('自選');
     await page.getByRole('button', { name: '清除範例' }).click();
     await expect(welcome).toBeVisible();
     await expect(page.locator('.srow')).toHaveCount(0);
@@ -208,7 +209,11 @@ test.describe('3. 我的股票：自選優先與新用戶', () => {
     await page.getByRole('button', { name: '加入範例自選' }).click();
     await page.getByRole('button', { name: /熱門動能\s*系統/ }).click();
     await expect(page.getByText('依規則產生，非推薦', { exact: true })).toBeVisible();
+    // 2026-10-03：完整規則在 ⓘ；卡片上一行摘要
+    await expect(page.getByText(/成交值前 \d+ 名・RS 百分位 ≥ \d+/)).toBeVisible();
+    await page.getByRole('button', { name: '熱門動能的規則的說明' }).click();
     await expect(page.getByText(/成交值排名前 \d+ 名、RS 百分位 ≥ \d+/)).toBeVisible();
+    await page.keyboard.press('Escape');
     const hotRows = await page.locator('.srow').count();
     expect(hotRows).toBeGreaterThan(0);
     await page.getByRole('button', { name: '複製成我的群組' }).click();
@@ -241,7 +246,7 @@ test.describe('3. 我的股票：自選優先與新用戶', () => {
     await page.goto('#/mine');
     await expect(page.locator('.srow', { hasText: '聯發科' })).toBeVisible();
     await expect(page.getByRole('button', { name: '半導體', exact: true })).toBeVisible();
-    await expect(page.getByRole('region', { name: '先追蹤幾檔股票' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: '無自選股' })).toHaveCount(0);
   });
 });
 
@@ -257,8 +262,9 @@ test.describe('4. 資料源異常的呈現', () => {
     await expect(page.locator('.meta-line').first()).toBeVisible();
     await expect(page.locator('a.meta-alert')).toHaveCount(0); // 今晚頁沒用到集保
     await page.goto('#/stock/2330');
-    const alert = page.locator('a.meta-alert');
-    await expect(alert).toHaveText('1 個資料源異常');
+    // 2026-10 改版：個股頁只在異常時顯示一行橘色警示（.ui-warn）
+    const alert = page.getByText(/1 個資料源異常/);
+    await expect(alert).toBeVisible();
     const [color, risk, brand] = await alert.evaluate((el) => {
       const probe = (v: string) => { const d = document.createElement('span'); d.style.color = `var(${v})`; document.body.appendChild(d); const c = getComputedStyle(d).color; d.remove(); return c; };
       return [getComputedStyle(el).color, probe('--risk'), probe('--brand')];
@@ -282,7 +288,7 @@ test.describe('4. 資料源異常的呈現', () => {
     await expect(tech).toBeHidden();
     await page.locator('.list-item', { hasText: '上櫃本益比' }).getByText('詳細資訊').click();
     await expect(tech).toBeVisible();
-    await expect(page.locator('h1.title')).toContainText('相容模式');
+    await expect(page.locator('.ui-head')).toContainText(/相容模式 \d+/); // 2026-10-03：頁首副資訊為「n／N 正常・相容模式 n・需要注意 n」
   });
 });
 
@@ -304,13 +310,14 @@ test('5. 今晚：主角數字下方固定是資料日（M/D）的漲跌；走�
   await expect(change).toHaveText(today!);
 });
 
-test('6. 結論句在手機寬度最多兩行，只在標點處換行', async ({ page }) => {
+test('6. 頁首副資訊在手機寬度最多兩行，只在標點處換行', async ({ page }) => {
   await page.goto('#/mine');
   await page.getByRole('button', { name: '加入範例自選' }).click();
   for (const hash of ['#/mine', '#/']) {
     await page.goto(hash);
-    const title = page.locator('h1.title');
-    await expect(title).not.toHaveText(/^(我的股票|今晚的盤後簡報)$/);
+    // 2026-10-03：頁首＝名詞標題＋一行副資訊（數字）；斷行規則看副資訊
+    const title = page.locator('.ui-head-sub').first();
+    await expect(title).toBeVisible();
     const lines = await title.evaluate((el) => {
       const range = document.createRange();
       range.selectNodeContents(el);

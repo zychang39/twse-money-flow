@@ -342,8 +342,45 @@ sources:
     market: twse
     tier: advanced
     frequency: daily
-    url: https://www.twse.com.tw/exchangeReport/MI_5MINS_INDEX?response=json&date={date}
-    publish: "盤後（約 14:00）；只存發行量加權股價指數，前端降採樣成每分鐘一點"
+    url: https://www.twse.com.tw/rwd/zh/TAIEX/MI_5MINS_INDEX?date={date}&response=json
+    publish: "盤後（約 14:00）；只存發行量加權股價指數，build-web 降採樣成每分鐘一點（1D）與每 5 分鐘一點（1W）"
+    status: verified
+  yahoo_twii:
+    label: 加權指數 1 分鐘（Yahoo Finance，非官方；每 5 秒指數統計取不到時的備援）
+    market: twse
+    tier: optional
+    frequency: daily
+    url: https://query1.finance.yahoo.com/v8/finance/chart/%5ETWII?interval=1m&range=5d
+    publish: "收盤後；一次請求回傳最近 5 個交易日"
+    status: verified
+  yahoo_kbar:
+    label: 個股 5 分鐘 K（Yahoo Finance，非官方；個股頁 1D／1W）
+    market: all
+    tier: optional
+    frequency: daily
+    url: https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=5m&range=5d
+    publish: "收盤後；每檔一次請求回傳最近 5 個交易日；上市 {code}.TW、上櫃 {code}.TWO"
+    delay_seconds: [0.5, 1.0]   # 1–2 次／秒（含抖動）
+    keep_days: 10               # data 分支只保留最近 10 個交易日
+    top_value: 500              # 優先順序 1：近 20 日成交金額前 500 名
+    trigger_days: 60            # 優先順序 2：近 60 日任一策略觸發過（讀已部署網站的 signals.json）
+    signals_url: https://zychang39.github.io/twse-money-flow/data/signals.json
+    status: verified
+  twse_insti_amount:
+    label: 上市三大法人買賣金額統計表
+    market: twse
+    tier: advanced
+    frequency: daily
+    url: https://www.twse.com.tw/rwd/zh/fund/BFI82U?type=day&dayDate={date}&response=json
+    publish: "約 15:00"
+    status: verified
+  tpex_insti_amount:
+    label: 上櫃三大法人買賣金額彙總表
+    market: tpex
+    tier: advanced
+    frequency: daily
+    url: https://www.tpex.org.tw/www/zh-tw/insti/summary?type=Daily&date={date_slash}&response=json
+    publish: "約 15:00"
     status: verified
   tpex_daytrade:
     label: 上櫃當沖交易
@@ -562,6 +599,7 @@ sources:
         lag_days: 1
         funds: { "00408A": "183", "00994A": "182" }
         url: https://www.fsitc.com.tw/WebAPI.aspx/Get_hd
+        units_url: https://www.fsitc.com.tw/WebAPI.aspx/Get_BuySellA   # §3.4 受益權單位數：同一公告日的申購買回清單摘要（同樣本文）
       fhtrust:
         label: 復華投信
         keyword: 復華

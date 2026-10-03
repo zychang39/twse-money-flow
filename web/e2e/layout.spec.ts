@@ -26,7 +26,7 @@ async function useEvidenceFixtures(page: Page) {
  */
 function leverageHash(): string {
   const d = JSON.parse(fixture('strategies.json')) as { strategies: { id: string; grade?: string; enabled?: boolean }[] };
-  const listed = d.strategies.find((s) => (s.grade ? ['有效', '觀察中'].includes(s.grade) : !!s.enabled));
+  const listed = d.strategies.find((s) => (typeof s.grade === 'string' ? ['有效', '觀察中'].includes(s.grade) : !!s.enabled));
   return listed ? `#/explore/leverage?s=${listed.id}` : '#/explore/leverage';
 }
 
@@ -46,17 +46,20 @@ const PAGES: { name: string; hash: string; prepare?: (page: Page) => Promise<voi
   { name: '市場溫度', hash: '#/explore/market' },
   { name: '行事曆', hash: '#/explore/calendar' },
   { name: '處置', hash: '#/explore/disposition' },
-  { name: '指標效度表', hash: '#/explore/evidence', prepare: async (p) => { await p.getByRole('button', { name: /RS 百分位站上 90/ }).click(); await expect(p.getByRole('table', { name: '各持有天數' })).toBeVisible(); } },
+  { name: '指標效度表', hash: '#/explore/evidence', prepare: async (p) => { await p.getByTestId('ev-row-rs90').click(); await expect(p.getByRole('table', { name: /各持有天數/ })).toBeVisible(); } },
   { name: '策略庫', hash: '#/explore/strategies', prepare: async (p) => { await expect(p.getByText('近一年高點').first()).toBeVisible(); } },
-  { name: '策略頁', hash: '#/explore/strategies/near_high', prepare: async (p) => { await expect(p.getByRole('heading', { name: '健康度' })).toBeVisible(); await p.getByRole('button', { name: '看其他出場規則' }).click(); } },
-  { name: '策略頁（三方同買：原 31 檔對照卡、今日觸發展開）', hash: '#/explore/strategies/three_buyers', prepare: async (p) => { await expect(p.getByTestId('hindsight-card')).toBeVisible(); const b = p.getByTestId('today-list').getByRole('button').first(); if (await b.count()) await b.click(); } },
-  { name: '指標效度表（排序選單開啟、0050 基準）', hash: '#/explore/evidence', prepare: async (p) => { await p.getByTestId('bench-switch').getByRole('button', { name: '0050' }).click(); await p.getByRole('button', { name: /接近 52 週高點/ }).click(); await expect(p.locator('svg.ac-svg')).toBeVisible(); await p.getByRole('button', { name: '排序', exact: true }).click(); await expect(p.getByRole('menu', { name: '排序方式' })).toBeVisible(); } },
-  { name: '槓桿計算', hash: leverageHash(), prepare: async (p) => { await expect(p.getByText('波動目標法倍數')).toBeVisible(); } },
-  { name: '個股頁（每日籌碼、區間統計、有效訊號面板）', hash: '#/stock/2330', prepare: async (p) => { await revealAllSections(p); await expect(p.getByTestId('signal-panel')).toBeVisible(); await p.getByRole('group', { name: '明細期間' }).getByRole('button', { name: '60 日' }).click(); } },
+  { name: '策略頁', hash: '#/explore/strategies/near_high', prepare: async (p) => { await expect(p.getByRole('heading', { name: '健康度' })).toBeVisible(); await expect(p.getByRole('heading', { name: '出場規則' })).toBeVisible(); } },
+  { name: '策略頁（三方同買：樣本與成本、新觸發）', hash: '#/explore/strategies/three_buyers', prepare: async (p) => { await expect(p.getByTestId('st-sample')).toBeVisible(); await expect(p.getByTestId('st-today')).toBeVisible(); } },
+  { name: '指標效度表（排序選單開啟、0050 基準）', hash: '#/explore/evidence', prepare: async (p) => { await p.getByTestId('bench-switch').getByRole('button', { name: '0050' }).click(); await p.getByRole('button', { name: '排序', exact: true }).click(); await expect(p.getByRole('menu', { name: '排序方式' })).toBeVisible(); } },
+  { name: '槓桿計算', hash: leverageHash(), prepare: async (p) => { await expect(p.getByText('波動目標法')).toBeVisible(); } },
+  // 2026-10 改版：個股頁四個分段各檢查一次；每日明細推到子頁
+  ...(['動能', '籌碼', '基本面', '事件'] as const).map((seg) => ({ name: `個股頁・${seg}`, hash: '#/stock/2330', prepare: async (p: Page) => { await revealAllSections(p); await expect(p.getByTestId('signal-panel')).toBeVisible(); await p.getByTestId('stock-seg').getByRole('button', { name: seg, exact: true }).click(); } })),
+  { name: '個股頁・上櫃', hash: '#/stock/6488' },
+  { name: '每日明細（60 日）', hash: '#/stock/2330/daily', prepare: async (p) => { await p.getByRole('group', { name: '明細期間' }).getByRole('button', { name: '60 日' }).click(); } },
   { name: '法人報表', hash: '#/stock/2330/institutional' },
   { name: '籌碼結構', hash: '#/stock/2330/holders' },
   { name: '多空對照', hash: '#/stock/2330/bullbear' },
-  { name: '紀律', hash: '#/discipline' },
+  { name: '流程', hash: '#/discipline' },
   { name: '訊號追蹤', hash: '#/discipline/tracking' },
   { name: '設定', hash: '#/me/settings' },
   { name: '資料健康', hash: '#/me/health' },
@@ -65,7 +68,7 @@ const PAGES: { name: string; hash: string; prepare?: (page: Page) => Promise<voi
   { name: '搜尋', hash: '#/search' },
   { name: '日誌', hash: '#/discipline/journal' },
   { name: '統計', hash: '#/discipline/stats' },
-  { name: '徽章', hash: '#/discipline/badges' },
+  { name: '成就', hash: '#/discipline/badges' },
   { name: '週報', hash: '#/discipline/weekly' },
   { name: '我', hash: '#/me' },
   { name: '方法說明', hash: '#/me/methodology' },

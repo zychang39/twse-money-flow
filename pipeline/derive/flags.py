@@ -1,4 +1,4 @@
-"""風險旗標（獨立顯示、不併入分數）與處置風險預警。"""
+"""風險旗標（獨立顯示、不併入分數）與處置／注意清單（只呈現交易所公告的事實）。"""
 
 from __future__ import annotations
 
@@ -50,7 +50,6 @@ def build_flags(ds: Any, p: Any, mp: MetricPanels, at: int = -1) -> dict[str, li
     """at：第幾個交易日（預設最新）。前一日的旗標用於找出「新出現的風險旗標」。"""
     th = config.thresholds()
     rf = th["risk_flags"]
-    dw = th["disposition_warning"]
     n = len(p.dates) + at if at < 0 else at
     last = p.dates[n]
     is_latest = n == len(p.dates) - 1
@@ -72,26 +71,12 @@ def build_flags(ds: Any, p: Any, mp: MetricPanels, at: int = -1) -> dict[str, li
         if interval == interval and interval:
             detail += f"，約每 {int(interval)} 分鐘撮合"
         add(r["code"], "disposition", "danger", detail)
-    # 處置風險：官方名單 + 自行累計
+    # 官方公布的注意累計名單（2026-10：只呈現交易所公布的事實；不再自行累計次數推測是否會被處置）
     official = set(ds.attention_accum["code"]) if (is_latest and not ds.attention_accum.empty) else set()
-    counts = attention_counts(ds.attention, p.dates[: n + 1])
     in_disp = set(disposition_active(ds.disposition, last)["code"]) if not ds.disposition.empty else set()
-    for code in official - in_disp:
+    for code in sorted(official - in_disp):
         sit = ds.attention_accum[ds.attention_accum["code"] == code]["situation"].iloc[0]
-        add(code, "disposition_risk", "danger", f"官方名單：{sit}")
-    for _, r in counts.iterrows():
-        code = r["code"]
-        if code in official or code in in_disp:
-            continue
-        reasons = []
-        if r["consecutive"] >= dw["consecutive_days"]:
-            reasons.append(f"已連續 {r['consecutive']} 日注意")
-        if r["in10"] >= dw["within_10_days"]:
-            reasons.append(f"近 10 日注意 {r['in10']} 次")
-        if r["in30"] >= dw["within_30_days"]:
-            reasons.append(f"近 30 日注意 {r['in30']} 次")
-        if reasons:
-            add(code, "disposition_risk", "warn", "、".join(reasons))
+        add(code, "disposition_risk", "warn", f"官方公布：{sit}")
     # 週轉率、當沖、融資使用率
     turnover = mp.get("turnover")
     t5 = turnover.iloc[max(0, n - 4) : n + 1].mean()
@@ -135,20 +120,17 @@ def build_flags(ds: Any, p: Any, mp: MetricPanels, at: int = -1) -> dict[str, li
 
 
 def disposition_watchlist(ds: Any, p: Any) -> dict[str, Any]:
-    """處置風險預警清單頁資料。"""
+    """處置與注意頁（2026-10）：處置中、官方公布的注意累計名單、注意次數表（連續／近 10／近 30 個營業日）。
+
+    只呈現交易所公告的事實與次數，不做「可能進入處置」之類的預測標示。
+    """
     last = p.dates[-1]
     counts = attention_counts(ds.attention, p.dates)
-    dw = config.thresholds()["disposition_warning"]
     official = ds.attention_accum if not ds.attention_accum.empty else pd.DataFrame(columns=["code", "situation"])
+    official_codes = set(official["code"])
     active = disposition_active(ds.disposition, last)
     rows = []
     for _, r in counts.iterrows():
-        risk = (
-            r["consecutive"] >= dw["consecutive_days"]
-            or r["in10"] >= dw["within_10_days"]
-            or r["in30"] >= dw["within_30_days"]
-            or r["code"] in set(official["code"])
-        )
         rows.append(
             {
                 "code": r["code"],
@@ -158,11 +140,10 @@ def disposition_watchlist(ds: Any, p: Any) -> dict[str, Any]:
                 "in30": int(r["in30"]),
                 "last_date": r["last_date"],
                 "reason": r["last_reason"],
-                "risk": bool(risk),
-                "official": r["code"] in set(official["code"]),
+                "official": r["code"] in official_codes,
             }
         )
-    rows.sort(key=lambda x: (not x["risk"], -x["in30"], -x["consecutive"]))
+    rows.sort(key=lambda x: (-x["in10"], -x["in30"], -x["consecutive"], x["code"]))
     disp = [
         {
             "code": r["code"],
@@ -181,4 +162,4 @@ def disposition_watchlist(ds: Any, p: Any) -> dict[str, Any]:
         {"code": r["code"], "name": p.names.get(r["code"], r["code"]), "situation": r["situation"]}
         for _, r in official.iterrows()
     ]
-    return {"date": last, "watch": rows[:200], "disposition": disp, "official": off, "rules": dw}
+    return {"date": last, "watch": rows[:200], "disposition": disp, "official": off}

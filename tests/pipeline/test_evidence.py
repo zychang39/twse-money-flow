@@ -519,19 +519,14 @@ def test_health_rules():
     assert health({"mean_excess": 1.0, "recent": {"n": 30, "mean_excess": 0.8}}, 20)["status"] == "與長期一致"
 
 
-def test_best_exit_by_excess_vs_index():
-    from pipeline.evidence.strategies import best_exit
+def test_best_exit_full_sample_pick_replaced():
+    """2026-10-03：舊版「全樣本挑相對指數最高的出場規則」（樣本內挑選）移除；組合與槓桿改用固定 40 日，
+    出場規則改由 exits.compare_split 只用 2021 年底前的訊號選（tests/pipeline/test_judge.py 驗證樣本內／樣本外切分）。"""
+    from pipeline.evidence import exits, judge, strategies
 
-    d = {
-        "exits": {
-            "rules": [
-                {"rule": "fixed", "param": "10", "chosen": True, "n": 100, "exc_idx": -1.0, "mae": -5},
-                {"rule": "ma", "param": "20", "chosen": True, "n": 100, "exc_idx": 0.5, "mae": -4},
-                {"rule": "ma", "param": "60", "chosen": False, "n": 100, "exc_idx": 2.0, "mae": -9},
-            ]
-        }
-    }
-    assert best_exit(d)["param"] == "20"  # 只比較各規則的選定參數
+    assert not hasattr(strategies, "best_exit")
+    assert hasattr(exits, "compare_split")
+    assert judge.jcfg({})["exits_train_end"] == "2021-12-31"
 
 
 def test_coverage_single_definition_matches_counts():
@@ -708,7 +703,7 @@ def test_verdict_changes_only_after_limited():
 
 
 def test_corrected_t_takes_smallest_absolute_value():
-    """第二輪：不集中進場時取 |t| 最小者（保留正負號），負的 t 不會因取 min 而被高估顯著性。"""
+    """2026-10-03 全站統一：一律取日曆時間法、NW、區塊三者 |t| 最小者（保留正負號），集中進場不再例外。"""
     from pipeline.evidence import audit
 
     rng = np.random.default_rng(3)
@@ -717,7 +712,17 @@ def test_corrected_t_takes_smallest_absolute_value():
     r = audit.corrected_t(d, 10, period_days=n, ratio=0.25)
     cands = [v for v in (r["t"], r["t_nw"], r["t_block"]) if v is not None]
     assert r["t_corr"] == min(cands, key=abs)
-    assert r["t_corr_method"] == "min(日曆, NW, 區塊)"
-    # 集中進場（進場日只佔 5%）→ 日曆時間法
+    assert r["t_corr_method"] == "min(日曆, NW, 區塊)" and r["nw_lag"] == 10
+    # 集中進場（進場日只佔 2.5%）→ 同樣取最小；NW 落後期數換算成持有期內的進場日數 ceil(10 × 400 ÷ 16000) = 1
     r2 = audit.corrected_t(d, 10, period_days=n * 40, ratio=0.25)
-    assert r2["t_corr"] == r2["t"] and "集中" in r2["t_corr_method"]
+    c2 = [v for v in (r2["t"], r2["t_nw"], r2["t_block"]) if v is not None]
+    assert r2["t_corr"] == min(c2, key=abs) and r2["nw_lag"] == 1
+
+
+def test_nw_lag_counts_overlapping_entry_dates():
+    from pipeline.evidence import audit
+
+    assert audit.nw_lag(40, 2000, 2000) == 40  # 每天進場：落後＝持有日數
+    assert audit.nw_lag(40, 113, 2333) == 2  # 每月進場一次（約 21 個交易日一次）：持有 40 日只與下一次重疊
+    assert audit.nw_lag(40, 10, None) == 40  # 期間未知：視為每天進場
+    assert audit.nw_lag(5, 1, 1000) == 1

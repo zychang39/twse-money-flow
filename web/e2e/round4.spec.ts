@@ -27,10 +27,10 @@ const center = async (page: Page, sel: string) => {
 
 // ---------------------------------------------------------------- 1. 底部導覽
 test.describe('1. 底部導覽', () => {
-  test('5 個分頁的順序：今晚、我的股票、探索、搜尋（第 4 格）、紀律；選取膠囊在目前分頁底下', async ({ page }) => {
+  test('5 個分頁的順序：簡報、我的股票、探索、搜尋（第 4 格）、流程；選取膠囊在目前分頁底下', async ({ page }) => {
     await page.goto('#/');
     const labels = await page.locator('.tabbar a').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
-    expect(labels).toEqual(['今晚', '我的股票', '探索', '搜尋代號或名稱', '紀律']);
+    expect(labels).toEqual(['簡報', '我的股票', '探索', '搜尋代號或名稱', '流程']);
     for (const [i, hash] of [[2, '#/explore'], [4, '#/discipline'], [1, '#/mine'], [0, '#/']] as const) {
       await page.locator('.tabbar a').nth(i).click();
       await expect(page).toHaveURL(new RegExp(`${hash.replace('/', '\\/')}$`));
@@ -98,7 +98,7 @@ test.describe('1. 底部導覽', () => {
 // ---------------------------------------------------------------- 2. 個股頁左右換股
 /** M5：換股手勢只從頁首區域（股票名稱）開始 → 拖曳的 y 取名稱列 */
 const headY = async (page: Page) => {
-  const b = (await page.locator('.pager-pane:not([inert]) .page-head').boundingBox())!;
+  const b = (await page.locator('.pager-pane:not([inert]) .ui-head').boundingBox())!;
   return b.y + b.height / 2;
 };
 
@@ -106,7 +106,7 @@ async function openInList(page: Page, code: string, codes = ['2330', '2317', '24
   await page.goto('#/mine');
   await page.evaluate((c) => sessionStorage.setItem('twse:list-context', JSON.stringify({ name: '自選', codes: c })), codes);
   await page.goto(`#/stock/${code}`);
-  await expect(page.locator('.pager-pane:not([inert]) .hero')).toBeVisible();
+  await expect(page.locator('.pager-pane:not([inert]) [data-testid="stock-price"]')).toBeVisible();
   await page.waitForTimeout(600);
 }
 
@@ -147,7 +147,7 @@ test.describe('2. 個股頁左右換股', () => {
     expect(busy).toBe(false);
     await expect(page).toHaveURL(/#\/stock\/2454$/);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('聯發科');
-    await expect(page.locator('.topbar')).toContainText('自選 3 / 3');
+    await expect(page.locator('.topbar')).toContainText('自選 3/3');
     await expect(page.locator('.pager-pane:not([inert])')).toHaveAttribute('data-code', '2454');
   });
 
@@ -173,14 +173,14 @@ test.describe('2. 個股頁左右換股', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('台積電');
   });
 
-  test('走勢圖上左右拖曳是查價（M5：不必先按住），不會換股', async ({ page }) => {
+  test('走勢圖上長按再拖曳是十字線查價（2026-10 改版：長按），不會換股', async ({ page }) => {
     await openInList(page, '2317');
     const chart = (await page.locator('.pager-pane:not([inert]) .chart-wrap').boundingBox())!;
-    const hero = page.locator('.pager-pane:not([inert]) .hero');
+    const hero = page.locator('.pager-pane:not([inert]) [data-testid="stock-price"]');
     const before = await hero.textContent();
     let during = before;
     await touchDrag(page, { x: chart.x + chart.width * 0.85, y: chart.y + 80 }, { x: chart.x + chart.width * 0.3, y: chart.y + 82 }, {
-      beforeEnd: async () => { during = await hero.textContent(); },
+      holdMs: 450, beforeEnd: async () => { during = await hero.textContent(); },
     });
     expect(during).not.toBe(before);
     await page.waitForTimeout(500);

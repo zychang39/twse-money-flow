@@ -1,50 +1,51 @@
-/** 成就：原創線條徽章。只獎勵紀律（儀式、檢討、守住停損、檢查表、回測自己的條件、備份）。 */
-import { PageHead, TopBar } from '../components/Chrome';
-import { EmptyState, Loading } from '../components/DataStatus';
+/** 成就（§8.7）：8 個，只看流程（合規、連續、依計畫停損、檢討、風險上限）。每個顯示條件與進度 n/N；未取得用次文字色，不遮住條件。 */
+import { TopBar } from '../components/Chrome';
+import { Loading } from '../components/DataStatus';
 import { BADGE_ICONS, IconMedal } from '../components/Icons';
-import { useAsync } from '../hooks';
-import { loadIndex } from '../data/api';
-import { useUser } from '../data/useUser';
-import { badgeMetrics, badges, streaks } from '../lib/ritual';
+import { Button, Card, EmptyRow, List, PageTitle, Row, Section } from '../components/ui';
+import { useFlow } from '../data/useFlow';
+import { LEGACY_BADGE_MAP } from '../lib/achievements';
+import '../styles/flow.css';
 
 export default function Badges() {
-  const user = useUser();
-  const index = useAsync(loadIndex, []);
-  if (!user) return <div class="page"><TopBar back="/discipline" /><Loading /></div>;
-  if (!user.gamification) {
+  const flow = useFlow();
+  if (!flow) return <div class="page"><TopBar back="/discipline" /><PageTitle title="成就" /><Loading /></div>;
+  if (!flow.gamification) {
     return (
       <div class="page">
         <TopBar back="/discipline" />
-        <PageHead eyebrow="成就" title="遊戲化已關閉" />
-        <EmptyState icon={<IconMedal />} title="徽章已隱藏" text="你的紀律紀錄仍會保存，重新開啟後會立即顯示。" action={<a class="btn primary" href="#/me/settings">前往設定</a>} />
+        <PageTitle title="成就" sub="遊戲化已關閉" />
+        <div class="ui-sec">
+          <Card><EmptyRow>流程紀錄仍保存在本機；重新開啟後立即顯示。</EmptyRow><Button block href="#/me/settings">前往設定</Button></Card>
+        </div>
       </div>
     );
   }
-  const st = streaks(index.data?.dates ?? [], user.activity);
-  const bs = badges(badgeMetrics(user.activity, user.trades, st.best, !!user.lastBackupAt));
+  const bs = flow.badges;
   const earned = bs.filter((b) => b.earned).length;
   return (
     <div class="page">
       <TopBar back="/discipline" />
-      <PageHead eyebrow="成就" title={`已獲得 ${earned} / ${bs.length} 個徽章`}>
-        <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>只獎勵紀律行為；不因下單次數、交易頻率或獲利給予任何徽章。</p>
-      </PageHead>
-      <div class="badges" style={{ marginTop: 'var(--s-6)' }}>
-        {bs.map((b) => {
-          const Icon = BADGE_ICONS[b.id] ?? IconMedal;
-          return (
-            <div key={b.id} class={`badge-card ${b.earned ? 'earned' : ''}`} role="group" aria-label={`${b.label}：${b.earned ? '已獲得' : `進度 ${Math.min(b.value, b.target)} / ${b.target}`}。${b.description}`}>
-              <Icon />
-              <div class="caption t1 w6">{b.label}</div>
-              <div class="caption muted">{b.earned ? '已獲得' : `${Math.min(b.value, b.target)} / ${b.target}`}</div>
-              {!b.earned ? <div class="xp-bar" style={{ marginTop: 'var(--s-2)' }}><i style={{ width: '100%', transform: `scaleX(${b.progress})` }} /></div> : null}
-            </div>
-          );
-        })}
-      </div>
-      <div class="list" style={{ marginTop: 'var(--s-6)' }}>
-        {bs.map((b) => <div key={b.id} class="list-item" style={{ alignItems: 'flex-start' }}><span class="grow"><span class="body">{b.label}</span><span class="caption muted" style={{ display: 'block' }}>{b.description}</span></span></div>)}
-      </div>
+      <PageTitle title="成就" sub={`已取得 ${earned}/${bs.length}`} />
+      <Section title="全部成就" testid="badges" info={<>
+        <p>只看流程：合規交易、連續交易日、依計畫停損、檢討、風險上限。不看損益、交易次數或開啟次數。</p>
+        <ul>{bs.map((b) => <li key={b.id}>{b.label}：{b.description}</li>)}</ul>
+        <p>改版前已取得的成就保留，對應到最接近的一項（{Object.keys(LEGACY_BADGE_MAP).length} 項舊成就對應到連續、檢討、依計畫停損與第一筆合規交易）。</p>
+      </>}>
+        <List>
+          {bs.map((b) => {
+            const Icon = BADGE_ICONS[b.id] ?? IconMedal;
+            return (
+              <Row key={b.id} testid={`badge-${b.id}`}
+                icon={<span class={`flow-badge-ico ${b.earned ? 'earned' : ''}`}><Icon /></span>}
+                label={<span class={b.earned ? '' : 'ui-muted'}>{b.label}</span>}
+                sub={b.retained ? '由舊成就保留' : b.short ?? b.description}
+                value={<span class={b.earned ? '' : 'ui-muted'}>{b.progressText}</span>}
+                ariaLabel={`${b.label}：${b.earned ? '已取得' : `進度 ${b.progressText}`}。${b.description}`} />
+            );
+          })}
+        </List>
+      </Section>
     </div>
   );
 }
