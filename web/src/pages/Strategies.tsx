@@ -19,7 +19,6 @@ import { useAsync, useDb } from '../hooks';
 import { loadJson } from '../data/api';
 import { addWatchMany, listStrategies, saveStrategy, uid } from '../db/db';
 import { LAB_PREFIX } from '../lib/config';
-import { coverageText } from '../lib/evidence';
 import { fmtCount, md, pctPlain, ratioText, tText } from '../lib/format';
 import { BENCH_KEYS, BENCH_LABEL, type BenchKey, loadBench, saveBench } from '../lib/bench';
 import { type CurveLine, EDGE_TEXT, peakAtEdge } from '../lib/curve';
