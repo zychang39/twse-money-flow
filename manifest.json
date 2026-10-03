@@ -962,8 +962,8 @@
  "digest_date": "2026-10-02",
  "holders_backfill": {
   "codes": 1990,
-  "done": 42026,
-  "eta": "2026-10-08T09:53+08:00",
+  "done": 42569,
+  "eta": "2026-10-08T08:20+08:00",
   "nodata": {
    "1108": [
     "20251107"
@@ -1114,6 +1114,9 @@
    "5388": [
     "20251009"
    ],
+   "5450": [
+    "20260226"
+   ],
    "5521": [
     "20251128"
    ],
@@ -1221,14 +1224,14 @@
    ]
   },
   "oldest_week": "20251003",
-  "per_query_sec": 4.46,
+  "per_query_sec": 4.41,
   "ref": "claude/momentum-strategy-lab-v2",
-  "remaining": 57474,
-  "runtime_hours_left": 71.1,
-  "segments": 76,
+  "remaining": 56931,
+  "runtime_hours_left": 69.7,
+  "segments": 77,
   "started_at": "2026-09-29T23:44+08:00",
   "total": 99500,
-  "updated_at": "2026-10-03T21:55+08:00",
+  "updated_at": "2026-10-03T22:36+08:00",
   "weeks": 52
  },
  "last_target_date": "2026-10-02",
@@ -1449,20 +1452,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-02T08:36:19+08:00",
-   "by_source": {
-    "tdcc_full": 75301
-   },
-   "chained": true,
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 75301,
-   "requests": 561,
-   "task": "holders_backfill"
-  },
   {
    "at": "2026-10-02T09:17:10+08:00",
    "by_source": {
@@ -1998,6 +1987,20 @@
    "remaining": 57474,
    "requests": 538,
    "task": "holders_backfill"
+  },
+  {
+   "at": "2026-10-03T23:16:26+08:00",
+   "by_source": {
+    "tdcc_full": 56931
+   },
+   "chained": true,
+   "failed": [],
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "remaining": 56931,
+   "requests": 545,
+   "task": "holders_backfill"
   }
  ],
  "sources": {
@@ -2083,10 +2086,10 @@
   },
   "tdcc_history": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T22:35:41+08:00",
-   "last_message": "全市場 1990 檔 × 52 週：本段 536 次查詢；剩餘 57474 次",
+   "last_attempt": "2026-10-03T23:16:25+08:00",
+   "last_message": "全市場 1990 檔 × 52 週：本段 543 次查詢；剩餘 56931 次",
    "last_status": "ok",
-   "last_success_at": "2026-10-03T22:35:41+08:00",
+   "last_success_at": "2026-10-03T23:16:25+08:00",
    "validation": "ok"
   },
   "tdcc_holders": {
@@ -2630,6 +2633,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-03T22:35:42+08:00",
+ "updated_at": "2026-10-03T23:16:26+08:00",
  "version": 1
 }
