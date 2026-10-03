@@ -48,6 +48,8 @@ h1, h2, h3 { margin: 0; font-weight: var(--fw-semibold); }
 @supports (text-wrap: balance) {
   .title, .large-title, .section { text-wrap: balance; }
 }
+/* 沒有粗體中文字型的環境（例：CI 的 Chromium 回退字型）不要合成粗體：合成會把部分字形重疊成雙影；iOS／Android 的中文字型都有真正的 600 */
+.title, .large-title, .section { font-synthesis-weight: none; }
 .section-title { margin: var(--s-6) 0 var(--s-2); }
 /*
  * 2026-10-02 健檢：註解、表格與指標格的數字不和單位斷開（「+5,887 張」「近 5 日」「創 12 個月」不會在中間換行）：
