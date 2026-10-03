@@ -1,14 +1,10 @@
 {
- "task": "holders_backfill",
- "at": "2026-10-03T15:05:25+08:00",
- "requests": 523,
- "ok": 1,
- "failed": [],
- "pending": [],
- "remaining": 65515,
- "progressed": true,
- "by_source": {
-  "tdcc_full": 65515
- },
- "chained": true
+ "task": "periodic",
+ "at": "2026-10-03T15:31:53+08:00",
+ "requests": 11,
+ "ok": 4,
+ "failed": [
+  "tpex_delisted  HTTP 520：https://www.tpex.org.tw/www/zh-tw/company/deListed?date=2015&reason=-1&response=json"
+ ],
+ "pending": []
 }
