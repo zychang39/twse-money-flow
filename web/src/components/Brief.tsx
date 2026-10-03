@@ -109,7 +109,7 @@ export function IndexCard({ index, intraday, intradayFailed, period, onPeriod, s
       <HeroChart label={dayNote ? `加權指數・${dayNote}` : '加權指數'} win={win} period={period} onPeriod={onPeriod} seen={seen}
         format={(v) => fmtNum(v, 2)} periodsLabel="加權指數走勢期間" periods={TONIGHT_PERIODS} heroChange="daily"
         emptyText={intraPeriod && intradayFailed ? '盤中走勢讀取失敗' : '資料累積中'} />
-      {intraPeriod && ohlc ? (
+      {period === '1D' && ohlc ? (
         <div class="index-ohlc">
           <StatGrid cols={4} testid="index-ohlc" items={[
             { label: '開', value: <Num v={ohlc.o} digits={2} /> },

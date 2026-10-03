@@ -54,12 +54,13 @@
 .ui-card > .ui-list { padding: 0; background: none; border-radius: 0; }
 
 /* ---------- 列 ---------- */
-.ui-list { --tagcol: 0px; --chevcol: 0px; }
+.ui-list { --tagcol: 0px; --chevcol: 0px; --extracol: 0px; }
+.ui-list.has-extra { --extracol: calc(var(--s-12) + var(--row-gap)); }
 .ui-list.has-tags { --tagcol: calc(var(--tag-w) + var(--row-gap)); }
 .ui-list.has-chev { --chevcol: calc(var(--s-4) + var(--s-2)); }
 .ui-row {
   display: grid;
-  grid-template-columns: minmax(6rem, 1fr) auto var(--tagcol, 0px) var(--chevcol, 0px);
+  grid-template-columns: minmax(6rem, 1fr) auto var(--tagcol, 0px) var(--extracol, 0px) var(--chevcol, 0px);
   align-items: baseline;
   column-gap: 0;
   min-height: var(--row-min);
@@ -68,7 +69,7 @@
   font-size: var(--fs-body); line-height: var(--lh-body);
   text-decoration: none;
 }
-.ui-row.has-icon { grid-template-columns: calc(var(--icon) + var(--row-gap)) minmax(6rem, 1fr) auto var(--tagcol, 0px) var(--chevcol, 0px); }
+.ui-row.has-icon { grid-template-columns: calc(var(--icon) + var(--row-gap)) minmax(6rem, 1fr) auto var(--tagcol, 0px) var(--extracol, 0px) var(--chevcol, 0px); }
 .ui-row + .ui-row { box-shadow: inset 0 0.5px 0 var(--line); }
 .ui-row.ui-tap { cursor: pointer; }
 .ui-row.ui-tap:active { background: var(--surface-row); }
@@ -80,10 +81,13 @@
 .ui-row-value { display: flex; flex-direction: column; align-items: flex-end; padding-left: var(--row-gap); text-align: right; }
 .ui-v { color: var(--text-1); font-variant-numeric: tabular-nums; }
 .ui-v2 { white-space: nowrap; }
-.ui-row-tag { display: flex; justify-content: flex-end; min-width: 0; }
+.ui-row-tag, .ui-row-extra { display: flex; justify-content: flex-end; min-width: 0; }
+.ui-row-subwide { grid-column: 1 / -1; }
+.ui-row.has-icon .ui-row-subwide { grid-column: 2 / -1; }
 .ui-row-chev { display: inline-flex; justify-content: flex-end; align-self: center; color: var(--text-3); }
 .ui-row-chev svg { width: var(--s-4); height: var(--s-4); }
 .ui-unit { margin-left: var(--s-1); font-size: inherit; }
+.ui-unit.tight { margin-left: 0; }
 
 /* ---------- 帶號數值（▲▼／+−） ---------- */
 .sv { font-variant-numeric: tabular-nums; }

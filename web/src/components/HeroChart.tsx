@@ -58,6 +58,10 @@ function dateLabel(iso: string): string {
   const d = new Date(`${iso}T12:00:00Z`);
   return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}（${'日一二三四五六'[d.getUTCDay()]}）`;
 }
+/** 盤中資料跨多個交易日（1W） */
+function multiDay(dates: string[]): boolean {
+  return dates.length > 1 && dates[0].length > 10 && dates[0].slice(0, 10) !== dates[dates.length - 1].slice(0, 10);
+}
 /** 圖下方兩端的標籤：日資料 M/D；盤中資料 HH:MM */
 function axisLabel(iso: string): string {
   return iso.length > 10 ? iso.slice(11, 16) : shortDate(iso);
@@ -513,8 +517,9 @@ export function HeroChart({
             ) : null}
             {win && win.dates.length >= 2 ? (
               <g class="chart-dates" data-testid="chart-dates" style={LABEL_STYLE}>
-                <text x={frame.padX} y={svgH - 3} text-anchor="start">{axisLabel(win.dates[0])}</text>
-                <text x={w - frame.padX} y={svgH - 3} text-anchor="end">{axisLabel(win.dates[last])}</text>
+                {/* 盤中多日（1W）：兩端標日期；單日（1D）標時間 */}
+                <text x={frame.padX} y={svgH - 3} text-anchor="start">{multiDay(win.dates) ? shortDate(win.dates[0].slice(0, 10)) : axisLabel(win.dates[0])}</text>
+                <text x={w - frame.padX} y={svgH - 3} text-anchor="end">{multiDay(win.dates) ? shortDate(win.dates[last].slice(0, 10)) : axisLabel(win.dates[last])}</text>
               </g>
             ) : null}
             {rangePts && rr ? (

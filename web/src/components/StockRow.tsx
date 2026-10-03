@@ -1,5 +1,5 @@
 /**
- * 清單列：名稱＋代號、sparkline（虛線＝昨收）、價格＋漲跌膠囊、綜合分小環。
+ * 清單列：名稱＋代號、sparkline（虛線＝昨收）、價格＋漲跌膠囊、RS 百分位（綜合分已移除）。
  * 手勢：點一下開啟個股頁；左滑露出動作（移動群組／移除…）；長按（或滑鼠右鍵）叫出快速預覽面板。
  * 鍵盤：Enter 開啟、ContextMenu／Shift+F10 預覽；動作也可在預覽面板中完成。
  */
@@ -10,7 +10,18 @@ import { adjClose } from '../lib/history';
 import { direction, fmtPrice } from '../lib/format';
 import { tradeStatusLabel } from '../lib/tradeStatus';
 import { ChangePill } from './Change';
-import { ScoreRing, Sparkline } from './Viz';
+import { Sparkline } from './Viz';
+
+/** RS 百分位（0–100）：清單列右側的小字，取代原本的綜合分小環。 */
+function RsCell({ v }: { v: unknown }) {
+  const n = typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : null;
+  return (
+    <span class="srow-rs caption" aria-label={n === null ? 'RS 百分位無資料' : `RS 百分位 ${n}`}>
+      <span class="muted" aria-hidden="true">RS</span>
+      <span class="num" aria-hidden="true">{n === null ? '—' : n}</span>
+    </span>
+  );
+}
 
 export interface RowAction { id: string; label: string; kind?: 'move' | 'remove'; onClick: () => void }
 
@@ -105,7 +116,7 @@ export function StockListRow({ code, row, hist, sub, onOpen, onPreview, actions 
           <span class="body" style={{ display: 'block' }}>{row ? fmtPrice(row.close) : '—'}</span>
           <ChangePill change={row?.change} pct={row?.change_pct} status={tradeStatusLabel(row)} />
         </span>
-        <ScoreRing value={(row?.composite as number | null | undefined) ?? null} size={32} stroke={3} label="綜合分" />
+        <RsCell v={row?.rs_percentile} />
       </button>
     </div>
   );
@@ -120,7 +131,7 @@ export function StockMiniRow({ row, text, onOpen, risk }: { row: StockRow; text:
         <span class={`sub ${risk ? 'risk w6' : ''}`}>{text}</span>
       </span>
       <span class="price"><span class="body" style={{ display: 'block' }}>{fmtPrice(row.close)}</span><ChangePill change={row.change} pct={row.change_pct} status={tradeStatusLabel(row)} /></span>
-      <ScoreRing value={(row.composite as number | null | undefined) ?? null} size={32} stroke={3} label="綜合分" />
+      <RsCell v={row.rs_percentile} />
     </button>
   );
 }

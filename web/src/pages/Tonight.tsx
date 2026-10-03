@@ -107,7 +107,7 @@ export default function Tonight() {
             onClick={() => openStock(a.trade.code, '持倉', alerts.map((x) => x.trade.code))} />
         ))}
         {calm.length ? (
-          <Row label={risky.length ? `其餘 ${calm.length} 檔無警示` : `${calm.length} 檔無警示`} onClick={() => setShowCalm(!showCalm)}
+          <Row label={risky.length ? `其餘 ${calm.length} 檔無警示` : `${calm.length} 檔無警示`} onClick={() => setShowCalm(!showCalm)} noChev
             tag={<span class="ui-row-toggle" aria-hidden="true"><IconChevronDown /></span>} testid="holdings-calm" />
         ) : null}
         {showCalm ? calm.map((a) => a.row ? (
@@ -139,24 +139,24 @@ export default function Tonight() {
       {!risky.length ? holdings : null}
 
       <Section title="自選股異動" testid="watch-changes"
-        aside={watchRows.length && snap !== undefined ? watchSum.basis : undefined}
+        aside={watchRows.length && snap !== undefined ? watchSum.basis.replace(/^自上次查看（(.+)）以來$/, '較 $1') : undefined}
         info={<p>列出相對上次查看（第一次使用時相對前一交易日）有顯著變化的自選股；門檻在設定頁。副資訊：外資＋投信當日合計買賣超張數、佔 20 日均量的比例，與量比（當日成交量 ÷ 20 日均量）。右側：收盤價、漲跌幅、RS 百分位（全市場相對強弱排名，100 為最強）。</p>}>
-        <List tags chev>
+        <List tags extra chev>
           {user && !user.watch.length ? <Row label="尚無自選股" href="#/mine" testid="watch-empty" /> : null}
           {sig.map((c) => (
-            <Row key={c.code} label={<NameCode row={c.row} />} sub={watchSub(c.row)}
-              value={<PriceValue row={c.row} />} value2={<Signed v={c.row.change_pct} kind="arrow" unit="%" />}
-              tag={<span class="ui-v ui-foot" data-testid="rs-pct">RS <Num v={(c.row.rs_pct as number | null | undefined) ?? null} /></span>}
+            <Row key={c.code} label={<NameCode row={c.row} />} sub={watchSub(c.row)} subWide
+              value={<PriceValue row={c.row} />} tag={<span class="ui-v" data-a="bl"><Signed v={c.row.change_pct} kind="arrow" unit="%" /></span>}
+              extra={<span class="ui-v ui-foot" data-testid="rs-pct">RS <Num v={(c.row.rs_percentile as number | null | undefined) ?? null} digits={0} /></span>}
               onClick={() => openStock(c.code, '自選股異動', changes.map((x) => x.code))} />
           ))}
           {quiet.length ? (
-            <Row label={sig.length ? `其餘 ${quiet.length} 檔未達門檻` : `${quiet.length} 檔未達門檻`} onClick={() => setShowQuiet(!showQuiet)}
+            <Row label={sig.length ? `其餘 ${quiet.length} 檔未達門檻` : `${quiet.length} 檔未達門檻`} onClick={() => setShowQuiet(!showQuiet)} noChev
               tag={<span class="ui-row-toggle" aria-hidden="true"><IconChevronDown /></span>} testid="watch-quiet" />
           ) : null}
           {showQuiet ? quiet.map((c) => (
-            <Row key={c.code} label={<NameCode row={c.row} />} sub={watchSub(c.row)}
-              value={<PriceValue row={c.row} />} value2={<Signed v={c.row.change_pct} kind="arrow" unit="%" />}
-              tag={<span class="ui-v ui-foot">RS <Num v={(c.row.rs_pct as number | null | undefined) ?? null} /></span>}
+            <Row key={c.code} label={<NameCode row={c.row} />} sub={watchSub(c.row)} subWide
+              value={<PriceValue row={c.row} />} tag={<span class="ui-v" data-a="bl"><Signed v={c.row.change_pct} kind="arrow" unit="%" /></span>}
+              extra={<span class="ui-v ui-foot">RS <Num v={(c.row.rs_percentile as number | null | undefined) ?? null} digits={0} /></span>}
               onClick={() => openStock(c.code, '自選股異動', changes.map((x) => x.code))} />
           )) : null}
         </List>

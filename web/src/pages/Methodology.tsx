@@ -28,8 +28,6 @@ function Section({ title, children }: { title: string; children: preact.Componen
 
 export default function Methodology() {
   const th = thresholds;
-  const w = scoresConfig.composite.weights;
-  const wsum = CATEGORY_IDS.reduce((s, c) => s + w[c], 0);
   const rf = th.risk_flags as Record<string, { label: string; description: string; [k: string]: unknown }>;
   const bt = th.backtest;
   const fv = th.fair_value;
@@ -40,15 +38,8 @@ export default function Methodology() {
       <PageHead title="方法說明">
         <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>依設定檔自動產生；所有報酬、均線、RS、回測使用還原價。</p>
       </PageHead>
-      <Section title="綜合分">
-        <p class="small">{scoresConfig.composite.description}</p>
-        <table class="table">
-          <thead><tr><th>類別</th><th>預設權重</th></tr></thead>
-          <tbody>
-            {CATEGORY_IDS.map((c) => <tr key={c}><td>{scoresConfig.categories[c].label}</td><td>{((w[c] / wsum) * 100).toFixed(0)}%</td></tr>)}
-          </tbody>
-        </table>
-        <p class="tiny muted">類別分 = 可用因子子分數依權重平均（缺資料的因子不計）；綜合分至少需要 2 個類別有分數。權重不以歷史資料最佳化，可在設定頁調整。</p>
+      <Section title="分項分數（進階）">
+        <p class="small">籌碼、動能、基本面、估值四個分項分數只在個股頁「進階」顯示；不合成綜合分（未經驗證的加權平均已移除）。分項分數＝可用因子子分數依權重平均（缺資料的因子不計）。</p>
       </Section>
 
       {CATEGORY_IDS.map((cid) => {
@@ -127,7 +118,7 @@ export default function Methodology() {
 
       <Section title="介面呈現規則（不影響計算）">
         <ul class="small" style={{ paddingLeft: '1.25rem', margin: 0 }}>
-          <li>變化優先：以「上次查看」的快照為基準（第一次使用以前一交易日為基準）。顯著門檻：漲跌 ≥ {uiConfig.significance.price_pct}%、綜合分 ≥ {uiConfig.significance.composite_points} 分、外資或投信新達到連買／連賣 {uiConfig.significance.inst_streak_days} 日、法人淨買賣超 ≥ 成交量 {uiConfig.significance.inst_volume_pct}%、融資變化 ≥ {uiConfig.significance.margin_pct}%、新的風險旗標；低於門檻的預設收合。</li>
+          <li>變化優先：以「上次查看」的快照為基準（第一次使用以前一交易日為基準）。顯著門檻：漲跌 ≥ {uiConfig.significance.price_pct}%、外資或投信新達到連買／連賣 {uiConfig.significance.inst_streak_days} 日、法人淨買賣超 ≥ 成交量 {uiConfig.significance.inst_volume_pct}%、融資變化 ≥ {uiConfig.significance.margin_pct}%、新的風險旗標；低於門檻的預設收合。</li>
           <li>資金環境燈號：任一指標為風險（紅燈）→ 保守；沒有風險且 ≥ {uiConfig.env_state.aggressive_min_green} 項有利 → 積極；其餘為中性。</li>
           <li>持股警示：收盤 ≤ 停損價為「觸及停損」；距停損 ≤ {uiConfig.significance.near_stop_pct}% 為「接近停損」；新的或嚴重的風險旗標。</li>
           <li>冷靜卡：新增持倉時若資金環境為保守、股價高於 20 日均線超過 {uiConfig.impulse.ma20_gap_pct}%、或近 5 日上漲超過 {uiConfig.impulse.price_change_5d_pct}%，先列出事實並需多確認一步。</li>

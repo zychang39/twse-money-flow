@@ -44,7 +44,7 @@ import { navigate, useRoute } from '../router';
 type Seg = 'watch' | 'hold';
 /** 系統清單的群組 id（不會與使用者群組名稱衝突） */
 const HOT = '\u0000hot';
-type SortKey = 'change' | 'pct' | 'composite' | 'foreign' | 'trust' | 'custom';
+type SortKey = 'change' | 'pct' | 'rs' | 'foreign' | 'trust' | 'custom';
 /** 熱門動能清單的排序（M2，2026-10-03）：每檔列實際數值，可依 RS、成交值、20 日乖離、漲跌幅排序 */
 type HotSortKey = 'rs' | 'value' | 'bias' | 'pct';
 const HOT_SORTS: [HotSortKey, string][] = [['rs', 'RS 百分位'], ['value', '成交值'], ['bias', '20 日乖離'], ['pct', '漲跌幅']];
@@ -59,7 +59,7 @@ export function hotSub(h: HotItem): string {
   if (h.ma20_gap !== null && h.ma20_gap !== undefined) parts.push(`乖離\u00a0${pctSigned(h.ma20_gap)}`);
   return parts.join('・');
 }
-const SORTS: [SortKey, string][] = [['change', '依變化'], ['pct', '漲跌幅'], ['composite', '綜合分'], ['foreign', '外資'], ['trust', '投信'], ['custom', '自訂順序']];
+const SORTS: [SortKey, string][] = [['change', '依變化'], ['pct', '漲跌幅'], ['rs', 'RS 百分位'], ['foreign', '外資'], ['trust', '投信'], ['custom', '自訂順序']];
 
 function AddWatchSheet({ open, onClose, rows, group, groups }: { open: boolean; onClose: () => void; rows: StockRow[]; group: string; groups: string[] }) {
   const [importText, setImportText] = useState('');
@@ -263,7 +263,7 @@ export default function Mine() {
     const r = c.row;
     switch (sort) {
       case 'pct': return r.change_pct ?? -Infinity;
-      case 'composite': return (r.composite as number | null) ?? -Infinity;
+      case 'rs': return (r.rs_percentile as number | null) ?? -Infinity;
       case 'foreign': return r.foreign_net_lots ?? -Infinity;
       case 'trust': return r.trust_net_lots ?? -Infinity;
       case 'custom': return -(watch.find((w) => w.code === c.code)?.order ?? 0);

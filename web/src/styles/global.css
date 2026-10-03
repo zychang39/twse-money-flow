@@ -202,6 +202,7 @@ a.list-item { text-decoration: none; }
 .srow.dragging { transition: none; }
 .srow .name { font-weight: var(--fw-medium); }
 .srow .price { text-align: right; }
+.srow-rs { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; }
 .srow .sub { display: block; font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- 標籤、膠囊 ---------- */

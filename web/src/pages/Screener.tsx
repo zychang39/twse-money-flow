@@ -171,7 +171,7 @@ export default function Screener() {
         <ConditionEditor key={i} c={c} onChange={(nc) => setConditions(conditions.map((x, j) => (j === i ? nc : x)))} onRemove={() => setConditions(conditions.filter((_, j) => j !== i))} />
       ))}
       <div class="row wrap">
-        <button class="btn" onClick={() => setConditions([...conditions, { field: 'composite', op: '>=', value: 60 }])}>新增條件</button>
+        <button class="btn" onClick={() => setConditions([...conditions, { field: 'rs_percentile', op: '>=', value: 80 }])}>新增條件</button>
         <button class="btn" onClick={save}>儲存組合</button>
         <a class="btn" href={id.presetId ? `#/discipline/tracking?preset=${id.presetId}` : `#/discipline/tracking?c=${encodeConditions(conditions)}&name=${encodeURIComponent(id.name)}`}>設為追蹤策略</a>
         {id.savedId ? <button class="btn danger" onClick={() => deleteScreen(id.savedId!)}>刪除組合</button> : null}

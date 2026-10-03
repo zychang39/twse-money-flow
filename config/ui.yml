@@ -4,7 +4,6 @@ version: 1
 # 變化優先：自上次查看以來的變化，低於門檻視為雜訊、預設收合
 significance:
   price_pct: 3.0            # |漲跌幅| ≥ 3%（自上次查看的收盤價變化）
-  composite_points: 5       # 綜合分變化 ≥ 5 分
   inst_streak_days: 5       # 外資或投信「新達到」連買／連賣 ≥ 5 日
   inst_volume_pct: 25       # 當日外資＋投信淨買賣超 ≥ 成交量 25%
   margin_pct: 8             # 融資餘額變化 ≥ 8%

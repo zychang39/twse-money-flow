@@ -55,7 +55,7 @@ import uiYml from '../../../config/ui.yml';
 
 export interface BadgeConfig { id: string; label: string; description: string; metric: string; target: number; /** 一行條件（成就頁副資訊；完整條件在 description） */ short?: string }
 export interface UiConfig {
-  significance: { price_pct: number; composite_points: number; inst_streak_days: number; inst_volume_pct: number; margin_pct: number; near_stop_pct: number };
+  significance: { price_pct: number; inst_streak_days: number; inst_volume_pct: number; margin_pct: number; near_stop_pct: number };
   env_state: { conservative_min_red: number; aggressive_min_green: number };
   impulse: { env_conservative: boolean; ma20_gap_pct: number; price_change_5d_pct: number };
   backtest_confidence: { low_below: number; high_from: number };

@@ -71,11 +71,11 @@ export function CardLabel({ children, aside }: { children: Kids; aside?: Kids })
 /**
  * 列的容器（一張卡片）。tags：這張卡片有標籤欄（所有列保留同寬的標籤欄，數值右緣一致）；chev：列可點（保留 › 欄）。
  */
-export function List({ children, tags = false, chev = false, testid, label, class: cls }: {
-  children?: Kids; tags?: boolean; chev?: boolean; testid?: string; label?: string; class?: string;
+export function List({ children, tags = false, chev = false, extra = false, testid, label, class: cls }: {
+  children?: Kids; tags?: boolean; chev?: boolean; /** 第三個右欄（例：RS 百分位） */ extra?: boolean; testid?: string; label?: string; class?: string;
 }) {
   return (
-    <div class={`ui-list ${tags ? 'has-tags' : ''} ${chev ? 'has-chev' : ''} ${cls ?? ''}`} data-testid={testid} aria-label={label} role={label ? 'group' : undefined}>
+    <div class={`ui-list ${tags ? 'has-tags' : ''} ${chev ? 'has-chev' : ''} ${extra ? 'has-extra' : ''} ${cls ?? ''}`} data-testid={testid} aria-label={label} role={label ? 'group' : undefined}>
       {children}
     </div>
   );
@@ -85,6 +85,12 @@ export interface RowProps {
   label: Kids;
   /** 副資訊（Footnote，最多一行） */
   sub?: Kids;
+  /** 副資訊佔整列寬度（第二行橫跨所有欄；數值只有一行時用） */
+  subWide?: boolean;
+  /** 第三個右欄（List extra） */
+  extra?: Kids;
+  /** 可點但不顯示 ›（例：展開／收合列） */
+  noChev?: boolean;
   value?: Kids;
   /** 數值下方的第二行（例：漲跌幅） */
   value2?: Kids;
@@ -99,20 +105,22 @@ export interface RowProps {
 }
 
 /** 一列：名稱｜數值｜標籤｜›（欄寬由 List 決定）。有 href／onClick 時整列可點（44 以上）。 */
-export function Row({ label, sub, value, value2, tag, icon, href, onClick, testid, strong, ariaLabel }: RowProps) {
+export function Row({ label, sub, subWide, value, value2, tag, extra, icon, href, onClick, testid, strong, ariaLabel, noChev }: RowProps) {
   const inner = (
     <>
       {icon ? <span class="ui-row-icon" aria-hidden="true">{icon}</span> : null}
       <span class="ui-row-main">
         <span class={`ui-row-label ${strong ? 'ui-strong' : ''}`} data-a="bl">{label}</span>
-        {sub ? <span class="ui-row-sub ui-foot ui-muted">{sub}</span> : null}
+        {sub && !subWide ? <span class="ui-row-sub ui-foot ui-muted">{sub}</span> : null}
       </span>
       <span class="ui-row-value" data-a="v">
         {value !== undefined ? <span class="ui-v" data-a="bl">{value}</span> : null}
         {value2 !== undefined ? <span class="ui-v2 ui-foot">{value2}</span> : null}
       </span>
       <span class="ui-row-tag">{tag ?? null}</span>
-      <span class="ui-row-chev" aria-hidden="true">{href || onClick ? <IconChevron /> : null}</span>
+      <span class="ui-row-extra">{extra ?? null}</span>
+      <span class="ui-row-chev" aria-hidden="true">{(href || onClick) && !noChev ? <IconChevron /> : null}</span>
+      {sub && subWide ? <span class="ui-row-sub ui-row-subwide ui-foot ui-muted">{sub}</span> : null}
     </>
   );
   const cls = `ui-row ${icon ? 'has-icon' : ''} ${href || onClick ? 'ui-tap' : ''}`;
@@ -143,7 +151,7 @@ const MINUS = '−';
 /** 數值＋單位（不拆行）。digits 未指定時直接顯示字串。 */
 export function Num({ v, digits = 0, unit, fallback = '—' }: { v: number | string | null | undefined; digits?: number; unit?: string; fallback?: string }) {
   const text = v === null || v === undefined || (typeof v === 'number' && !Number.isFinite(v)) ? fallback : typeof v === 'number' ? numberFormat(digits).format(v) : v;
-  return <span class="ui-num">{text}{unit && text !== fallback ? <span class="ui-unit">{unit}</span> : null}</span>;
+  return <span class="ui-num">{text}{unit && text !== fallback ? <Unit u={unit} /> : null}</span>;
 }
 
 /**
@@ -175,10 +183,15 @@ export function Signed({ v, digits = 2, unit, kind = 'sign', tone = 'updown', fa
         {kind === 'arrow'
           ? <><span class="sv-a">{d === 'up' ? '▲' : d === 'down' ? '▼' : ''}</span>{abs}</>
           : <>{d === 'up' ? '+' : d === 'down' ? MINUS : ''}{abs}</>}
-        {unit ? <span class="ui-unit">{unit}</span> : null}
+        {unit ? <Unit u={unit} /> : null}
       </span>
     </span>
   );
+}
+
+/** 單位：%、×、bp 緊接數字；中文單位（張、億、元…）前留 4px。 */
+function Unit({ u }: { u: string }) {
+  return <span class={/^[%×]|^bp$/.test(u) ? 'ui-unit tight' : 'ui-unit'}>{u}</span>;
 }
 
 // ---------------------------------------------------------------- 標籤、ⓘ

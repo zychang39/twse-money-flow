@@ -24,7 +24,7 @@ export function matches(row: Row, conditions: Condition[]): boolean {
   return conditions.every((c) => testCondition(row, c));
 }
 
-export function screen<T extends Row>(rows: T[], conditions: Condition[], sortKey = 'composite'): T[] {
+export function screen<T extends Row>(rows: T[], conditions: Condition[], sortKey = 'rs_percentile'): T[] {
   const hit = rows.filter((r) => matches(r, conditions));
   return hit.sort((a, b) => ((b[sortKey] as number) ?? -Infinity) - ((a[sortKey] as number) ?? -Infinity));
 }
