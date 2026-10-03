@@ -519,19 +519,14 @@ def test_health_rules():
     assert health({"mean_excess": 1.0, "recent": {"n": 30, "mean_excess": 0.8}}, 20)["status"] == "與長期一致"
 
 
-def test_best_exit_by_excess_vs_index():
-    from pipeline.evidence.strategies import best_exit
+def test_best_exit_full_sample_pick_replaced():
+    """2026-10-03：舊版「全樣本挑相對指數最高的出場規則」（樣本內挑選）移除；組合與槓桿改用固定 40 日，
+    出場規則改由 exits.compare_split 只用 2021 年底前的訊號選（tests/pipeline/test_judge.py 驗證樣本內／樣本外切分）。"""
+    from pipeline.evidence import exits, judge, strategies
 
-    d = {
-        "exits": {
-            "rules": [
-                {"rule": "fixed", "param": "10", "chosen": True, "n": 100, "exc_idx": -1.0, "mae": -5},
-                {"rule": "ma", "param": "20", "chosen": True, "n": 100, "exc_idx": 0.5, "mae": -4},
-                {"rule": "ma", "param": "60", "chosen": False, "n": 100, "exc_idx": 2.0, "mae": -9},
-            ]
-        }
-    }
-    assert best_exit(d)["param"] == "20"  # 只比較各規則的選定參數
+    assert not hasattr(strategies, "best_exit")
+    assert hasattr(exits, "compare_split")
+    assert judge.jcfg({})["exits_train_end"] == "2021-12-31"
 
 
 def test_coverage_single_definition_matches_counts():

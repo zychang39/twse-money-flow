@@ -96,7 +96,10 @@
 | twse_sbl / tpex_sbl | 融券＋借券賣出餘額 | `…/rwd/zh/marginTrading/TWT93U?date=…`、`…/www/zh-tw/margin/sbl?date=…` | 約 21:30 | ✅ |
 | twse_qfii / tpex_qfii | 外資持股比率 | `…/rwd/zh/fund/MI_QFIIS?date=…&selectType=ALLBUT0999`、`…/insti/qfii?date=…` | 約 15:30 | ✅ |
 | twse_daytrade / tpex_daytrade | 當沖交易 | `…/rwd/zh/dayTrading/TWTB4U?date=…&selectType=All`、`…/intraday/stat?date=…&type=Daily` | 當日晚間（T+2 前可能修正） | ✅ |
-| twse_intraday_index | 加權指數每 5 秒統計（首頁 1D 走勢） | `www.twse.com.tw/exchangeReport/MI_5MINS_INDEX?response=json&date=…`（只存時間與發行量加權股價指數；前端畫每分鐘一點） | 盤後約 14:00 | ✅（2026-10-03 新增；只做大盤，個股不做 1D） |
+| twse_intraday_index | 加權指數每 5 秒統計（首頁 1D／1W） | `www.twse.com.tw/rwd/zh/TAIEX/MI_5MINS_INDEX?date=…&response=json`（2026-10 改用 rwd 路徑，舊 `exchangeReport/` 路徑同內容；只存時間與發行量加權股價指數，約 3,241 列／日） | 盤後約 14:00；收盤行情段（14:15）與法人段一起抓，每日任務自動補最近 5 個交易日 | ✅ |
+| twse_insti_amount / tpex_insti_amount | 三大法人買賣金額（全市場，元） | `…/rwd/zh/fund/BFI82U?type=day&dayDate=…`、`…/www/zh-tw/insti/summary?type=Daily&date=YYYY/MM/DD`（櫃買休市日回空表） | 約 15:00（法人段） | ✅（2026-10 新增；首頁三大法人改用實際金額） |
+| yahoo_twii | 加權指數 1 分 K（Yahoo Finance，**非官方**） | `query1.finance.yahoo.com/v8/finance/chart/%5ETWII?interval=1m&range=5d` | 收盤後 | ✅ 只在每 5 秒統計於已收盤的交易日仍取不到時抓（每日任務內，一次請求涵蓋 5 日） |
+| yahoo_kbar | 個股 5 分 K（Yahoo Finance，**非官方**） | `query1.finance.yahoo.com/v8/finance/chart/{代號}.TW?interval=5m&range=5d`（上櫃 `.TWO`） | 收盤後；`task=kbar` 14:45 排程 | ✅（2026-10 新增；見下方「個股 5 分 K」） |
 | twse_short_halt / tpex_short_halt | 停券預告（融券最後回補日） | `…/rwd/zh/marginTrading/BFI84U?response=json`、`openapi/v1/tpex_margin_trading_term` | 隨時 | ✅ |
 | taifex_insti | 三大法人期貨（TXF/MXF/TMF） | POST `www.taifex.com.tw/cht/3/futContractsDateDown`（Big5 CSV） | 約 15:00 | ✅ |
 | taifex_oi | 各契約全市場未平倉 | POST `www.taifex.com.tw/cht/3/futDataDown`（Big5 CSV，依到期月份，取「一般」時段加總） | 約 15:00 | ✅ |
@@ -112,6 +115,16 @@
 期交所三大法人欄位：`日期, 商品名稱, 身份別, 多方交易口數, 多方交易契約金額(千元), 空方交易口數, …, 多方未平倉口數, 多方未平倉契約金額(千元), 空方未平倉口數, 空方未平倉契約金額(千元), 多空未平倉口數淨額, 多空未平倉契約金額淨額(千元)`。
 
 期交所選擇權 Put/Call 比（taifex_pc）正規化欄位：`date, put_vol, call_vol, pc_vol_ratio, put_oi, call_oi, pc_oi_ratio`（比率為 %＝賣權 ÷ 買權 × 100；只有 `pc_oi_ratio` 為必要欄位）。
+
+### 個股 5 分 K（yahoo_kbar；2026-10，SPEC §3.2 來源評估）
+官方沒有免費的個股歷史分鐘資料（證交所 MIS 只有即時快照）。依序評估（2026-10-03 實測）：
+1. **Fugle 行情 API**：需要 API 金鑰；repo 的 workflow 只用 `TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`、`ANTHROPIC_API_KEY`、`GITHUB_TOKEN`，沒有 Fugle 金鑰 → 跳過。
+2. **FinMind `TaiwanStockKBar`**：免註冊呼叫回 `{"status":400,"msg":"Your level is free. Please update your user level."}`，分 K 需贊助方案 → 跳過（不使用付費來源）。
+3. **Yahoo Finance chart API**（非官方、免金鑰）：`range=5d&interval=5m` 一次回傳最近 5 個交易日；2330 回 271 根（最新一日 55 根含 13:30、其他日 54 根），時區 Asia/Taipei；上櫃用 `.TWO`。→ **採用**，頁尾標示「非官方」。
+
+抓取：`python -m pipeline run --task kbar`（data.yml 14:45 排程、`kbar` concurrency 群組，每段最多 60 分鐘、未完成自動觸發下一段）。每檔每日一次請求、間隔 0.5–1.0 秒（1–2 次／秒，含抖動）、失敗依 PoliteClient 重試與斷路器；優先順序：近 20 日平均成交金額前 500 名 → 近 60 日任一策略觸發過（讀已部署網站 `data/signals.json`，取不到就略過這一級）→ 其餘（依成交金額）。範圍＝近 20 日有收盤的證券（＝有個股頁的股票，約 2,360 檔）。續傳：目標日檔案已有的代號視為完成，查無 K 棒的代號記在 manifest `kbar.empty`；進度在 manifest `kbar`（target、total、covered、remaining、failed）。存檔 `raw/yahoo_kbar/{YYYY}/{YYYYMMDD}.csv.gz`（date, code, time, open, high, low, close, volume），只保留最近 10 個交易日。
+
+實測（本機 2026-10-03，21 檔含上櫃 7 檔）：10/02 的 5 分 K 彙總成日線開高低收與證交所／櫃買日線 **21/21 完全一致**；較早 4 天開盤 84/84 一致，但缺 13:30 收盤集合競價那一根（Yahoo 只對最新一日提供），收盤 19/84 一致——每日抓取會保存當天的 13:30，之後每一天都完整。成交量：09:00 與 13:30 兩根（集合競價）Yahoo 回 0 → 存成空值；其餘 K 棒合計約為日成交量的 61–91%（中位數上市 81%、上櫃 85%）。
 
 ## 主動式 ETF 持股（各投信官網，部分涵蓋）
 

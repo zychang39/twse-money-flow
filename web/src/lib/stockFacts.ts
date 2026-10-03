@@ -467,3 +467,24 @@ export function watchLineText(w: WatchLine): string {
   if (w.volRatio !== null) parts.push(`量\u00a0${w.volRatio.toFixed(2)}×`);
   return parts.join('・');
 }
+
+// ------------------------------------------------------------------ 狀態標籤（§5.3；注意／處置由 data 代理的 attn 提供）
+export interface StatusTag { kind: 'short_cover' | 'exright'; date: string; /** 距今的交易日數（今天之後、到該日含） */ days: number; text: string }
+export const SHORT_COVER_TAG_DAYS = 10;
+export const EXRIGHT_TAG_DAYS = 5;
+/** 融券最後回補日 ≤ 10 個營業日、除權息 ≤ 5 個營業日（以交易日曆計，today 當天為 0）。 */
+export function statusTags(h: StockHistory, today: string, cal: TradingCalendar): StatusTag[] {
+  const out: StatusTag[] = [];
+  const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
+  const cover = (h.short_halt as { last_cover_date?: string | null } | null | undefined)?.last_cover_date;
+  if (cover && cover >= today) {
+    const days = cal.tradingDaysBetween(today, cover);
+    if (days <= SHORT_COVER_TAG_DAYS) out.push({ kind: 'short_cover', date: cover, days, text: `融券最後回補 ${md(cover)}` });
+  }
+  const ex = upcomingEvents(h, today, cal).find((e) => e.kind === 'exright');
+  if (ex) {
+    const days = cal.tradingDaysBetween(today, ex.date);
+    if (days <= EXRIGHT_TAG_DAYS) out.push({ kind: 'exright', date: ex.date, days, text: `除權息 ${md(ex.date)}` });
+  }
+  return out;
+}

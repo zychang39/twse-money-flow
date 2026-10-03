@@ -51,7 +51,7 @@ def test_grade_sample_insufficient_caps_at_watch():
 
 def test_grade_rule_text_has_thresholds():
     txt = judge.grade_rule_text(G)
-    assert "t ≥ 3" in txt and "t ≥ 2" in txt and "Sharpe" in txt and "300" in txt
+    assert "t ≥ 3.0" in txt and "t ≥ 2.0" in txt and "Sharpe" in txt and "300" in txt
     for word in ("買進", "賣出", "推薦"):
         assert word not in txt
 
@@ -173,7 +173,9 @@ def test_exits_split_selects_in_sample_only():
     assert r["train_end"] == train_end and r["chosen"]["basis"] == "in_sample"
     dates = np.asarray(mk.dates)
     for row in r["rules"]:
-        assert row["in_sample"]["n"] == len(engine.dedupe(cand[dates[cand["t"]] <= train_end])) or row["rule"] != "fixed"
+        assert (
+            row["in_sample"]["n"] == len(engine.dedupe(cand[dates[cand["t"]] <= train_end])) or row["rule"] != "fixed"
+        )
         assert "oos" in row and "label" in row
     best = max(r["rules"], key=lambda x: x["in_sample"]["rel"]["0050"])
     assert r["chosen"]["rule"] == best["rule"] and sum(x["chosen"] for x in r["rules"]) == 1

@@ -57,7 +57,7 @@ export default function Settings() {
       <h2 class="section-title">遊戲化</h2>
       <div class="card">
         <div class="switch-row">
-          <span><span class="body" style={{ display: 'block' }}>紀律圓環、等級與徽章</span><span class="caption muted">只獎勵紀律行為（看完簡報、檢查表、檢討、備份），不因交易次數或獲利給予任何獎勵。關閉後改為純文字待辦；紀錄仍保存在本機並納入備份。</span></span>
+          <span><span class="body" style={{ display: 'block' }}>流程三環、連續、等級與成就</span><span class="caption muted">只獎勵流程（簡報、檢查表、停損、檢討、備份），不因交易次數、獲利或開啟次數給予獎勵；沒有扣分。關閉後只顯示文字狀態；紀錄仍保存在本機並納入備份。</span></span>
           <label class="switch"><input type="checkbox" role="switch" aria-label="遊戲化" checked={stored.gamification} onChange={(e) => setSetting('gamification', (e.target as HTMLInputElement).checked)} /><span /></label>
         </div>
       </div>

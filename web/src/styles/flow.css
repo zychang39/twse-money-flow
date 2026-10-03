@@ -44,8 +44,7 @@
 /* ---------- 成就 ---------- */
 .flow-badge-ico { color: var(--text-2); }
 .flow-badge-ico svg { width: var(--icon); height: var(--icon); }
-.flow-badge.earned .ui-row-icon { color: var(--text-1); }
-.flow-badge:not(.earned) .ui-row-label { color: var(--text-2); }
+.flow-badge-ico.earned { color: var(--text-1); }
 
 @media (prefers-reduced-motion: reduce) {
   .flow-rings.anim .arc, .flow-mini.anim .arc { animation: none; }

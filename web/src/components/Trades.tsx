@@ -1,6 +1,7 @@
 /**
  * 交易流程元件：新增持倉前檢查表（含衝動攔截的冷靜卡）、平倉、補寫檢討。
- * 遊戲化只記錄紀律行為：完成檢查表（不論最後是否建立持倉）、完成檢討。
+ * 流程紀錄：檢查表、停損、計畫風險與檢討時間存在交易紀錄（db.saveTrade 自動補 v5 欄位）；平倉時記出場原因。
+ * 檢查表可由網址帶入參考價、停損價、股數（個股頁風險試算 → #/discipline/checklist?code=&price=&stop=&shares=）。
  */
 import { useEffect, useState } from 'preact/hooks';
 import { Sheet } from './Sheet';
@@ -9,11 +10,12 @@ import { Signed } from './Change';
 import { useAsync } from '../hooks';
 import { loadMarket, loadStock } from '../data/api';
 import { adjustTrade, eventsFor } from '../lib/corpActions';
-import { logActivity, saveTrade, uid, type Trade } from '../db/db';
+import { logActivity, saveTrade, uid, type ExitReason, type Trade } from '../db/db';
+import { EXIT_REASON_LABEL } from '../lib/ritual';
 import type { StockRow } from '../data/types';
 import type { PortfolioSettings } from '../lib/settings';
 import { roundTrip, type CostSettings } from '../lib/costs';
-import { checklistCalc, FIELD_LABEL } from '../lib/checklist';
+import { checklistCalc, FIELD_LABEL, type ChecklistPrefill } from '../lib/checklist';
 import { envInfo } from '../lib/envState';
 import { impulseFacts } from '../lib/impulse';
 import { thresholds } from '../lib/config';
@@ -57,23 +59,27 @@ export function CalmCard({ facts, onContinue, onCancel }: { facts: string[]; onC
   );
 }
 
-export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset }: {
+export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, prefill }: {
   open: boolean;
   onClose: () => void;
   rows: StockRow[];
   portfolio: PortfolioSettings;
   day: string;
   preset?: StockRow;
+  /** 由個股頁風險試算帶入的參考價、停損價、股數（字串；不合法的已在解析時忽略） */
+  prefill?: ChecklistPrefill;
 }) {
   const market = useAsync(loadMarket, []);
   const [row, setRow] = useState<StockRow | undefined>(preset);
   const [ack, setAck] = useState(false);
   const [f, setF] = useState(EMPTY);
-  useEffect(() => { if (open) { setRow(preset); setAck(false); setF(EMPTY); } }, [open, preset?.code]);
+  const carried = { ...(prefill?.stop ? { stop: prefill.stop } : {}), ...(prefill?.shares ? { shares: prefill.shares } : {}) };
+  useEffect(() => { if (open) { setRow(preset); setAck(false); setF({ ...EMPTY, ...carried }); } }, [open, preset?.code, prefill?.entry, prefill?.stop, prefill?.shares]);
   useEffect(() => {
     if (!row) return;
     const auto = autoChecklist(row);
-    setF((x) => ({ ...x, ...Object.fromEntries(Object.entries(auto).filter(([, v]) => v)), entry: String(row.close ?? '') }));
+    const entry = preset && row.code === preset.code && prefill?.entry ? prefill.entry : String(row.close ?? '');
+    setF((x) => ({ ...x, ...Object.fromEntries(Object.entries(auto).filter(([, v]) => v)), entry }));
   }, [row]);
   const env = market.data ? envInfo(market.data.env?.lights) : null;
   const facts = row ? impulseFacts(row, env) : [];
@@ -145,7 +151,6 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset }: 
           {num('shares', `${FIELD_LABEL.shares}（預設為建議部位）`, f.shares || String(calc.size?.shares ?? ''), 'numeric')}
           <button class="btn primary block" disabled={!valid} onClick={save} data-testid="checklist-submit">{valid ? '加入持倉' : calc.blocker}</button>
           <button class="btn block" style={{ marginTop: 'var(--s-2)' }} disabled={!qualitative} onClick={skip}>檢查完，決定先不進場</button>
-          <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>兩種結果都算完成一份檢查表；紀律獎勵不因是否建立持倉而不同。</p>
         </>
       ) : null}
     </Sheet>
@@ -157,16 +162,17 @@ export function CloseSheet({ trade, onClose, costs, price, day }: { trade: Trade
   const [date, setDate] = useState(todayTpe());
   const [review, setReview] = useState('');
   const [tags, setTags] = useState<string[]>([]);
+  const [reason, setReason] = useState<ExitReason | ''>('');
   // D-01：持有期間的分割、減資、除權息 → 進場價與股數換算到平倉價的基準（使用者原始輸入不變，另存 adjFactor）
   const hist = useAsync(() => (trade ? loadStock(trade.code).catch(() => null) : Promise.resolve(null)), [trade?.code]);
   const adj = trade ? adjustTrade(trade, eventsFor(null, hist.data), date) : null;
-  useEffect(() => { if (trade) { setExit(String(price ?? trade.entry)); setTags([]); setReview(''); setDate(todayTpe()); } }, [trade?.id]);
+  useEffect(() => { if (trade) { setExit(String(price ?? trade.entry)); setTags([]); setReview(''); setReason(''); setDate(todayTpe()); } }, [trade?.id]);
   const px = Number(exit);
   const rt = trade && adj && px > 0 ? roundTrip(adj.entry, px, trade.shares / adj.factor, trade.code, costs) : null;
   async function done() {
-    if (!trade || !(px > 0)) return;
+    if (!trade || !(px > 0) || !reason) return;
     const extra = adj && adj.factor !== 1 ? { adjFactor: adj.factor, adjNote: adj.notes.join('、') || undefined } : {};
-    await saveTrade({ ...trade, status: 'closed', closedAt: date, exit: px, review, errorTags: tags, fees: rt?.costs ?? 0, ...extra });
+    await saveTrade({ ...trade, status: 'closed', closedAt: date, exit: px, exitReason: reason, review, errorTags: tags, fees: rt?.costs ?? 0, ...extra });
     if (review.trim()) await logActivity('review_done', day, { trade: trade.id });
     onClose();
   }
@@ -180,13 +186,20 @@ export function CloseSheet({ trade, onClose, costs, price, day }: { trade: Trade
           </div>
           {adj?.notes.length ? <p class="caption muted" data-testid="close-adjusted">{adj.notes.join('、')}：進場價換算為 {fmtNum(adj.entry)}、股數 {Math.round(trade.shares / adj.factor).toLocaleString()} 股</p> : null}
           {rt ? <p class="caption">損益（扣手續費與證交稅 {fmtMoney(rt.costs)}）：<Signed value={rt.pnl} format={fmtMoney} /></p> : null}
-          <label class="field"><span>檢討（可稍後在紀律頁補寫）</span><textarea class="input" rows={3} value={review} onInput={(e) => setReview((e.target as HTMLTextAreaElement).value)} /></label>
+          <div class="field">
+            <label for="close-reason">出場原因</label>
+            <select id="close-reason" class="select" value={reason} onChange={(e) => setReason((e.target as HTMLSelectElement).value as ExitReason | '')} data-testid="close-reason">
+              <option value="">請選擇</option>
+              {(Object.keys(EXIT_REASON_LABEL) as ExitReason[]).map((k) => <option key={k} value={k}>{EXIT_REASON_LABEL[k]}</option>)}
+            </select>
+          </div>
+          <label class="field"><span>檢討（平倉後 3 個交易日內完成；可稍後在日誌補寫）</span><textarea class="input" rows={3} value={review} onInput={(e) => setReview((e.target as HTMLTextAreaElement).value)} /></label>
           <div class="chips wrap" role="group" aria-label="錯誤標籤" style={{ flexWrap: 'wrap' }}>
             {ERROR_TAGS.map((t) => (
               <button key={t} class="chip" aria-pressed={tags.includes(t)} onClick={() => setTags(tags.includes(t) ? tags.filter((x) => x !== t) : [...tags, t])}>{t}</button>
             ))}
           </div>
-          <button class="btn primary block" style={{ marginTop: 'var(--s-4)' }} disabled={!(px > 0)} onClick={done}>確認平倉</button>
+          <button class="btn primary block" style={{ marginTop: 'var(--s-4)' }} disabled={!(px > 0) || !reason} onClick={done}>{reason ? '確認平倉' : '請選擇出場原因'}</button>
         </>
       ) : null}
     </Sheet>

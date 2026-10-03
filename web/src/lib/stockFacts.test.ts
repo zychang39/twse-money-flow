@@ -213,3 +213,17 @@ describe('stockFacts：簡報頁自選股列', () => {
     expect(watchLineText(w)).toBe('外資+投信 +5,887 張（佔 20 日均量 59%）・量 1.32×');
   });
 });
+
+describe('stockFacts：狀態標籤（融券回補 ≤ 10 營業日、除權息 ≤ 5 營業日）', () => {
+  it('依交易日曆計算距今營業日數', async () => {
+    const { statusTags } = await import('./stockFacts');
+    const cal = makeCalendar({ closed: ['2026-10-09'] });
+    const h = hist({ events: [{ date: '2026-10-12', type: '預告', text: '預告除息' }], short_halt: { last_cover_date: '2026-10-19', end: null, reason: null } });
+    // 10/3（六）→ 10/12：10/5、6、7、8、12 ＝ 5 個營業日（10/9 休市）；10/19：10 個營業日
+    expect(statusTags(h, '2026-10-03', cal)).toEqual([
+      { kind: 'short_cover', date: '2026-10-19', days: 10, text: '融券最後回補 10/19' },
+      { kind: 'exright', date: '2026-10-12', days: 5, text: '除權息 10/12' },
+    ]);
+    expect(statusTags(h, '2026-09-25', cal)).toEqual([]);
+  });
+});

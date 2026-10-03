@@ -84,6 +84,9 @@ export interface StockRow {
   momentum?: number | null;
   fundamental?: number | null;
   valuation?: number | null;
+  /** stock 2026-10-03：量比（當日成交量 ÷ 前 20 個交易日平均量，分母不含當日）與 20 日均量（張） */
+  vol_ratio?: number | null;
+  vol20_lots?: number | null;
   [key: string]: unknown;
 }
 

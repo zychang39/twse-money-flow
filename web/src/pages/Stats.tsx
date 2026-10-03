@@ -1,10 +1,14 @@
 /** 個人統計：交易統計、錯誤標籤、理由類型績效、組合權益曲線（對照 0050 與加權報酬指數）、產業集中度與相關性。 */
 import { useMemo } from 'preact/hooks';
-import { PageHead, TopBar } from '../components/Chrome';
-import { EmptyState, Loading } from '../components/DataStatus';
+import { TopBar } from '../components/Chrome';
+import { Loading } from '../components/DataStatus';
+import { Card, List, Num, PageTitle, Row, Section, StatGrid, type Stat } from '../components/ui';
+import { useFlow, type FlowState } from '../data/useFlow';
+import { compliantSplit, recentViolations, rSummary, type GroupStat } from '../lib/flowStats';
+import { completionRate, VIOLATION_TAGS } from '../lib/ritual';
+import { uiConfig } from '../lib/config';
 import { Signed } from '../components/Change';
 import { LineChart } from '../components/LineChart';
-import { IconBars } from '../components/Icons';
 import { useAsync, useDb } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { useUser } from '../data/useUser';
@@ -12,11 +16,11 @@ import { loadJson, loadStock } from '../data/api';
 import { getSetting, type Trade } from '../db/db';
 import type { StockHistory, StockRow } from '../data/types';
 import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
-import { byReason, closedStats, countBy, lossIfAllStopped, tradePnl } from '../lib/sizing';
+import { byReason, countBy, lossIfAllStopped, tradePnl } from '../lib/sizing';
 import { adjustTrade, eventsFor, unrealizedPnl, type AdjEvent } from '../lib/corpActions';
 import { alignTo, correlation, equityCurve, maxDrawdown, monthlyReturns, normalize, type DividendEvent } from '../lib/portfolio';
 import { adjClose } from '../lib/history';
-import { fmtMoney, fmtNum, missing, orMissing, pctSigned, ratioPct, ratioText } from '../lib/format';
+import { fmtMoney, missing, orMissing, pctSigned, ratioPct, ratioText } from '../lib/format';
 
 function Portfolio({ trades, capital, byCode }: { trades: Trade[]; capital: number; byCode: Map<string, StockRow> }) {
   const codes = [...new Set(trades.map((t) => t.code))];
@@ -137,36 +141,82 @@ function RiskPanel({ open, byCode }: { open: Trade[]; byCode: Map<string, StockR
   );
 }
 
+function fmtR(v: number | null): string {
+  if (v === null) return '—';
+  const a = Math.abs(v).toFixed(2);
+  return `${v > 0 ? '+' : v < 0 ? '−' : ''}${a}`;
+}
+
+/** §8.8：以 R 計、合規 vs 不合規、違規標籤次數、近 20 個交易日流程完成率 */
+function FlowStats({ flow }: { flow: FlowState }) {
+  const s = rSummary(flow.input.trades);
+  const split = compliantSplit(flow.input);
+  const vio = recentViolations(flow.input);
+  const done = completionRate(flow.streak.days);
+  const g = uiConfig.gamification;
+  const grp = (name: string, x: GroupStat): Stat[] => [
+    { label: `${name}・${x.n} 筆`, value: x.enough ? <Num v={`${fmtR(x.avgR)} R`} /> : x.text, testid: `split-${name}` },
+    { label: `${name}勝率`, value: x.enough ? <Num v={x.winRate === null ? null : Math.round(x.winRate * 100)} unit="%" /> : '—' },
+  ];
+  const [c1, c2] = grp('合規', split.compliant);
+  const [v1, v2] = grp('不合規', split.violation);
+  return (
+    <>
+      <Section title="R 統計" testid="stats-r" info={<>
+        <p>R＝實現損益（含手續費與證交稅）÷ 計畫風險金額；計畫風險＝(進場價 − 停損價) × 股數。</p>
+        <p>勝率＝實現損益 &gt; 0 的比例；期望值 R＝平均 R。沒有停損的交易無法換算 R，只計入筆數。</p>
+      </>}>
+        <Card>
+          <StatGrid items={[
+            { label: '已平倉', value: <Num v={s.n} unit="筆" /> },
+            { label: '勝率', value: <Num v={s.winRate === null ? null : Math.round(s.winRate * 100)} unit="%" /> },
+            { label: '平均獲利', value: <Num v={s.avgWinR === null ? null : `${fmtR(s.avgWinR)} R`} /> },
+            { label: '平均虧損', value: <Num v={s.avgLossR === null ? null : `${fmtR(s.avgLossR)} R`} /> },
+            { label: '期望值', value: <Num v={s.expectancyR === null ? null : `${fmtR(s.expectancyR)} R`} /> },
+            { label: '可換算 R', value: <Num v={s.rN} unit="筆" /> },
+          ]} />
+        </Card>
+      </Section>
+      <Section title="合規與不合規" testid="stats-split" info={<>
+        <p>合規＝進場前完成檢查表、有停損價、計畫風險 ≤ 每筆風險上限、平倉後 {g.review_due_trading_days} 個交易日內完成檢討、虧損出場時實際虧損 ≤ 計畫風險 × {g.loss_tolerance}，五項全過。</p>
+        <p>任一組少於 {g.min_group_sample} 筆時只顯示樣本不足，不顯示數值。檢討期限內尚未檢討的平倉不列入兩組。</p>
+      </>} aside={split.pending ? `待結算 ${split.pending} 筆` : undefined}>
+        <Card><StatGrid items={[c1, v1, c2, v2]} /></Card>
+      </Section>
+      <Section title="違規標籤" aside={`近 ${vio.trades} 筆`} testid="stats-violations" info={<p>只記錄、不扣分。未檢查、無停損、超過風險上限在進場時判定；虧損超出計畫在平倉時判定；逾期檢討在平倉後第 {g.review_due_trading_days} 個交易日的期限過後判定。</p>}>
+        <List>
+          {VIOLATION_TAGS.map((t) => <Row key={t} label={t} value={<Num v={vio.counts[t]} unit="次" />} />)}
+        </List>
+      </Section>
+      <Section title="流程完成率" testid="stats-completion" info={<p>近 {g.history_days} 個交易日中三環全部完成的日數；寬限日算未完成，期限未到的當日不計入。</p>}>
+        <List>
+          <Row label={`近 ${g.history_days} 個交易日`} value={<Num v={done.rate === null ? null : `${done.done}/${done.total}（${Math.round(done.rate * 100)}%）`} />} />
+        </List>
+      </Section>
+    </>
+  );
+}
+
 export default function Stats() {
   const summary = useScoredSummary();
   const user = useUser();
+  const flow = useFlow();
   const portfolio = useDb(() => getSetting<PortfolioSettings>('portfolio', DEFAULT_PORTFOLIO)) ?? DEFAULT_PORTFOLIO;
-  if (!user) return <div class="page"><TopBar back="/discipline" /><Loading /></div>;
+  if (!user || !flow) return <div class="page"><TopBar back="/discipline" /><PageTitle title="個人統計" /><Loading /></div>;
   const trades = user.trades;
   const closed = trades.filter((t) => t.status === 'closed');
   const open = trades.filter((t) => t.status === 'open');
-  const stats = closedStats(trades);
   const tags = countBy(closed, (t) => t.errorTags);
   const byCode = summary.data?.byCode ?? new Map<string, StockRow>();
-  const topTag = Object.entries(tags).sort((a, b) => b[1] - a[1])[0];
   return (
     <div class="page">
       <TopBar back="/discipline" />
-      <PageHead eyebrow="我的紀律與結果" title={stats.n ? <>已平倉 {stats.n} 筆{topTag ? <>，<br />最常見的錯誤是「{topTag[0]}」</> : ''}</> : '個人統計'} />
+      <PageTitle title="個人統計" sub={`已平倉 ${closed.length} 筆・持倉 ${open.length} 筆`} />
+      <FlowStats flow={flow} />
       {!trades.length ? (
-        <EmptyState icon={<IconBars />} title="還沒有交易紀錄" text="建立持倉並平倉後，這裡會出現絕對勝率（報酬 > 0 的比例）、期望值與錯誤標籤。" action={<a class="btn primary" href="#/discipline/checklist">開始新增持倉前檢查表</a>} />
+        <div class="ui-sec"><List chev><Row label="無交易紀錄" sub="新增持倉前檢查表" href="#/discipline/checklist" /></List></div>
       ) : (
         <>
-          <div class="card" style={{ marginTop: 'var(--s-5)' }}>
-            <div class="grid two caption">
-              <div>交易筆數 <b>{stats.n}</b>{stats.n < 20 ? <span class="tag" style={{ marginLeft: 'var(--s-1)' }}>樣本少</span> : null}</div>
-              <div>絕對勝率 <b>{orMissing(stats.winRate, ratioPct, '沒有已平倉交易')}</b></div>
-              <div>平均賺賠比 <b>{orMissing(stats.payoff, ratioText, '需要同時有獲利與虧損的交易')}</b></div>
-              <div>平均持有 <b>{orMissing(stats.avgHoldDays, (v) => `${fmtNum(v, 1)} 天`, '沒有已平倉交易')}</b></div>
-              <div>期望值（金額）<b>{orMissing(stats.evAmount, fmtMoney, '沒有已平倉交易')}</b></div>
-              <div>期望值（R）<b>{orMissing(stats.evR, (v) => `${ratioText(v)} R`, '沒有設定停損的交易')}</b></div>
-            </div>
-          </div>
           <h3 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>錯誤標籤頻率</h3>
           <div class="card">
             {Object.keys(tags).length ? Object.entries(tags).sort((a, b) => b[1] - a[1]).map(([t, n]) => (

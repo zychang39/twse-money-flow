@@ -275,9 +275,9 @@ def grade(
         return "—" if v is None else audit._f(v, 2, True) + "%"
 
     labels = {
-        "sig_t": f"訊號檢定 t {tt(st)}（門檻 ≥ {s_min:g}）",
+        "sig_t": f"訊號檢定 t {tt(st)}（門檻 ≥ {s_min:.1f}）",
         "opp_excess": f"相對 0050 超額 {pc(opp.get('excess'))}（門檻 > 0）",
-        "opp_t": f"相對 0050 t {tt(ot)}（門檻 ≥ {o_min:g}）",
+        "opp_t": f"相對 0050 t {tt(ot)}（門檻 ≥ {o_min:.1f}）",
         "sharpe": f"5 檔組合 Sharpe {ps if ps is not None else '—'} vs 0050 {bs if bs is not None else '—'}（門檻 ≥ 0050）",
         "sample": (
             f"樣本 {span_years if span_years is not None else '—'} 年、{n} 筆"
@@ -296,8 +296,8 @@ def grade(
 
 def grade_rule_text(g: dict[str, Any]) -> str:
     return (
-        f"有效＝訊號檢定 t ≥ {g['sig_t_min']:g}，且相對 0050 超額 > 0、t ≥ {g['opp_t_min']:g}、5 檔組合 Sharpe ≥ 同期 0050；"
-        f"訊號顯著・未勝 0050＝只有訊號檢定 t ≥ {g['sig_t_min']:g}；觀察中＝{g['watch_t_min']:g} ≤ 訊號檢定 t < {g['sig_t_min']:g}；"
+        f"有效＝訊號檢定 t ≥ {float(g['sig_t_min']):.1f}，且相對 0050 超額 > 0、t ≥ {float(g['opp_t_min']):.1f}、5 檔組合 Sharpe ≥ 同期 0050；"
+        f"訊號顯著・未勝 0050＝只有訊號檢定 t ≥ {float(g['sig_t_min']):.1f}；觀察中＝{float(g['watch_t_min']):.1f} ≤ 訊號檢定 t < {float(g['sig_t_min']):.1f}；"
         f"其餘無效。樣本期間 < {g['min_years']} 年或去重樣本 < {g['min_events']} 筆最高觀察中（附註樣本不足）。"
         "門檻在評估前寫死，不依結果調整。"
     )
@@ -411,9 +411,9 @@ def multi_test(tests: list[Any], j: dict[str, Any]) -> dict[str, Any]:
     reason = (
         f"已測試 {M} 個策略 × 變體（指標 {ind} 個：主結果、變體與參數格；波段策略嘗試 {sw} 次；判定持有期先後用過 "
         f"{hz} 種，乘 {hz}）。以 t ≥ 2 為門檻（雙尾 p ≈ {p2 * 100:.1f}%）時，即使全部無效也預期約 {M * p2:.0f} 個偶然達標；"
-        f"t ≥ {t_min:g} 對應雙尾 p ≈ {p3 * 100:.2f}%，預期偶然達標約 {M * p3:.1f} 個。"
+        f"t ≥ {t_min:.1f} 對應雙尾 p ≈ {p3 * 100:.2f}%，預期偶然達標約 {M * p3:.1f} 個。"
         f"Bonferroni 校正（5%、假設 {M} 個檢定彼此獨立）的門檻為 t ≥ {bonf}；這些變體高度相關，獨立假設偏保守。"
-        f"t ≥ {t_min:g} 也是 Harvey、Liu、Zhu（2016）對新因子建議的門檻。"
+        f"t ≥ {t_min:.1f} 也是 Harvey、Liu、Zhu（2016）對新因子建議的門檻。"
     )
     return {
         "M": M,

@@ -12,8 +12,9 @@ import pytest
 from pipeline.core.store import DataStore
 from pipeline.derive import envhist, intraday, stockdetail
 from pipeline.derive.extras import breadth_52w, market_flows
-from pipeline.sources import insti_amount, yahoo
 from pipeline.sources import advanced as adv
+from pipeline.sources import insti_amount, yahoo
+from pipeline.sources.base import ParseError
 from pipeline.tasks_kbar import done_codes, flush, priority_universe, prune, triggered_codes
 from tests.pipeline.conftest import sample
 
@@ -44,7 +45,13 @@ def test_yahoo_rounds_float32_prices():
                     "timestamp": [1790902800],
                     "indicators": {
                         "quote": [
-                            {"open": [112.349998], "high": [112.4], "low": [112.3], "close": [112.349998], "volume": [0]}
+                            {
+                                "open": [112.349998],
+                                "high": [112.4],
+                                "low": [112.3],
+                                "close": [112.349998],
+                                "volume": [0],
+                            }
                         ]
                     },
                 }
@@ -65,7 +72,7 @@ def test_yahoo_index_fallback_format():
 
 
 def test_yahoo_error_and_empty():
-    with pytest.raises(Exception):
+    with pytest.raises(ParseError):
         yahoo.parse_chart({"chart": {"result": None, "error": {"code": "Bad", "description": "x"}}}, "1")
     assert yahoo.parse_chart({"chart": {"result": None, "error": {"code": "Not Found"}}}, "1").no_data
 
