@@ -30,7 +30,7 @@ export const DATASET_SOURCES: Record<AsofKey, string[]> = {
   revenue: ['twse_revenue', 'tpex_revenue', 'mops_revenue'],
   financials: ['financials'],
   taifex: ['taifex_insti', 'taifex_oi'],
-  margin_total: ['twse_margin_total', 'tpex_margin_total'],
+  margin_total: ['twse_margin', 'tpex_margin'], // 融資總計是融資融券回應的附表（extras），來源同信用交易
   index: ['twse_index', 'tpex_index'],
 };
 
