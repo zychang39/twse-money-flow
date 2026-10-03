@@ -78,8 +78,21 @@ for name, t in (("light", light), ("dark", dark)):
     worst = min(worst, r)
     if r < 4.5:
         failed.append((name, "on-brand", "brand-fill", round(r, 2)))
-    print(f"{name}: 最低對比 {worst:.2f}:1")
+    # 四級灰階墨色（分數環、紀律三環、籌碼結構比例條；非文字圖形）：每級對 bg／surface-1／surface-2 ≥ 3:1（WCAG 1.4.11），
+    # 相鄰兩級 ≥ 1.5:1 才在灰階截圖下分得出來
+    inks = [P[f"ink-{i}"] for i in (1, 2, 3, 4)]
+    for i, ink in enumerate(inks, 1):
+        for bk in ("bg", "surface-1", "surface-2"):
+            r = ratio(ink, P[bk])
+            if r < 3:
+                failed.append((name, f"ink-{i}", bk, round(r, 2)))
+    for i in range(3):
+        r = ratio(inks[i], inks[i + 1])
+        if r < 1.5:
+            failed.append((name, f"ink-{i + 1}", f"ink-{i + 2}", round(r, 2)))
+    ink_worst = min(ratio(ink, P[bk]) for ink in inks for bk in ("bg", "surface-1", "surface-2"))
+    print(f"{name}: 最低對比 {worst:.2f}:1；灰階墨色對底色最低 {ink_worst:.2f}:1（門檻 3:1）")
 if failed:
-    print("低於 4.5:1：", failed)
+    print("低於門檻（文字 4.5:1、灰階墨色 3:1、相鄰墨色 1.5:1）：", failed)
     sys.exit(1)
-print("全部 ≥ 4.5:1（WCAG AA）")
+print("全部 ≥ 4.5:1（WCAG AA）；灰階墨色 ≥ 3:1 且相鄰可分辨")

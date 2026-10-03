@@ -32,7 +32,7 @@ export interface StrategyItem {
   exit?: { rule: string; param: string; label: string; stats: Partial<ExitRow>; alternatives: ExitRow[] };
   trades?: TradeStats & { n: number; mean_net: number | null; win: number | null; hold: number | null; yearly: Record<string, { n: number; mean_net: number | null; exc_idx: number | null; win: number | null }> };
   portfolio?: Record<string, PortfolioStats & { yearly?: Record<string, number | null>; total?: number | null }>;
-  curve?: { dates: string[]; equity: number[]; bench: number[]; etf?: Record<string, (number | null)[]> };
+  curve?: { dates: string[]; equity: number[]; bench: (number | null)[]; etf?: Record<string, (number | null)[]>; slots?: number; missing?: Record<string, string> };
   /** v3 M2：事件對四種基準的超額（判定仍以等權為準） */
   bench?: Record<BenchKey, BenchStat | null>;
   t_0050?: number | null;
@@ -65,6 +65,12 @@ export interface StrategyItem {
   split2022?: { date: string; pre: SplitHalf; post: SplitHalf };
   /** 前瞻驗證（合併後的新訊號） */
   forward?: ForwardBlock;
+  /**
+   * 2026-10-02 健檢 M2：資料不足區（例：三方同買在集保涵蓋率 ≥ 90% 並重算前）：不排名、數字旁固定顯示偏差警語、
+   * 不計入今日新觸發總數；limited_note 為警語文字
+   */
+  limited?: boolean;
+  limited_note?: string | null;
 }
 
 export type Grade = '有效' | '觀察中' | '停用';
@@ -157,6 +163,14 @@ export interface SwingBlock {
   other?: SwingSegment & { hold: number };
   forward?: ForwardBlock;
   test_note?: string;
+  /** 2026-10-02 健檢 M2 訊號稽核：選定參數是否為鄰近最高點、驗證段校正後 t 偏低 */
+  audit?: {
+    param_peak: { param: string; label: string; chosen: number | null; neighbors: { value: number | null; mean_excess: number | null }[] }[];
+    val_t: number | null;
+    val_t_low: boolean;
+    val_t_min: number;
+    trials: number;
+  };
 }
 
 import type { BenchKey } from './bench';
@@ -220,6 +234,51 @@ export const enabledFirst = (list: StrategyItem[]): { enabled: StrategyItem[]; d
   enabled: list.filter((s) => s.enabled),
   disabled: list.filter((s) => !s.enabled),
 });
+
+/** 參數的中文標籤（與 pipeline/evidence/swing.py PARAM_LABEL 同一份）；參數表顯示中文、另列原始參數。 */
+export const PARAM_LABEL: Record<string, string> = {
+  rs_min: 'RS 門檻',
+  vol_ratio: '量比門檻',
+  hold: '持有日數',
+  bias_max: '乖離上限',
+  value_min: '成交值下限',
+  trust_ratio: '投信買超門檻',
+};
+
+/** 「rs_min=70、vol_ratio=1.5、hold=40」→ [{ key, label, value }]；解析不了就原樣一列。 */
+export function paramRows(param: string | null | undefined): { key: string; label: string; value: string }[] {
+  if (!param) return [];
+  const out: { key: string; label: string; value: string }[] = [];
+  for (const part of param.split(/[、,]/)) {
+    const m = part.trim().match(/^([A-Za-z_][\w]*)\s*=\s*(.+)$/);
+    if (!m) { out.push({ key: part.trim(), label: part.trim(), value: '' }); continue; }
+    const [, key, raw] = m;
+    let value = raw.trim();
+    if (key === 'value_min' && Number.isFinite(Number(value))) value = `${(Number(value) / 1e8).toLocaleString('zh-TW', { maximumFractionDigits: 2 })} 億元`;
+    else if (key === 'bias_max' && Number.isFinite(Number(value)) && Number(value) <= 1) value = `${(Number(value) * 100).toFixed(0)}%`;
+    else if (key === 'hold') value = `${value} 日`;
+    else if (key === 'vol_ratio' || key === 'trust_ratio') value = `${value} 倍`;
+    out.push({ key, label: PARAM_LABEL[key] ?? key, value });
+  }
+  return out;
+}
+
+/** 選定基準下的主判定持有天數統計：超額、t（日曆時間法）、超額勝率；等權時 t 為判定用的 t。 */
+export interface Judged { hold: number; excess: number | null; t: number | null; win: number | null }
+
+export function benchTable(s: StrategyItem): Record<string, BenchStat | null> | undefined {
+  const hold = judgeHold(s);
+  return s.h?.[String(hold)]?.bench ?? s.swing?.full?.bench ?? (hold === 40 ? s.bench : undefined) ?? undefined;
+}
+
+export function judged(s: StrategyItem, bench: BenchKey): Judged {
+  const hold = judgeHold(s);
+  const h = s.h?.[String(hold)];
+  const bt = benchTable(s);
+  if (bench === 'ew') return { hold, excess: netExcess(s, hold), t: h?.t ?? s.t ?? null, win: bt?.ew?.win ?? null };
+  const b = bt?.[bench];
+  return { hold, excess: b?.mean_excess ?? null, t: b?.t ?? null, win: b?.win ?? null };
+}
 
 /** 觸發依據的數值文字：「投信連買 6 日」「千張大戶週變化 +0.42 百分點」「當日成交值 2,281 百萬元」。 */
 export function basisText(b: { label: string; value: number | null; unit: string }): string {

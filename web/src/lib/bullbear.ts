@@ -7,7 +7,7 @@ import type { StockHistory } from '../data/types';
 import type { ChipBlock } from './chips';
 import { uiConfig } from './config';
 import { adjClose, sma } from './history';
-import { numberFormat } from './format';
+import { numberFormat, pctPlain } from './format';
 
 type N = number | null;
 
@@ -36,7 +36,8 @@ const lastOf = (a: unknown): N => {
   for (let i = a.length - 1; i >= 0; i--) { const v = num(a[i]); if (v !== null) return v; }
   return null;
 };
-const pct = (v: number, digits = 1) => `${(digits === 2 ? F2 : F1).format(Math.abs(v))}%`;
+/** 百分比一律 2 位小數（全站規則）；方向由前面的「增／減」「上漲／下跌」字表達，所以取絕對值。 */
+const pct = (v: number) => pctPlain(Math.abs(v));
 
 // ------------------------------------------------------------------ 指標
 /** 指數移動平均（第一個值為種子）。 */
@@ -114,7 +115,7 @@ export function evaluate(h: StockHistory): Check[] {
       : mk('rev_streak', cat, '營收連續年增', gm >= c.growth_months ? 'bull' : 'neutral', gm > 0 ? `連續 ${INT.format(gm)} 個月年增` : '最新一個月沒有年增'));
     const roe = g('roe');
     out.push(roe === null ? NA('roe', cat, 'ROE')
-      : mk('roe', cat, 'ROE', roe >= c.roe_good ? 'bull' : roe <= c.roe_bad ? 'bear' : 'neutral', `ROE ${F1.format(roe)}%`));
+      : mk('roe', cat, 'ROE', roe >= c.roe_good ? 'bull' : roe <= c.roe_bad ? 'bear' : 'neutral', `ROE ${pctPlain(roe)}`));
     const pe = g('pe_percentile');
     out.push(pe === null ? NA('pe_pct', cat, '本益比位置')
       : mk('pe_pct', cat, '本益比位置', pe <= c.pe_low_pct ? 'bull' : pe >= c.pe_high_pct ? 'bear' : 'neutral',
@@ -125,7 +126,7 @@ export function evaluate(h: StockHistory): Check[] {
         fp <= 0 ? '股價低於便宜價' : fp >= 100 ? '股價高於昂貴價' : `股價位於便宜價與昂貴價之間（${INT.format(fp)}%）`));
     const dy = g('dividend_yield');
     out.push(dy === null ? NA('yield', cat, '殖利率')
-      : mk('yield', cat, '殖利率', dy >= c.yield_good ? 'bull' : 'neutral', `殖利率 ${F2.format(dy)}%`));
+      : mk('yield', cat, '殖利率', dy >= c.yield_good ? 'bull' : 'neutral', `殖利率 ${pctPlain(dy)}`));
     const q = (h.quarters as { period: string; gross_margin: N }[] | null | undefined) ?? [];
     const lastQ = q[q.length - 1];
     const prevY = lastQ ? q.find((x) => x.period === `${Number(lastQ.period.slice(0, 4)) - 1}${lastQ.period.slice(4)}`) : undefined;
@@ -133,7 +134,7 @@ export function evaluate(h: StockHistory): Check[] {
     const gm1 = num(prevY?.gross_margin);
     out.push(gm0 === null || gm1 === null ? NA('gm', cat, '毛利率（與去年同季）')
       : mk('gm', cat, '毛利率（與去年同季）', gm0 - gm1 >= c.gross_margin_pp ? 'bull' : gm0 - gm1 <= -c.gross_margin_pp ? 'bear' : 'neutral',
-        `${lastQ.period} 毛利率 ${F1.format(gm0)}%，${gm0 >= gm1 ? '較去年同季增加' : '較去年同季減少'} ${F1.format(Math.abs(gm0 - gm1))} 個百分點`));
+        `${lastQ.period} 毛利率 ${pctPlain(gm0)}，${gm0 >= gm1 ? '較去年同季增加' : '較去年同季減少'} ${F2.format(Math.abs(gm0 - gm1))} 個百分點`));
   }
 
   // ---------- 籌碼面
@@ -194,7 +195,7 @@ export function evaluate(h: StockHistory): Check[] {
       : mk('rs', cat, '相對強弱（RS）', rs >= c.rs_strong ? 'bull' : rs <= c.rs_weak ? 'bear' : 'neutral', `RS 百分位 ${INT.format(rs)}${rs >= c.rs_strong ? '（相對強勢）' : rs <= c.rs_weak ? '（相對弱勢）' : ''}`));
     const dt = lastOf(h.dt);
     out.push(dt === null ? NA('daytrade', cat, '當沖比率')
-      : mk('daytrade', cat, '當沖比率', dt >= c.daytrade_high ? 'bear' : 'neutral', `當沖比率 ${F1.format(dt)}%${dt >= c.daytrade_high ? '，短線交易偏多' : ''}`));
+      : mk('daytrade', cat, '當沖比率', dt >= c.daytrade_high ? 'bear' : 'neutral', `當沖比率 ${pctPlain(dt)}${dt >= c.daytrade_high ? '，短線交易偏多' : ''}`));
   }
 
   // ---------- 技術面（還原價）

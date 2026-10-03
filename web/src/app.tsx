@@ -30,6 +30,7 @@ const Weekly = lazy(() => import('./pages/Weekly'));
 const Tracking = lazy(() => import('./pages/Tracking'));
 const Me = lazy(() => import('./pages/Me'));
 const Health = lazy(() => import('./pages/Health'));
+const DataPage = lazy(() => import('./pages/Data'));
 const Methodology = lazy(() => import('./pages/Methodology'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Backup = lazy(() => import('./pages/Backup'));
@@ -89,6 +90,7 @@ function Page({ parts }: { parts: string[] }) {
       switch (b) {
         case undefined: return <Me />;
         case 'health': return <Health />;
+        case 'data': return <DataPage />;
         case 'methodology': return <Methodology />;
         case 'settings': return <Settings />;
         case 'backup': return <Backup />;

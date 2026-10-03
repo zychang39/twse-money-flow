@@ -274,11 +274,18 @@ export function tierRange(t: Tier, whale: WhaleTier = getWhaleTier()): string {
   return `≥ ${LOTS.format(w)} 張`;
 }
 
-/** 畫面上的定義句：「散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 ≥ 400 張（含千張大戶）｜千張大戶 ≥ 1,000 張」 */
+/**
+ * 畫面上的定義句（2026-10-02 健檢：全站只用一種寫法）：四段互斥，與比例條、15 級分布表的段名一致：
+ * 「散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 400–1,000 張｜千張大戶 ≥ 1,000 張」。
+ * 要講「含千張大戶」的合計時用 bigInclusiveLabel（「≥ 400 張，含千張大戶」），分級定義句不再寫「大戶 ≥ 400 張」。
+ */
 export function tierDefinition(whale: WhaleTier = getWhaleTier()): string {
-  const t = tiers(whale);
-  if (whale <= t.big_min) return `散戶 ${tierRange('retail', whale)}｜中實戶 ${tierRange('mid', whale)}｜${tierName('whale', whale)} ${tierRange('whale', whale)}`;
-  return `散戶 ${tierRange('retail', whale)}｜中實戶 ${tierRange('mid', whale)}｜大戶 ${bigLabel(t.big_min)}（含${tierName('whale', whale)}）｜${tierName('whale', whale)} ${tierRange('whale', whale)}`;
+  return tierOrder(whale).map((t) => `${tierName(t, whale)} ${tierRange(t, whale)}`).join('｜');
+}
+
+/** 含最上面一段的合計：「≥ 400 張，含千張大戶」（走勢圖的「大戶」面板標題用，外層已有括號所以不再加括號）。 */
+export function bigInclusiveLabel(big: number, whale: WhaleTier = getWhaleTier()): string {
+  return `≥ ${LOTS.format(big)} 張，含${tierName('whale', whale)}`;
 }
 
 /** 分級（1–15）→ 比例條上的段（互斥）。 */

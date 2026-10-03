@@ -108,6 +108,8 @@ exits:
   stop_pct: [-5, -7, -10]       # 固定停損（其餘到 20 日出場），walk-forward 選擇
   stop_cap: 20
   trailing_pct: [8, 10, 15]     # 從最高收盤回落
+  atr_period: 14                # 2026-10-02 健檢 M2：ATR 移動停損（收盤 ≤ 最高收盤 − k × ATR14），walk-forward 選 k
+  atr_mult: [2, 3]
   ma_days: [10, 20, 60]         # 收盤跌破 N 日線
   exhaust_days: 3               # 動能衰竭：連續 3 日量能 < 0.5 倍且 3 日內漲跌 ≤ ±2%
   exhaust_vol: 0.5

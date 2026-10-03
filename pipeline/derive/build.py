@@ -172,7 +172,8 @@ def stock_metrics(p: Panels, code: str) -> dict[str, Any]:
         "foreign_net_5d": clean(_div(fn5, 1000), 0),
         "trust_net_5d": clean(_div(tn5, 1000), 0),
         "margin_balance": clean(_last_valid(mb)),
-        "margin_change": clean(mb.diff().iloc[-1] if len(mb.dropna()) >= 2 else None, 0),
+        # 2026-10-02 健檢：信用資料晚一天時最後一列是 NaN，改用最後兩筆有值的差
+        "margin_change": clean(mb.dropna().diff().iloc[-1] if len(mb.dropna()) >= 2 else None, 0),
         "short_balance": clean(_last_valid(p.short_balance[code])),
         "pe": clean(p.pe[code].get(last_i), 2),
         "pb": clean(p.pb[code].get(last_i), 2),

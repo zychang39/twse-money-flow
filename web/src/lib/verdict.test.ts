@@ -95,9 +95,13 @@ describe('一句話結論依風格調整側重點', () => {
     expect(conclusionLine('swing', x)).toBe('動能偏強（RS 87、均線多頭排列），外資連買 5 日，價漲資減（籌碼沉澱）。');
   });
   it('長期：營收 → ROE → 估值', () => {
-    expect(conclusionLine('long', x)).toBe('營收連續 13 個月年增、創 12 個月新高，ROE 22.4%，本益比位於 3 年第 85 百分位（偏高）。');
-    expect(valuationPhrase(10)).toContain('偏低');
-    expect(valuationPhrase(50)).toContain('中段');
+    expect(conclusionLine('long', x)).toBe('營收連續 13 個月年增、創 12 個月新高，ROE 22.4%，本益比位於 3 年第 85 百分位（高區間；低 ≤ 20、高 ≥ 80）。');
+    // 2026-10-02 健檢：低／中／高區間（不用偏低／中段／偏高），並寫出門檻
+    expect(valuationPhrase(10)).toBe('本益比位於 3 年第 10 百分位（低區間；低 ≤ 20、高 ≥ 80）');
+    expect(valuationPhrase(50)).toContain('中區間');
+    expect(valuationPhrase(78)).toContain('中區間');
+    expect(valuationPhrase(80)).toContain('高區間');
+    for (const p of [10, 50, 90]) expect(valuationPhrase(p)).not.toMatch(/偏低|中段|偏高/);
   });
   it('不含買賣建議字眼', () => {
     for (const s of [conclusionLine('swing', x), conclusionLine('long', x)]) expect(s).not.toMatch(/買進|賣出|建議/);

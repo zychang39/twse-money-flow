@@ -5,6 +5,8 @@
 - 固定停損（−5／−7／−10%，walk-forward 選擇），其餘到 20 日出場：盤中最低價觸及停損價即以停損價出場；
   開盤就跳空在停損價之下以開盤價；當天跌停鎖死賣不掉 → 下一個可成交日開盤。
 - 追蹤停損：收盤從進場後最高收盤回落 8／10／15%（walk-forward 選擇），下一個交易日開盤出場。
+- ATR 移動停損（2026-10-02 健檢 M2）：收盤 ≤ 進場後最高收盤 − k × ATR14（k＝2／3，walk-forward 選擇），下一個交易日開盤出場；
+  ATR 用進場日之前的 14 日真實波幅平均（還原價）。
 - 收盤跌破進場日最低價：下一個交易日開盤出場。
 - 動能衰竭：連續 3 日量能 < 0.5 倍（當日量 ÷ 前 20 日均量）且 3 日內漲跌 ≤ ±2%，下一個交易日開盤出場。
 沒有時間上限的規則最多持有 exits.max_days（60）個交易日。出場日跌停鎖死、停牌一律順延到下一個可成交日開盤。
@@ -135,6 +137,14 @@ def rule_stop(p: Paths, stop_pct: float, cap: int) -> pd.DataFrame:
     return _result(p, row, px, np.where(hit, lock, fx["locked"]))
 
 
+def atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, n: int) -> np.ndarray:
+    """(T, C) 平均真實波幅：max(高−低, |高−前收|, |低−前收|) 的 n 日簡單平均（需滿 n 日）。"""
+    prev = np.vstack([np.full((1, close.shape[1]), np.nan), close[:-1]])
+    with np.errstate(invalid="ignore"):
+        tr = np.fmax(high - low, np.fmax(np.abs(high - prev), np.abs(low - prev)))
+    return pd.DataFrame(tr).rolling(n, min_periods=n).mean().to_numpy()
+
+
 def run_rules(mk: Market, cand: pd.DataFrame, ev: Any, cfg: dict[str, Any]) -> dict[str, dict[str, pd.DataFrame]]:
     """所有出場規則（含參數格）→ 規則名稱 → 參數 → 去重前的結果。"""
     x = cfg["exits"]
@@ -142,6 +152,8 @@ def run_rules(mk: Market, cand: pd.DataFrame, ev: Any, cfg: dict[str, Any]) -> d
     extra = {"vr": ev.volume / avg_volume_prev(ev.volume, 20)}
     for n in x["ma_days"]:
         extra[f"ma{n}"] = ma(ev.close, int(n))
+    if x.get("atr_mult"):
+        extra["atr"] = atr(ev.high, ev.low, ev.close, int(x.get("atr_period", 14)))
     p = Paths(mk, cand["e"].to_numpy(), cand["c"].to_numpy(), K, extra)
     out: dict[str, dict[str, pd.DataFrame]] = {}
     out["fixed"] = {str(n): rule_fixed(p, int(n)) for n in cfg["horizons"]}
@@ -152,6 +164,10 @@ def run_rules(mk: Market, cand: pd.DataFrame, ev: Any, cfg: dict[str, Any]) -> d
         out["trailing"] = {
             str(s): rule_close_signal(p, p.cl <= runmax * (1 - float(s) / 100)) for s in x["trailing_pct"]
         }
+        if "atr" in p.extra:
+            # ATR 以進場日前一列為準（只用進場前已知的波幅）；收盤 ≤ 最高收盤 − k × ATR → 下一個可成交日開盤出場
+            atr0 = p.extra["atr"][:, :1]
+            out["atr"] = {str(k): rule_close_signal(p, p.cl <= runmax - float(k) * atr0) for k in x["atr_mult"]}
         out["entry_low"] = {"-": rule_close_signal(p, p.cl < p.lo[:, :1], start=1)}
         d = int(x["exhaust_days"])
         low_vol = p.extra["vr"] < float(x["exhaust_vol"])
@@ -198,6 +214,7 @@ RULE_LABELS = {
     "ma": "收盤跌破 {p} 日線",
     "stop": "固定停損 {p}%（其餘 20 日）",
     "trailing": "追蹤停損（最高收盤回落 {p}%）",
+    "atr": "ATR 移動停損（最高收盤回落 {p} 倍 ATR14）",
     "entry_low": "收盤跌破進場日最低價",
     "exhaust": "動能衰竭（量縮 3 日且漲跌 ≤ ±2%）",
     "peak": "峰值日固定出場（第 {p} 日）",

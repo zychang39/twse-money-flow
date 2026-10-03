@@ -34,13 +34,17 @@ function cssVar(name: string, fallback: string): string {
   return v || fallback;
 }
 
-export function KChart({ ohlc, volume, overlays = [], lower, height = 380, ariaLabel }: {
+export function KChart({ ohlc, volume, overlays = [], lower, height = 380, ariaLabel, kind = 'candle', logScale = false }: {
   ohlc: OhlcPoint[];
   volume: ValuePoint[];
   overlays?: Overlay[];
   lower?: LowerPanel | null;
   height?: number;
   ariaLabel: string;
+  /** 主圖：K 線或收盤折線（M2，2026-10-03） */
+  kind?: 'candle' | 'line';
+  /** 主圖價格軸用對數座標（長區間用） */
+  logScale?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -79,11 +83,18 @@ export function KChart({ ohlc, volume, overlays = [], lower, height = 380, ariaL
       crosshair: { mode: 0 },
     });
     chartRef.current = chart;
-    const candles = chart.addSeries(CandlestickSeries, {
-      upColor: up, downColor: down, borderVisible: false, wickUpColor: up, wickDownColor: down,
-      priceLineVisible: false,
-    });
-    candles.setData(ohlc.map((p) => ({ ...p, time: p.time as Time })));
+    if (kind === 'line') {
+      const line = chart.addSeries(LineSeries, { color: cssVar('--text-1', '#eee'), lineWidth: 2, priceLineVisible: false });
+      line.setData(ohlc.map((p) => ({ time: p.time as Time, value: p.close })));
+    } else {
+      const candles = chart.addSeries(CandlestickSeries, {
+        upColor: up, downColor: down, borderVisible: false, wickUpColor: up, wickDownColor: down,
+        priceLineVisible: false,
+      });
+      candles.setData(ohlc.map((p) => ({ ...p, time: p.time as Time })));
+    }
+    // 對數座標：PriceScaleMode.Logarithmic（1）；線性為 0
+    chart.priceScale('right').applyOptions({ mode: logScale ? 1 : 0 });
     for (const ov of overlays) {
       const line = chart.addSeries(LineSeries, { color: ov.color, lineWidth: 2, title: ov.label, priceLineVisible: false, lastValueVisible: false });
       line.setData(ov.data.map((p) => ({ time: p.time as Time, value: p.value })));
@@ -127,7 +138,7 @@ export function KChart({ ohlc, volume, overlays = [], lower, height = 380, ariaL
       chart.remove();
       chartRef.current = null;
     };
-  }, [ohlc, volume, overlays, lower]);
+  }, [ohlc, volume, overlays, lower, kind, logScale]);
 
   return (
     <div>

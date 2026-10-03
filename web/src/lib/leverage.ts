@@ -11,6 +11,8 @@
  *   整戶維持率＝融資買進的股票市值 ÷ 融資金額（初始 1 ÷ 0.6＝166.7%），低於 130% 追繳。
  */
 
+import { pctPlain } from './format';
+
 export interface PortfolioStats {
   days?: number;
   ann_return?: number | null;
@@ -95,7 +97,7 @@ export function leverage(input: LeverageInput, p: PortfolioStats, tr: TradeStats
     return { label, loss: lossOnBook, equity: C - lossOnBook, maintenance: m === null ? null : round2(m), call: m !== null && m < rules.maintenance_call };
   };
   const scenarios: Scenario[] = [];
-  if (mdd !== null) scenarios.push(sc(`歷史最大回撤（${(mdd * 100).toFixed(1)}%）重演`, V * mdd, F * mdd));
+  if (mdd !== null) scenarios.push(sc(`歷史最大回撤（${pctPlain(mdd * 100)}）重演`, V * mdd, F * mdd));
   scenarios.push(sc(`1 檔連續 ${rules.lock_days} 日跌停鎖死`, (V / K) * lock, (F / K) * lock));
   scenarios.push(sc(`全部持股連續 ${rules.lock_days} 日跌停鎖死`, V * lock, F * lock));
   const annRet = fin(p.ann_return) ? p.ann_return : null;
@@ -103,8 +105,8 @@ export function leverage(input: LeverageInput, p: PortfolioStats, tr: TradeStats
   const acct = fin(input.accountDd) ? Math.abs(input.accountDd) : null;
   const strat = fin(p.current_dd) ? Math.abs(p.current_dd) : null;
   let breakerReason: string | null = null;
-  if (acct !== null && acct >= input.breaker) breakerReason = `你的帳戶自高點回撤 ${acct.toFixed(1)}%，超過你設定的 ${input.breaker}%`;
-  else if (strat !== null && strat >= input.breaker) breakerReason = `這個策略的模擬組合目前自高點回撤 ${strat.toFixed(1)}%，超過你設定的 ${input.breaker}%`;
+  if (acct !== null && acct >= input.breaker) breakerReason = `你的帳戶自高點回撤 ${pctPlain(acct)}，超過你設定的 ${pctPlain(input.breaker)}`;
+  else if (strat !== null && strat >= input.breaker) breakerReason = `這個策略的模擬組合目前自高點回撤 ${pctPlain(strat)}，超過你設定的 ${pctPlain(input.breaker)}`;
   return {
     lDd: lDd === null ? null : round2(lDd),
     lKelly: lKelly === null ? null : round2(lKelly),

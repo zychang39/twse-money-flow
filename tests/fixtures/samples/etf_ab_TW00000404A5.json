@@ -1,0 +1,107 @@
+{
+ "domesticHoldings": [
+  {
+   "asOfDate": "10/02/2026",
+   "holdingCategory": "holdings-section-equity",
+   "isAllocation": true,
+   "holdings": [
+    {
+     "holding": "穎崴科技股份有限公司",
+     "classification": null,
+     "holdingPerc": "0.140693",
+     "holdingCode": "6515",
+     "holdingShares": 1000.0,
+     "holdingValue": 6070000.000000001
+    },
+    {
+     "holding": "光寶科技",
+     "classification": null,
+     "holdingPerc": "0.254464",
+     "holdingCode": "2301",
+     "holdingShares": 39000.0,
+     "holdingValue": 10978500.0
+    },
+    {
+     "holding": "聯詠科技",
+     "classification": null,
+     "holdingPerc": "1.991489",
+     "holdingCode": "3034",
+     "holdingShares": 160000.0,
+     "holdingValue": 85919999.99999999
+    },
+    {
+     "holding": "鴻勁精密股份有限公司",
+     "classification": null,
+     "holdingPerc": "1.16402",
+     "holdingCode": "7769",
+     "holdingShares": 9000.0,
+     "holdingValue": 50220000.0
+    }
+   ]
+  },
+  {
+   "asOfDate": "10/02/2026",
+   "holdingCategory": "holdings-section-options",
+   "isAllocation": true,
+   "holdings": [
+    {
+     "holding": "台指選擇權10/26 49100 買權",
+     "classification": null,
+     "holdingPerc": "-0.31226",
+     "holdingCode": "",
+     "holdingShares": -421.0,
+     "holdingValue": -13472000.0
+    },
+    {
+     "holding": "台指選擇權11/26 50300 買權",
+     "classification": null,
+     "holdingPerc": "-0.023452",
+     "holdingCode": "",
+     "holdingShares": -22.0,
+     "holdingValue": -1012000.0
+    }
+   ]
+  },
+  {
+   "asOfDate": "10/02/2026",
+   "holdingCategory": "holdings-section-futures",
+   "isAllocation": true,
+   "holdings": [
+    {
+     "holding": "台股期貨10/26",
+     "classification": null,
+     "holdingPerc": "16.46982228",
+     "holdingCode": "",
+     "holdingShares": 73.0,
+     "holdingValue": 710567400.0000001
+    }
+   ]
+  }
+ ],
+ "portfolioStatistics": null,
+ "portfolioCharacteristics": null,
+ "zesHoldings": null,
+ "bufferCharacteristics": null,
+ "disclaimer": null,
+ "otherAsset": null,
+ "fundAssetTotal": {
+  "secID": "00404A",
+  "allocationObjSecType": [
+   {
+    "allocationObjSecType": "holdings-section-equity",
+    "underlyingSecuritiesValue": 3875069618.0,
+    "percentageUnderlyingSecurities": "89.817950"
+   },
+   {
+    "allocationObjSecType": "holdings-section-futures",
+    "underlyingSecuritiesValue": 710567400.0,
+    "percentageUnderlyingSecurities": "16.46982228"
+   },
+   {
+    "allocationObjSecType": "holdings-section-options",
+    "underlyingSecuritiesValue": -14484000.0,
+    "percentageUnderlyingSecurities": "-0.335712"
+   }
+  ]
+ }
+}

@@ -55,6 +55,15 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python -m pipeline build-web --data-dir data --out web/public/data
+      - name: 下載線上前一版（守門比對用；抓不到就只做欄位檢查）
+        continue-on-error: true
+        run: |
+          mkdir -p prev
+          for f in meta.json summary.json strategies.json evidence.json; do
+            curl -sSf -o "prev/$f" "https://zychang39.github.io/twse-money-flow/data/$f" || rm -f "prev/$f"
+          done
+      - name: 衍生資料守門（欄位缺漏、日期倒退、筆數驟降 → 不部署、保留前一版）
+        run: python -m pipeline guard --out web/public/data --previous prev
       - uses: actions/upload-artifact@v4
         with:
           name: web-data

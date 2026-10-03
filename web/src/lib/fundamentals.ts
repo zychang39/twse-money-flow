@@ -2,7 +2,7 @@
  * 個股頁的動能、營收成長、獲利品質（純函式；定義見 METHODOLOGY §4.14）。
  * 動能一律用還原收盤；營收用 revenue 表（近 24 個月，年增率）；獲利用 quarters（單季 EPS、毛利率、近四季 ROE）。
  */
-import { numberFormat } from './format';
+import { numberFormat, pctPlain } from './format';
 import { thresholds } from './config';
 
 type N = number | null;
@@ -176,6 +176,34 @@ export function profitAnswer(f: ProfitFacts): string {
   if (f.roe !== null) parts.push(`ROE ${F1.format(f.roe)}%`);
   if (f.gmYoY !== null) parts.push(`毛利率較去年同季 ${f.gmYoY >= 0 ? '+' : '−'}${F1.format(Math.abs(f.gmYoY))} 個百分點`);
   return parts.length ? parts.join('，') : '季財報欄位不足';
+}
+
+// ------------------------------------------------------------------ 合理價區間的位置
+export interface FairLike {
+  combined: { cheap: number; fair: number; expensive: number } | null;
+  /** (收盤 − 便宜) ÷ (昂貴 − 便宜)；pipeline 不夾在 0–1（2330 曾為 2.2） */
+  position: N;
+  price: number;
+}
+
+export const FAIR_BASIS = '本益比、淨值比、殖利率三法平均';
+
+/**
+ * 合理價區間滑桿的位置與文字（2026-10-02 健檢）：position 可以超過 1 或小於 0，滑桿的標記夾在兩端，
+ * 文字改寫成「收盤高於區間上緣 42.91%」／「收盤低於區間下緣 8.00%」（以 combined 的上下緣算，不再寫成 100%／0%）；
+ * 在區間內寫「位於區間 62%」（整數百分比）。文字一律帶自己的基準（三法平均），與本益比百分位那一句分開。
+ */
+export function fairPosition(f: FairLike | null | undefined): { marker: N; text: string; aria: string } {
+  if (!f || !f.combined) return { marker: null, text: `合理價區間（${FAIR_BASIS}）：—（各方法結果不足以合併成區間）`, aria: '合理價區間：各方法結果不足以合併成區間' };
+  const { cheap, expensive } = f.combined;
+  const pos = f.position;
+  if (pos === null || !ok(pos)) return { marker: null, text: `合理價區間（${FAIR_BASIS}）：—（區間寬度為 0，無法定位）`, aria: '合理價區間：無法定位' };
+  const marker = Math.min(Math.max(pos, 0), 1);
+  let where: string;
+  if (pos > 1 && expensive > 0) where = `收盤高於區間上緣 ${pctPlain(((f.price / expensive) - 1) * 100)}`;
+  else if (pos < 0 && cheap > 0) where = `收盤低於區間下緣 ${pctPlain((1 - f.price / cheap) * 100)}`;
+  else where = `位於區間 ${Math.round(marker * 100)}%`;
+  return { marker, text: `合理價區間（${FAIR_BASIS}）：${where}`, aria: `目前價格 ${f.price}，合理價區間（${FAIR_BASIS}）：${where}` };
 }
 
 // ------------------------------------------------------------------ 本益比河流

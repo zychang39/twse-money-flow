@@ -11,7 +11,7 @@ import { Ambient, Block, TopBar } from '../components/Chrome';
 import { Accumulating, Banner, DataStatus, ErrorState, Loading } from '../components/DataStatus';
 import { HeroChart, usePeriod } from '../components/HeroChart';
 import { type PagerApi, StockPager } from '../components/StockPager';
-import { ScoreRings, compositeCompleteness, categoryName, scoreText } from '../components/Scores';
+import { ScoreRings, compositeCompleteness, categoryName, completenessText, scoreOutOf } from '../components/Scores';
 import { ScoreDetailView } from '../components/ScoreDetail';
 import { creditAnswer, creditSummary } from '../lib/credit';
 import { type HolderBlock, structureSentence } from '../lib/holders';
@@ -23,14 +23,17 @@ import type { EventRow } from '../components/StockSections';
 import type { Conference } from '../components/Research';
 import { useAsync, useDb, useStockData } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
-import { addWatch, isWatched, removeWatch } from '../db/db';
+import { addWatch, getSetting, isWatched, removeWatch } from '../db/db';
+import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
 import type { CategoryId } from '../lib/config';
 import type { ChipBlock } from '../lib/chips';
 import { adjClose } from '../lib/history';
 import { LONG_PERIODS, STOCK_PERIODS, change, periodStart, type Period } from '../lib/periods';
 import { heroWindows, windowFor, withDaily, type HeroWindows } from '../lib/heroSeries';
 import { type RangeBasis, getRangeBasis, setRangeBasis } from '../lib/rangeReturn';
-import { isNotFound, loadInactive, loadLongHistory } from '../data/api';
+import { isNotFound, loadInactive, loadLongHistory, loadMeta } from '../data/api';
+import { asofNote, asofText, lastValidDate } from '../lib/asof';
+import { useSignalPanel } from '../lib/signalSummary';
 import { inactiveText, tradeStatusNote } from '../lib/tradeStatus';
 import type { StockHistory } from '../data/types';
 import { SECTION_ORDER, STYLE_DESC, STYLE_NAME, STYLE_PERIOD, type SectionId } from '../lib/style';
@@ -38,10 +41,10 @@ import { useInvestStyle } from '../hooks';
 import { type QuarterRow, type RevenueRow, momentumAnswer, momentumFacts, profitAnswer, profitFacts, revenueAnswer, revenueFacts } from '../lib/fundamentals';
 import { conclusionLine, valuationPhrase } from '../lib/verdict';
 import { techFacts } from '../lib/technical';
-import { instInsight, type Who } from '../lib/insights';
+import { COST_RULE_NOTE, instInsight, type Who } from '../lib/insights';
 import { getListContext } from '../lib/listContext';
 import { commitHero, heroSeen } from '../lib/seen';
-import { fmtNum, fmtPrice } from '../lib/format';
+import { fmtNum, fmtPrice, orMissing } from '../lib/format';
 import { navigate } from '../router';
 import { restorePending } from '../lib/scrollRestore';
 import { PAGE_SOURCES } from '../lib/health';
@@ -65,6 +68,7 @@ const StructureBlock = lazyPick(() => import('../components/Structure'), 'Struct
 const EventsList = lazyPick(sections, 'EventsList');
 const ForeignTrend = lazyPick(sections, 'ForeignTrend');
 const MomentumSection = lazyPick(sections, 'MomentumSection');
+const RiskCalcCard = lazyPick(sections, 'RiskCalcCard');
 const ProfitSection = lazyPick(sections, 'ProfitSection');
 const RevenueSection = lazyPick(sections, 'RevenueSection');
 const ValuationSection = lazyPick(sections, 'ValuationSection');
@@ -78,6 +82,28 @@ function lastOf(a: unknown): number | null {
   if (!Array.isArray(a)) return null;
   for (let i = a.length - 1; i >= 0; i--) if (a[i] !== null && a[i] !== undefined) return a[i] as number;
   return null;
+}
+
+/**
+ * 區塊自己的資料日（2026-10-02 健檢 M1-4）：「資料日 10/1（10/2 尚未公布）」。
+ * date＝該區塊序列最後一個有值的日期（lib/asof.lastValidDate）；marketDate＝meta.json 的最新交易日。
+ */
+function AsOfLine({ date, marketDate, reason, extra }: { date: string | null; marketDate: string | null | undefined; reason?: string; extra?: string }) {
+  return (
+    <p class="caption muted" data-testid="asof-line" style={{ marginTop: 'var(--s-2)' }}>
+      {asofText(date, reason)}{asofNote(date, marketDate)}{extra ? `・${extra}` : ''}
+    </p>
+  );
+}
+
+/** 幾個序列中最晚的有值日期（法人：外資／投信／自營商任一有值即算該日有資料）。 */
+function latestValidDate(dates: string[], series: ((number | null)[] | undefined)[]): string | null {
+  let best: string | null = null;
+  for (const s of series) {
+    const d = lastValidDate(dates, s);
+    if (d && (!best || d > best)) best = d;
+  }
+  return best;
 }
 
 /**
@@ -174,6 +200,7 @@ export default function Stock({ code }: { code: string }) {
   const hist = useStockData(code);
   const summary = useScoredSummary();
   const watched = useDb(() => isWatched(code), [code]);
+  const portfolio = useDb(() => getSetting<PortfolioSettings>('portfolio', DEFAULT_PORTFOLIO));
   const style = useInvestStyle();
   // v3：鍵名改為 stock-v3-{風格}，讓預設期間（波段 1Y、長期 5Y）對既有使用者也生效（舊鍵可能存 1D）
   const [period, setPeriod] = usePeriod(`stock-v3-${style}`, STYLE_PERIOD[style], STOCK_PERIODS);
@@ -211,7 +238,13 @@ export default function Stock({ code }: { code: string }) {
   const dir = win ? change(win.values).dir : 'flat';
   const latest = lastOf(adj);
   useEffect(() => { if (seen !== undefined) commitHero(`stock:${code}`, latest); }, [seen, latest, code]);
-  const inst = h ? instInsight(h, who) : null;
+  const chip = (h?.chip as ChipBlock | null | undefined) ?? null;
+  const inst = useMemo(() => (h ? instInsight(h, who, chip) : null), [h, who, chip]);
+  // 各區塊自己的資料日要和最新交易日比較（「10/2 尚未公布」）；meta.json 已有快取
+  const meta = useAsync(loadMeta, []);
+  const marketDate = meta.data?.market_date ?? h?.d[h.d.length - 1] ?? null;
+  // 「有統計證據的訊號觸發了嗎？」的一句結論與面板清單共用同一份資料
+  const signals = useSignalPanel(code);
 
   // 同一清單的上一檔／下一檔：左右滑動主角區（StockPager）或點頂列的 ‹ ›，兩者走同一個動畫
   function go(step: 1 | -1) {
@@ -248,7 +281,6 @@ export default function Stock({ code }: { code: string }) {
   }), [h, adj, row]);
   const holders = (h?.holders as HolderBlock | null | undefined) ?? null;
   const pePct = h ? lastOf((h.series as Record<string, unknown> | undefined)?.pe_percentile) : null;
-  const chip = (h?.chip as ChipBlock | null | undefined) ?? null;
   const bb = useMemo(() => (h ? tally(evaluate(h)) : null), [h]);
   const tech = useMemo(() => (h ? techFacts(h.h, h.l, h.c, h.af) : null), [h]);
   const mom = useMemo(() => momentumFacts(adj, (h?.metrics ?? {}) as Record<string, unknown>, h?.d ?? []), [adj, h]);
@@ -275,17 +307,18 @@ export default function Stock({ code }: { code: string }) {
       </Block>
     ),
     signals: () => (
-      <Block id="sec-signals" question="有統計證據的訊號觸發了嗎？" answer="只列策略庫分級為有效或觀察中的策略對應的指標">
+      <Block id="sec-signals" question="有統計證據的訊號觸發了嗎？"
+        answer={signals.loading ? '統計中…' : signals.data ? signals.data.summary : '指標效度資料暫時無法取得'}>
         <SignalPanel code={code} />
       </Block>
     ),
     scores: () => (
-      <Block id="sec-scores" question="四環分數" answer={`綜合分 ${scoreText(comp)}`}>
+      <Block id="sec-scores" question="四環分數" answer={`綜合分 ${scoreOutOf(comp)}`}>
         <div style={{ marginTop: 'var(--s-4)' }}>
           <ScoreRings row={row} detail={h.scores} onPick={(id) => setSheet({ kind: 'score', id })} />
         </div>
         <button class="collapsed-row" style={{ marginTop: 'var(--s-3)' }} onClick={() => setSheet({ kind: 'score' })}>
-          <span>綜合分 {scoreText(comp)}（資料完整度 {cc === null ? '—' : `${Math.round(cc * 100)}%`}）・查看全部因子</span>
+          <span data-testid="composite-row">綜合分 {scoreOutOf(comp)}（{completenessText(cc)}）・查看全部因子</span>
           <IconChevron />
         </button>
         {bb ? (
@@ -305,11 +338,14 @@ export default function Stock({ code }: { code: string }) {
     momentum: () => (
       <Block id="sec-momentum" question="動能夠不夠強？" answer={momentumAnswer(mom)}>
         <MomentumSection f={mom} t={tech ?? undefined} />
+        {/* M2（2026-10-03）：風險試算（ATR 停損距離 → 股數；連續跌停 1～3 日情境） */}
+        <RiskCalcCard price={lastOf(h.c)} t={tech} prefs={portfolio ?? DEFAULT_PORTFOLIO} />
       </Block>
     ),
     institutional: () => (
       <Block id="sec-institutional" question="法人在買還是賣？" answer={inst?.title}>
-        <div class="segmented" role="group" aria-label="法人" style={{ marginTop: 'var(--s-4)' }}>
+        <AsOfLine date={latestValidDate(h.d, [h.fn, h.tn, h.dn])} marketDate={marketDate} reason="沒有三大法人資料" />
+        <div class="segmented" role="group" aria-label="法人" style={{ marginTop: 'var(--s-3)' }}>
           {(['foreign', 'trust', 'dealer'] as const).map((w) => (
             <button key={w} aria-pressed={who === w} onClick={() => setWho(w)}>{WHO_NAME[w]}</button>
           ))}
@@ -317,14 +353,15 @@ export default function Stock({ code }: { code: string }) {
         {inst ? (
           <>
             <div style={{ marginTop: 'var(--s-5)' }}>
-              <NetBars values={inst.values} dates={h.d.slice(-inst.values.length)} caption={`${WHO_NAME[who]}每日淨買賣超（張）・近 ${inst.values.length} 個交易日`}
-                label={`${WHO_NAME[who]}近 60 日每日淨買賣超柱狀圖：${inst.title}`} />
+              <NetBars values={inst.values} dates={inst.dates} caption={`${WHO_NAME[who]}每日淨買賣超（張）・近 ${inst.values.length} 個交易日`}
+                label={`${WHO_NAME[who]}近 ${inst.values.length} 日每日淨買賣超柱狀圖：${inst.title}`} />
             </div>
-            <div class="card">
-              <div class="body w6">白話重點</div>
+            <div class="card" data-testid="inst-insight">
+              <div class="body w6">白話重點・{WHO_NAME[who]}</div>
               {inst.lines.map((l) => <p key={l} class="caption t1" style={{ marginTop: 'var(--s-1)' }}>{l}</p>)}
-              {inst.est ? <p class="caption t1" style={{ marginTop: 'var(--s-1)' }}>{inst.est}<span class="est">估</span></p> : null}
+              {inst.est ? <p class="caption t1" style={{ marginTop: 'var(--s-1)' }} data-testid="inst-cost">{inst.est}<span class="est">估</span></p> : null}
               {!inst.lines.length && !inst.est ? <p class="caption muted">資料累積中。</p> : null}
+              <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>{COST_RULE_NOTE}{inst.definition ? `${inst.definition}。` : ''}</p>
             </div>
           </>
         ) : null}
@@ -345,6 +382,7 @@ export default function Stock({ code }: { code: string }) {
     ),
     credit: () => (
       <Block id="sec-credit" question="融資與空方在做什麼？" answer={creditAnswer(credit)}>
+        <AsOfLine date={lastValidDate(h.d, h.mb)} marketDate={marketDate} reason="沒有融資資料（非信用交易標的）" />
         <MarginCard s={credit} />
         <ShortCard s={credit} />
       </Block>
@@ -366,7 +404,8 @@ export default function Stock({ code }: { code: string }) {
       </Block>
     ),
     valuation: () => (
-      <Block id="sec-valuation" question="現在貴不貴？" answer={valuationPhrase(pePct) ?? (h.fair ? '合理價區間（估）' : `本益比 ${fmtNum(lastOf(h.pe))}`)}>
+      <Block id="sec-valuation" question="現在貴不貴？" answer={valuationPhrase(pePct) ?? (h.fair ? '合理價區間（估）' : `本益比 ${orMissing(lastOf(h.pe), (v) => fmtNum(v), '虧損或未公布')}`)}>
+        <AsOfLine date={lastValidDate(h.d, h.pe)} marketDate={marketDate} reason="沒有本益比資料（虧損或未公布）" extra="本益比、淨值比、殖利率" />
         <ValuationSection h={h} pePct={pePct} river={style === 'long'} />
       </Block>
     ),

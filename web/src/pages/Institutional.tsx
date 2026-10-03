@@ -204,7 +204,8 @@ export default function Institutional({ code }: { code: string }) {
           </div>
           <p class="caption muted">{rows.length} 日・點一列看當天完整籌碼{fits ? '' : '・字級較大，累計請看上方走勢圖'}</p>
           <div class="cd-wrap ir-wrap" ref={tableRef} role="region" aria-label={`${PARTY_NAME[party]}逐日明細`} data-fits={fits ? 'all' : 'compact'}>
-            <table class="cd-table ir-table" style={{ ['--dt' as string]: 1 }}>
+            {/* 1／2／3 個月（20–60 列）為長表：加 .cd-long 讓表頭捲動時固定（global.css 預設不固定） */}
+            <table class={`cd-table ir-table${newest.length >= 10 ? ' cd-long' : ''}`} style={{ ['--dt' as string]: 1 }}>
               <colgroup>
                 <col class="ir-col-date" />
                 <col /><col /><col />{fits ? <col /> : null}

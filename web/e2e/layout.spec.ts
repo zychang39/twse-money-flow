@@ -2,6 +2,8 @@
  * 版面規範自動驗收（docs/UI_GUIDE.md §12）：402×874（iPhone 18 Pro）、375×667、440×956 三種 viewport，每個頁面檢查
  * 1. 沒有左右滑移（scrollWidth ≤ clientWidth；表格不在水平捲動容器裡）
  * 2. 所有可見文字 ≥ 11px 3. 表格數字 ≥ 13px 4. 數字欄靠右 5. 可點擊元素 ≥ 44 × 44px（計入 ::before 擴大；行內文字連結除外）
+ * 6.（2026-10-02 健檢）少於 10 列的表格不得有 sticky 表頭；sticky 表頭要有實心底色 7. 基準分段控制列（.bench-bar）底色不透明
+ * 8. 捲到最底時頁尾免責聲明完整露出在底部導覽上方（內容底部留白＝導覽列＋safe-area＋16px）
  * 指標效度表、策略庫、槓桿計算以真實資料的評估結果（e2e/fixtures，data 分支 2026-09-30 本機重算）取代示範資料（示範資料太短，全部樣本不足）。
  */
 import { expect, test, type Page } from '@playwright/test';
@@ -16,6 +18,16 @@ async function useEvidenceFixtures(page: Page) {
   for (const f of files) {
     await page.route(`**/data/${f}`, (route) => route.fulfill({ contentType: 'application/json', body: fixture(f) }));
   }
+}
+
+/**
+ * 槓桿計算只列上架（分級 有效／觀察中）的策略：從 fixtures 挑第一套上架的當 ?s= 參數（沒有 grade 欄位的舊資料以 enabled 判斷，
+ * 與 lib/strategies.gradeOf 相同）。fixture 更新後 near_high 變成停用也不會讓這個頁面的驗收失敗；全部停用時不帶參數。
+ */
+function leverageHash(): string {
+  const d = JSON.parse(fixture('strategies.json')) as { strategies: { id: string; grade?: string; enabled?: boolean }[] };
+  const listed = d.strategies.find((s) => (s.grade ? ['有效', '觀察中'].includes(s.grade) : !!s.enabled));
+  return listed ? `#/explore/leverage?s=${listed.id}` : '#/explore/leverage';
 }
 
 const VIEWPORTS = [
@@ -39,7 +51,7 @@ const PAGES: { name: string; hash: string; prepare?: (page: Page) => Promise<voi
   { name: '策略頁', hash: '#/explore/strategies/near_high', prepare: async (p) => { await expect(p.getByRole('heading', { name: '健康度' })).toBeVisible(); await p.getByRole('button', { name: '看其他出場規則' }).click(); } },
   { name: '策略頁（三方同買：原 31 檔對照卡、今日觸發展開）', hash: '#/explore/strategies/three_buyers', prepare: async (p) => { await expect(p.getByTestId('hindsight-card')).toBeVisible(); const b = p.getByTestId('today-list').getByRole('button').first(); if (await b.count()) await b.click(); } },
   { name: '指標效度表（排序選單開啟、0050 基準）', hash: '#/explore/evidence', prepare: async (p) => { await p.getByTestId('bench-switch').getByRole('button', { name: '0050' }).click(); await p.getByRole('button', { name: /接近 52 週高點/ }).click(); await expect(p.locator('svg.ac-svg')).toBeVisible(); await p.getByRole('button', { name: '排序', exact: true }).click(); await expect(p.getByRole('menu', { name: '排序方式' })).toBeVisible(); } },
-  { name: '槓桿計算', hash: '#/explore/leverage?s=near_high', prepare: async (p) => { await expect(p.getByText('波動目標法倍數')).toBeVisible(); } },
+  { name: '槓桿計算', hash: leverageHash(), prepare: async (p) => { await expect(p.getByText('波動目標法倍數')).toBeVisible(); } },
   { name: '個股頁（每日籌碼、區間統計、有效訊號面板）', hash: '#/stock/2330', prepare: async (p) => { await revealAllSections(p); await expect(p.getByTestId('signal-panel')).toBeVisible(); await p.getByRole('group', { name: '明細期間' }).getByRole('button', { name: '60 日' }).click(); } },
   { name: '法人報表', hash: '#/stock/2330/institutional' },
   { name: '籌碼結構', hash: '#/stock/2330/holders' },
@@ -48,6 +60,7 @@ const PAGES: { name: string; hash: string; prepare?: (page: Page) => Promise<voi
   { name: '訊號追蹤', hash: '#/discipline/tracking' },
   { name: '設定', hash: '#/me/settings' },
   { name: '資料健康', hash: '#/me/health' },
+  { name: '資料狀態', hash: '#/me/data' },
   { name: '回測', hash: '#/explore/backtest' },
   { name: '搜尋', hash: '#/search' },
   { name: '日誌', hash: '#/discipline/journal' },
@@ -148,6 +161,60 @@ async function audit(page: Page): Promise<Problem[]> {
       const w = right - left, h = bottom - top;
       if (w < 43.5 || h < 43.5) add('觸控區 ≥ 44 × 44', `${Math.round(w)}×${Math.round(h)} ${desc(el)}`);
     }
+    // 6. 短表（< 10 列）不得 sticky 表頭；sticky 表頭要有實心底色（半透明會透出資料列）
+    const alpha = (color: string): number => {
+      const m = /rgba?\(([^)]+)\)/.exec(color);
+      if (!m) return color === 'transparent' ? 0 : 1;
+      const parts = m[1].split(/[\s,/]+/).filter(Boolean);
+      return parts.length > 3 ? parseFloat(parts[3]) : 1;
+    };
+    for (const t of Array.from(document.querySelectorAll('table'))) {
+      if (!visible(t)) continue;
+      const rows = t.querySelectorAll('tbody tr').length;
+      const ths = Array.from(t.querySelectorAll('thead th')) as HTMLElement[];
+      const sticky = ths.filter((th) => getComputedStyle(th).position === 'sticky');
+      if (!sticky.length) continue;
+      if (rows < 10) add('短表不固定表頭', `${rows} 列仍有 sticky 表頭 ${desc(t)}`);
+      for (const th of sticky.slice(0, 1)) {
+        if (alpha(getComputedStyle(th).backgroundColor) < 0.999) add('sticky 表頭實心底色', `${getComputedStyle(th).backgroundColor} ${desc(t)}`);
+      }
+    }
+    // 7. 基準分段控制列：不透明底色（捲過去的標題與清單文字不能透出來）
+    for (const bar of Array.from(document.querySelectorAll('.bench-bar'))) {
+      if (!visible(bar)) continue;
+      const bg = getComputedStyle(bar).backgroundColor;
+      if (alpha(bg) < 0.999) add('基準控制列不透明', `background ${bg}`);
+    }
+    return out;
+  });
+}
+
+/**
+ * 8. 捲到最底時，頁尾（免責聲明）的底緣要在底部導覽的上緣之上：每一頁內容底部留白＝導覽列＋safe-area＋16px（--dock-clear）。
+ * 以 CSS 變數算出導覽列「非精簡型態」的高度（捲動中導覽列會暫時縮小，不能拿當下的框）。
+ */
+async function footerClearsDock(page: Page): Promise<Problem[]> {
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(300);
+  return page.evaluate(() => {
+    const out: { rule: string; detail: string }[] = [];
+    const footer = document.querySelector('.footer');
+    const dock = document.querySelector('.dock');
+    if (!footer || !dock) return [{ rule: '頁尾在導覽列上方', detail: '找不到 .footer 或 .dock' }];
+    const root = document.documentElement;
+    const rem = parseFloat(getComputedStyle(root).fontSize);
+    const tabH = parseFloat(getComputedStyle(root).getPropertyValue('--tabbar-h')) * rem; // 3.625rem → px
+    const padBottom = parseFloat(getComputedStyle(dock).paddingBottom) || 0; // = --dock-pad（safe-area）
+    const dockTop = window.innerHeight - padBottom - tabH;
+    const fr = footer.getBoundingClientRect();
+    if (fr.bottom > dockTop + 0.5) out.push({ rule: '頁尾在導覽列上方', detail: `footer.bottom ${Math.round(fr.bottom)} > 導覽列上緣 ${Math.round(dockTop)}` });
+    // 頁尾與上一段內容之間至少 32px（--s-8）
+    const mt = parseFloat(getComputedStyle(footer).marginTop) + parseFloat(getComputedStyle(footer).paddingTop);
+    if (mt < 31.5) out.push({ rule: '頁尾上方間距 ≥ 32px', detail: `${Math.round(mt)}px` });
+    // 內容底部留白 ≥ 導覽列（含 safe-area）；呼吸空間由頁尾自己的下邊距提供（與 ux-fixes 規則 1「剛好等於導覽列高度」一致）
+    const app = document.querySelector('.app');
+    const pad = app ? parseFloat(getComputedStyle(app).paddingBottom) : 0;
+    if (pad < tabH + padBottom - 0.5) out.push({ rule: '內容底部留白 ≥ 導覽列', detail: `${Math.round(pad)}px < ${Math.round(tabH + padBottom)}px` });
     return out;
   });
 }
@@ -166,8 +233,9 @@ for (const vp of VIEWPORTS) {
         // 往下捲一次，讓延後渲染的區塊出現
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
         await page.waitForTimeout(400);
+        const footerProblems = await footerClearsDock(page);
         await page.evaluate(() => window.scrollTo(0, 0));
-        const problems = await audit(page);
+        const problems = [...(await audit(page)), ...footerProblems];
         expect(problems, problems.map((x) => `${x.rule}：${x.detail}`).join('\n')).toEqual([]);
       });
     }

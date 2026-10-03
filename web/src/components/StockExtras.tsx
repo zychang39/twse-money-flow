@@ -1,33 +1,65 @@
-import type { StockHistory } from '../data/types';
-import { fmtInt, fmtNum, fmtPct, fmtPrice } from '../lib/format';
+import { useState } from 'preact/hooks';
+import { ETF_KIND_LABEL, type EtfKind, type StockHistory } from '../data/types';
+import { fmtInt, fmtNum, fmtPct, fmtPrice, md, missing } from '../lib/format';
+import { fairPosition } from '../lib/fundamentals';
+import { asofText } from '../lib/asof';
 import { Signed } from './Change';
 import { Banner } from './DataStatus';
-import { IconCalendar } from './Icons';
+import { IconCalendar, IconChevron } from './Icons';
 
 interface FairMethod { method: string; label: string; cheap: number | null; fair: number | null; expensive: number | null; basis: string }
 interface Fair { methods: FairMethod[]; combined: { cheap: number; fair: number; expensive: number } | null; position: number | null; price: number }
 interface RevenueRow { ym: string; revenue: number; yoy: number | null; mom: number | null }
 interface EventRow { date: string; type: string; text: string }
-interface EtfHolder { etf: string; name: string; weight: number | null; change_shares: number | null; date: string }
+/** kind（M2 2026-10-03）：new 新增／add 加碼／reduce 減碼／exit 剔除（本次 0 股，仍列出）／hold 不變；null＝只有一天揭露、無法分類 */
+interface EtfHolder { etf: string; name: string; weight: number | null; change_shares: number | null; date: string; kind?: EtfKind | 'hold' | null }
+
+/** 持有列的變動分類標籤：不變與無法分類不顯示標籤。 */
+export function HolderKindTag({ kind }: { kind: EtfHolder['kind'] }) {
+  if (!kind || kind === 'hold') return null;
+  return <span class="tag" style={{ marginLeft: 'var(--s-1)' }} data-testid="etf-holder-kind">{ETF_KIND_LABEL[kind]}</span>;
+}
 interface QuarterRow { period: string; revenue: number | null; gross_margin: number | null; net_income: number | null }
 interface ShortHalt { last_cover_date: string; end: string; reason: string | null }
 
-/** 合理價區間（估算值）：灰階軌道＋目前位置標記，不另用顏色。 */
+/**
+ * 事件列（2026-10-02 健檢 #10）：日期小字在上、一行摘要（超出以 … 截斷）、點整列展開全文；整列高度 ≥ 44pt。
+ * 個股頁「最近有什麼事件？」與底部面板的「近期事件」共用。
+ */
+export function EventItem({ e }: { e: EventRow }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div class="list-item" style={{ padding: 0, alignItems: 'stretch' }}>
+      <button class="grow" aria-expanded={open} onClick={() => setOpen(!open)}
+        style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-2)', minHeight: 'var(--tap)', padding: 'var(--s-2) 0', background: 'none', border: 0, color: 'inherit', font: 'inherit', textAlign: 'left', cursor: 'pointer', minWidth: 0 }}>
+        <span class="grow" style={{ minWidth: 0 }}>
+          <span class="caption muted" style={{ display: 'block' }}>{md(e.date)}・{e.date.slice(0, 4)}</span>
+          <span class="caption" style={{ display: 'block', overflow: open ? 'visible' : 'hidden', textOverflow: 'ellipsis', whiteSpace: open ? 'normal' : 'nowrap' }}>
+            <span class="tag" style={{ marginRight: 'var(--s-1)' }}>{e.type}</span>{e.text}
+          </span>
+        </span>
+        <span class="chev" style={{ transform: open ? 'rotate(90deg)' : undefined }} aria-hidden="true"><IconChevron /></span>
+      </button>
+    </div>
+  );
+}
+
+/** 合理價區間（估算值）：灰階軌道＋目前位置標記，不另用顏色。位置文字由 lib/fundamentals.fairPosition 產生（可超出區間）。 */
 export function FairRange({ h, detail }: { h: StockHistory; detail?: boolean }) {
   const fair = h.fair as Fair | undefined;
   if (!fair) return <p class="caption muted">資料不足以計算合理價。</p>;
-  const pos = fair.position === null ? null : Math.min(Math.max(fair.position, 0), 1);
+  const p = fairPosition(fair);
+  const pos = p.marker;
   return (
     <div>
       {fair.combined ? (
         <>
           <div class="row between caption"><span class="muted">便宜 {fmtPrice(fair.combined.cheap)}</span><span class="t1">合理 {fmtPrice(fair.combined.fair)}<span class="est">估</span></span><span class="muted">昂貴 {fmtPrice(fair.combined.expensive)}</span></div>
-          <div style={{ position: 'relative', margin: 'var(--s-3) 0 var(--s-2)' }} role="img"
-            aria-label={`目前價格 ${fmtPrice(fair.price)}，位於合理價估算區間的 ${pos === null ? '—' : Math.round(pos * 100)}%`}>
+          <div style={{ position: 'relative', margin: 'var(--s-3) 0 var(--s-2)' }} role="img" aria-label={p.aria}>
             <div class="bar"><i style={{ width: '100%', background: 'var(--surface-3)' }} /></div>
             {pos !== null ? <span style={{ position: 'absolute', top: '-0.25rem', left: `calc(${pos * 100}% - 0.4375rem)`, width: '0.875rem', height: '0.875rem', borderRadius: '50%', background: 'var(--text-1)', boxShadow: '0 0 0 3px var(--surface-1)' }} /> : null}
           </div>
-          <div class="caption">目前 {fmtPrice(fair.price)}，位於區間 {pos === null ? '—' : `${Math.round(pos * 100)}%`}</div>
+          <div class="caption" data-testid="fair-position">目前 {fmtPrice(fair.price)}・{p.text}</div>
         </>
       ) : <p class="caption muted">各方法結果不足以合併成區間。</p>}
       {detail ? (
@@ -109,25 +141,20 @@ export function StockExtras({ h }: { h: StockHistory }) {
           <div class="list">
             {etfs.map((e) => (
               <a key={e.etf} class="list-item" href={`#/stock/${e.etf}`}>
-                <span class="grow">{e.name} <span class="muted caption">{e.etf}</span></span>
-                <span class="caption">{e.weight !== null ? `${fmtNum(e.weight)}%` : '—'}</span>
-                <Signed value={e.change_shares} format={(v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${fmtNum(v / 1000, 0)} 張`)} />
+                <span class="grow">{e.name} <span class="muted caption">{e.etf}</span><HolderKindTag kind={e.kind} /><span class="caption muted" style={{ display: 'block' }}>{asofText(e.date, '沒有持股日期')}</span></span>
+                <span class="caption">{e.kind === 'exit' ? '本次持股 0' : e.weight !== null ? `權重 ${fmtNum(e.weight)}%` : missing('沒有權重')}</span>
+                <Signed value={e.change_shares} label="持股" format={(v) => (v === null || v === undefined ? missing('沒有變動資料') : `${v > 0 ? '+' : ''}${fmtNum(v / 1000, 0)} 張`)} />
               </a>
             ))}
           </div>
-          <p class="caption muted">部分涵蓋：只有部分投信的主動式 ETF 有持股資料（取自各投信官網揭露；涵蓋範圍見探索 › 主動式 ETF）。</p>
+          <p class="caption muted">部分涵蓋：只有部分投信的主動式 ETF 有持股資料（取自各投信官網揭露；涵蓋範圍見探索 › 主動式 ETF）。標籤為與前一次揭露相比的變動：新增、加碼、減碼、剔除（本次 0 股，仍列出）。</p>
         </>
       ) : null}
       {events && events.length ? (
         <>
           <h3 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>近期事件</h3>
           <div class="list">
-            {events.map((e) => (
-              <div key={`${e.date}-${e.type}-${e.text}`} class="list-item" style={{ alignItems: 'flex-start' }}>
-                <span class="caption muted" style={{ minWidth: '5.5rem' }}>{e.date}</span>
-                <span class="grow caption"><span class="badge">{e.type}</span> {e.text}</span>
-              </div>
-            ))}
+            {events.map((e) => <EventItem key={`${e.date}-${e.type}-${e.text}`} e={e} />)}
           </div>
         </>
       ) : null}

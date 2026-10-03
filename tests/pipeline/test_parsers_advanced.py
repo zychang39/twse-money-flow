@@ -87,6 +87,23 @@ def test_taifex():
     assert fx.iloc[0].to_dict() == {"date": "2026-09-01", "usd_twd": 31.633}
 
 
+def test_taifex_pc():
+    """臺指選擇權 Put/Call 比（真實樣本 2026-09-15～24，Big5、每列結尾多一個逗號）：舊到新排序、比率為 %。"""
+    pc = adv.parse_taifex_pc(sample("taifex_pcRatio.csv")).df
+    assert list(pc.columns) == adv.PC_COLS and len(pc) == 8
+    assert pc.iloc[0]["date"] == "2026-09-15" and pc.iloc[-1]["date"] == "2026-09-24"
+    r = row(pc, date="2026-09-24")
+    assert r["put_vol"] == 125974 and r["call_vol"] == 104015 and r["pc_vol_ratio"] == pytest.approx(121.11)
+    assert r["put_oi"] == 59603 and r["call_oi"] == 69848 and r["pc_oi_ratio"] == pytest.approx(85.33)
+    # 比率 ＝ 賣權 ÷ 買權 × 100（手算 59,603 ÷ 69,848 ＝ 85.33%）
+    assert r["put_oi"] / r["call_oi"] * 100 == pytest.approx(r["pc_oi_ratio"], abs=0.01)
+    # 只有表頭 → no_data；缺少必要欄位 → ParseError
+    header = sample("taifex_pcRatio.csv").decode("cp950").splitlines()[0]
+    assert adv.parse_taifex_pc(header + "\n").no_data
+    with pytest.raises(ParseError):
+        adv.parse_taifex_pc(header.replace("買賣權未平倉量比率%", "X") + "\n2026/09/24,1,1,1,1,1,1,\n")
+
+
 def test_treasury():
     t = adv.parse_treasury(sample("treasury_2026.csv")).df
     assert t.iloc[-1].to_dict() == {"date": "2026-09-25", "y10": 5.17}
@@ -107,3 +124,17 @@ def test_tdcc_stock_history():
     with pytest.raises(ParseError):
         adv.parse_tdcc_stock(html, "2330")  # 回應的代號與要求不符
     assert adv.parse_tdcc_stock("<p>查無此資料</p>", "2330").no_data
+
+
+def test_intraday_index():
+    """每 5 秒指數統計（首頁 1D）：只取時間與加權指數；降採樣成每分鐘最後一筆。"""
+    from pipeline.derive.extras import downsample_minutes
+
+    t = adv.parse_twse_intraday_index(sample("twse_MI_5MINS_INDEX.json"))
+    assert t.response_date == date(2026, 10, 2)
+    assert list(t.df.columns) == ["date", "time", "taiex"] and len(t.df) == 17
+    assert t.df.iloc[0]["time"] == "09:00:00" and t.df.iloc[0]["taiex"] == pytest.approx(48353.49)
+    pts = downsample_minutes(t.df)
+    assert [x["t"] for x in pts] == ["09:00", "09:01", "13:29", "13:30"]
+    assert pts[0]["v"] == pytest.approx(float(t.df.iloc[11]["taiex"]))  # 09:00 那一分鐘的最後一筆（09:00:55）
+    assert pts[-1]["v"] == pytest.approx(48475.74)

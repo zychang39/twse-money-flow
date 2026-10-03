@@ -89,9 +89,9 @@ test.describe('M2-3 籌碼結構', () => {
     await block.scrollIntoViewIfNeeded();
     await expect(block.getByRole('heading', { level: 2 })).toHaveText(/^千張大戶本週 (\+|−)[\d.]+ 個百分點|^千張大戶本週持平/);
     const bar = block.getByTestId('structure-bar');
-    await expect(bar.locator('.st-seg')).toHaveCount(4);
+    await expect(bar.locator('.sb-seg')).toHaveCount(4);
     for (const t of ['散戶', '中實戶', '大戶', '千張大戶']) await expect(bar.locator('dt', { hasText: new RegExp(`^${t}`) }).first()).toBeVisible();
-    await expect(block).toContainText('散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 ≥ 400 張（含千張大戶）｜千張大戶 ≥ 1,000 張');
+    await expect(block).toContainText('散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 400–1,000 張｜千張大戶 ≥ 1,000 張');
     await block.getByRole('button', { name: /查看趨勢/ }).click();
     const sheet = page.getByRole('dialog', { name: '籌碼結構趨勢' });
     await expect(sheet).toBeVisible();

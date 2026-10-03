@@ -14,15 +14,16 @@ import { labStrategy, screenerConfig, type Condition } from '../lib/config';
 import { describeCondition, savedDisplayName, presetScreens } from '../lib/screener';
 import { exitsTomorrow, trackStats, type Position, type Strategy } from '../lib/tracking';
 import { loadPositions, syncTracking } from '../lib/trackingSync';
-import { fmtNum } from '../lib/format';
+import { fmtCount, fmtNum, md, missing, orMissing, pctPlain, pctSigned } from '../lib/format';
 import { useRoute } from '../router';
 import type { Stats } from '../lib/backtest';
 
 const label = (f: string) => screenerConfig.fields[f]?.label ?? f;
 const unit = (f: string) => screenerConfig.fields[f]?.unit ?? '';
-const md = (iso?: string | null) => (iso ? `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}` : '—');
-const pct = (v: number | null | undefined, digits = 2) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmtNum(Math.abs(v), digits)}%`);
 const dir = (v: number | null | undefined) => (v === null || v === undefined || Math.abs(v) < 1e-9 ? '' : v > 0 ? 'up' : 'down');
+/** 追蹤欄缺值的原因：還沒有已出場的交易；回測欄缺值：沒有這個持有天數的回測。 */
+const NO_CLOSED = '還沒有已出場的交易';
+const NO_BT = '沒有回測';
 
 function StatusTag({ p, horizon }: { p: Position; horizon: number }) {
   if (p.status === 'waiting') return <span class="tag">等待進場</span>;
@@ -44,14 +45,15 @@ function Compare({ st, ps }: { st: Strategy; ps: Position[] }) {
       <table class="table" data-testid="track-compare">
         <thead><tr><th /><th>追蹤（前瞻）</th><th>回測{bt.data?.coverage?.limited ? '＊' : ''}</th></tr></thead>
         <tbody>
-          <tr><td>已出場</td><td>{s.closed} 筆</td><td>{b?.n ?? '—'} 筆</td></tr>
-          <tr><td>勝率</td><td>{s.winRate === null ? '—' : `${fmtNum(s.winRate, 1)}%`}</td><td>{b?.win_rate === undefined ? '—' : `${fmtNum(b.win_rate, 1)}%`}</td></tr>
-          <tr><td>平均</td><td class={dir(s.avg)}>{pct(s.avg)}</td><td>{pct(b?.avg)}</td></tr>
-          <tr><td>中位數</td><td>{pct(s.median)}</td><td>{pct(b?.median)}</td></tr>
-          <tr><td>超額</td><td>{pct(s.avgExcess)}</td><td>{pct(b?.avg_excess)}</td></tr>
+          <tr><td>已出場</td><td>{fmtCount(s.closed)} 筆</td><td>{b ? `${fmtCount(b.n)} 筆` : missing(NO_BT)}</td></tr>
+          <tr><td>絕對勝率</td><td>{orMissing(s.winRate, pctPlain, NO_CLOSED)}</td><td>{b ? orMissing(b.win_rate, pctPlain, '沒有樣本') : missing(NO_BT)}</td></tr>
+          <tr><td>平均</td><td class={dir(s.avg)}>{orMissing(s.avg, pctSigned, NO_CLOSED)}</td><td>{b ? orMissing(b.avg, pctSigned, '沒有樣本') : missing(NO_BT)}</td></tr>
+          <tr><td>中位數</td><td>{orMissing(s.median, pctSigned, NO_CLOSED)}</td><td>{b ? orMissing(b.median, pctSigned, '沒有樣本') : missing(NO_BT)}</td></tr>
+          <tr><td>超額</td><td>{orMissing(s.avgExcess, pctSigned, s.closed ? '沒有指數資料' : NO_CLOSED)}</td><td>{b ? orMissing(b.avg_excess, pctSigned, b.n ? '沒有指數資料' : '沒有樣本') : missing(NO_BT)}</td></tr>
         </tbody>
       </table>
       <p class="tiny muted">
+        絕對勝率＝報酬 &gt; 0 的比例。
         {bt.data?.coverage?.limited ? '＊回測樣本範圍受限（條件欄位只涵蓋部分股票），見回測頁。' : ''}
         {lab ? `策略庫「${lab.label}」的歷史統計見策略頁。` : st.presetId ? (b ? `回測：持有 ${st.horizon} 日、全部訊號（新觸發），詳見回測頁。` : `回測沒有持有 ${st.horizon} 日的結果（有 5／10／20 日）。`) : '自訂條件請到回測頁計算。'}
         {s.closed < 30 ? ` 已出場 ${s.closed} 筆，樣本還少，先別據此下結論。` : ''}
@@ -88,8 +90,8 @@ function StrategyCard({ st, ps }: { st: Strategy; ps: Position[] }) {
               </span>
               <span class="right">
                 <StatusTag p={p} horizon={st.horizon} />
-                <span class={`body num ${dir(p.ret)}`} style={{ display: 'block' }}>{p.ret === undefined ? '—' : pct(p.ret * 100)}</span>
-                {p.excess !== undefined && p.excess !== null ? <span class="caption muted nowrap" style={{ display: 'block' }}>超額 {pct(p.excess * 100)}</span> : null}
+                <span class={`body num ${dir(p.ret)}`} style={{ display: 'block' }}>{p.ret === undefined ? missing(p.status === 'waiting' ? '等待進場' : '資料不足') : pctSigned(p.ret * 100)}</span>
+                {p.excess !== undefined && p.excess !== null ? <span class="caption muted nowrap" style={{ display: 'block' }}>超額 {pctSigned(p.excess * 100)}</span> : null}
               </span>
             </a>
           ))}

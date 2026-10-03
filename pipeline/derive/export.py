@@ -172,6 +172,40 @@ def build_health(ds: Dataset, market_date: str | None) -> dict[str, Any]:
         "coverage": manifest.get("coverage", {}),
         "trading_days": len(trading),
         "first_date": trading[0] if trading else None,
+        # 2026-10-02 健檢：每個資料集的最新資料日（各頁區塊標自己的資料日，不共用「資料至」）
+        "asof": dataset_asof(ds),
+        # 2026-10-02 健檢 M2：集保全市場回補進度（資料狀態頁）；nodata 清單太長不輸出
+        "backfill": {k: v for k, v in (manifest.get("holders_backfill") or {}).items() if k != "nodata"},
+        "backfilled": manifest.get("backfilled", {}),
+    }
+
+
+# 各資料集的最新資料日：鍵名與前端 lib/asof.ts 共用（quotes 收盤行情、insti 法人、credit 信用、valuation 本益比、
+# sbl 借券、daytrade 當沖、qfii 外資持股、tdcc 集保、etf_holdings 主動式 ETF 持股、revenue 月營收、financials 季財報、
+# taifex 期貨法人、margin_total 融資總計）
+def _max_col(df: pd.DataFrame, col: str = "date") -> str | None:
+    if df is None or df.empty or col not in df.columns:
+        return None
+    s = df[col].dropna()
+    return str(s.max()) if len(s) else None
+
+
+def dataset_asof(ds: Dataset) -> dict[str, str | None]:
+    return {
+        "quotes": _max_col(ds.quotes),
+        "insti": _max_col(ds.insti),
+        "credit": _max_col(ds.margin),
+        "valuation": _max_col(ds.valuation),
+        "sbl": _max_col(ds.table("sbl")),
+        "daytrade": _max_col(ds.table("daytrade")),
+        "qfii": _max_col(ds.table("qfii")),
+        "tdcc": _max_col(ds.table("tdcc")),
+        "etf_holdings": _max_col(ds.table("etf_holdings")),
+        "revenue": _max_col(ds.revenue, "ym"),
+        "financials": _max_col(ds.table("financials")) if "date" in ds.table("financials").columns else None,
+        "taifex": _max_col(ds.table("taifex_insti")),
+        "margin_total": _max_col(ds.margin_total),
+        "index": _max_col(ds.index),
     }
 
 
@@ -209,6 +243,8 @@ def build_web(data_dir: Path, out: Path, *, demo: bool = False) -> dict[str, Any
         # M3.4 分段更新：今晚頁狀態列（各段的目標日、狀態、完成時間）與排程
         "stages": ds.manifest.get("stages"),
         "schedule": {k: {"label": v["label"], "time": v["time"]} for k, v in config.load("schedule")["stages"].items()},
+        # 2026-10-02 健檢：各資料集最新資料日（前端每個區塊標自己的資料日）
+        "asof": health["asof"],
     }
     if not market_date:
         write_json(out / "meta.json", meta)

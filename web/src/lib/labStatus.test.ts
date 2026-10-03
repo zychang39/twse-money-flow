@@ -1,29 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import type { EvidenceFile, EvidenceToday } from './evidence';
+import type { EvidenceFile } from './evidence';
 import { labStatus } from './labStatus';
+import type { StrategyItem } from './strategies';
 
-describe('探索頁功能卡的即時數字（v3 M5-1）', () => {
-  it('今日新觸發只算通過驗證的指標、同一檔不重複；更新時間 M/D HH:mm', () => {
-    const ev = {
-      meta: { generated_at: '2026-09-30T16:20:05+08:00' },
-      rows: [
-        { id: 'high52', verdict: '有效' }, { id: 'kd_run', verdict: '環境依賴' }, { id: 'macd', verdict: '無效' }, { id: 'combo_three', verdict: '樣本範圍受限' },
-      ],
-    } as unknown as EvidenceFile;
-    const today: EvidenceToday = {
-      date: '2026-09-30',
-      tests: {
-        high52: { t: { '2330': '2026-09-30', '2317': '2026-09-29' }, near: [] },
-        kd_run: { t: { '2330': '2026-09-30', '1101': '2026-09-30' }, near: [] },
-        macd: { t: { '9999': '2026-09-30' }, near: [] },
-      },
-    };
-    const s = labStatus(ev, today)!;
-    expect(s.today).toBe(2);
+describe('探索頁功能卡的即時數字（v3 M5-1；2026-10-02 健檢改用策略分級）', () => {
+  const ev = {
+    meta: { generated_at: '2026-09-30T16:20:05+08:00' },
+    rows: [
+      { id: 'high52', verdict: '有效' }, { id: 'kd_run', verdict: '環境依賴' }, { id: 'macd', verdict: '無效' }, { id: 'combo_three', verdict: '樣本範圍受限' },
+    ],
+  } as unknown as EvidenceFile;
+  const strategies = [
+    { id: 'a', test: 'high52', grade: '有效', enabled: true, today: [{ code: '2330', name: 'x' }, { code: '2317', name: 'y' }] },
+    { id: 'b', test: 'kd_run', grade: '觀察中', enabled: true, today: [{ code: '2330', name: 'x' }, { code: '1101', name: 'z' }] },
+    { id: 'c', test: 'macd', grade: '停用', enabled: false, today: [{ code: '9999', name: 'q' }] },
+    { id: 'd', test: 'combo_three', grade: '觀察中', enabled: true, limited: true, today: [{ code: '2454', name: 'w' }] },
+  ] as unknown as StrategyItem[];
+  it('今日新觸發只算上架策略、同一檔不重複；資料不足區另計；策略數依分級；更新時間 M/D HH:mm', () => {
+    const s = labStatus(ev, strategies)!;
+    expect(s.today).toBe(3); // 2330、2317、1101（停用的 9999 不算；資料不足區的 2454 另計）
+    expect(s.todayExcluded).toBe(1);
+    expect(s.grades).toEqual({ valid: 1, watch: 2, off: 1, listed: 3, total: 4 });
     expect(s.valid).toBe(1);
     expect(s.env).toBe(1);
     expect(s.updated).toBe('9/30 16:20');
-    expect(s.strategies).toBe(2); // near_high（high52）、k_high_5days（kd_run）
     expect(labStatus(null, null)).toBeNull();
   });
 });

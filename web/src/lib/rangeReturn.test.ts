@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { rangeReturn } from './rangeReturn';
+import { countDatesBetween, rangeReturn } from './rangeReturn';
+import { makeCalendar } from './tradingCalendar';
+import { weeklyIndices, pick } from './periods';
+import { addDays } from './dates';
 
 const dates = ['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-07'];
 
@@ -29,5 +33,42 @@ describe('兩指區間報酬', () => {
   });
   it('少於 2 點 → null', () => {
     expect(rangeReturn(['2026-09-01'], [100], 0, 0)).toBeNull();
+  });
+});
+
+describe('區間交易日數（M1-8）：週線取樣的視窗不能用索引差', () => {
+  const golden = JSON.parse(
+    readFileSync(new URL('../../../tests/fixtures/golden/calendar_2026.json', import.meta.url), 'utf8'),
+  ) as { closed: string[]; years: number[] };
+  const cal = makeCalendar(golden);
+  // 2026 全年的日資料（交易日）
+  const daily: string[] = [];
+  for (let d = '2026-01-01'; d <= '2026-12-31'; d = addDays(d, 1)) if (cal.isTradingDay(d)) daily.push(d);
+  const values = daily.map((_, i) => 100 + i);
+
+  it('日資料視窗：countDatesBetween 與索引差相同', () => {
+    const r = rangeReturn(daily, values, 10, 60, (a, b) => countDatesBetween(daily, a, b))!;
+    expect(r.days).toBe(50);
+    expect(rangeReturn(daily, values, 10, 60)!.days).toBe(50);
+    expect(countDatesBetween(daily, daily[10], daily[10])).toBe(0);
+  });
+  it('週線取樣的視窗：索引差只是週數，交易日數要用日資料或交易日曆計', () => {
+    const idx = weeklyIndices(daily);
+    const wDates = pick(daily, idx);
+    const wValues = pick(values, idx);
+    const a = 0, b = wDates.length - 1;
+    const naive = rangeReturn(wDates, wValues, a, b)!;
+    const byDaily = rangeReturn(wDates, wValues, a, b, (x, y) => countDatesBetween(daily, x, y))!;
+    const byCal = rangeReturn(wDates, wValues, a, b, (x, y) => cal.tradingDaysBetween(x, y))!;
+    expect(naive.days).toBeLessThan(60); // 約 52 週
+    expect(byDaily.days).toBe(daily.length - 1); // 全年交易日數 − 起點
+    expect(byCal.days).toBe(byDaily.days);
+    // 金額與報酬率不受計日方式影響
+    expect(byDaily.abs).toBe(naive.abs);
+    expect(byDaily.pct).toBe(naive.pct);
+  });
+  it('交易日曆計數跳過週末與休市日：9/24 → 10/2 只有 4 個交易日', () => {
+    expect(cal.tradingDaysBetween('2026-09-24', '2026-10-02')).toBe(4);
+    expect(countDatesBetween(daily, '2026-09-24', '2026-10-02')).toBe(4);
   });
 });

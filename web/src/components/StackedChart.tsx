@@ -11,6 +11,7 @@ import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { niceScale } from '../lib/scale';
 import { segments } from '../lib/series';
 import { dirClass } from '../lib/format';
+import { useReadout } from './Viz';
 
 export interface ChartSeries {
   key: string;
@@ -52,7 +53,10 @@ function monthTicks(dates: string[]): { i: number; label: string }[] {
 export function StackedChart({ dates, panels, label }: { dates: string[]; panels: ChartPanel[]; label: string }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(340);
-  const [hover, setHover] = useState<number | null>(null);
+  // 讀值：滑鼠移開即清除；手指放開後保留 3 秒（與 NetBars 相同）
+  const read = useReadout();
+  const hover = read.idx;
+  const setHover = read.set;
   const n = dates.length;
 
   useLayoutEffect(() => {
@@ -82,12 +86,13 @@ export function StackedChart({ dates, panels, label }: { dates: string[]; panels
   const onPointer = (e: PointerEvent) => {
     if (e.pointerType === 'mouse' || e.buttons || e.type === 'pointerdown') setHover(idxAt(e.clientX));
   };
+  const onUp = (e: PointerEvent) => { if (e.pointerType !== 'mouse') read.release(e); };
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       e.preventDefault();
       const cur = hover ?? n;
       setHover(Math.max(0, Math.min(n - 1, cur + (e.key === 'ArrowLeft' ? -1 : 1))));
-    } else if (e.key === 'Escape') setHover(null);
+    } else if (e.key === 'Escape') read.clear();
   };
 
   const months = monthTicks(dates);
@@ -95,8 +100,8 @@ export function StackedChart({ dates, panels, label }: { dates: string[]; panels
     <figure class="stacked">
       <div ref={wrapRef} class="stacked-plot" tabIndex={0} role="img"
         aria-label={`${label}：${dates[0]} 到 ${dates[n - 1]}，共 ${n} 個資料點；面板：${panels.map((p) => p.title).join('、')}。可用左右方向鍵逐日查看，逐日數值見下方表格。`}
-        onPointerDown={onPointer} onPointerMove={onPointer} onPointerLeave={() => setHover(null)} onPointerCancel={() => setHover(null)}
-        onKeyDown={onKey} onBlur={() => setHover(null)}>
+        onPointerDown={onPointer} onPointerMove={onPointer} onPointerUp={onUp} onPointerLeave={read.release} onPointerCancel={read.release}
+        onKeyDown={onKey} onBlur={read.clear}>
         <svg width={w} height={totalH} viewBox={`0 0 ${w} ${totalH}`} aria-hidden="true">
           {panels.map((p, pi) => {
             const top = tops[pi];

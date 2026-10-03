@@ -101,15 +101,17 @@ def run_taifex(ctx: RunContext, start: date, end: date) -> None:
                 ctx.note(source, "no_data", data_date=b, message="區間內沒有交易日")
             else:
                 ctx.note(source, "ok", data_date=_max_date(df), rows=len(df))
-        try:
-            fx = advanced.parse_fx(_post(ctx, "fx_usdtwd", a, b)).df
-            if fx.empty and has_trading:
-                ctx.note("fx_usdtwd", "failed", data_date=b, message="查無資料（區間內有交易日但 0 筆）")
-            else:
-                _upsert_by_month(ctx, "fx_usdtwd", fx, ["date"])
-                ctx.note("fx_usdtwd", "ok", data_date=_max_date(fx), rows=len(fx))
-        except SOURCE_ERRORS as exc:
-            ctx.note("fx_usdtwd", "failed", data_date=b, message=err_text(exc)[:300])
+        # 單一區間查詢（不分商品）：匯率、選擇權 Put/Call 比（M2 2026-10-03）
+        for source, parse in (("fx_usdtwd", advanced.parse_fx), ("taifex_pc", advanced.parse_taifex_pc)):
+            try:
+                df = parse(_post(ctx, source, a, b)).df
+                if df.empty and has_trading:
+                    ctx.note(source, "failed", data_date=b, message="查無資料（區間內有交易日但 0 筆）")
+                else:
+                    _upsert_by_month(ctx, source, df, ["date"])
+                    ctx.note(source, "ok", data_date=_max_date(df), rows=len(df))
+            except SOURCE_ERRORS as exc:
+                ctx.note(source, "failed", data_date=b, message=err_text(exc)[:300])
         m = next_month(m)
 
 
@@ -555,13 +557,18 @@ def active_etf_names(ctx: RunContext) -> dict[str, str]:
 
 
 class _EtfFetcher:
-    """依投信呼叫對應端點；群益、國泰需要先查「ETF 代號 → 內部基金代碼」，每輪只查一次。"""
+    """依投信呼叫對應端點；群益、國泰需要先查「ETF 代號 → 內部基金代碼」，每輪只查一次；
+    凱基、第一金、復華的官網沒有可解析的代號清單，內部基金代碼改在 config（issuers.*.funds）維護。"""
 
     def __init__(self, ctx: RunContext, issuers: dict[str, dict[str, Any]]):
         self.ctx = ctx
         self.issuers = issuers
         self._maps: dict[str, dict[str, str]] = {}
         self.list_failed: set[str] = set()
+
+    def _config_fund(self, issuer: str, etf: str) -> str | None:
+        funds = self.issuers[issuer].get("funds") or {}
+        return str(funds[etf]) if etf in funds else None
 
     def _fund_map(self, issuer: str) -> dict[str, str]:
         from pipeline.sources import etf_holdings as eh
@@ -608,6 +615,27 @@ class _EtfFetcher:
             if fund is None:
                 return ParseResult(pd.DataFrame(), no_data=True, message=f"國泰基金清單沒有 {etf}")
             return eh.parse_cathay(_fetch(self.ctx, url.format(fund=fund, slash=slash(day))), etf, day)
+        if issuer == "taishin":
+            # DataDate＝申購買回清單適用日；不帶＝網站最新一份
+            q = url.format(etf=etf) + (f"&DataDate={d.isoformat()}" if d else "")
+            return eh.parse_taishin(_fetch(self.ctx, q), etf)
+        if issuer == "ab":
+            # date＝持股日；不帶＝最新
+            q = url.format(isin=eh.isin_of(etf)) + (f"?date={d.isoformat()}" if d else "")
+            return eh.parse_ab(_fetch(self.ctx, q), etf)
+        if issuer in ("kgi", "fsitc", "fhtrust"):
+            fund = self._config_fund(issuer, etf)
+            if fund is None:
+                return ParseResult(pd.DataFrame(), no_data=True, message=f"{cfg['label']}：config 的 funds 沒有 {etf}")
+            if issuer == "kgi":
+                # jQuery .load 的局部頁面：POST 表單；queryDate＝清單適用日，空字串＝最新
+                form = {"fundID": fund, "queryDate": slash(d) if d else ""}
+                return eh.parse_kgi(self.ctx.client.post_bytes(url, form), etf)
+            if issuer == "fsitc":
+                # ASP.NET WebMethod：POST JSON；pStrDate＝公告日，空字串＝最新
+                body = {"pStrFundID": fund, "pStrDate": slash(d) if d else ""}
+                return eh.parse_fsitc(self.ctx.client.post_json(url, body), etf)
+            return eh.parse_fhtrust(_fetch(self.ctx, url.format(fund=fund, ymd=day.strftime("%Y%m%d"))), etf)
         raise ParseError(f"未實作的投信：{issuer}")
 
 

@@ -104,7 +104,7 @@ export default function Methodology() {
       </Section>
 
       <Section title="交易成本">
-        <p class="small">手續費 {(costsConfig.commission.rate * 100).toFixed(4)}%（買賣各一次）× 折扣 {costsConfig.commission.discount}，最低 {costsConfig.commission.minimum} 元（可在設定關閉）；證交稅於賣出時收取：股票 {(costsConfig.tax.stock * 100).toFixed(1)}%、ETF {(costsConfig.tax.etf * 100).toFixed(1)}%。</p>
+        <p class="small">手續費 {(costsConfig.commission.rate * 100).toFixed(4)}%（買賣各一次）× 折扣 {costsConfig.commission.discount}，最低 {costsConfig.commission.minimum} 元（可在設定關閉）；證交稅於出場時收取：股票 {(costsConfig.tax.stock * 100).toFixed(1)}%、ETF {(costsConfig.tax.etf * 100).toFixed(1)}%。</p>
       </Section>
 
       <Section title="部位大小與期望值">

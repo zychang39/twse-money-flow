@@ -57,6 +57,11 @@
   /* 底部導覽下緣的留白＝safe-area（瀏覽器模式；Safari 網址列就在下方） */
   --dock-pad: var(--safe-bottom);
   --dock-h: calc(var(--tabbar-h) + var(--dock-pad)); /* 底部導覽實際佔用的高度 */
+  /* 每一頁底部要留的空間＝導覽列＋safe-area＋16px：最後一段內容（頁尾免責聲明）完整露出在導覽列上方 */
+  --dock-clear: var(--dock-h); /* 內容底部留白＝導覽列高度（e2e ux-fixes 規則 1）；頁尾自己的下邊距 --s-4 提供呼吸空間 */
+  /* 基準分段控制列（.bench-bar）的實際高度：上下內距 4+4、分段控制內距 3+3、按鈕 44 ＝ 58px。
+     sticky 表頭（.ev-sticky）與標題的 scroll-margin-top 都以它為準，不再寫魔術數字 */
+  --bench-h: calc(var(--tap) + 2 * 0.1875rem + 2 * var(--s-1));
   --content-max: 40rem;
 
   /* ---------- 淺色 ---------- */
@@ -69,6 +74,12 @@
   --text-1: #0b0b0d;
   --text-2: rgba(40, 40, 48, 0.72);
   --text-3: rgba(40, 40, 48, 0.30);   /* 只用於裝飾（基準虛線、軌道），不用於文字 */
+  /* 四級灰階墨色（圖形用，不是文字色）：分數四環、紀律三環、籌碼結構比例條。
+     每一級對 bg／surface-1／surface-2 都 ≥ 3:1（WCAG 非文字對比），相鄰兩級對比 ≥ 1.5:1 才分得出來；scripts/contrast.py 檢查 */
+  --ink-1: #0b0b0d;
+  --ink-2: #3a3a42;
+  --ink-3: #5c5c66;
+  --ink-4: #7c7c86;
   --up: #b81f15;
   --down: #066b34;
   --up-tint: rgba(204, 36, 25, 0.10);
@@ -138,6 +149,10 @@
     --text-1: #f5f5f7;
     --text-2: rgba(235, 235, 245, 0.64);
     --text-3: rgba(235, 235, 245, 0.30);
+    --ink-1: #f5f5f7;
+    --ink-2: #c0c0c8;
+    --ink-3: #96969e;
+    --ink-4: #70707a;
     --up: #ff6656;
     --down: #2ed47a;
     --up-tint: rgba(255, 92, 77, 0.16);
@@ -184,6 +199,10 @@
   --text-1: #f5f5f7;
   --text-2: rgba(235, 235, 245, 0.64);
   --text-3: rgba(235, 235, 245, 0.30);
+  --ink-1: #f5f5f7;
+  --ink-2: #c0c0c8;
+  --ink-3: #96969e;
+  --ink-4: #70707a;
   --up: #ff6656;
   --down: #2ed47a;
   --up-tint: rgba(255, 92, 77, 0.16);

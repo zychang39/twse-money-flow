@@ -4,7 +4,7 @@
  */
 import { AppVersion } from '../components/AppVersion';
 import { PageHead, TopBar } from '../components/Chrome';
-import { ErrorState, Loading } from '../components/DataStatus';
+import { AsOf, ErrorState, Loading } from '../components/DataStatus';
 import { useAsync } from '../hooks';
 import { loadHealth, loadMeta } from '../data/api';
 import type { HealthSource } from '../data/types';
@@ -36,7 +36,10 @@ export default function Health() {
   return (
     <div class="page">
       <TopBar back="/" avatar={false} />
-      <PageHead eyebrow="我的" title={health.data ? healthConclusion(health.data.sources) : '資料健康'} />
+      <PageHead eyebrow="我的" title={health.data ? healthConclusion(health.data.sources) : '資料健康'}>
+        {/* M1-4：各資料集各自的資料日（頁首「市場最新交易日」只是收盤行情的日期） */}
+        <AsOf keys={['quotes', 'insti', 'credit', 'valuation', 'tdcc', 'etf_holdings', 'revenue', 'financials', 'taifex']} />
+      </PageHead>
       {health.error ? <ErrorState error={health.error} /> : null}
       {health.loading ? <Loading /> : null}
       {health.data ? (
@@ -46,6 +49,7 @@ export default function Health() {
             <div class="row between small muted"><span>歷史資料</span><span>{health.data.first_date ?? '—'} 起，共 {health.data.trading_days} 個交易日</span></div>
             <div class="row between small muted"><span>衍生資料產生時間</span><span>{meta.data?.generated_at?.replace('T', ' ').slice(0, 16) ?? '—'}</span></div>
             <div class="small muted"><AppVersion /></div>
+            <a class="list-item small" href="#/me/data" style={{ minHeight: 'var(--tap)', padding: 'var(--s-2) 0' }}>資料狀態：每個資料集的最新日、應有日、涵蓋率、回補進度</a>
             {health.data.closed_days.length ? <div class="small muted">臨時休市（無行情）：{health.data.closed_days.join('、')}</div> : null}
           </div>
           {(['core', 'advanced', 'optional'] as const).map((tier) => (

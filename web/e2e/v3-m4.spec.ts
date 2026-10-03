@@ -42,8 +42,8 @@ test('兩指：兩條垂直標線＋上方兩個日期、漲跌、報酬率、�
   await expect(tip).not.toHaveText(first!);
   const days2 = Number((await tip.textContent())!.match(/(\d+) 個交易日/)![1]);
   expect(days2).toBeGreaterThan(days1);
-  // 主角數字不受影響（不是單指查價）
-  await expect(page.locator('.hero-change').first()).toContainText('今日');
+  // 主角數字不受影響（不是單指查價）：標籤仍是資料日（M/D），不是手指所在的日期
+  await expect(page.getByTestId('hero-change-date').first()).toHaveText(/^\d{1,2}\/\d{1,2}$/);
   await touch(cdp, 'touchEnd', []);
   await page.waitForTimeout(1000);
   await expect(tip).toBeVisible(); // 放開後仍保留

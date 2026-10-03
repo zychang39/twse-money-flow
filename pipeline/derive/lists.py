@@ -41,12 +41,30 @@ def hot_momentum(rows: Sequence[Mapping[str, Any]], cfg: Mapping[str, Any] | Non
         warn = sum(1 for f in flags if isinstance(f, Mapping) and f.get("level") != "danger")
         if danger > int(c["max_danger_flags"]) or warn > int(c["max_warn_flags"]):
             continue
+        # M2（2026-10-03）：每檔列實際數值，並標記處置／注意股、20 日乖離過大、漲停、流動性不足
+        gap = _num(r.get("ma20_gap"))
+        chg = _num(r.get("change_pct"))
+        val = _num(r.get("value_million"))
+        marks: list[str] = []
+        for f in flags:
+            if isinstance(f, Mapping) and f.get("id") in ("disposition", "attention"):
+                marks.append(str(f.get("label")))
+        if gap is not None and gap > float(c.get("mark_bias_above", 20)):
+            marks.append(f"20 日乖離 {gap:+.1f}%")
+        if chg is not None and chg >= float(c.get("mark_limit_up_pct", 9.5)):
+            marks.append("漲停")
+        if val is not None and val < float(c.get("mark_low_value_million", 100)):
+            marks.append("流動性不足")
         picked.append(
             {
                 "code": code,
                 "name": r.get("name"),
                 "rs_percentile": round(rs, 1),
                 "value_rank": rank[code],
+                "value_million": val,
+                "change_pct": chg,
+                "ma20_gap": None if gap is None else round(gap, 2),
+                "marks": marks,
                 "reason": f"成交值第 {rank[code]} 名・RS 百分位 {rs:.0f}",
             }
         )
@@ -60,6 +78,9 @@ def hot_momentum(rows: Sequence[Mapping[str, Any]], cfg: Mapping[str, Any] | Non
             "max_danger_flags": int(c["max_danger_flags"]),
             "size": int(c["size"]),
             "exclude_etf": bool(c.get("exclude_etf", True)),
+            "mark_bias_above": float(c.get("mark_bias_above", 20)),
+            "mark_limit_up_pct": float(c.get("mark_limit_up_pct", 9.5)),
+            "mark_low_value_million": float(c.get("mark_low_value_million", 100)),
         },
         "items": picked[: int(c["size"])],
     }

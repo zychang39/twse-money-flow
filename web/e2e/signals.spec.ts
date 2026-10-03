@@ -13,7 +13,7 @@ test('S1／S5 回測頁：說明訊號定義、資料涵蓋、各股訊號數，
   await expect(cov).toContainText('千張大戶週變化');
   await expect(cov.getByText(/訊號來自哪些股票/)).toBeVisible();
   const cmp = page.getByTestId('bt-exit-compare');
-  await expect(cmp).toContainText('停損 -7%');
+  await expect(cmp).toContainText('停損 −7.00%'); // 2026-10-02 健檢 M1-3：百分比一律 2 位小數、負號用 −
   await expect(cmp).toContainText('跌破 20 日線');
   await expect(cmp).toContainText('每天符合');
 });

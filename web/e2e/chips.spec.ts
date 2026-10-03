@@ -106,7 +106,7 @@ test('每日籌碼：M3 一律完整千分位整數張（不縮寫、不帶小�
   const h = await region.locator('tbody tr.day').first().evaluate((el) => el.getBoundingClientRect().height);
   expect(h).toBeGreaterThanOrEqual(44);
   const btn = region.locator('tbody tr.day').first().getByRole('button');
-  await expect(btn).toHaveAttribute('aria-label', /^\d+ 月 \d+ 日，外資(買超|賣超|持平)( [\d,]+ 張)?，投信.+，自營商（自行買賣）.+，三大法人合計.+；收盤 [\d,.]+ 元/);
+  await expect(btn).toHaveAttribute('aria-label', /^\d+ 月 \d+ 日，外資(買超|賣超|持平)( [\d,]+ 張)?，投信.+，自營商（自行＋避險）.+，三大法人合計.+；收盤 [\d,.]+ 元/);
 });
 
 test('每日籌碼：點一列從底部拉出當天完整資料（含自營商避險、成交量、官方來源、複製這天資料）', async ({ page, context }) => {

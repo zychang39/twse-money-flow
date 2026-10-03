@@ -164,13 +164,14 @@ test.describe('M1-4 深淺色', () => {
 });
 
 test.describe('M1-5 個股頁期間', () => {
-  test('沒有 1D、預設 1Y；主角數字下方有「今日」與「所選期間」兩行', async ({ page }) => {
+  test('沒有 1D、預設 1Y；主角數字下方有「資料日（M/D）」與「所選期間」兩行', async ({ page }) => {
     await page.goto('#/stock/2330');
     const group = page.getByRole('group', { name: '股價走勢期間' }).first();
     await expect(group.getByRole('button', { name: /^1D/ })).toHaveCount(0);
     await expect(group.getByRole('button', { name: /^1Y/ })).toHaveAttribute('aria-pressed', 'true');
     const hero = page.locator('.hero-block').first();
-    await expect(hero.locator('.hero-change').first()).toContainText('今日');
+    // 2026-10-02 健檢：第一行的標籤是資料日（M/D），不再是「今日」字樣
+    await expect(hero.getByTestId('hero-change-date').first()).toHaveText(/^\d{1,2}\/\d{1,2}$/);
     await expect(hero.getByTestId('hero-period-change')).toContainText('近 1 年');
     await group.getByRole('button', { name: /^3M/ }).click();
     await expect(hero.getByTestId('hero-period-change')).toContainText('近 3 個月');

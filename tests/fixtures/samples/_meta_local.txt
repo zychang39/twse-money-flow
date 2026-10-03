@@ -48,3 +48,5 @@ etf_cathay_EA.json|GET FundCode=EA&SearchDate=2026/09/24（00400A；裁切為前
 etf_cathay_nodata.json|GET FundCode=EA&SearchDate=2026/09/26（非交易日）|https://cwapi.cathaysite.com.tw/api/ETF/GetETFDetailStockList|200
 tpex_pe_hist.json|GET|https://www.tpex.org.tw/www/zh-tw/afterTrading/peQryDate?date=2024%2F01%2F02&id=&response=json|200 57692
 tdcc_qryStock_3406.html|POST|https://www.tdcc.com.tw/portal/zh/smWeb/qryStock（scaDate=20250926&stockNo=3406；裁切保留表單與結果表格）|200 76780
+twse_MI_5MINS_INDEX.json|GET|https://www.twse.com.tw/exchangeReport/MI_5MINS_INDEX?response=json&date=20261002|200 裁切：3241 列保留 17 列（09:00:00～09:01:05、13:29:50～13:30:00），欄位結構不變|2026-10-03
+taifex_pcRatio.csv|POST queryStartDate=2026%2F09%2F01&queryEndDate=2026%2F09%2F24（裁切：18 列保留前 8 列，Big5、CRLF、每列結尾多一個逗號）|https://www.taifex.com.tw/cht/3/pcRatioDown|200 1025|2026-10-03

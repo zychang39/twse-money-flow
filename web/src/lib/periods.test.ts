@@ -66,3 +66,16 @@ describe('v3 M5：10Y 與週線取樣', () => {
     expect(WEEKLY_PERIODS).toEqual(['10Y', 'ALL']);
   });
 });
+
+describe('首頁 1D 盤中視窗（M2，2026-10-03）', async () => {
+  const { intradayWindow, windowDayChange } = await import('./periods');
+  it('dates 為「日期T時:分」，日漲跌仍用日資料（只比對日期）', () => {
+    const intra = { date: '2026-10-02', points: [{ t: '09:00', v: 100 }, { t: '09:01', v: 101 }, { t: '13:30', v: 103 }] };
+    const w = intradayWindow(intra, { dates: ['2026-10-01', '2026-10-02'], values: [98, 103] })!;
+    expect(w.dates).toEqual(['2026-10-02T09:00', '2026-10-02T09:01', '2026-10-02T13:30']);
+    expect(w.values).toEqual([100, 101, 103]);
+    expect(windowDayChange(w)!.abs).toBe(5); // 103 − 98（日資料），不是視窗內 103 − 100
+    expect(intradayWindow(null, null)).toBeNull();
+    expect(intradayWindow({ date: '2026-10-02', points: [] }, null)).toBeNull();
+  });
+});

@@ -544,6 +544,7 @@ def evaluate(
     uni_rows = np.asarray(ev.dates) >= str(c["price_start"])
     meta = {
         "coverage_weekly": weekly,
+        "coverage_backfill": backfill_note(weekly.get("whale") or [], getattr(ev, "backfill", {}) or {}),
         "coverage_rule": {
             "limited": float(c["verdict"]["coverage_ratio"]),
             "full": float(c["verdict"].get("coverage_full", 0.9)),
@@ -555,7 +556,24 @@ def evaluate(
         "universe_daily_avg": int(uni[uni_rows].sum(axis=1).mean()),
         "bench": "加權報酬指數" if mk.bench_is_tr else "加權指數（取不到報酬指數）",
         "regime_share": round(float(mk.regime_up[uni_rows].mean()), 4),
-        "config": {k: c[k] for k in ("universe", "entry", "horizons", "primary_horizon", "stats", "verdict")},
+        # 2026-10-02 健檢：分級（grading）與波段門檻（swing_gates）也輸出，前端的門檻文字從這裡讀，不寫死
+        "config": {
+            k: c[k]
+            for k in (
+                "universe",
+                "entry",
+                "horizons",
+                "primary_horizon",
+                "secondary_horizon",
+                "stats",
+                "verdict",
+                "grading",
+                "swing_gates",
+                "t_corr",
+                "curve",
+            )
+            if k in c
+        },
         "seconds": round(time.monotonic() - t0),
         "tests": len(rows),
         "price_start": str(c["price_start"]),
@@ -576,6 +594,30 @@ def evaluate(
         # 策略庫（M2）用的中間結果：不寫入 JSON
         "_ctx": {"ev": ev, "mk": mk, "uni": uni, "tests": keep, "cfg": c, "catalog": tests},
     }
+
+
+def backfill_note(weekly: list[dict[str, Any]], bf: dict[str, Any]) -> str | None:
+    """2026-10-02 健檢 M2：千張大戶涵蓋率「從 100% 斷崖掉到 3%」的原因寫在圖下方。
+
+    不是程式退化：集保只公布「本週」全市場（tdcc_holders，自 2026-09-24 起每週存檔），更早的週要用個股歷史查詢
+    （tdcc_history，官方只保存一年、每檔一次請求）逐週回補；回補由舊到新進行，所以已回補的週接近 100%、尚未回補的週只有
+    原本 31 檔（約 3–5%）。這裡寫出已回補的週區間、尚未回補的週數與預計完成時間（manifest holders_backfill）。
+    """
+    if not weekly:
+        return None
+    full = [w for w in weekly if w.get("ratio", 0) >= 0.9]
+    low = [w for w in weekly if w.get("ratio", 0) < 0.5]
+    parts: list[str] = []
+    if full:
+        parts.append(f"已回補 {full[0]['date']}～{full[-1]['date']}（{len(full)} 週，涵蓋率 ≥ 90%）")
+    if low:
+        parts.append(f"{low[0]['date']}～{low[-1]['date']} 共 {len(low)} 週只有原 31 檔（涵蓋率 < 50%）")
+    if bf.get("eta"):
+        parts.append(
+            f"回補進行中（{bf.get('codes', '—')} 檔、已完成 {bf.get('done', '—')} 次查詢），預計 {str(bf['eta'])[:16]} 完成"
+        )
+    parts.append("集保個股歷史查詢只保存一年，一年以前的週別無法取得；全市場週檔自 2026-09-24 起每週存檔")
+    return "涵蓋率落差是回補順序（由舊到新），不是資料錯誤：" + "；".join(parts) + "。"
 
 
 def hindsight(

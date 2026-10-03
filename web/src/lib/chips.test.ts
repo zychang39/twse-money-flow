@@ -17,6 +17,7 @@ import {
   colUnit,
   colValue,
   compactNum,
+  concentration,
   dayText,
   rowSentence,
   streakText,
@@ -91,6 +92,18 @@ describe('chips：真實 T86 樣本（台積電 2330，2026-09-24）', () => {
     const r = t86Row('2330');
     expect(r.foreign + r.foreignDealer + r.trust + r.dealer).toBe(r.total);
     expect(r.foreignDealer).toBe(0); // 該日無外資自營商交易，所以「外資」＝外陸資（不含外資自營商）
+  });
+
+  it('每日籌碼法人表：外資 ＋ 投信 ＋ 自營商（自行＋避險）＝ 三大法人合計（−4,668 − 1,288 ＋ 243 ＝ −5,713）', () => {
+    const all = chipRows(block2330());
+    const rows = recent(all, 1);
+    const [f, t, d, tot] = VIEW_COLS.insti;
+    const v = (c: typeof f) => colTotal(rows, all, c, 'lots')!;
+    expect(d.key).toBe('dealer');
+    expect(Math.round(v(f)) + Math.round(v(t)) + Math.round(v(d))).toBe(Math.round(v(tot)));
+    expect(Math.round(v(d))).toBe(243); // 自行 176 ＋ 避險 67
+    // 以股計完全相等（合計一律先以股相加再換算）
+    expect(v(f) + v(t) + v(d)).toBeCloseTo(v(tot), 9);
   });
 
   it('自營商＝自行買賣＋避險：以股計 176,000 ＋ 66,701 ＝ 242,701（＝243 張）', () => {
@@ -178,7 +191,39 @@ describe('chips：區間合計、連續天數、估計成本', () => {
     expect(text).toBe('近 3 日外資買超佔成交量 5.0%，投信連 3 日賣超。');
     expect(text).not.toMatch(/買進|賣出|建議|大舉|狂/);
     const one = rangeSentence(rangeStats(b, 1, null), { days: 60, table_periods: [], table_default: 10, stats_periods: [], stats_default: 5, sentence_min_pct: 50, streak_min: 3 });
-    expect(one).toBe('最近一個交易日外資、投信、自營商（自行買賣）的買賣超都不到成交量的 50%，投信連 3 日賣超。');
+    expect(one).toBe('最近一個交易日外資、投信、自營商（自行買賣）、自營商（避險）的買賣超都不到成交量的 50%，投信連 3 日賣超。');
+    // 合計欄是各法人之和，不參與「佔成交量最大」與「連續天數」的挑選（否則永遠是合計）
+    expect(text).not.toContain('三大法人合計');
+  });
+
+  it('區間統計 5 欄：自營商拆成自行／避險，另有三大法人合計（佔成交量也算）；手算 3 日合計 200,000 ÷ 5,000,000 ＝ 4%', () => {
+    const s = rangeStats(b, 3, 10_000_000);
+    expect(s.parties.map((p) => p.key)).toEqual(['foreign', 'trust', 'dealerSelf', 'dealerHedge', 'total']);
+    expect(s.parties.map((p) => p.label)).toEqual(['外資', '投信', '自營商（自行買賣）', '自營商（避險）', '三大法人合計']);
+    const by = Object.fromEntries(s.parties.map((p) => [p.key, p]));
+    expect(by.dealerSelf.lots).toBe(8); // 3,000 ＋ 5,000 ＋ 0 股
+    expect(by.dealerHedge.lots).toBe(2); // 2,000 股
+    expect(by.dealerHedge.pctVolume).toBeCloseTo((2_000 / 5_000_000) * 100, 10);
+    expect(by.total.lots).toBe(200); // 95,000 − 65,000 ＋ 170,000 股
+    expect(by.total.pctVolume).toBeCloseTo(4, 10);
+    expect(by.total.pctCapital).toBeCloseTo(2, 10); // 200,000 ÷ 10,000,000
+    expect(by.total.streak).toBe(1); // d3 買超、d2 賣超 → 連買 1 日
+    expect(by.dealerHedge.streak).toBe(0); // 最新一天為 0
+  });
+
+  it('法人集中度（非分點）＝三大法人合計淨買賣超 ÷ 同期成交量；資料不足時寫出實際日數', () => {
+    const c = concentration(b, [1, 3, 60]);
+    expect(c.map((x) => x.days)).toEqual([1, 3, 60]);
+    expect(c[0].pct).toBeCloseTo((170_000 / 2_000_000) * 100, 10); // 8.5%
+    expect(c[1].pct).toBeCloseTo(4, 10);
+    expect(c[1]).toMatchObject({ available: 3, withData: 3, start: 'd1', end: 'd3' });
+    expect(c[2]).toMatchObject({ available: 3, withData: 3 }); // 只有 3 日資料：60 日 ＝ 3 日的數字，前端註明「目前只有 3 日」
+    expect(c[2].pct).toBeCloseTo(4, 10);
+    // 沒有法人資料的日子不計入分母
+    const b2: ChipBlock = { ...b, tot: [0, null, -65_000, 170_000] };
+    expect(concentration(b2, [3])[0]).toMatchObject({ withData: 2, available: 3 });
+    expect(concentration(b2, [3])[0].pct).toBeCloseTo((105_000 / 3_000_000) * 100, 10);
+    expect(concentration({ ...b, tot: [0, null, null, null] }, [3])[0].pct).toBeNull();
   });
 
   it('CSV：標題帶單位、第一列為區間合計、數字不含千分位', () => {
@@ -228,7 +273,8 @@ describe('每日籌碼：三種檢視、單位、縮寫與無障礙句子', () =
 
   it('每種檢視固定 4 欄；單位名稱是「佔成交量 %」（不是「估」）', () => {
     for (const v of ['insti', 'credit', 'sbl'] as const) expect(VIEW_COLS[v]).toHaveLength(4);
-    expect(VIEW_COLS.insti.map((c) => c.full)).toEqual(['外資', '投信', '自營商（自行買賣）', '三大法人合計']);
+    // 2026-10-02 健檢：自營商欄＝自行買賣＋避險（官方自營商合計），外資＋投信＋自營商才等於三大法人合計
+    expect(VIEW_COLS.insti.map((c) => c.full)).toEqual(['外資', '投信', '自營商（自行＋避險）', '三大法人合計']);
     expect(VIEW_COLS.credit.map((c) => c.label)).toEqual(['融資增減', '融券增減', '融資餘額', '券資比']);
     expect(VIEW_COLS.sbl.map((c) => c.label)).toEqual(['借券賣出', '借券賣出餘額', '當沖比率', '當沖量']);
     expect(UNIT_NAME.pct).toBe('佔成交量 %');
@@ -271,8 +317,8 @@ describe('每日籌碼：三種檢視、單位、縮寫與無障礙句子', () =
   it('M3 表格格式：混合大小值（外資 −46,680、投信 315）→ 全部千分位整數張，單位只寫「張」，不出現 ▲0', () => {
     const f = col('foreign');
     const t = col('trust');
-    const d = col('dealerSelf');
-    const fmts = tableFormats({ foreign: [-46_680, -4_668, 315, -78, 0], trust: [1_234, -12], dealerSelf: [5] }, [f, t, d], 'lots');
+    const d = col('dealer');
+    const fmts = tableFormats({ foreign: [-46_680, -4_668, 315, -78, 0], trust: [1_234, -12], dealer: [5] }, [f, t, d], 'lots');
     expect(fmts.trust).toEqual({ digits: 0 });
     expect(fmts.foreign).toEqual({ digits: 0 });
     expect(tableUnitLabel('lots', fmts, ['insti'])).toBe('張');
@@ -340,7 +386,7 @@ describe('每日籌碼：三種檢視、單位、縮寫與無障礙句子', () =
 
   it('VoiceOver 完整句子：「9 月 24 日，外資賣超 485 張…；收盤 176 元，下跌 2.22%」', () => {
     const s = rowSentence(rows[0], VIEW_COLS.insti, 'lots');
-    expect(s).toBe('9 月 24 日，外資賣超 485 張，投信買超 12 張，自營商（自行買賣）賣超 3 張，三大法人合計賣超 476 張；收盤 176 元，下跌 2.22%');
+    expect(s).toBe('9 月 24 日，外資賣超 485 張，投信買超 12 張，自營商（自行＋避險）賣超 3 張，三大法人合計賣超 476 張；收盤 176 元，下跌 2.22%');
     expect(rowSentence(rows[0], VIEW_COLS.credit, 'lots')).toContain('融資減少 100 張，融券減少 70 張，融資餘額 1,200 張，券資比 5.0%');
     expect(cellPhrase(colValue(rows[0], col('foreign'), 'pct'), col('foreign'), 'pct')).toBe('外資賣超佔成交量 12.13%');
   });
@@ -349,7 +395,10 @@ describe('每日籌碼：三種檢視、單位、縮寫與無障礙句子', () =
     const t = dayText(rows[0], 'lots', { code: '2330', name: '台積電' });
     expect(t.split('\n')[0]).toBe('台積電 2330 2026-09-24');
     expect(t).toContain('外資(張)\t-485');
+    // 底部面板保留自行／避險拆分，另有合計欄
+    expect(t).toContain('自營商（自行買賣）(張)\t-3');
     expect(t).toContain('自營商（避險）(張)\t0');
+    expect(t).toContain('自營商（自行＋避險）(張)\t-3');
     expect(t).toContain('當沖比率(%)\t30.00');
     expect(t).toContain('成交量(張)\t4000');
   });

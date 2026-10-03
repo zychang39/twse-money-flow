@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { HealthSource } from '../data/types';
-import { PAGE_SOURCES, affectedFor, describeSource, healthConclusion, siteName } from './health';
+import { PAGE_SOURCES, affectedFor, asofSummary, describeSource, healthConclusion, siteName } from './health';
 
 const base: HealthSource = {
   id: 'tpex_valuation', label: '上櫃本益比', tier: 'core', market: 'tpex', frequency: 'daily', verified: 'verified',
@@ -46,5 +46,21 @@ describe('資料健康白話說明', () => {
     expect(affectedFor(['twse_quotes', 'tpex_valuation'], ['tpex_valuation', 'tdcc_holders'])).toEqual(['tpex_valuation']);
     expect(affectedFor(undefined, ['tpex_valuation'])).toEqual([]);
     expect(affectedFor(['twse_quotes'], ['tdcc_holders'])).toEqual([]);
+  });
+});
+
+describe('各資料集的資料日（M1-4）', () => {
+  const asof = { quotes: '2026-10-02', insti: '2026-10-02', credit: '2026-10-01', tdcc: '2026-09-24', etf_holdings: '2026-10-01', taifex: null };
+  it('每個資料集標自己的日期', () => {
+    expect(asofSummary(asof, ['insti', 'credit', 'tdcc', 'etf_holdings'])).toBe('三大法人 10/2・融資融券 10/1・集保股權分散 9/24・主動式 ETF 持股 10/1');
+  });
+  it('沒有日期的資料集寫原因，不留空破折號', () => {
+    expect(asofSummary(asof, ['taifex'])).toBe('期貨法人 —（尚未取得）');
+    expect(asofSummary(asof, ['quotes', 'sbl'])).toBe('收盤行情 10/2・借券 —（尚未取得）');
+  });
+  it('舊版 meta 沒有 asof → 不顯示這一行', () => {
+    expect(asofSummary(undefined, ['quotes'])).toBeNull();
+    expect(asofSummary(null, ['quotes'])).toBeNull();
+    expect(asofSummary(asof, [])).toBeNull();
   });
 });

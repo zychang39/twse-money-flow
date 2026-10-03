@@ -7,6 +7,15 @@
 import { useRef, useState } from 'preact/hooks';
 import { pctSigned } from '../lib/evidence';
 import { type CurveLine, curveRead } from '../lib/curve';
+import { missing } from '../lib/format';
+
+/** 無障礙說明的峰值與耗盡句：沒有值時寫原因，不輸出「第 — 日」這種半句。 */
+function peakText(peak: number | null | undefined): string {
+  return peak ? `峰值第 ${peak} 日` : `峰值：${missing('曲線資料累積中')}`;
+}
+function exhaustText(exhaust: number | null | undefined): string {
+  return exhaust ? `alpha 耗盡第 ${exhaust} 日` : '60 日內沒有 alpha 耗盡';
+}
 
 export function AlphaCurve({ line, label, n }: { line: CurveLine; label: string; n?: number }) {
   const W = 340, H = 200, padL = 40, padR = 10, padT = 22, padB = 24;
@@ -42,18 +51,27 @@ export function AlphaCurve({ line, label, n }: { line: CurveLine; label: string;
     setK(Math.max(1, Math.min(K, i + 1)));
   };
   const read = k === null ? null : curveRead(line, k);
+  // 標記文字（11px）的寬度估算：中文與符號約 11、數字約 6.2、其餘英文約 6、空白 3；用來畫文字底下的實心底色
+  const textW = (s: string) => [...s].reduce((w, ch) => w + (/[\u3000-\u9fff\uff00-\uffef\u25b2\u25c6]/.test(ch) ? 11 : /\d/.test(ch) ? 6.2 : ch === ' ' ? 3 : 6), 0);
   const mark = (day: number | null | undefined, shape: 'peak' | 'exhaust') => {
     if (!day || line.mean[day - 1] === null || line.mean[day - 1] === undefined) return null;
     const x = sx(day - 1), y = sy(line.mean[day - 1]!);
     const text = shape === 'peak' ? `▲ 峰值 第 ${day} 日` : `◆ alpha 耗盡 第 ${day} 日`;
-    const ty = shape === 'peak' ? Math.max(12, y - 8) : Math.min(H - padB - 4, y + 16);
+    // 峰值標在點的上方、耗盡標在點的下方；都不超出圖的上下緣
+    const ty = shape === 'peak' ? Math.max(12, y - 10) : Math.min(H - padB - 4, y + 18);
+    const w = textW(text);
+    // 文字起點：靠右的點改為向左寫（text-anchor end），並夾在圖的左右緣之內
     const anchor = x > W * 0.6 ? 'end' : 'start';
+    const tx = anchor === 'end' ? Math.max(w + 2, x - 6) : Math.min(W - w - 2, x + 6);
+    const bx = anchor === 'end' ? tx - w - 3 : tx - 3;
     return (
       <g key={shape} data-mark={shape}>
         {shape === 'peak'
           ? <path d={`M${x},${y - 7}L${x - 5},${y + 2}L${x + 5},${y + 2}Z`} fill="var(--text-1)" />
           : <path d={`M${x},${y - 5}L${x + 5},${y}L${x},${y + 5}L${x - 5},${y}Z`} fill="var(--surface-1)" stroke="var(--text-1)" stroke-width="1.5" />}
-        <text x={anchor === 'end' ? x - 6 : x + 6} y={ty} font-size="11" text-anchor={anchor} fill="var(--text-1)">{text}</text>
+        {/* 文字底下墊一塊實心底色：標記落在 95% 灰帶上時，文字仍與帶子分得開 */}
+        <rect x={bx} y={ty - 10.5} width={w + 6} height={14} rx={3} fill="var(--surface-1)" />
+        <text x={tx} y={ty} font-size="11" text-anchor={anchor} fill="var(--text-1)">{text}</text>
       </g>
     );
   };
@@ -66,7 +84,7 @@ export function AlphaCurve({ line, label, n }: { line: CurveLine; label: string;
         width="100%"
         role="img"
         tabindex={0}
-        aria-label={`${label}累積超額曲線：第 10 日 ${pctSigned(line.mean[9] ?? null)}、峰值第 ${line.peak ?? '—'} 日、alpha 耗盡第 ${line.exhaust ?? '—'} 日。可用方向鍵讀值。`}
+        aria-label={`${label}累積超額曲線：第 10 日 ${pctSigned(line.mean[9] ?? null)}、${peakText(line.peak)}、${exhaustText(line.exhaust)}。可用方向鍵讀值。`}
         onPointerDown={(e) => { (e.currentTarget as Element).setPointerCapture?.(e.pointerId); at(e.clientX); }}
         onPointerMove={(e) => { if (e.pointerType === 'mouse' || e.buttons) at(e.clientX); }}
         onPointerLeave={(e) => { if (e.pointerType === 'mouse') setK(null); }}

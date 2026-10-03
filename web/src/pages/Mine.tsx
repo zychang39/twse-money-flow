@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { HotItem, Lists } from '../data/types';
 import { Ambient, PageHead, TopBar } from '../components/Chrome';
-import { DataStatus, EmptyState, ErrorState, Loading } from '../components/DataStatus';
+import { DataStatus, ErrorState, Loading } from '../components/DataStatus';
 import { HeroChart, usePeriod } from '../components/HeroChart';
 import { StockListRow, type RowAction } from '../components/StockRow';
 import { ChangePill } from '../components/Change';
@@ -17,7 +17,7 @@ import { QuickPreview } from '../components/QuickPreview';
 import { Sheet } from '../components/Sheet';
 import { StockSearch } from '../components/StockSearch';
 import { ChecklistSheet, CloseSheet } from '../components/Trades';
-import { IconChevron, IconChevronDown, IconClipboard, IconPlus } from '../components/Icons';
+import { IconChevron, IconChevronDown, IconPlus } from '../components/Icons';
 import { useAsync, useDb, useHistories, useRestoredState } from '../hooks';
 import { loadInactive, loadLists } from '../data/api';
 import { useScoredSummary } from '../data/useSummary';
@@ -31,19 +31,34 @@ import { PERIOD_LABEL, change, sliceWindow } from '../lib/periods';
 import { holdConclusion, mineConclusion } from '../lib/conclusion';
 import { uiConfig } from '../lib/config';
 import { PAGE_SOURCES } from '../lib/health';
-import { diffAll, makeSnapshot, sinceLabel, type Snapshot } from '../lib/changes';
+import { diffAll, makeSnapshot, type Snapshot } from '../lib/changes';
+import { WATCH_SCOPE, snapshotRows, watchRows as watchRowsOf, watchSummary } from '../lib/watchChanges';
 import { holdingAlerts } from '../lib/holdings';
 import { inactiveText } from '../lib/tradeStatus';
 import { parseImport } from '../lib/importer';
 import { baseline, commit, commitHero, heroSeen } from '../lib/seen';
 import { setListContext } from '../lib/listContext';
-import { fmtInt } from '../lib/format';
+import { fmtInt, fmtNum, pctSigned } from '../lib/format';
 import { navigate, useRoute } from '../router';
 
 type Seg = 'watch' | 'hold';
 /** 系統清單的群組 id（不會與使用者群組名稱衝突） */
 const HOT = '\u0000hot';
 type SortKey = 'change' | 'pct' | 'composite' | 'foreign' | 'trust' | 'custom';
+/** 熱門動能清單的排序（M2，2026-10-03）：每檔列實際數值，可依 RS、成交值、20 日乖離、漲跌幅排序 */
+type HotSortKey = 'rs' | 'value' | 'bias' | 'pct';
+const HOT_SORTS: [HotSortKey, string][] = [['rs', 'RS 百分位'], ['value', '成交值'], ['bias', '20 日乖離'], ['pct', '漲跌幅']];
+function hotSorted(items: HotItem[], key: HotSortKey): HotItem[] {
+  const v = (h: HotItem): number => key === 'rs' ? h.rs_percentile : key === 'value' ? h.value_million ?? -Infinity : key === 'bias' ? h.ma20_gap ?? -Infinity : h.change_pct ?? -Infinity;
+  return [...items].sort((a, b) => v(b) - v(a) || a.value_rank - b.value_rank);
+}
+/** 熱門動能每檔的副標：實際數值＋標記 */
+export function hotSub(h: HotItem): string {
+  const parts = [`RS\u00a0${Math.round(h.rs_percentile)}`, `成交值第\u00a0${h.value_rank}\u00a0名`];
+  if (h.value_million !== null && h.value_million !== undefined) parts.push(`${fmtNum(h.value_million / 100, 1)}\u00a0億`);
+  if (h.ma20_gap !== null && h.ma20_gap !== undefined) parts.push(`乖離\u00a0${pctSigned(h.ma20_gap)}`);
+  return parts.join('・');
+}
 const SORTS: [SortKey, string][] = [['change', '依變化'], ['pct', '漲跌幅'], ['composite', '綜合分'], ['foreign', '外資'], ['trust', '投信'], ['custom', '自訂順序']];
 
 function AddWatchSheet({ open, onClose, rows, group, groups }: { open: boolean; onClose: () => void; rows: StockRow[]; group: string; groups: string[] }) {
@@ -173,7 +188,8 @@ function HotHeader({ lists, onCopy, onPick, copied }: { lists: Lists; onCopy: ()
         <span class="caption muted">{mdLabel(lists.date)} 收盤後產生・唯讀</span>
       </div>
       <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>
-        規則：成交值排名前 {r.value_rank_top} 名、RS 百分位 ≥ {r.min_rs_percentile}、沒有危險級風險旗標且注意級最多 {r.max_warn_flags} 個，依 RS 百分位取前 {r.size} 檔{r.exclude_etf ? '（不含 ETF）' : ''}。詳見方法說明。
+        規則：成交值排名前 {r.value_rank_top} 名、RS 百分位 ≥ {r.min_rs_percentile}、沒有危險級風險旗標且注意級最多 {r.max_warn_flags} 個，依 RS 百分位取前 {r.size} 檔{r.exclude_etf ? '（不含 ETF）' : ''}。
+        每檔列出 RS 百分位、成交值排名與金額、20 日乖離；標記處置／注意股、20 日乖離 &gt; {r.mark_bias_above ?? 20}%、漲停（漲幅 ≥ {r.mark_limit_up_pct ?? 9.5}%）、流動性不足（成交值 &lt; {fmtNum((r.mark_low_value_million ?? 100) / 100, 0)} 億）。詳見方法說明。
       </p>
       <div class="row wrap" style={{ gap: 'var(--s-2)', marginTop: 'var(--s-3)' }}>
         <button class="btn small" onClick={onCopy}>複製成我的群組</button>
@@ -202,12 +218,14 @@ export default function Mine() {
   const [moving, setMoving] = useState<WatchItem | null>(null);
   const [showQuiet, setShowQuiet] = useRestoredState('mine.showQuiet', false);
   const [sort, setSort] = useRestoredState<SortKey>('mine.sort', 'change');
+  const [hotSort, setHotSort] = useRestoredState<HotSortKey>('mine.hotSort', 'rs');
   const [snap, setSnap] = useState<Snapshot | null | undefined>(undefined);
   const [seen, setSeen] = useState<number | null | undefined>(undefined);
   const [picking, setPicking] = useState(false);
   const [copied, setCopied] = useState('');
   const lists = useAsync(loadLists, []);
-  useEffect(() => { baseline('mine').then(setSnap); heroSeen('portfolio').then(setSeen); }, []);
+  // M1-1：與今晚頁共用同一個快照範圍（WATCH_SCOPE），兩頁的「自選顯著變化」檔數才會一致
+  useEffect(() => { baseline(WATCH_SCOPE).then(setSnap); heroSeen('portfolio').then(setSeen); }, []);
 
   const byCode = summary.data?.byCode;
   const open = useMemo(() => (user?.trades ?? []).filter((t) => t.status === 'open'), [user]);
@@ -215,7 +233,7 @@ export default function Mine() {
   const watch = user?.watch ?? [];
   const groups = useMemo(() => Array.from(new Set(['預設', ...watch.map((w) => w.group)])), [watch]);
   const watchShown = group === HOT ? [] : watch.filter((w) => group === '全部' || w.group === group);
-  const hotItems = lists.data?.hot_momentum.items ?? [];
+  const hotItems = useMemo(() => hotSorted(lists.data?.hot_momentum.items ?? [], hotSort), [lists.data, hotSort]);
   const watchedSet = useMemo(() => new Set(watch.map((w) => w.code)), [watch]);
   const samples = watch.filter((w) => w.origin === 'sample');
   const hist = useHistories(useMemo(() => [...holdCodes, ...watch.map((w) => w.code)].filter((c, i, a) => a.indexOf(c) === i), [holdCodes, watch]));
@@ -234,9 +252,9 @@ export default function Mine() {
     const codes = seg === 'hold' ? holdCodes : group === HOT ? hotItems.map((h) => h.code) : watchShown.map((w) => w.code);
     return codes.map((c) => byCode.get(c)).filter((r): r is StockRow => !!r);
   }, [byCode, seg, holdCodes, watchShown, group, hotItems]);
-  // 頁首結論以「全部自選」為準（不受群組篩選影響）
-  const watchAll = useMemo(() => (byCode ? watch.map((w) => byCode.get(w.code)).filter((r): r is StockRow => !!r) : []), [byCode, watch]);
-  const watchSig = useMemo(() => (snap === undefined ? 0 : diffAll(watchAll, snap).filter((c) => c.significant).length), [watchAll, snap]);
+  // 頁首結論以「全部自選（不含同時持有的）」為準，與今晚頁同一個函式、同一個快照（M1-1）；不受群組篩選影響
+  const watchSum = useMemo(() => watchSummary(watchRowsOf(watch, user?.trades ?? [], byCode), snap ?? null), [byCode, watch, user, snap]);
+  const watchSig = snap === undefined ? 0 : watchSum.significant.length;
   const changes = useMemo(() => (snap === undefined ? [] : diffAll(rows, snap)), [rows, snap]);
   const ordered = seg === 'hold'
     ? [...changes].sort((a, b) => Number(risky.has(b.code)) - Number(risky.has(a.code)) || Number(b.significant) - Number(a.significant) || b.score - a.score)
@@ -262,8 +280,7 @@ export default function Mine() {
 
   useEffect(() => {
     if (!summary.data || !user || snap === undefined) return;
-    const all = [...holdCodes, ...watch.map((w) => w.code)].map((c) => summary.data!.byCode.get(c)).filter((r): r is StockRow => !!r);
-    commit('mine', makeSnapshot(all, summary.data.date));
+    commit(WATCH_SCOPE, makeSnapshot(snapshotRows(user.watch, user.trades, summary.data.byCode), summary.data.date));
   }, [summary.data, user, snap]);
   const latestValue = series ? series.values[series.values.length - 1] : null;
   useEffect(() => { if (seen !== undefined) commitHero('portfolio', latestValue); }, [seen, latestValue]);
@@ -314,7 +331,8 @@ export default function Mine() {
     }
     if (group === HOT) {
       const h = hotItems.find((x) => x.code === code);
-      return h ? `RS\u00a0${Math.round(h.rs_percentile)}・成交值第\u00a0${h.value_rank}\u00a0名` : '';
+      if (!h) return '';
+      return h.marks?.length ? <span>{hotSub(h)} <span class="tag risk">{h.marks.join('・')}</span></span> : hotSub(h);
     }
     const w = watch.find((x) => x.code === code);
     return w?.origin === 'sample' ? '範例' : w?.group ?? '';
@@ -330,13 +348,17 @@ export default function Mine() {
         <button class="icon-btn" aria-label={seg === 'hold' ? '新增持倉（新增持倉前檢查表）' : '加入自選股'} onClick={() => setAdding(true)}><IconPlus /></button>
       } />
       <PageHead twoLine eyebrow={seg === 'hold' ? '我的持股有沒有出事？' : '自選股出現了什麼新變化？'} title={user && summary.data ? conclusion : '我的股票'} />
-      <DataStatus date={summary.data?.date} uses={PAGE_SOURCES.mine} />
+      <DataStatus date={summary.data?.date} uses={PAGE_SOURCES.mine} asof={['quotes', 'insti', 'credit']} />
       {summary.error ? <ErrorState error={summary.error} /> : null}
 
       <div class="segmented" role="group" aria-label="清單" style={{ marginTop: 'var(--s-5)' }}>
         <button aria-pressed={seg === 'watch'} onClick={() => setSeg('watch')}>自選<span class="count">{watch.length}</span></button>
         <button aria-pressed={seg === 'hold'} onClick={() => setSeg('hold')}>持股<span class="count">{holdCodes.length}</span></button>
       </div>
+      {/* M1-1：與今晚頁相同的比較基準文字，放在自選分段的最上方 */}
+      {seg === 'watch' && user && watch.length && snap !== undefined ? (
+        <p class="caption muted" data-testid="watch-basis" style={{ marginTop: 'var(--s-3)' }}>{watchSum.basis}：{watchSig ? `${watchSig} 檔有顯著變化` : '沒有顯著變化'}；門檻見設定。</p>
+      ) : null}
 
       {seg === 'hold' && !user ? <div style={{ marginTop: 'var(--s-5)' }}><Loading hero /></div> : null}
       {seg === 'hold' && holdCodes.length ? (
@@ -377,17 +399,29 @@ export default function Mine() {
 
       {sortable ? (
         <div class="row between" style={{ marginTop: 'var(--s-4)', alignItems: 'flex-start' }}>
-          <p class="caption muted grow">{sort === 'change' ? `依${sinceLabel(snap ?? null)}的變化排序` : `依${SORTS.find((x) => x[0] === sort)![1]}排序`}・左滑可{seg === 'hold' ? '平倉' : '移除或移到其他群組'}・長按快速預覽</p>
+          <p class="caption muted grow">{sort === 'change' ? `依${watchSum.basis}的變化排序` : `依${SORTS.find((x) => x[0] === sort)![1]}排序`}・左滑可{seg === 'hold' ? '平倉' : '移除或移到其他群組'}・長按快速預覽</p>
           <select class="select sort-select" aria-label="排序" value={sort} onChange={(e) => setSort((e.target as HTMLSelectElement).value as SortKey)}>
             {SORTS.filter(([k]) => seg === 'watch' || k !== 'custom').map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
         </div>
-      ) : group === HOT && rows.length ? <p class="caption muted" style={{ marginTop: 'var(--s-3)' }}>左滑或長按可加入自選</p> : null}
+      ) : group === HOT && rows.length ? (
+        <div class="row between" style={{ marginTop: 'var(--s-4)', alignItems: 'flex-start' }}>
+          <p class="caption muted grow">依{HOT_SORTS.find((x) => x[0] === hotSort)![1]}由高到低・左滑或長按可加入自選</p>
+          <select class="select sort-select" aria-label="熱門動能排序" value={hotSort} onChange={(e) => setHotSort((e.target as HTMLSelectElement).value as HotSortKey)}>
+            {HOT_SORTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        </div>
+      ) : null}
 
       <div class="stock-list">
         {user && seg === 'hold' && !holdCodes.length ? (
-          <EmptyState icon={<IconClipboard />} title="還沒有持倉" text="新增持倉前需要完成新增持倉前檢查表；之後持股的停損與風險旗標會出現在這裡與今晚頁。"
-            action={<button class="btn primary" onClick={() => setAdding(true)}>開始新增持倉前檢查表</button>} />
+          // M1-10：沒有持倉時只佔一列（主要動作就在列上），不用整塊高的空狀態
+          <div class="list">
+            <button class="list-item brand" onClick={() => setAdding(true)} data-testid="holdings-empty-row">
+              <span class="grow" style={{ textAlign: 'left' }}><span class="body">開始新增持倉前檢查表</span><span class="caption muted" style={{ display: 'block' }}>還沒有持倉；之後持股的停損與風險旗標會出現在這裡與今晚頁</span></span>
+              <span class="chev"><IconChevron /></span>
+            </button>
+          </div>
         ) : null}
         {group === HOT ? rows.map((r) => (
           <StockListRow key={r.code} code={r.code} row={r} hist={hist.get(r.code)} sub={sub(r.code, [])}

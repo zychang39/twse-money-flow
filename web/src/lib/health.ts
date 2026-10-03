@@ -3,6 +3,8 @@
  * 頁首「N 個資料源異常」只在該頁實際用到的來源、而且影響最新資料時才顯示（見 PAGE_SOURCES）。
  */
 import type { HealthSource } from '../data/types';
+import { ASOF_LABEL, type Asof, type AsofKey } from './asof';
+import { md, missing } from './format';
 
 export type HealthTone = 'ok' | 'compat' | 'wait' | 'risk';
 
@@ -79,6 +81,15 @@ export const PAGE_SOURCES: Record<string, string[]> = {
   journal: QUOTES,
   weekly: [...QUOTES, ...CHIPS],
 };
+
+/**
+ * 各資料集的資料日一行（2026-10-02 健檢 M1-4）：「法人 10/2・融資融券 10/1・集保股權分散 9/24」。
+ * meta.asof 整個不存在（舊版 meta.json）→ null（不顯示這一行）；有 asof 但某個鍵沒有日期 → 「—（尚未取得）」。
+ */
+export function asofSummary(asof: Asof | null | undefined, keys: AsofKey[]): string | null {
+  if (!asof || !keys.length) return null;
+  return keys.map((k) => `${ASOF_LABEL[k]} ${asof[k] ? md(asof[k]) : missing('尚未取得')}`).join('・');
+}
 
 /** 該頁用到、而且影響最新資料的異常來源。 */
 export function affectedFor(uses: string[] | undefined, affected: string[] | undefined): string[] {

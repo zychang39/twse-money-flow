@@ -47,8 +47,15 @@ describe('有效訊號面板', () => {
     expect(items.map((i) => [i.row.id, i.state])).toEqual([['b', 'near'], ['a', 'triggered']]);
     expect(items[1].date).toBe('2026-09-22');
     expect(items[1].excess).toBe(0.68);
-    expect(panelSummary(items)).toBe('2 個有效指標：觸發 1・接近 1');
-    expect(panelItems(rows, today, '1101').every((i) => i.state === 'off')).toBe(true);
+    // 2026-10-02 健檢：沒有策略庫資料 → 判定規則；有 → 「上架策略」＋分級計數（清單含觀察中的策略，不叫「有效指標」）
+    expect(panelSummary(items)).toBe('2 個判定可用的指標：觸發 1・接近 1');
+    const grades = new Map([['a', { grade: '有效', label: '有效' }], ['b', { grade: '觀察中', label: '觀察中' }]]);
+    expect(panelSummary(items, grades)).toBe('2 個上架策略的指標（1 有效・1 觀察中）：觸發 1・接近 1');
+    expect(panelSummary(items, grades)).not.toContain('有效指標');
+    const off = panelItems(rows, today, '1101');
+    expect(off.every((i) => i.state === 'off')).toBe(true);
+    expect(panelSummary(off, grades)).toBe('2 個上架策略的指標（1 有效・1 觀察中）都未觸發');
+    expect(panelSummary([], grades)).toBe('目前沒有上架的策略');
   });
 });
 
@@ -56,7 +63,8 @@ describe('涵蓋率（v3 M0-3）', () => {
   it('百分比與每日平均檔數同一個定義；標示 50%／90% 門檻', async () => {
     const { coverageText, coverageLabel } = await import('./evidence');
     // 887 ÷ 1,320 ＝ 67.2% → 67%
-    expect(coverageText({ ratio: 887 / 1320, included: 887, universe: 1320 })).toBe('涵蓋率 67%（每日平均 887／1,320 檔）');
+    // 2026-10-02 健檢：不含「涵蓋率」標籤（由呼叫端放）、百分比 2 位小數
+    expect(coverageText({ ratio: 887 / 1320, included: 887, universe: 1320 })).toBe('67.20%（每日平均 887／1,320 檔）');
     expect(coverageLabel(0.09)).toBe('樣本範圍受限');
     expect(coverageLabel(0.5)).toBe('部分涵蓋');
     expect(coverageLabel(0.899)).toBe('部分涵蓋');

@@ -7,7 +7,7 @@ import { useAsync, useRestoredState } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { loadMarket } from '../data/api';
 import { setListContext } from '../lib/listContext';
-import { dirColor, fmtLots, fmtNum, fmtPct } from '../lib/format';
+import { dirColor, fmtLots, fmtNum, missing, orMissing, pctPlain, pctSigned } from '../lib/format';
 import { navigate } from '../router';
 
 function heat(v: number | null, scale: number): string {
@@ -71,9 +71,11 @@ export default function Sectors({ industry }: { industry?: string }) {
               const n = s[`net_${period}`] as number | null;
               return (
                 <button key={s.industry} style={{ background: heat(v, scale) }} onClick={() => navigate(`/explore/sectors/${encodeURIComponent(s.industry)}`)}
-                  aria-label={`${s.industry}：法人淨買超 ${fmtNum(n, 1)} 億、漲跌幅中位數 ${fmtPct(r)}（${period} 日）`}>
+                  aria-label={`${s.industry}：法人淨買超 ${orMissing(n, (v) => `${fmtNum(v, 1)} 億`, '沒有資料')}、漲跌幅中位數 ${orMissing(r, pctSigned, '沒有資料')}（${period} 日）`}>
                   <div class="w6">{s.industry}</div>
-                  <div aria-hidden="true">{metric === 'net' ? `${n !== null && n > 0 ? '▲' : n !== null && n < 0 ? '▼' : ''} ${fmtNum(n === null ? null : Math.abs(n), 1)} 億` : `${r !== null && r > 0 ? '▲' : r !== null && r < 0 ? '▼' : ''} ${r === null ? '—' : `${Math.abs(r).toFixed(2)}%`}`}</div>
+                  <div aria-hidden="true">{metric === 'net'
+                    ? n === null ? missing('沒有資料') : `${n > 0 ? '▲' : n < 0 ? '▼' : ''} ${fmtNum(Math.abs(n), 1)} 億`
+                    : r === null ? missing('沒有資料') : `${r > 0 ? '▲' : r < 0 ? '▼' : ''} ${pctPlain(Math.abs(r))}`}</div>
                   <div class="muted t1" aria-hidden="true">{s.count} 檔</div>
                 </button>
               );

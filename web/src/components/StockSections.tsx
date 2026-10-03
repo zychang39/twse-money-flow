@@ -4,11 +4,16 @@
  */
 import type { StockHistory } from '../data/types';
 import { ALIGN_NAME, type MomentumFacts, type ProfitFacts, type RevenueFacts, peRiver } from '../lib/fundamentals';
-import { fmtNum, fmtPrice, numberFormat } from '../lib/format';
+import { fmtNum, fmtPrice, missing, numberFormat, pctSigned, ratioText } from '../lib/format';
 import { LineChart } from './LineChart';
 import { type TechFacts, kdText, macdText } from '../lib/technical';
+import { riskCalc } from '../lib/riskCalc';
+import type { PortfolioSettings } from '../lib/settings';
+import { KeyValueList } from './Metrics';
+import { useState } from 'preact/hooks';
+import { peBand } from '../lib/verdict';
 import { NetBars } from './Viz';
-import { FairRange } from './StockExtras';
+import { EventItem, FairRange } from './StockExtras';
 import { IconChevron } from './Icons';
 import '../styles/tools.css'; // .sx-*（#4：原本只有工具頁載入這份 CSS，個股頁直接開啟時樣式不存在）
 
@@ -36,18 +41,24 @@ function high52Sub(f: MomentumFacts): string | undefined {
   return parts.length ? parts.join('・') : undefined;
 }
 
-/** 動能：RS 百分位、距 52 週高點、均線排列（20／60／240）、量能相對 20 日均量；M3 補 20 日乖離、KD 與鈍化天數、MACD 狀態。 */
+/**
+ * 動能：RS 百分位、距 52 週高點、量能相對 20 日均量、均線排列（20／60／240；20 日乖離寫在副標）、KD 與鈍化天數、MACD 柱狀數值與狀態。
+ * 2026-10-02 健檢：6 格（2 欄排列不留單格）；MACD 主數字為柱狀值（2 位小數）、副標為狀態（方向只寫一次）。
+ */
 export function MomentumSection({ f, t }: { f: MomentumFacts; t?: TechFacts }) {
+  const bias = t && t.bias20 !== null ? `20 日乖離 ${pctSigned(t.bias20)}・` : '';
   return (
     <>
       <dl class="sx-facts" data-testid="momentum-facts">
-        <Fact k="RS 百分位" v={f.rs === null ? '—' : `${Math.round(f.rs)}`} sub="近 3–12 個月加權報酬在全市場的百分位" />
-        <Fact k="距 52 週高點" v={f.dist52 === null ? '—' : `${F1.format(f.dist52)}%`} sub={high52Sub(f)} />
-        <Fact k="量能" v={f.volRatio === null ? '—' : `${F2.format(f.volRatio)} 倍`} sub="當日量 ÷ 20 日均量" />
-        <Fact k="均線排列" v={ALIGN_NAME[f.alignment]} sub="20／60／240 日（還原價）" />
-        {t ? <Fact k="20 日乖離" v={t.bias20 === null ? '—' : `${t.bias20 > 0 ? '+' : t.bias20 < 0 ? '\u2212' : ''}${F1.format(Math.abs(t.bias20))}%`} sub="收盤 ÷ 20 日線 − 1" /> : null}
-        {t ? <Fact k="KD（9,3,3）" v={t.k === null ? '—' : `${Math.round(t.k)}`} sub={kdText(t)} /> : null}
-        {t ? <Fact k="MACD（12,26,9）" v={t.hist === null ? '—' : t.hist > 0 ? '柱狀為正' : '柱狀為負'} sub={macdText(t)} /> : null}
+        <Fact k="RS 百分位" v={f.rs === null ? missing('資料不足') : `${Math.round(f.rs)}`} sub="近 3–12 個月加權報酬在全市場的百分位" />
+        <Fact k="距 52 週高點" v={f.dist52 === null ? missing('不足 52 週') : pctSigned(f.dist52)} sub={high52Sub(f)} />
+        <Fact k="量能" v={f.volRatio === null ? missing('不足 20 日') : `${F2.format(f.volRatio)} 倍`} sub="當日量 ÷ 20 日均量" />
+        <Fact k="均線排列" v={ALIGN_NAME[f.alignment]} sub={`${bias}20／60／240 日線（還原價）`} />
+        {t ? <Fact k="KD（9,3,3）" v={t.k === null ? missing('不足 9 日') : `${Math.round(t.k)}`} sub={kdText(t)} /> : null}
+        {/* 主數字＝柱狀值（DIF − 訊號線，2 位小數）；狀態（翻正／翻負、DIF 零軸）只在副標寫一次 */}
+        {t ? <Fact k="MACD（12,26,9）柱狀" v={t.hist === null ? missing('暖機期不足') : ratioText(t.hist)} sub={macdText(t)} /> : null}
+        {/* M2（2026-10-03）：ATR 佔股價 %，風險試算的停損距離也用這個數字 */}
+        {t ? <Fact k="ATR14 ÷ 股價" v={t.atrPct === null ? missing('不足 15 日') : `${t.atrPct.toFixed(2)}%`} sub={t.atr14 === null ? '14 日平均真實波幅（還原價）' : `ATR14 ${fmtPrice(t.atr14)}（還原價、Wilder 平滑）`} /> : null}
       </dl>
       <ul class="sx-ma" aria-label="收盤與均線">
         {f.ma.map((m) => (
@@ -119,8 +130,8 @@ export function ValuationSection({ h, pePct, river }: { h: StockHistory; pePct: 
     <>
       <div class="card">
         <FairRange h={h} />
-        <div class="row between caption" style={{ marginTop: 'var(--s-3)' }}>
-          <span>本益比 {fmtNum(lastOf(h.pe))}{pePct !== null ? `（3 年第 ${Math.round(pePct)} 百分位）` : ''}</span>
+        <div class="row between caption wrap" style={{ marginTop: 'var(--s-3)', gap: 'var(--s-2)' }}>
+          <span>本益比 {fmtNum(lastOf(h.pe))}{pePct !== null ? `（3 年第 ${Math.round(pePct)} 百分位，${peBand(pePct)}區間）` : ''}</span>
           <span>淨值比 {fmtNum(lastOf(h.pb))}</span>
           <span>殖利率 {fmtNum(lastOf(h.dy))}%</span>
         </div>
@@ -156,14 +167,62 @@ export function ForeignTrend({ d, qfii }: { d: string[]; qfii: (number | null)[]
 
 export interface EventRow { date: string; type: string; text: string }
 
-/** 事件：近期事件（最多 5 筆）＋完整清單在底部面板。 */
+/** 事件：近期事件（最多 5 筆；日期在上、一行摘要、點開看全文）＋完整清單在底部面板。 */
 export function EventsList({ events }: { events: EventRow[] }) {
   if (!events.length) return <p class="caption muted" style={{ marginTop: 'var(--s-3)' }}>近一年沒有除權息、處置、注意等事件紀錄。</p>;
   return (
-    <ul class="list sx-events">
-      {events.slice(0, 5).map((e) => (
-        <li key={`${e.date}-${e.type}-${e.text}`} class="list-item"><span class="caption muted sx-ev-date">{e.date}</span><span class="grow"><span class="tag">{e.type}</span> {e.text}</span></li>
-      ))}
-    </ul>
+    <div class="list sx-events" data-testid="events-list">
+      {events.slice(0, 5).map((e) => <EventItem key={`${e.date}-${e.type}-${e.text}`} e={e} />)}
+    </div>
+  );
+}
+
+/**
+ * 風險試算（M2，2026-10-03）：依設定頁的本金、每筆風險比例與 ATR 停損距離算對應股數；連續跌停 1～3 日為壓力情境。
+ * 只呈現計算結果，不是進出建議；數字有缺就寫原因。
+ */
+export function RiskCalcCard({ price, t, prefs }: { price: number | null; t: TechFacts | null | undefined; prefs: PortfolioSettings }) {
+  const [k, setK] = useState(2);
+  const r = riskCalc({ capital: prefs.capital, riskPct: prefs.riskPct, oddLot: prefs.oddLot, price, atrPct: t?.atrPct ?? null, k });
+  const money = (v: number) => `${fmtNum(v, 0)} 元`;
+  const sizeText = r.shares <= 0 ? missing(r.reason ?? '無法計算') : prefs.oddLot ? `${fmtNum(r.shares, 0)} 股` : `${fmtNum(r.lots, 0)} 張（${fmtNum(r.shares, 0)} 股）`;
+  return (
+    <div class="card" style={{ marginTop: 'var(--s-4)' }} data-testid="risk-calc">
+      <div class="row between wrap" style={{ gap: 'var(--s-2)' }}>
+        <span class="body t1">風險試算</span>
+        <div class="segmented inline" role="group" aria-label="ATR 倍數">
+          {[2, 3].map((n) => <button key={n} aria-pressed={k === n} onClick={() => setK(n)}>{n} 倍 ATR</button>)}
+        </div>
+      </div>
+      <p class="caption muted" style={{ marginTop: 'var(--s-1)' }}>
+        本金 {money(prefs.capital)}・每筆風險 {prefs.riskPct}%（設定頁）・停損距離 ＝ {k} × ATR14（{t?.atrPct === null || t?.atrPct === undefined ? missing('不足 15 日') : `${t.atrPct.toFixed(2)}%`}）。只呈現計算結果。
+      </p>
+      {r.stop === null ? (
+        <p class="body muted" style={{ margin: 'var(--s-3) 0 0' }}>{missing(r.reason ?? '無法計算')}</p>
+      ) : (
+        <>
+          <KeyValueList label="風險試算" rows={[
+            { k: '參考價', v: <span class="num">{fmtPrice(price)}</span>, sub: '最新收盤（未還原）' },
+            { k: '停損價', v: <span class="num">{fmtPrice(r.stop)}</span>, sub: `每股風險 ${fmtPrice(r.perShare)}（${k} × ATR ${fmtPrice(r.atr)}）` },
+            { k: '對應股數', v: <span class="num">{sizeText}</span>, sub: `風險上限 ${money(r.budget)}，實際承擔 ${money(r.riskAmount)}（整張捨去）；部位 ${money(r.positionValue)}` },
+          ]} />
+          <table class="ev-table ev-static" style={{ marginTop: 'var(--s-3)' }} aria-label="連續跌停情境">
+            <thead><tr><th scope="col">連續跌停</th><th scope="col">價格</th><th scope="col">虧損</th><th scope="col">佔本金</th><th scope="col">相對計畫風險</th></tr></thead>
+            <tbody>
+              {r.scenarios.map((s) => (
+                <tr key={s.days}>
+                  <th scope="row">{s.days} 日</th>
+                  <td class="num">{fmtPrice(s.price)}</td>
+                  <td class="num">{r.shares > 0 ? money(s.loss) : '—'}</td>
+                  <td class="num">{r.shares > 0 ? `${s.lossPct.toFixed(2)}%` : '—'}</td>
+                  <td class="num">{s.r === null ? '—' : `${s.r.toFixed(1)} R`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>情境假設隔日起每天跌停（−10%）且賣不掉，停損價在跌停鎖死時無法成交；這是壓力測試，不是預測。</p>
+        </>
+      )}
+    </div>
   );
 }

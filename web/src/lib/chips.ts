@@ -73,8 +73,9 @@ export interface ChipRow {
 }
 
 export type Unit = 'lots' | 'amount' | 'pct';
-export type FlowKey = 'foreign' | 'trust' | 'dealerSelf' | 'dealerHedge' | 'total' | 'marginChg' | 'shortChg' | 'sblSell';
-export type PartyKey = 'foreign' | 'trust' | 'dealerSelf';
+export type FlowKey = 'foreign' | 'trust' | 'dealerSelf' | 'dealerHedge' | 'dealer' | 'total' | 'marginChg' | 'shortChg' | 'sblSell';
+/** 區間統計的欄：外資、投信、自營商（自行買賣）、自營商（避險）、三大法人合計（M2 2026-10-03：自行／避險分開、合計也算佔成交量） */
+export type PartyKey = 'foreign' | 'trust' | 'dealerSelf' | 'dealerHedge' | 'total';
 
 /** 單位選單的選項名稱（「佔」＝占有，不是「估」） */
 export const UNIT_NAME: Record<Unit, string> = { lots: '張', amount: '金額（億元，估）', pct: '佔成交量 %' };
@@ -94,7 +95,21 @@ export const FLOW_COLS: { key: FlowKey; label: string; inLots?: boolean; party?:
   { key: 'sblSell', label: '借券賣出' },
 ];
 
-export const PARTY_LABEL: Record<PartyKey, string> = { foreign: '外資', trust: '投信', dealerSelf: '自營商（自行買賣）' };
+export const PARTY_LABEL: Record<PartyKey, string> = {
+  foreign: '外資',
+  trust: '投信',
+  dealerSelf: '自營商（自行買賣）',
+  dealerHedge: '自營商（避險）',
+  total: '三大法人合計',
+};
+/** 表頭分兩段（主字＋下方小字），讓 5 欄在 375pt 也放得下且不斷行：「自營商／自行買賣」「三大法人／合計」 */
+export const PARTY_HEAD: Record<PartyKey, [string, string]> = {
+  foreign: ['外資', ''],
+  trust: ['投信', ''],
+  dealerSelf: ['自營商', '自行買賣'],
+  dealerHedge: ['自營商', '避險'],
+  total: ['三大法人', '合計'],
+};
 
 const num = (v: unknown): N => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const at = (a: N[] | undefined, i: number): N => num(a?.[i]);
@@ -304,11 +319,43 @@ export function rangeStats(b: ChipBlock, days: number, sharesOut: number | null 
   };
 }
 
-/** 規則式白話結論：挑佔成交量比例最大的法人＋最長的連買／連賣；只陳述數字，不做建議。 */
+export interface Concentration {
+  days: number;
+  /** 三大法人合計淨買賣超 ÷ 同期成交量（%）；區間內沒有法人資料為 null */
+  pct: N;
+  /** 區間內實際有的交易日數（資料不足 days 時 < days） */
+  available: number;
+  /** 區間內有三大法人合計資料的日數 */
+  withData: number;
+  start: string | null;
+  end: string | null;
+}
+
+/**
+ * 法人集中度（非分點；M2 2026-10-03）：5／20／60 日「三大法人合計淨買賣超 ÷ 同期成交股數 × 100」。
+ * 分子分母都只計該日有三大法人合計資料的日子（同 sumConverted 'pct'）。券商分點不提供（官方查詢頁有驗證碼），
+ * 這裡的「集中度」只是法人買賣超相對成交量的比例，不是分點買賣家數的集中度。
+ */
+export function concentration(b: ChipBlock, periods: number[] = [5, 20, 60]): Concentration[] {
+  const all = chipRows(b);
+  return periods.map((days) => {
+    const rows = recent(all, days);
+    return {
+      days,
+      pct: sumConverted(rows, 'total', 'pct'),
+      available: rows.length,
+      withData: rows.filter((r) => r.total !== null).length,
+      start: rows.length ? rows[rows.length - 1].date : null,
+      end: rows.length ? rows[0].date : null,
+    };
+  });
+}
+
+/** 規則式白話結論：挑佔成交量比例最大的法人＋最長的連買／連賣；只陳述數字，不做建議。合計欄是各法人之和，不參與挑選。 */
 export function rangeSentence(s: RangeStats, cfg = uiConfig.chip): string {
   if (!s.rows.length) return '資料不足。';
   const period = s.days === 1 ? '最近一個交易日' : `近 ${s.days} 日`;
-  const usable = s.parties.filter((p) => p.pctVolume !== null);
+  const usable = s.parties.filter((p) => p.pctVolume !== null && p.key !== 'total');
   if (!usable.length) return `${period}沒有三大法人資料。`;
   const main = usable.reduce((a, b) => (Math.abs(b.pctVolume!) > Math.abs(a.pctVolume!) ? b : a));
   const parts: string[] = [];
@@ -317,7 +364,7 @@ export function rangeSentence(s: RangeStats, cfg = uiConfig.chip): string {
   } else {
     parts.push(`${period}${main.label}${main.pctVolume! > 0 ? '買超' : '賣超'}佔成交量 ${Math.abs(main.pctVolume!).toFixed(1)}%`);
   }
-  const streaky = s.parties.filter((p) => Math.abs(p.streak) >= cfg.streak_min);
+  const streaky = s.parties.filter((p) => p.key !== 'total' && Math.abs(p.streak) >= cfg.streak_min);
   if (streaky.length) {
     const top = streaky.reduce((a, b) => (Math.abs(b.streak) > Math.abs(a.streak) ? b : a));
     const word = top.streak > 0 ? '買超' : '賣超';
@@ -343,6 +390,7 @@ export const MISSING_REASON: Record<FlowKey | 'dtPct' | 'chgPct', string> = {
   trust: '該日沒有三大法人資料（官方未公布或此代號不在三大法人表）',
   dealerSelf: '官方資料沒有拆分自營商自行買賣',
   dealerHedge: '官方資料沒有拆分自營商避險',
+  dealer: '該日沒有三大法人資料（官方未公布或此代號不在三大法人表）',
   total: '該日沒有三大法人資料',
   marginChg: '非融資融券標的，或缺前一日餘額',
   shortChg: '非融資融券標的，或缺前一日餘額',
@@ -357,6 +405,7 @@ export function missingNotes(rows: ChipRow[]): { key: string; label: string; rea
   const cols: { key: FlowKey | 'dtPct' | 'chgPct'; label: string }[] = [
     { key: 'chgPct', label: '漲跌 %' },
     ...FLOW_COLS.map((c) => ({ key: c.key, label: c.label })),
+    { key: 'dealer', label: DEALER_FULL },
     { key: 'dtPct', label: '當沖比率' },
   ];
   for (const c of cols) {
@@ -422,7 +471,7 @@ export function officialLinks(market: string | null | undefined, date: string): 
 
 // ------------------------------------------------------------------ 每日籌碼：三種檢視（法人｜信用｜借券當沖）
 export type View = 'insti' | 'credit' | 'sbl';
-export type ColKey = 'foreign' | 'trust' | 'dealerSelf' | 'total' | 'marginChg' | 'shortChg' | 'marginBal' | 'shortRatio' | 'sblSell' | 'sblBal' | 'dtPct' | 'dtVol';
+export type ColKey = 'foreign' | 'trust' | 'dealerSelf' | 'dealerHedge' | 'dealer' | 'total' | 'marginChg' | 'shortChg' | 'marginBal' | 'shortBal' | 'shortRatio' | 'sblSell' | 'sblBal' | 'dtPct' | 'dtVol';
 /** flow＝當日數量（可換算單位，可加總）；level＝餘額（可換算張／金額；區間合計為增減）；ratio＝比率 %（不隨單位變動） */
 export type ColKind = 'flow' | 'level' | 'ratio';
 
@@ -446,11 +495,19 @@ export interface ViewCol {
 export const VIEW_LABEL: Record<View, string> = { insti: '法人', credit: '信用', sbl: '借券當沖' };
 export const VIEWS: View[] = ['insti', 'credit', 'sbl'];
 
+/** 每日籌碼法人表的自營商欄＝自行買賣＋避險（官方「自營商買賣超股數」），外資＋投信＋自營商才會等於三大法人合計。 */
+export const DEALER_FULL = '自營商（自行＋避險）';
+/** 表格下方的註解（每日籌碼法人表、底部面板） */
+export const INSTI_FOOTNOTE = '自營商＝自行買賣＋避險；外資含外資自營商';
+/** 自營商拆分欄（只在當天完整資料的底部面板） */
+export const DEALER_SELF_COL: ViewCol = { key: 'dealerSelf', label: '自營商自行', full: '自營商（自行買賣）', kind: 'flow', signed: true, party: true, words: ['買超', '賣超'] };
+export const DEALER_HEDGE_COL: ViewCol = { key: 'dealerHedge', label: '自營商避險', full: '自營商（避險）', kind: 'flow', signed: true, party: true, words: ['買超', '賣超'] };
+
 export const VIEW_COLS: Record<View, ViewCol[]> = {
   insti: [
     { key: 'foreign', label: '外資', full: '外資', kind: 'flow', signed: true, party: true, words: ['買超', '賣超'] },
     { key: 'trust', label: '投信', full: '投信', kind: 'flow', signed: true, party: true, words: ['買超', '賣超'] },
-    { key: 'dealerSelf', label: '自營商', full: '自營商（自行買賣）', kind: 'flow', signed: true, party: true, words: ['買超', '賣超'] },
+    { key: 'dealer', label: '自營商', full: DEALER_FULL, kind: 'flow', signed: true, party: true, words: ['買超', '賣超'] },
     { key: 'total', label: '合計', full: '三大法人合計', kind: 'flow', signed: true, party: true, words: ['買超', '賣超'] },
   ],
   credit: [
@@ -651,12 +708,13 @@ export const DAY_FIELDS: { group: string; cols: ViewCol[] }[] = [
     cols: [
       VIEW_COLS.insti[0],
       VIEW_COLS.insti[1],
+      DEALER_SELF_COL,
+      DEALER_HEDGE_COL,
       VIEW_COLS.insti[2],
-      { key: 'dealerHedge' as ColKey, label: '自營商避險', full: '自營商（避險）', kind: 'flow', signed: true, party: true, words: ['買超', '賣超'] },
       VIEW_COLS.insti[3],
     ],
   },
-  { group: '信用交易', cols: [VIEW_COLS.credit[0], VIEW_COLS.credit[1], VIEW_COLS.credit[2], { key: 'shortBal' as ColKey, label: '融券餘額', full: '融券餘額', kind: 'level', signed: false, lots: true }, VIEW_COLS.credit[3]] },
+  { group: '信用交易', cols: [VIEW_COLS.credit[0], VIEW_COLS.credit[1], VIEW_COLS.credit[2], { key: 'shortBal', label: '融券餘額', full: '融券餘額', kind: 'level', signed: false, lots: true }, VIEW_COLS.credit[3]] },
   { group: '借券與當沖', cols: VIEW_COLS.sbl },
 ];
 

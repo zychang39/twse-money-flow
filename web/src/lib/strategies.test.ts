@@ -38,3 +38,32 @@ describe('分級（2026-10-02）', () => {
     expect(allowedTests(null)).toBeNull();
   });
 });
+
+describe('2026-10-02 健檢：參數中文標籤與基準切換整組一起換', () => {
+  it('paramRows：原始參數字串 → 中文標籤與單位；解析不了的原樣一列', async () => {
+    const { paramRows } = await import('./strategies');
+    expect(paramRows('rs_min=70、vol_ratio=1.5、hold=40')).toEqual([
+      { key: 'rs_min', label: 'RS 門檻', value: '70' },
+      { key: 'vol_ratio', label: '量比門檻', value: '1.5 倍' },
+      { key: 'hold', label: '持有日數', value: '40 日' },
+    ]);
+    expect(paramRows('value_min=100000000、bias_max=0.1')).toEqual([
+      { key: 'value_min', label: '成交值下限', value: '1 億元' },
+      { key: 'bias_max', label: '乖離上限', value: '10%' },
+    ]);
+    expect(paramRows('投信連買=5／外資門檻=0.1')).toEqual([{ key: '投信連買=5／外資門檻=0.1', label: '投信連買=5／外資門檻=0.1', value: '' }]);
+    expect(paramRows(null)).toEqual([]);
+  });
+  it('judged：等權＝判定用的數字（超額勝率來自 bench.ew）；0050 時超額、t、超額勝率整組換', async () => {
+    const { judged, benchTable } = await import('./strategies');
+    const s = {
+      id: 'a', test: 'ta', label: 'A', subtitle: '', verdict: '有效', enabled: true, reasons: [], env: null,
+      t: 4.0, t_corr: 4.0, win: 51.6, excess_h: { '40': 1.681, '20': 0.9 },
+      h: { '40': { n: 100, mean_excess: 1.681, t: 4.0, bench: { ew: { mean_excess: 1.681, t: 4.0, win: 42.47 }, '0050': { mean_excess: 1.235, t: 1.58, win: 41.79 } } } },
+    } as never;
+    expect(judged(s, 'ew')).toEqual({ hold: 40, excess: 1.681, t: 4.0, win: 42.47 });
+    expect(judged(s, '0050')).toEqual({ hold: 40, excess: 1.235, t: 1.58, win: 41.79 });
+    expect(judged(s, 'tr')).toEqual({ hold: 40, excess: null, t: null, win: null });
+    expect(benchTable(s)?.['0050']?.t).toBe(1.58);
+  });
+});

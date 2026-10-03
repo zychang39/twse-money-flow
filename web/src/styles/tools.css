@@ -102,20 +102,24 @@
 .bb-rest { margin-top: var(--s-3); }
 .bb-rest .bb-list { margin-top: var(--s-2); }
 
-/* 籌碼結構（v3）：四段灰階（不用額外顏色；紅綠只給漲跌） */
+/*
+ * 籌碼結構（v3）：四段灰階墨色 --ink-4（散戶）→ --ink-1（千張大戶），每級對底色 ≥ 3:1、相鄰兩級可分辨（tokens.css）；
+ * 圖例色票用同一組色。比例條的分段 class 是 .sb-seg（2026-10-02 改名：.st-seg 與 evidence.css 逐年報酬的分段控制撞名）；
+ * Structure.tsx 改成 .sb-seg 之前，.st-bar > .st-seg 也套同一組樣式。
+ */
 .st-bar-wrap { margin-top: var(--s-3); }
 .st-bar { display: flex; height: 0.75rem; border-radius: var(--r-pill); overflow: hidden; background: var(--surface-2); }
-.st-seg { display: block; height: 100%; }
-.st-seg + .st-seg { box-shadow: inset 1px 0 0 var(--bg); }
-.st-seg.retail, .st-item.retail .st-swatch { background: color-mix(in srgb, var(--text-1) 22%, transparent); }
-.st-seg.mid, .st-item.mid .st-swatch { background: color-mix(in srgb, var(--text-1) 42%, transparent); }
-.st-seg.big, .st-item.big .st-swatch { background: color-mix(in srgb, var(--text-1) 68%, transparent); }
-.st-seg.whale, .st-item.whale .st-swatch { background: var(--text-1); }
+.sb-seg, .st-bar > .st-seg { display: block; height: 100%; margin: 0; }
+.sb-seg + .sb-seg, .st-bar > .st-seg + .st-seg { box-shadow: inset 1px 0 0 var(--bg); }
+.sb-seg.retail, .st-bar > .st-seg.retail, .st-item.retail .st-swatch { background: var(--ink-4); }
+.sb-seg.mid, .st-bar > .st-seg.mid, .st-item.mid .st-swatch { background: var(--ink-3); }
+.sb-seg.big, .st-bar > .st-seg.big, .st-item.big .st-swatch { background: var(--ink-2); }
+.sb-seg.whale, .st-bar > .st-seg.whale, .st-item.whale .st-swatch { background: var(--ink-1); }
 .st-legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2) var(--s-4); margin: var(--s-3) 0 0; }
 .st-item { min-width: 0; }
 .st-item dt { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--s-1); font-size: var(--fs-caption); line-height: var(--lh-caption); font-weight: var(--fw-semibold); }
 .st-range { color: var(--text-2); font-weight: var(--fw-regular); }
-.st-swatch { display: inline-block; width: 0.625rem; height: 0.375rem; border-radius: var(--r-pill); align-self: center; }
+.st-swatch { display: inline-block; width: 0.875rem; height: 0.5rem; border-radius: var(--r-pill); align-self: center; }
 .st-item dd { margin: 0; display: flex; align-items: baseline; gap: var(--s-2); }
 .st-pct { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); }
 .st-chg { font-size: var(--fs-caption); line-height: var(--lh-caption); }

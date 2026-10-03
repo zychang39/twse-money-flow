@@ -9,8 +9,8 @@ export const BENCH_LABEL: Record<BenchKey, string> = { ew: '等權', tr: '加權
 export const BENCH_LONG: Record<BenchKey, string> = {
   ew: '同日等權 universe（判定用）',
   tr: '加權報酬指數',
-  '0050': '0050 含息買進持有（大型股）',
-  '00631L': '00631L 買進持有（2 倍槓桿、每日再平衡）',
+  '0050': '0050 含息持有不動（大型股）',
+  '00631L': '00631L 持有不動（2 倍槓桿、每日再平衡）',
 };
 
 const KEY = 'tmf-bench';

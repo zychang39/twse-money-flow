@@ -6,6 +6,16 @@ export function scoreText(v: number | null | undefined): string {
   return v === null || v === undefined ? '—' : String(Math.round(v));
 }
 
+/** 「74／100」；沒有分數「—（資料不足）」（2026-10-02 健檢：分數一律帶滿分，環形圖與綜合分同一寫法）。 */
+export function scoreOutOf(v: number | null | undefined): string {
+  return v === null || v === undefined ? '—（資料不足）' : `${Math.round(v)}／100`;
+}
+
+/** 「資料完整度 32%」；沒有明細時附原因。 */
+export function completenessText(c: number | null): string {
+  return c === null ? '資料完整度 —（沒有因子明細）' : `資料完整度 ${Math.round(c * 100)}%`;
+}
+
 /** 類別名稱（籌碼、動能、基本面、估值）。 */
 export function categoryName(id: CategoryId): string {
   return scoresConfig.categories[id].label.replace(/分$/, '');
@@ -38,14 +48,16 @@ export function ScoreRings({ row, detail, onPick }: { row?: Partial<StockRow>; d
         const v = (row?.[id] as number | null | undefined) ?? detail?.categories[id]?.score ?? null;
         const c = completeness(detail, id);
         const name = categoryName(id);
+        // 標籤：「籌碼分」＋「74／100」（分數帶滿分、有單位）＋「資料完整度 32%」；4 欄在 390pt 下每欄約 80px，分成三行
         const inner = (
           <>
-            <ScoreRing value={v} size={64} stroke={4} label={name} />
-            <span class="caption t1" style={{ display: 'block', marginTop: 'var(--s-2)' }}>{name}</span>
-            <span class="caption muted" style={{ display: 'block' }}>{c === null ? '資料 —' : `資料 ${Math.round(c * 100)}%`}</span>
+            <ScoreRing value={v} size={64} stroke={4} label={`${name}分`} />
+            <span class="caption t1" style={{ display: 'block', marginTop: 'var(--s-2)' }}>{name}分</span>
+            <span class="caption t1 num" style={{ display: 'block' }} data-testid="ring-score">{scoreOutOf(v)}</span>
+            <span class="caption muted" style={{ display: 'block', fontSize: 'var(--fs-micro)', lineHeight: 'var(--lh-micro)' }}>{completenessText(c)}</span>
           </>
         );
-        const label = `${name}分數 ${scoreText(v)}，資料完整度 ${c === null ? '未知' : `${Math.round(c * 100)}%`}`;
+        const label = `${name}分 ${scoreOutOf(v)}，${completenessText(c)}`;
         return onPick ? (
           <button key={id} class="ring-btn" onClick={() => onPick(id)} aria-description={`${label}，查看明細`}>{inner}</button>
         ) : <div key={id} aria-label={label} role="group">{inner}</div>;

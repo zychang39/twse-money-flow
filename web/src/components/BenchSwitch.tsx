@@ -1,4 +1,4 @@
-/** v3 M5-3 基準分段控制：sticky 在表格上方；切換時保持目前捲動位置（內容高度改變也不跳動）。 */
+/** v3 M5-3 基準分段控制：sticky 在表格上方（不透明底色，高度＝--bench-h）；切換時保持目前捲動位置（內容高度改變也不跳動）。 */
 import { useState } from 'preact/hooks';
 import { BENCH_KEYS, BENCH_LABEL, type BenchKey, loadBench, saveBench } from '../lib/bench';
 
@@ -18,7 +18,7 @@ export function useBenchState(): [BenchKey, (k: BenchKey) => void] {
 export function BenchSwitch({ value, onChange, note }: { value: BenchKey; onChange: (k: BenchKey) => void; note?: string }) {
   return (
     <>
-      <div class="bench-bar glass" data-testid="bench-switch">
+      <div class="bench-bar" data-testid="bench-switch">
         <div class="segmented bench-seg" role="group" aria-label="超額報酬的比較基準">
           {BENCH_KEYS.map((k) => (
             <button key={k} type="button" aria-pressed={value === k} onClick={() => { if (k !== value) onChange(k); }}>{BENCH_LABEL[k]}</button>

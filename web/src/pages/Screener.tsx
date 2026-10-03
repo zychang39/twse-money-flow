@@ -13,7 +13,7 @@ import { useScoredSummary } from '../data/useSummary';
 import { deleteScreen, listScreens, saveScreen, uid, type SavedScreen } from '../db/db';
 import { screenerConfig, type Condition } from '../lib/config';
 import { describeCondition, newTriggerCodes, savedDisplayName, weeklyNote, encodeConditions, presetScreens, screen, screenIdentity } from '../lib/screener';
-import { fmtNum } from '../lib/format';
+import { fmtNum, md } from '../lib/format';
 import { PAGE_SOURCES } from '../lib/health';
 import '../styles/evidence.css';
 
@@ -22,6 +22,8 @@ const fields = screenerConfig.fields;
 const groups = Array.from(new Set(Object.values(fields).map((f) => f.group)));
 const label = (f: string) => fields[f]?.label ?? f;
 const unit = (f: string) => fields[f]?.unit ?? '';
+/** 內建組合沒有對應的指標效度評估時的說明（不只寫「未評估」）。 */
+const NO_EVIDENCE = '未評估（沒有對應的指標效度評估）';
 
 function ConditionEditor({ c, onChange, onRemove }: { c: Condition; onChange: (c: Condition) => void; onRemove: () => void }) {
   const isBetween = c.op === 'between';
@@ -83,7 +85,8 @@ export default function Screener() {
         return {
           p,
           label: p.label,
-          verdict: r?.verdict ?? '樣本不足',
+          // 沒有對應指標的組合不算「樣本不足」，排在所有判定之後（verdictTier 的預設層）
+          verdict: r?.verdict ?? null,
           t: r?.t ?? null,
           excess: r?.mean_excess ?? null,
           health: r?.recent?.mean_excess ?? null,
@@ -109,7 +112,6 @@ export default function Screener() {
     return screen((summary.data.rows as unknown as Record<string, unknown>[]).filter((r) => fresh.has(r.code as string)), []);
   }, [mode, matched, fresh, summary.data]);
   const weekly = weeklyNote(conditions, meta.data?.weekly ?? days.data?.weekly);
-  const md = (iso?: string) => (iso ? `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}` : '');
   // #11：名稱跟著條件走；改過內建組合就不再沿用它的名稱與選取狀態
   const presets = presetScreens();
   const id = screenIdentity(conditions, active, presets, saved.map((x) => ({ id: x.id, label: x.name, conditions: x.conditions as Condition[] })));
@@ -147,8 +149,8 @@ export default function Screener() {
       <div class="chips" role="group" aria-label="內建組合" data-testid="preset-chips">
         {presetRows.map(({ p, r }) => (
           <button key={p.id} class="chip" aria-pressed={id.presetId === p.id} onClick={() => load(p.id, p.label, p.conditions)} title={p.description}
-            aria-label={`${p.label}（${r ? `${r.verdict}，t ${tText(r.t)}，10 日超額 ${pctSigned(r.mean_excess)}` : '沒有指標效度評估'}）`}>
-            <span class="chip-label">{p.label}</span><span class="chip-sub">{r ? r.verdict : '未評估'}</span>
+            aria-label={`${p.label}（${r ? `${r.verdict}，t ${tText(r.t)}，10 日超額 ${pctSigned(r.mean_excess)}` : NO_EVIDENCE}）`}>
+            <span class="chip-label">{p.label}</span><span class="chip-sub">{r ? r.verdict : NO_EVIDENCE}</span>
           </button>
         ))}
       </div>
@@ -183,7 +185,7 @@ export default function Screener() {
       <p class="caption muted" data-testid="screen-mode-note" style={{ marginTop: 'var(--s-2)' }}>
         {mode === 'new'
           ? days.data ? `今日新觸發＝${md(days.data.dates[1])} 全部條件成立、${md(days.data.dates[0])} 不成立（回測的「訊號」用同一個定義）。${fresh === null ? '有條件欄位無法判斷前一日，無法計算新觸發。' : ''}` : days.error ? '新觸發資料暫時無法取得（資料源待處理）。' : '載入前一交易日資料…'
-          : `全部符合＝${summary.data ? md(summary.data.date) : '最新交易日'}收盤後全部條件成立的股票（含前幾天就已經符合的）。`}
+          : `全部符合＝${summary.data?.date ? md(summary.data.date) : '最新交易日'}收盤後全部條件成立的股票（含前幾天就已經符合的）。`}
         {weekly ? <><br /><span data-testid="weekly-note">{weekly}</span></> : null}
       </p>
       {summary.error ? <ErrorState error={summary.error} /> : null}

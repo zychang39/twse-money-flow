@@ -225,6 +225,29 @@ def parse_tpex_daytrade(payload: bytes | str | dict[str, Any]) -> ParseResult:
     return ParseResult(df, response_date=d, extras={"tpex_daytrade_total": tot})
 
 
+# ------------------------------------------------------------------ 每 5 秒指數統計（首頁 1D；M2 2026-10-03）
+INTRADAY_INDEX_COLS = ["date", "time", "taiex"]
+
+
+def parse_twse_intraday_index(payload: bytes | str | dict[str, Any]) -> ParseResult:
+    """證交所「每 5 秒指數統計」（MI_5MINS_INDEX）：只取時間與發行量加權股價指數，其餘類股指數不存。"""
+    obj = load_json(payload)
+    if is_no_data(obj):
+        return ParseResult(pd.DataFrame(columns=INTRADAY_INDEX_COLS), no_data=True, message=str(obj.get("stat")))
+    d = parse_date(obj.get("date"))
+    df = frame_from_fields(
+        obj.get("fields") or [],
+        obj.get("data") or [],
+        {"time": "時間", "taiex": "發行量加權股價指數"},
+        source="每 5 秒指數統計",
+    )
+    df["taiex"] = pd.to_numeric(df["taiex"].map(to_num), errors="coerce")
+    df["time"] = df["time"].astype(str).str.strip()
+    df = df[df["time"].str.match(r"^\d{2}:\d{2}:\d{2}$")].dropna(subset=["taiex"]).copy()
+    df.insert(0, "date", d.isoformat() if d else None)
+    return ParseResult(df[INTRADAY_INDEX_COLS].reset_index(drop=True), response_date=d)
+
+
 # ------------------------------------------------------------------ 停券預告（融券最後回補日）
 HALT_COLS = ["code", "name", "last_cover_date", "end", "reason"]
 
@@ -571,6 +594,36 @@ def parse_fx(payload: bytes | str) -> ParseResult:
     if not out:
         return ParseResult(pd.DataFrame(columns=["date", "usd_twd"]), no_data=True, message="查無資料")
     return ParseResult(pd.DataFrame(out, columns=["date", "usd_twd"]))
+
+
+PC_COLS = ["date", "put_vol", "call_vol", "pc_vol_ratio", "put_oi", "call_oi", "pc_oi_ratio"]
+# 期交所「臺指選擇權 Put/Call 比」CSV（pcRatioDown，Big5、每列結尾多一個逗號）；只有未平倉比率是必要欄位，其餘選用
+_PC_MAP: dict[str, Any] = {
+    "date": col("日期"),
+    "put_vol": opt("賣權成交量"),
+    "call_vol": opt("買權成交量"),
+    "pc_vol_ratio": opt("買賣權成交量比率%"),
+    "put_oi": opt("賣權未平倉量"),
+    "call_oi": opt("買權未平倉量"),
+    "pc_oi_ratio": col("買賣權未平倉量比率%"),
+}
+
+
+def parse_taifex_pc(payload: bytes | str) -> ParseResult:
+    """臺指選擇權 Put/Call 比（M2 2026-10-03）：成交量比率與未平倉量比率（%，賣權 ÷ 買權 × 100），依日期一列。"""
+    rows = _big5_csv(payload)
+    if not rows:
+        return ParseResult(pd.DataFrame(columns=PC_COLS), no_data=True, message="期交所回傳空白 CSV")
+    pos = resolve_fields(rows[0], _PC_MAP, source="期交所選擇權 Put/Call 比")
+    out = []
+    for r in rows[1:]:
+        d = parse_date(cell(r, pos["date"]))
+        if not d:
+            continue
+        out.append({"date": d.isoformat(), **{k: to_num(cell(r, pos[k])) for k in PC_COLS[1:]}})
+    if not out:
+        return ParseResult(pd.DataFrame(columns=PC_COLS), no_data=True, message="查無資料")
+    return ParseResult(pd.DataFrame(out, columns=PC_COLS).sort_values("date").reset_index(drop=True))
 
 
 def parse_treasury(payload: bytes | str) -> ParseResult:

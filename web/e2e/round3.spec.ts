@@ -103,7 +103,7 @@ test('M3（v3）：個股頁有「15 級完整分布」入口；分級定義固�
   await page.getByRole('link', { name: /15 級完整分布/ }).click();
   await expect(page).toHaveURL(/#\/stock\/2330\/holders$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^千張大戶本週/);
-  await expect(page.getByTestId('hd-definition')).toHaveText('分級：散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 ≥ 400 張（含千張大戶）｜千張大戶 ≥ 1,000 張。回測與選股固定使用 1,000 張。');
+  await expect(page.getByTestId('hd-definition')).toHaveText('分級（四段互斥，加總 100%）：散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 400–1,000 張｜千張大戶 ≥ 1,000 張。回測與選股固定使用 1,000 張。');
   await expect(page.getByRole('slider')).toHaveCount(0);
   await expect(page.getByText(/超過 100 張/)).toHaveCount(0);
   await expect(page.locator('.sc-title', { hasText: '千張大戶（≥ 1,000 張）持股比例（%）' })).toHaveCount(1);

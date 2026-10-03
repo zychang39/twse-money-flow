@@ -88,6 +88,7 @@ def load(store: DataStore) -> Dataset:
         "tdcc": ["tdcc_holders", "tdcc_history"],
         "taifex_insti": ["taifex_insti"],
         "taifex_oi": ["taifex_oi"],
+        "taifex_pc": ["taifex_pc"],  # 臺指選擇權 Put/Call 比（M2 2026-10-03；只作資訊呈現）
         "fx": ["fx_usdtwd"],
         "ust": ["ust_10y"],
         "financials": ["financials"],
@@ -110,6 +111,7 @@ def load(store: DataStore) -> Dataset:
         ds.tables["tdcc"] = tdcc[ok.to_numpy()].reset_index(drop=True)
     for name, sources in {
         "short_halt": ["twse_short_halt", "tpex_short_halt"],
+        "intraday_index": ["twse_intraday_index"],  # 只需要最新一天（首頁 1D）
         "insider": ["twse_insider", "tpex_insider"],
         "cbc_money": ["cbc_money"],
     }.items():
