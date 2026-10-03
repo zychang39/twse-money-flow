@@ -550,7 +550,14 @@ def task_backfill(
             days = ctx.calendar.trading_days(start, min(end, ctx.today))[::-1]
             tasks_advanced.run_etf_holdings(ctx, days[0] if days else end, days=days)
     # 1) 非每日型（區間、月查詢、MOPS 月營收）：以月為單位，由近到遠
-    for sid in [s for s in sources if s == "mops_revenue" or SPECS[s].kind != "daily"]:
+    # 不在 registry 的來源（例：由 run_taifex 順帶抓的 taifex_pc）不是每日型也沒有自己的回補流程：記一筆失敗、不要 KeyError
+    for sid in [s for s in sources if s != "mops_revenue" and s not in SPECS and s not in custom]:
+        ctx.note(
+            sid,
+            "failed",
+            message="不是可單獨回補的來源（請改用它所屬的任務，例：taifex_pc 由 taifex_insti 的回補順帶取得）",
+        )
+    for sid in [s for s in sources if s == "mops_revenue" or (s in SPECS and SPECS[s].kind != "daily")]:
         for i, m in enumerate(months):
             if ctx.out_of_time():
                 remaining[sid] = len(months) - i
