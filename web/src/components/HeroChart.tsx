@@ -18,7 +18,8 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { PERIODS, PERIOD_LABEL, change, windowDayChange, type Dir, type Period, type Window } from '../lib/periods';
-import { areaD, extent, lerpPts, nearestIndex, pathD, points, resample, springEase, yOf, type Frame } from '../lib/chartMath';
+import { areaD, extent, lerpPts, nearestIndex, points, resample, smoothD, springEase, yOf, type Frame } from '../lib/chartMath';
+import { Term } from './kit';
 import { arrow, fmtNum, md } from '../lib/format';
 import { windowCoverageNote } from '../lib/series';
 import { RANGE_BASIS_NAME, RANGE_HOLD_MS, type RangeBasis, countDatesBetween, rangeReturn, shortDate } from '../lib/rangeReturn';
@@ -58,6 +59,13 @@ function dateLabel(iso: string): string {
   const d = new Date(`${iso}T12:00:00Z`);
   return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}（${'日一二三四五六'[d.getUTCDay()]}）`;
 }
+/** 起始價標籤放在虛線哪一側：線一開始往上走（前 1/8 的平均高於起始價）就放在虛線下方，避免壓到線。 */
+function baseLabelBelow(win: Window): boolean {
+  const base = win.base ?? win.values[0];
+  const k = Math.max(2, Math.ceil(win.values.length / 8));
+  const head = win.values.slice(0, k);
+  return head.reduce((a, b) => a + b, 0) / head.length >= base;
+}
 /** 盤中資料跨多個交易日（1W） */
 function multiDay(dates: string[]): boolean {
   return dates.length > 1 && dates[0].length > 10 && dates[0].slice(0, 10) !== dates[dates.length - 1].slice(0, 10);
@@ -71,13 +79,13 @@ export function PeriodSelector({ value, onChange, label = '期間', periods = PE
   return (
     <div class="periods" role="group" aria-label={label}>
       {periods.map((p) => (
-        <button key={p} aria-pressed={value === p} onClick={() => onChange(p)}>{p}<span class="sr-only">（{PERIOD_LABEL[p]}）</span></button>
+        <button key={p} aria-pressed={value === p} aria-label={`${p}（${PERIOD_LABEL[p]}）`} onClick={() => onChange(p)}>{p}</button>
       ))}
     </div>
   );
 }
 
-/** 滾動數字：從 from 到 to，ease-out；減少動態效果時直接顯示。 */
+/** 滾動數字（進頁 400ms）：從 from（上次查看的值或區間起始價）到 to，ease-out；減少動態效果時直接顯示。 */
 function useRoll(to: number | null, from: number | null | undefined, format: (v: number) => string): string {
   const [shown, setShown] = useState<number | null>(from !== null && from !== undefined && to !== null ? from : to);
   const done = useRef(false);
@@ -90,7 +98,7 @@ function useRoll(to: number | null, from: number | null | undefined, format: (v:
     }
     done.current = true;
     const t0 = performance.now();
-    const dur = 800;
+    const dur = 400;
     let raf = 0;
     const tick = (now: number) => {
       const k = Math.min(1, (now - t0) / dur);
@@ -145,6 +153,7 @@ export function HeroChart({
   const wrapRef = useRef<HTMLDivElement>(null);
   const lineRef = useRef<SVGPathElement>(null);
   const glowRef = useRef<SVGPathElement>(null);
+  const glow2Ref = useRef<SVGPathElement>(null);
   const areaRef = useRef<SVGPathElement>(null);
   const prevPts = useRef<[number, number][] | null>(null);
   const [w, setW] = useState(360);
@@ -198,23 +207,26 @@ export function HeroChart({
     const target = resample(geo.pts, N);
     const from = prevPts.current;
     prevPts.current = target;
+    // 平滑曲線（單調三次插值，不過衝）；補間時用固定點數，補間結束換回完整解析度
     const set = (p: [number, number][]) => {
-      const d = pathD(p);
+      const d = smoothD(p);
       lineRef.current?.setAttribute('d', d);
       glowRef.current?.setAttribute('d', d);
-      areaRef.current?.setAttribute('d', areaD(p, height));
+      glow2Ref.current?.setAttribute('d', d);
+      areaRef.current?.setAttribute('d', areaD(p, height, true));
     };
     if (!from || reduceMotion()) {
-      set(target);
+      set(geo.pts);
       return;
     }
     const t0 = performance.now();
-    const dur = 520;
+    const dur = 500;
     let raf = 0;
     const tick = (now: number) => {
       const k = Math.min(1, (now - t0) / dur);
+      if (k >= 1) { set(geo.pts); return; }
       set(lerpPts(from, target, springEase(k)));
-      if (k < 1) raf = requestAnimationFrame(tick);
+      raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -222,7 +234,7 @@ export function HeroChart({
 
   useEffect(() => {
     if (!geo || drawn) return;
-    const t = setTimeout(() => setDrawn(true), 950);
+    const t = setTimeout(() => setDrawn(true), 1100);
     return () => clearTimeout(t);
   }, [geo]);
 
@@ -241,7 +253,7 @@ export function HeroChart({
   const range = win ? fromBase(last) : null;
   const dir: Dir = range ? range.dir : 'flat';
   const color = dirColor(dir);
-  const rolled = useRoll(latest, seen, format);
+  const rolled = useRoll(latest, seen ?? (win ? (win.base ?? win.values[0]) : null), format);
   const heroText = scrub !== null && win ? format(win.values[scrub]) : rolled;
   // M1-3：主角數字旁的日漲跌標「資料日 10/2」而不是「今日」——休市或尚未更新時這個日期本身就說明了基準
   const dataDate = win ? (win.daily?.dates[win.daily.dates.length - 1] ?? win.dates[last]) : null;
@@ -458,10 +470,9 @@ export function HeroChart({
       <div class="hero-change">
         {chg && win ? (
           <>
-            <span class={chg.dir}>
-              <span aria-hidden="true">{arrow(chg.abs)} {fd(Math.abs(chg.abs))}（{chg.pct === null ? '—' : `${Math.abs(chg.pct).toFixed(2)}%`}）</span>
-              <span class="sr-only">{chg.dir === 'up' ? '上漲' : chg.dir === 'down' ? '下跌' : '持平'} {fd(Math.abs(chg.abs))}</span>
-            </span>
+            <span class={chg.dir} role="img" aria-label={`${chg.dir === 'up' ? '上漲' : chg.dir === 'down' ? '下跌' : '持平'} ${fd(Math.abs(chg.abs))}`}>
+                <span aria-hidden="true">{arrow(chg.abs)} {fd(Math.abs(chg.abs))} ({chg.pct === null ? '—' : `${Math.abs(chg.pct).toFixed(2)}%`})</span>
+              </span>
             <span class="caption" data-testid="hero-change-date">{scrub !== null ? dateLabel(win.dates[scrub]) : daily || both ? md(dataDate) : PERIOD_LABEL[period]}</span>
             {scrub === null && seenDelta !== null ? (
               <span class="delta-tag" aria-label={`較上次查看${seenDelta > 0 ? '增加' : '減少'} ${fd(Math.abs(seenDelta))}`}>較上次查看 {arrow(seenDelta)} {fd(Math.abs(seenDelta))}</span>
@@ -473,9 +484,8 @@ export function HeroChart({
         <div class="hero-change second" data-testid="hero-period-change">
           {periodChg ? (
             <>
-              <span class={periodChg.dir}>
-                <span aria-hidden="true">{arrow(periodChg.abs)} {fd(Math.abs(periodChg.abs))}（{periodChg.pct === null ? '—' : `${Math.abs(periodChg.pct).toFixed(2)}%`}）</span>
-                <span class="sr-only">{PERIOD_LABEL[period]}{periodChg.dir === 'up' ? '上漲' : periodChg.dir === 'down' ? '下跌' : '持平'} {fd(Math.abs(periodChg.abs))}</span>
+              <span class={periodChg.dir} role="img" aria-label={`${PERIOD_LABEL[period]}${periodChg.dir === 'up' ? '上漲' : periodChg.dir === 'down' ? '下跌' : '持平'} ${fd(Math.abs(periodChg.abs))}`}>
+                <span aria-hidden="true">{arrow(periodChg.abs)} {fd(Math.abs(periodChg.abs))} ({periodChg.pct === null ? '—' : `${Math.abs(periodChg.pct).toFixed(2)}%`})</span>
               </span>
               <span class="caption">{PERIOD_LABEL[period]}{scrub !== null ? `至 ${axisLabel(win.dates[scrub])}` : ''}</span>
             </>
@@ -485,10 +495,9 @@ export function HeroChart({
       {daily && range && win ? (
         <div class="chart-range">
           <span>{PERIOD_LABEL[period]}</span>
-          <span class={range.dir}>
-            <span aria-hidden="true">{arrow(range.abs)} {fd(Math.abs(range.abs))}（{range.pct === null ? '—' : `${Math.abs(range.pct).toFixed(2)}%`}）</span>
-            <span class="sr-only">{PERIOD_LABEL[period]}區間{range.dir === 'up' ? '上漲' : range.dir === 'down' ? '下跌' : '持平'} {fd(Math.abs(range.abs))}</span>
-          </span>
+          <span class={range.dir} role="img" aria-label={`${PERIOD_LABEL[period]}區間${range.dir === 'up' ? '上漲' : range.dir === 'down' ? '下跌' : '持平'} ${fd(Math.abs(range.abs))}`}>
+                <span aria-hidden="true">{arrow(range.abs)} {fd(Math.abs(range.abs))} ({range.pct === null ? '—' : `${Math.abs(range.pct).toFixed(2)}%`})</span>
+              </span>
         </div>
       ) : null}
       <div ref={wrapRef} class="chart-wrap bleed" style={{ height: `${svgH / 16}rem` }} data-points={win?.values.length ?? 0} data-from={win?.dates[0]}
@@ -504,9 +513,11 @@ export function HeroChart({
                 <stop offset="1" stop-color={color} stop-opacity="0" />
               </linearGradient>
               <filter id="hero-glow" x="-5%" y="-40%" width="110%" height="180%"><feGaussianBlur stdDeviation="4" /></filter>
+              <filter id="hero-glow2" x="-5%" y="-60%" width="110%" height="220%"><feGaussianBlur stdDeviation="10" /></filter>
             </defs>
             <line class="chart-base" x1={frame.padX} x2={w - frame.padX} y1={0} y2={0} style={{ transform: `translateY(${geo.baseY}px)`, transition: 'transform var(--dur-slow) var(--ease-spring)' }} />
             {area ? <path ref={areaRef} class="chart-area" fill="url(#hero-area)" /> : null}
+            <path ref={glow2Ref} class="chart-glow wide" stroke={color} filter="url(#hero-glow2)" pathLength={1} />
             <path ref={glowRef} class="chart-glow" stroke={color} filter="url(#hero-glow)" pathLength={1} />
             <path ref={lineRef} class="chart-line" stroke={color} pathLength={1} />
             {showHiLo && hiPt && loPt && win ? (
@@ -540,18 +551,28 @@ export function HeroChart({
               </>
             ) : endPt && !rr ? (
               <>
-                <circle class="dot-halo" cx={endPt[0]} cy={endPt[1]} r={9} fill={color} />
+                <circle class="dot-halo" cx={endPt[0]} cy={endPt[1]} r={9} fill={color} style={{ transformOrigin: `${endPt[0]}px ${endPt[1]}px` }} />
+                <circle class="dot-pulse" cx={endPt[0]} cy={endPt[1]} r={9} fill="none" stroke={color} style={{ transformOrigin: `${endPt[0]}px ${endPt[1]}px` }} />
                 <circle cx={endPt[0]} cy={endPt[1]} r={3.5} fill={color} />
               </>
             ) : null}
           </svg>
         ) : <div class="chart-empty" style={{ height: '100%' }}>{emptyText}</div>}
+        {geo && win && scrub === null && !rr ? (
+          // 起始價虛線的標籤（D1）：虛線左端；1D 顯示「昨收」；可點開名詞說明。標籤放在虛線上方，離線較遠的一側
+          <span class="chart-base-label" data-testid="base-label"
+            style={{ top: `${(baseLabelBelow(win) ? Math.min(height - 18, geo.baseY + 4) : Math.max(0, geo.baseY - 22)) / 16}rem` }}>
+            <Term id="start_price" ctx={{ value: format(win.base ?? win.values[0]), last: format(win.values[last]), dir: dir === 'up' ? '區間上漲' : dir === 'down' ? '區間下跌' : '區間持平' }}>
+              {period === '1D' ? '昨收' : '起始價'} {format(win.base ?? win.values[0])}
+            </Term>
+          </span>
+        ) : null}
         {rr ? (
           // M1-9：提示框固定在圖表上緣內側（不蓋住主角數字）
           <div class={`range-tip ${sel?.fading ? 'fading' : ''}`} data-testid="range-tip" role="status" style={{ top: 'var(--s-1)', transform: 'translateX(-50%)' }}>
             <span class="range-dates">{shortDate(rr.fromDate)} – {shortDate(rr.toDate)}<span class="range-days">・{rr.days} 個交易日</span></span>
             <span class={`range-chg ${rr.dir}`}>
-              {arrow(rr.abs)} {fd(Math.abs(rr.abs))}（{rr.pct === null ? '—' : `${rr.pct > 0 ? '+' : rr.pct < 0 ? '−' : ''}${Math.abs(rr.pct).toFixed(2)}%`}）
+              {arrow(rr.abs)} {fd(Math.abs(rr.abs))} ({rr.pct === null ? '—' : `${rr.pct > 0 ? '+' : rr.pct < 0 ? '−' : ''}${Math.abs(rr.pct).toFixed(2)}%`})
             </span>
             <span class="range-basis-label">{basis ? RANGE_BASIS_NAME[basis] : ''}</span>
           </div>

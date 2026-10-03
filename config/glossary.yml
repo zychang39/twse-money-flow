@@ -1,0 +1,479 @@
+# 名詞資料檔（全站唯一來源；web/src/lib/glossary.ts 讀取）。
+# 每個名詞：
+#   id      — 程式引用的代號（不改）
+#   name    — 畫面上的名稱；aliases＝同義寫法（搜尋與自動對應用）
+#   plain   — 白話（一兩句）
+#   example — 用當前頁面數字舉例的模板（{名稱} 由頁面帶入；缺任何一個值時不顯示）
+#   advanced — 進階：怎麼算、門檻或正常範圍、常見誤讀
+#   alert   — 提醒門檻（B4；精簡模式超過門檻時數值旁亮橘點）：rule 給程式判斷、text 給人看
+# 用語規則：不出現買進／賣出／推薦等字眼；只陳述事實與算法。
+version: 1
+alerts:
+  bias_atr: { term: bias_atr, rule: "value > 3", text: "20 日乖離超過 3 倍 ATR" }
+  atr_pct_rank: { term: atr_pct, rule: "value >= 90", text: "ATR% 位於自身近 1 年的前 10%" }
+  attention: { term: attention, rule: "count10 >= 3 or disposed", text: "近 10 個營業日注意 3 次以上或處置中" }
+  margin_5d: { term: margin_growth_5d, rule: "value > 10", text: "融資 5 日增幅超過 10%" }
+  volume_ratio: { term: volume_ratio, rule: "value > 3", text: "量比超過 3 倍" }
+  stock_vs_sector: { term: sector_rank, rule: "pr >= 80 and sector_tercile == 3", text: "個股 PR ≥ 80，但所屬細產業排名在後三分之一" }
+  strategy_recent: { term: strategy_health, rule: "value < 0", text: "策略近 60 日超額為負" }
+terms:
+  # ---------------- 圖表與價格 ----------------
+  - id: start_price
+    name: 起始價虛線
+    aliases: [起始價, 昨收, 前收]
+    plain: 圖上的水平虛線，代表所選區間第一筆的價格（1D 為前一交易日收盤）。線在虛線上方表示區間上漲。
+    example: 這段區間的起始價是 {value}；目前 {last}，{dir}。
+    advanced: 區間報酬＝最後一筆 ÷ 起始價 − 1。1D 以前一交易日收盤為起點，因此和「今日漲跌」一致；其他區間以區間第一個交易日的收盤為起點。虛線不是支撐或壓力，只是比較基準。
+  - id: adjusted_price
+    name: 還原價
+    aliases: [收盤價（還原）, 還原]
+    plain: 把除權息、減資、分割造成的價格跳動還原後的價格，讓不同時間的價格可以直接比較。
+    advanced: 以每次除權息的參考價調整係數往回乘，最新一天等於實際收盤價。所有報酬、均線、指標與回測都用還原價；只看實際成交價位時才切到原始價。常見誤讀：還原價較早期的數字不是當時真的成交價。
+  - id: range_return
+    name: 區間報酬
+    aliases: [區間漲跌, 雙指看區間報酬]
+    plain: 兩個日期之間的價格漲跌幅。圖上用兩指按住兩個點，或長按後拖曳即可看任意區間。
+    example: 這段區間 {from} 到 {to} 漲跌 {value}。
+    advanced: 以還原價計算（＝含息報酬）；1D／1W 用分鐘資料。區間報酬不扣交易成本。
+  - id: high_low
+    name: 區間最高與最低
+    aliases: [最高, 最低]
+    plain: 所選區間內收盤價的最高點與最低點，標在圖上。
+    advanced: 日資料以收盤價計；1D／1W 以每 5 分鐘（指數為每分鐘）的收盤價計，不是盤中最高最低成交價。
+  - id: k_line
+    name: K 線
+    aliases: [日 K, 週 K, 月 K, K 棒]
+    plain: 每根棒子代表一段時間的開盤、最高、最低、收盤；實體紅色表示收盤高於開盤，綠色相反。
+    advanced: 1M／3M 用日 K、YTD／1Y 用週 K、5Y／ALL 用月 K。藍線為 20 日線、紫線為 60 日線（K 線圖上依日資料計算後取樣）。
+
+  # ---------------- 動能 ----------------
+  - id: market_percentile
+    name: 全市場百分位
+    aliases: [百分位, RS 百分位, RS, PR]
+    plain: 該期間報酬在全部股票中的排名位置，97 代表高於 97% 的股票。
+    example: 近 1 個月漲幅高於全市場 {value}% 的股票。
+    advanced: 股票池＝上市櫃普通股（排除 ETF、權證、DR、上市未滿 60 日）。RS 百分位＝近 6 個月（120 日）報酬的全市場百分位，每日重算；近 250 日的 RS 百分位走勢可看強勢是否持續。常見誤讀：百分位高不代表接下來會繼續漲，只代表過去一段期間相對強。
+  - id: ma
+    name: 均線
+    aliases: [20 日線, 60 日線, 240 日線, 移動平均]
+    plain: 最近 N 個交易日收盤價的平均。20 日約一個月、60 日約一季、240 日約一年。
+    advanced: 以還原價計算的簡單移動平均。價格在均線上方表示目前價格高於這段期間的平均成本。
+  - id: bias
+    name: 乖離
+    aliases: [乖離率]
+    plain: 收盤價和均線的距離，用百分比表示。
+    example: 收盤比 20 日線高 {value}。
+    advanced: 乖離＝收盤 ÷ 均線 − 1。乖離大表示短期漲跌快，但多大才算「大」因股而異，所以另用 ATR 倍數衡量（見「20 日乖離 ATR 倍數」）。
+  - id: bias_atr
+    name: 20 日乖離 ATR 倍數
+    aliases: [乖離 ATR 倍數]
+    plain: 收盤價距離 20 日線有幾個「平均每日波動」（ATR）。用自己的波動當尺，比較不同股票。
+    example: 收盤距 20 日線 {value} 倍 ATR。
+    advanced: （收盤 − 20 日均線）÷ ATR14。超過 3 倍屬於短期離均線很遠的狀態（提醒門檻）；常見誤讀：不是賣訊，只是陳述距離。
+  - id: slope
+    name: 均線斜率
+    aliases: [斜率, 近 10 日斜率, 加快, 放慢]
+    plain: 均線最近 10 個交易日上升或下降了多少百分比。
+    example: 20 日線近 10 日 {value}，10 日前 {prev}。
+    advanced: 斜率＝今日均線 ÷ 10 個交易日前的均線 − 1。用語固定：斜率為正且比 10 日前大＝「加快」；為正但變小＝「放慢」。
+  - id: ma_gap
+    name: 均線間距
+    aliases: [20–60 日線間距, 擴大, 收斂]
+    plain: 20 日線和 60 日線相差的百分比。間距變大＝「擴大」，變小＝「收斂」。
+    example: 20–60 日線間距 {value}，10 日前 {prev}。
+    advanced: 間距＝20 日均線 ÷ 60 日均線 − 1。多頭排列時間距擴大表示短期均線上升得比長期均線快。
+  - id: alignment
+    name: 多頭排列
+    aliases: [空頭排列, 排列, 排列持續日數]
+    plain: 收盤 > 20 日線 > 60 日線 > 240 日線稱為多頭排列；完全相反稱為空頭排列；其餘為整理。
+    example: 多頭排列已 {value} 日。
+    advanced: 持續日數＝連續符合同一排列的交易日數。
+  - id: atr14
+    name: ATR14
+    aliases: [ATR, 真實波動幅度]
+    plain: 近 14 個交易日每日真實波動幅度的平均；用來設定停損距離與計算部位大小。
+    example: 近 14 日平均每天高低波動約 {value} 元。
+    advanced: 真實波動＝max(最高 − 最低, |最高 − 前收|, |最低 − 前收|)，取 14 日簡單平均（以還原價）。停損常設在 2～3 倍 ATR 之外。
+  - id: atr_pct
+    name: ATR%
+    aliases: [ATR 百分比, 波動百分位]
+    plain: ATR14 除以收盤價，代表每天平均波動佔股價的比例。
+    example: ATR% {value}，位於自身近 1 年的第 {rank} 百分位。
+    advanced: 近 1 年百分位 ≥ 90（前 10%）為提醒門檻：波動比平常大很多，同樣的風險金額能買的股數會變少。
+  - id: volume_ratio
+    name: 量比
+    aliases: [成交量倍數]
+    plain: 今日成交量是近 20 日平均量的幾倍。
+    example: 今日量是 20 日均量的 {value} 倍。
+    advanced: 量比＝今日成交股數 ÷ 前 20 個交易日平均。超過 3 倍為提醒門檻（異常放量）。
+  - id: high_52w
+    name: 52 週高低
+    aliases: [距 52 週高, 距 52 週低, 52 週收盤新高]
+    plain: 最近 52 週（約 250 個交易日）收盤價的最高與最低；距離＝收盤與最高（或最低）的差距百分比。
+    example: 收盤距 52 週高 {value}。
+    advanced: 以還原收盤價計。收盤等於 52 週最高時顯示創新高的日期，不顯示 0.00%。
+  - id: new_high_60
+    name: 創 60 日新高次數
+    aliases: [近 20 日創 60 日新高]
+    plain: 近 20 個交易日中，收盤創 60 日新高的天數。
+    example: 近 20 日有 {value} 天創 60 日新高。
+    advanced: 次數多表示近期持續創高，而不是只有一天突然上漲。
+  - id: excess_vs
+    name: 相對報酬
+    aliases: [對 0050, 對細產業中位數]
+    plain: 個股報酬減去比較對象（0050 或所屬細產業中位數）同期間的報酬。
+    advanced: 0050 以含息報酬計；細產業中位數以族群成員的同期間報酬中位數計。
+
+  # ---------------- 籌碼 ----------------
+  - id: insti
+    name: 三大法人
+    aliases: [法人, 外資, 投信, 自營商, 買賣超]
+    plain: 外資、投信、自營商每日買進與賣出的差額。正值為買超、負值為賣超。
+    advanced: 證交所與櫃買中心盤後公布的官方數字。金額以「億」為單位時用官方公布的買賣金額；個股以張數為主。自營商含避險部位。
+  - id: insti_share
+    name: 法人佔量
+    aliases: [法人 20 日佔量, 佔量, 佔成交量]
+    plain: 法人買賣超張數佔同期間成交量的比例；正值表示買超佔量。
+    example: 近 20 日法人合計買超佔成交量 {value}。
+    advanced: 佔量＝期間買賣超合計 ÷ 期間成交量合計。用比例比較不同成交量的股票；常見誤讀：佔量高不代表法人持股多。
+  - id: streak
+    name: 連續買賣超
+    aliases: [連續]
+    plain: 法人連續買超（或賣超）的交易日數。
+    advanced: 中間只要有一天方向不同就重新計算。
+  - id: margin
+    name: 融資
+    aliases: [融資餘額, 信用交易]
+    plain: 投資人向券商借錢買股票的餘額。
+    advanced: 單位為張。融資增加表示借錢買進的部位增加；常見誤讀：融資增加不一定是壞事，需配合價格看。
+  - id: margin_growth_5d
+    name: 融資 5 日增幅
+    aliases: [融資增幅]
+    plain: 融資餘額比 5 個交易日前增加的百分比。
+    example: 融資 5 日增加 {value}。
+    advanced: 超過 10% 為提醒門檻：短期借錢買進的部位快速增加。
+  - id: short
+    name: 融券
+    aliases: [融券餘額, 融券回補]
+    plain: 投資人向券商借股票賣出的餘額；融券回補＝在停資停券或除權息前必須買回還券。
+    advanced: 「融券回補在 10 日內」表示 10 個交易日內有強制回補日。
+  - id: sbl
+    name: 借券
+    aliases: [借券賣出, 借券餘額]
+    plain: 機構向股東借股票賣出，常見於避險或套利。
+    advanced: 資料來源為證交所與櫃買中心借券賣出彙總。
+  - id: daytrade
+    name: 當沖
+    aliases: [當沖比]
+    plain: 同一天買進又賣出的交易；當沖比＝當沖成交量佔總成交量的比例。
+    advanced: 當沖比高表示短線交易多，價格波動可能較大。
+  - id: whale
+    name: 千張大戶
+    aliases: [大戶, 大戶週變化, 股權分散]
+    plain: 持有 1,000 張以上的股東合計持股比例；週變化＝比上週增減幾個百分點。
+    example: 千張大戶持股比本週 {value}。
+    advanced: 集保結算所每週公布的股權分散表。大戶級距可在設定改為 400／600／800／1,000 張（只影響顯示）。
+  - id: foreign_hold
+    name: 外資持股比
+    aliases: [外資持股]
+    plain: 外資持有的股數佔發行股數的比例。
+    advanced: 證交所與櫃買中心每日公布。
+  - id: active_etf
+    name: 主動式 ETF
+    aliases: [主動式 ETF 加減碼]
+    plain: 由經理人選股的 ETF；每日公布持股，可看出對個股的加碼或減碼。
+    advanced: 加減碼以權重變動、或扣除受益權單位數（申購買回）變動後的股數判定，避免把資金進出誤當成加碼。金額 < 0.3 億不列。
+
+  # ---------------- 基本面與事件 ----------------
+  - id: revenue_yoy
+    name: 月營收年增率
+    aliases: [營收年增, 近 3 月平均年增, 連續年增月數]
+    plain: 本月營收比去年同月增加的百分比。
+    example: 最新月營收年增 {value}。
+    advanced: 月營收於次月 10 日前公布；回測只在公布日之後使用（月營收生效）。創 12 個月新高＝本月營收是近 12 個月最高。
+  - id: pe
+    name: 本益比
+    aliases: [本益比百分位, PE]
+    plain: 股價是近 4 季每股盈餘的幾倍。
+    example: 本益比 {value} 倍，位於近 3 年的第 {rank} 百分位。
+    advanced: 3 年百分位＝目前本益比在近 3 年每日本益比中的位置；虧損時不計算。常見誤讀：本益比低不等於價格便宜，可能是盈餘將下滑。
+  - id: pb
+    name: 淨值比
+    aliases: [股價淨值比, PB]
+    plain: 股價是每股淨值的幾倍。
+    advanced: 證交所與櫃買中心每日公布。
+  - id: dividend_yield
+    name: 殖利率
+    aliases: [現金殖利率]
+    plain: 近一年現金股利除以股價。
+    advanced: 證交所與櫃買中心每日公布；不含股票股利。
+  - id: attention
+    name: 注意股
+    aliases: [處置, 處置股, 注意, 近 10 日注意]
+    plain: 交易所對漲跌、週轉率異常的股票公布「注意」；累積多次可能被「處置」（例如改為人工撮合、預收款券）。
+    example: 近 10 個營業日被列注意 {value} 次。
+    advanced: 近 10 個營業日注意 3 次以上或處置中為提醒門檻。處置期間流動性較差。
+  - id: exright
+    name: 除權息
+    aliases: [除息, 除權, 除權息在 5 日內]
+    plain: 發放股利或股票股利的基準日；當天開盤參考價會扣除股利。
+    advanced: 「除權息在 5 日內」表示 5 個交易日內有除權息日。還原價會把除權息的價格跳動還原。
+
+  # ---------------- 市場 ----------------
+  - id: turnover
+    name: 成交金額
+    aliases: [成交金額倍數, 倍數]
+    plain: 上市加上櫃當日的成交金額合計；倍數＝當日是近 20 日平均的幾倍。
+    example: 今日成交 {value} 億，是 20 日平均的 {ratio} 倍。
+    advanced: 倍數＝當日 ÷ 前 20 個交易日平均（不含當日）。上市與上櫃各自計算後再合計。
+  - id: breadth
+    name: 站上 60 日線比例
+    aliases: [寬度, 市場寬度]
+    plain: 全部股票中，收盤在自己 60 日線之上的比例。
+    example: 目前 {value} 的股票站上 60 日線。
+    advanced: 指數上漲但比例下降，表示上漲集中在少數權值股。
+  - id: new_high_low
+    name: 52 週新高−新低
+    aliases: [新高新低家數]
+    plain: 當天創 52 週新高的家數減去創 52 週新低的家數。
+    advanced: 以收盤價計。正值表示創新高的股票比較多。
+  - id: market_env
+    name: 市場環境
+    aliases: [資金環境, 風險, 有利, 中性]
+    plain: 由五項資金指標各自判定「風險／中性／有利」後彙總，描述目前的資金條件。
+    example: 目前 {value}。
+    advanced: 五項：外資台指淨未平倉、台幣匯率趨勢、大盤與年線、M1B／M2 年增率、美國 10 年期殖利率；各自的門檻寫在設定檔（config/thresholds.yml）。只描述條件，不預測走勢。
+  - id: futures_oi
+    name: 外資台指淨未平倉
+    aliases: [台指未平倉]
+    plain: 外資在台指期（大台＋小台／4＋微台／20）多單減空單的口數。
+    advanced: 期交所每日公布。≥ 0 偏多、≤ −30,000 偏空。
+  - id: fx_trend
+    name: 台幣匯率趨勢
+    aliases: [匯率]
+    plain: 美元兌台幣近 20 日的變化；台幣升值通常伴隨資金流入。
+    advanced: ≤ −1%（台幣升值）偏有利、≥ +1% 偏風險。
+  - id: m1b_m2
+    name: M1B／M2 年增率
+    aliases: [M1B, M2, 黃金交叉]
+    plain: 活期資金（M1B）和廣義貨幣（M2）的年增率；M1B 高於 M2 常被視為資金動能偏多。
+    advanced: 中央銀行每月公布，約落後一個月。
+  - id: ust10y
+    name: 美國 10 年期殖利率
+    aliases: [美債殖利率]
+    plain: 美國公債 10 年期殖利率；20 日內大幅上升時，股市評價壓力通常較大。
+    advanced: 20 日變化 ≥ +25bp 偏風險、≤ −25bp 偏有利。
+
+  # ---------------- 族群 ----------------
+  - id: official_industry
+    name: 官方產業
+    aliases: [產業, 交易所產業]
+    plain: 證交所與櫃買中心的產業分類（例：半導體業、電子零組件業）。
+    advanced: 族群三層的第一層：官方產業 › 細產業 › 自訂族群。
+  - id: fine_industry
+    name: 細產業
+    aliases: [細產業排名, IC 載板]
+    plain: 比交易所官方產業更細的分類（如 IC 載板）；族群排名以細產業計算。
+    advanced: 主要依櫃買中心「產業價值鏈資訊平台」的產業鏈分類，不足處以公開資訊觀測站的主要產品自行整理（標示依據與日期）。一檔股票可屬於多個細產業，預設主要細產業為第一個，可在個股頁改選。
+  - id: theme
+    name: 題材族群
+    aliases: [題材, 上中下游, 上游, 中游, 下游]
+    plain: 依產業鏈整理的主題（例：AI 伺服器、散熱），分成上游、中游、下游。
+    advanced: 以公開資訊自行整理、可編輯，標示整理日期；不評等受惠程度。
+  - id: custom_group
+    name: 自訂族群
+    aliases: [自訂]
+    plain: 自己在 App 內建立的族群（名稱、分段、成員、備註），只存在這台裝置並納入備份。
+    advanced: 也可以修改題材種子檔的成員；修改只存在本機。
+  - id: sector_rank
+    name: 族群名次
+    aliases: [名次, 族群排名, 3 個月名次, 本股在族群內]
+    plain: 以族群成員近 3 個月報酬中位數排序的名次；只排成員至少 5 檔的族群。
+    example: 第 {value}／{total} 名。
+    advanced: 成員不足 5 檔的族群併入上一層計算並標示。本股在族群內的名次以 RS 百分位排序。提醒門檻：個股 PR ≥ 80 但所屬細產業排名在後三分之一。
+  - id: sector_index
+    name: 族群等權指數
+    aliases: [等權指數]
+    plain: 族群成員每天報酬的平均（每檔權重相同）連乘而成的指數。
+    advanced: 以還原價計，成員變動時以當日成員計算；與加權指數比較可看族群相對強弱。
+  - id: correlated
+    name: 走勢相近
+    aliases: [相關係數]
+    plain: 近 60 個交易日每日漲跌最相似的股票（相關係數最高的 10 檔）。
+    advanced: 以日報酬計算皮爾森相關係數；只代表過去走勢相似，不代表業務相關。
+
+  # ---------------- 策略與回測 ----------------
+  - id: strategy_grade
+    name: 策略分級
+    aliases: [分級, 有效, 觀察中, 無效, 訊號顯著・未勝 0050]
+    plain: 依預先寫死的門檻判定策略是否有統計上的超額報酬；分級一律以全期間計算。
+    advanced: 有效＝訊號檢定 t ≥ 3.0，且機會成本超額 > 0、t ≥ 2.0、5 檔組合 Sharpe ≥ 同期 0050；訊號顯著・未勝 0050＝只有訊號檢定 t ≥ 3.0；觀察中＝2.0 ≤ 訊號檢定 t < 3.0；其餘無效。樣本期間不足 3 年或樣本不足 300 筆最高觀察中。
+  - id: opportunity_cost
+    name: 機會成本
+    aliases: [相對 0050]
+    plain: 每筆訊號持有 40 日扣成本後，減去同期間持有 0050（含息）的報酬，取平均。
+    example: 平均每筆比持有 0050 多 {value}。
+    advanced: 回答「這個策略比直接買 0050 好嗎」。門檻：校正後 t ≥ 2.0。
+  - id: signal_test
+    name: 訊號檢定
+    aliases: [等權, 相對等權]
+    plain: 同樣算法，但減去同日股票池所有股票的平均報酬。
+    example: 平均每筆比同日全部股票多 {value}。
+    advanced: 回答「訊號本身有沒有挑股能力」，排除大盤漲跌的影響。門檻：校正後 t ≥ 3.0。
+  - id: adjusted_t
+    name: 校正後 t
+    aliases: [t, t 值]
+    plain: 平均超額除以標準誤，並修正同日進場訊號彼此相關（日曆時間法）。門檻：等權 t ≥ 3.0、相對 0050 t ≥ 2.0。
+    example: t {value}。
+    advanced: 日曆時間法：先把同一個月進場的訊號平均成一個月度超額，再對月度序列算平均與標準誤，避免同一天很多檔一起上漲時高估顯著性。t 越大越不像偶然。
+  - id: excess_win
+    name: 超額勝率
+    aliases: [勝率]
+    plain: 超額大於 0 的訊號比例；低於 50% 而平均為正，表示獲利集中在少數幾筆。
+    example: "{value} 的訊號跑贏比較對象。"
+    advanced: 和平均超額一起看：勝率低、平均高＝少數大賺撐起平均。
+  - id: median_excess
+    name: 中位數超額
+    aliases: [中位數]
+    plain: 把每筆超額由小到大排列後中間那一筆。
+    advanced: 比平均不受極端值影響。
+  - id: out_of_sample
+    name: 樣本外
+    aliases: [樣本內, 2021 年底前選]
+    plain: 選規則時沒用到的期間（2022 年起）的績效。
+    advanced: 出場規則只用 2021 年底前的資料挑選；樣本外表現遠差於樣本內時，代表規則可能過度貼合歷史。
+  - id: new_trigger
+    name: 新觸發
+    aliases: [觸發, 觸發日]
+    plain: 當日首次同時符合全部條件的股票；回測統計只計這些。
+    example: 今日新觸發 {value} 檔。
+    advanced: 同一檔股票持續符合條件時只在第一天計一次（去重）。
+  - id: screened
+    name: 篩出
+    aliases: [第 k 日]
+    plain: 目前仍符合條件的股票，含先前已觸發者；統計依據以其觸發日為準。
+    example: 目前篩出 {value} 檔。
+    advanced: 「第 k 日」＝距觸發日第幾個交易日；觸發以來報酬從觸發日次一交易日開盤起算。
+  - id: health
+    name: 健康度
+    aliases: [近 60 日超額, 策略健康度]
+    plain: 策略最近 60 個交易日的超額與長期平均比較。
+    advanced: 近 60 日超額為負屬提醒門檻（不代表策略失效，只是近期表現不如長期）。
+  - id: strategy_health
+    name: 近 60 日超額
+    aliases: []
+    plain: 策略最近 60 個交易日觸發的訊號，持有至今或 40 日的平均超額。
+    advanced: 為負時亮提醒。樣本少時波動很大。
+  - id: forward_test
+    name: 待前瞻驗證
+    aliases: [前瞻驗證]
+    plain: 規則上線後才發生的訊號累積還不夠，尚未確認在新資料上仍有效。
+    advanced: 上線日之後的訊號另外統計；累積足夠筆數前標示待前瞻驗證。
+  - id: portfolio5
+    name: 5 檔組合
+    aliases: [組合回測]
+    plain: 每週依規則持有最多 5 檔、等權，扣除交易成本後的淨值。
+    advanced: T 日收盤後訊號、T+1 開盤進場；開盤漲停無法成交時略過該筆；單筆部位不超過該股 20 日均成交額的設定比例。
+  - id: random_band
+    name: 隨機選股分位帶
+    aliases: [隨機 5–95%, 隨機選股]
+    plain: 從同期間股票池隨機抽 5 檔、重複 200 次的淨值範圍；淡色帶為 5%～95%，細線為中位數。
+    advanced: 組合曲線在帶狀之上，表示比隨機選股好；在帶內表示和運氣差不多。
+  - id: benchmarks
+    name: 比較基準
+    aliases: ["0050", 加權報酬指數, 加權報酬, 00631L, 等權基準]
+    plain: 0050（含息）、加權報酬指數（含息的大盤）、00631L（兩倍槓桿 ETF）、等權（同日全部股票平均）。
+    advanced: 基準只改變比較對象；分級固定以全期間的 0050 與等權計算。
+  - id: annual_return
+    name: 年化報酬
+    aliases: [年報酬]
+    plain: 把整段期間的報酬換算成平均每年的複利報酬。
+    advanced: （期末淨值 ÷ 期初淨值）^(1 ÷ 年數) − 1。
+  - id: sharpe
+    name: Sharpe
+    aliases: [夏普值]
+    plain: 每承擔一單位波動得到多少報酬；越高越好。
+    advanced: 週報酬平均 ÷ 週報酬標準差 × √52（未扣無風險利率）。
+  - id: max_drawdown
+    name: 最大回撤
+    aliases: [回撤]
+    plain: 淨值從前一個高點跌到之後最低點的最大跌幅。
+    advanced: 回撤圖顯示每個時點距離前高的跌幅。
+  - id: event_study
+    name: 事件研究
+    aliases: [累積超額曲線, 95% 區間]
+    plain: 把所有訊號對齊到進場日，畫出之後 1～120 日的平均累積超額。
+    advanced: 淡色帶為 95% 信賴區間（日曆時間法標準誤）。曲線持續上升代表超額不是只在前幾天。
+  - id: exit_rule
+    name: 出場規則
+    aliases: [停損, 移動停利]
+    plain: 何時賣出的規則（固定天數、停損、移動停利等）在樣本內與樣本外的結果比較。
+    advanced: 選定的規則只用 2021 年底前的資料挑選。
+  - id: limit_fill
+    name: 開盤漲停不成交
+    aliases: [成交限制]
+    plain: 進場日開盤就漲停時，實際上很難買到；回測把這種訊號視為不成交、該筆略過。
+    advanced: 另限制單筆部位不超過該股 20 日平均成交額的設定比例，避免回測假設買到流動性不足的股票。
+  - id: small_sample
+    name: 樣本不足
+    aliases: []
+    plain: 所選期間的訊號少於 100 筆，統計數字容易受少數幾筆影響。
+    advanced: 年度表中筆數少於 30 的年份用次文字色。
+  - id: rolling_3y
+    name: 滾動 3 年
+    aliases: [穩定度]
+    plain: 每個時點往回 3 年的 40 日訊號超額，看策略是否在不同期間都穩定。
+    advanced: 不受期間篩選影響；淡色帶為 95% 區間。
+  - id: leverage
+    name: 槓桿風險
+    aliases: [融資年利率, 斷路器]
+    plain: 用融資或槓桿 ETF 放大部位時，回撤與利息的風險試算；只做風險計算。
+    advanced: 計算最大回撤放大後的帳戶跌幅、連續跌停時的損失與利息成本。
+
+  # ---------------- 流程與風險 ----------------
+  - id: compliant_trade
+    name: 合規交易
+    aliases: [合規, 不合規]
+    plain: 進場前填完檢查表、設好停損價，而且計畫風險沒有超過上限的交易。
+    advanced: 三項都符合才算合規；與獲利無關。
+  - id: r_multiple
+    name: R
+    aliases: [以 R 計, 風險單位]
+    plain: 一筆交易計畫承擔的風險金額（進場價到停損價的距離 × 股數）。賺 2R＝賺到風險金額的 2 倍。
+    advanced: 期望值＝勝率 × 平均獲利（R）− 敗率 × 平均虧損（R）。
+  - id: expectancy
+    name: 期望值
+    aliases: []
+    plain: 平均每筆交易賺或賠幾個 R。
+    advanced: 任一組少於 20 筆時顯示樣本不足。
+  - id: xp
+    name: 經驗值
+    aliases: [等級, XP]
+    plain: 完成流程步驟累積的點數；只獎勵紀律，不因交易次數或獲利給分。
+    advanced: 升到等級 n 需累計 100 × (2^(n−1) − 1)，最高 10 級，不降級、不鎖功能。
+  - id: streak_days
+    name: 連續天數
+    aliases: [連續, 寬限日]
+    plain: 連續完成每日流程的交易日數；休市日不中斷，每月有 2 個寬限日。
+    advanced: 當日完成＝看大盤、看持倉、看自選異動、進場前檢查、平倉後檢討中適用的步驟全部完成。
+  - id: checklist
+    name: 檢查表
+    aliases: [進場前檢查]
+    plain: 新增持倉前逐項確認的清單（停損價、計畫風險、理由）。
+    advanced: 「檢查後決定不進場」也算完成。
+  - id: position_size
+    name: 部位大小
+    aliases: [股數, 每筆風險, 本金, 零股]
+    plain: 依本金與每筆可承受的風險，算出停損時損失剛好等於風險上限的股數。
+    example: 每筆風險 {value} 元，可買 {shares} 股。
+    advanced: 股數＝本金 × 每筆風險% ÷（參考價 − 停損價）；不足一張時改用零股。
+  - id: stop_price
+    name: 停損價
+    aliases: [停損]
+    plain: 事先決定、價格跌到就出場的價位。常用參考價減 2～3 倍 ATR。
+    advanced: 跌停時可能無法在停損價成交，另看「一日跌停價」與連續跌停表。
+  - id: limit_down
+    name: 跌停價
+    aliases: [一日跌停價, 連續跌停]
+    plain: 一天最多下跌 10% 的價格；連續跌停表列出連續 n 天跌停後的損失。
+    advanced: 台股漲跌幅限制 10%（以前一日收盤為準，取到最小升降單位）。

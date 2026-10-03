@@ -21,6 +21,7 @@ const ONLY = arg('only', '');
 const seed = JSON.parse(readFileSync(SEED, 'utf8'));
 
 export const PAGES = [
+  { id: 'gallery', hash: '#/dev' },
   { id: 'brief', hash: '#/' },
   { id: 'stock-momentum', hash: '#/stock/2330', seg: '動能' },
   { id: 'stock-chips', hash: '#/stock/2330', seg: '籌碼' },
@@ -38,7 +39,7 @@ function measure() {
   const V = [];
   const vw = window.innerWidth;
   const near = (a, b, tol = 0.5) => Math.abs(a - b) <= tol;
-  const skipSel = 'svg, canvas, .chart-wrap, .chart-box, .lw-chart, .netbars, [data-audit-skip], .sheet, .sheet-backdrop, .dock, .topbar, .sr-only, .footer, .update-toast, .status-scrim';
+  const skipSel = 'svg, canvas, .rings, .sc2, .pbar, .rbar, .dbar, .mini, .skel, .ambient, .chart-wrap, .chart-box, .lw-chart, .netbars, [data-audit-skip], .sheet, .sheet-backdrop, .dock, .topbar, .sr-only, .footer, .update-toast, .status-scrim';
   const visible = (el) => {
     const r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) return false;
@@ -53,7 +54,7 @@ function measure() {
   const scrollY = window.scrollY;
   const page = document.querySelector('.page');
   if (!page) return [{ rule: 'page', msg: '找不到 .page' }];
-  const cardOf = (el) => el.closest('.ui-card, .ui-list, .card, .list, .ui-table, .sheet-body');
+  const cardOf = (el) => el.closest('.ui-card, .ui-list, .card, .list, .ui-table, .sheet-body, .sum-card, .stale-note');
 
   // ---------- 1. 左緣 ----------
   // 以「行內片段」為單位：每個文字節點的每一行（Range.getClientRects）與圖示（svg）、輸入框。
@@ -78,7 +79,7 @@ function measure() {
   for (const el of page.querySelectorAll('svg, input, select, textarea, img')) {
     if ((el.parentElement && el.parentElement.closest(skipSel) && !el.matches('svg')) || !visible(el)) continue;
     if (el.matches('svg') && el.parentElement?.closest('svg')) continue;
-    if (el.matches('svg') && el.closest('.chart-wrap, .chart-box, .lw-chart, .netbars, [data-audit-skip], .sheet, .dock, .topbar')) continue;
+    if (el.matches('svg') && el.closest('.rings, .sc2, .mini, .metric-g, .sum-graphic, .chart-wrap, .chart-box, .lw-chart, .netbars, [data-audit-skip], .sheet, .dock, .topbar')) continue;
     boxes.push({ el, r: el.getBoundingClientRect(), card: cardOf(el), icon: true });
   }
   for (const a of boxes) {
@@ -162,13 +163,13 @@ function measure() {
   const HEAD = '，。、；：）・,.;:)%';
   const UNIT = /[0-9%張億元萬日週月年倍檔筆次點]/;
   const tw = document.createTreeWalker(page, NodeFilter.SHOW_TEXT);
-  let prevTop = null; let prevChar = ''; let prevBlock = null;
+  let prevTop = null; let prevBottom = null; let prevChar = ''; let prevBlock = null;
   for (let n = tw.nextNode(); n; n = tw.nextNode()) {
     const p = n.parentElement;
     if (!p || p.closest('svg, .sr-only, [data-audit-skip], .sheet, .dock, .chart-wrap') || !visible(p)) continue;
     const block = p.closest('p, li, td, th, h1, h2, h3, .ui-row-label, .ui-row-sub, .ui-v, .ui-stat-v, .ui-stat-l, div, span');
     const blockRoot = p.closest('button, .ui-sec-head, .nb-dates span, p, li, td, th, h1, h2, h3, .ui-row-label, .ui-row-sub, .ui-row-main, .ui-row-value, .ui-row-subwide, .ui-row-tag, .ui-row-extra, .ui-stat, .ui-head, .ui-empty, .ui-warn');
-    if (blockRoot !== prevBlock) { prevTop = null; prevChar = ''; prevBlock = blockRoot; }
+    if (blockRoot !== prevBlock) { prevTop = null; prevBottom = null; prevChar = ''; prevBlock = blockRoot; }
     const text = n.textContent;
     const rg = document.createRange();
     for (let i = 0; i < text.length; i++) {
@@ -178,12 +179,13 @@ function measure() {
       const rr = rg.getClientRects()[0];
       if (!rr) continue;
       const top = Math.round(rr.top);
-      if (prevTop !== null && top > prevTop + 2) {
+      // 換行＝這個字的上緣在前一個字的下緣之下（字級不同的單位字不算換行）
+      if (prevTop !== null && rr.top >= prevBottom - 1) {
         if (HEAD.includes(ch)) V.push({ rule: 'line-head-punct', msg: `行首標點「${ch}」`, at: label(block || p), y: Math.round(rr.top + scrollY) });
         if (prevChar === '（' || prevChar === '(') V.push({ rule: 'line-tail-punct', msg: '行尾「（」', at: label(block || p) });
         if (/[0-9.,+−-]/.test(prevChar) && UNIT.test(ch)) V.push({ rule: 'num-unit-split', msg: `數字與單位拆行「${prevChar}｜${ch}」`, at: label(block || p), y: Math.round(rr.top + scrollY) });
       }
-      prevTop = top; prevChar = ch;
+      prevTop = top; prevBottom = rr.bottom; prevChar = ch;
     }
   }
 
@@ -191,7 +193,7 @@ function measure() {
   const props = ['marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight', 'rowGap', 'columnGap'];
   const seen = new Set();
   for (const el of page.querySelectorAll('*')) {
-    if (el.closest('svg, .chart-wrap, .chart-box, .lw-chart, [data-audit-skip], .sheet, .sr-only') || !visible(el)) continue;
+    if (el.matches('.term') || el.closest('svg, .chart-wrap, .chart-box, .lw-chart, [data-audit-skip], .sheet, .sr-only') || !visible(el)) continue;
     const cs = getComputedStyle(el);
     if (cs.display === 'inline' && !el.matches('a, button')) continue;
     for (const k of props) {

@@ -125,29 +125,16 @@ test.describe('M1-2 返回保持捲動位置與狀態', () => {
   });
 });
 
-test.describe('M1-4 深淺色', () => {
-  test('預設深色、不跟隨系統；頭像選單第一列三段式；設定存在 localStorage 並同步 theme-color', async ({ page }) => {
+test.describe('M1-4 只做深色（2026-10 恢復環境光改版）', () => {
+  test('系統為淺色時仍是深色；舊的 tmf-theme 設定值一律視為深色；theme-color 為黑', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'light' });
     await page.goto('#/');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    expect(await page.locator('meta[name="theme-color"]').evaluateAll((ms) => ms.map((m) => (m as HTMLMetaElement).content))).toEqual(['#000000', '#000000']);
-    await page.getByRole('button', { name: /帳戶選單/ }).click();
-    const sheet = page.getByRole('dialog');
-    const sw = sheet.getByRole('group', { name: '深淺色' });
-    expect(await sw.getByRole('button').allTextContents()).toEqual(['深色', '淺色', '跟隨系統']);
-    // 第一列：在設定等選單項目之前
-    const order = await sheet.evaluate((el) => {
-      const a = el.querySelector('.theme-switch')!;
-      const b = el.querySelector('.menu-list')!;
-      return !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-    });
-    expect(order).toBe(true);
-    await sw.getByRole('button', { name: '淺色' }).click();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    expect(await page.evaluate(() => localStorage.getItem('tmf-theme'))).toBe('light');
-    expect(await page.locator('meta[name="theme-color"]').first().getAttribute('content')).toBe('#f4f4f6');
-    await sw.getByRole('button', { name: '跟隨系統' }).click();
-    await expect(page.locator('html')).not.toHaveAttribute('data-theme', /./);
+    expect(await page.locator('meta[name="theme-color"]').evaluateAll((ms) => ms.map((m) => (m as HTMLMetaElement).content))).toEqual(['#000000']);
+    await page.evaluate(() => localStorage.setItem('tmf-theme', 'light'));
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.getByRole('group', { name: '深淺色' })).toHaveCount(0);
   });
 
   test('第一次繪製前就套用（inline script，DOMContentLoaded 時已有 data-theme）', async ({ page }) => {
@@ -157,9 +144,7 @@ test.describe('M1-4 深淺色', () => {
       });
     });
     await page.goto('#/');
-    await page.evaluate(() => localStorage.setItem('tmf-theme', 'light'));
-    await page.reload();
-    expect(await page.evaluate(() => (window as unknown as { __themeAtDcl: string | null }).__themeAtDcl)).toBe('light');
+    expect(await page.evaluate(() => (window as unknown as { __themeAtDcl: string | null }).__themeAtDcl)).toBe('dark');
   });
 });
 

@@ -176,14 +176,14 @@ export function Signed({ v, digits = 2, unit, kind = 'sign', tone = 'updown', fa
   const r = Number(numberFormat(digits).format(Math.abs(v)).replace(/,/g, ''));
   const d = r === 0 ? 'flat' : v > 0 ? 'up' : 'down';
   const abs = numberFormat(digits).format(Math.abs(v));
-  const word = d === 'up' ? (kind === 'arrow' ? '上漲' : '增加') : d === 'down' ? (kind === 'arrow' ? '下跌' : '減少') : '持平';
+  // 朗讀（A10）：aria-label，不用隱藏文字節點；負值朗讀為「負 x」
+  const word = kind === 'arrow' ? (d === 'up' ? '上漲' : d === 'down' ? '下跌' : '持平') : (d === 'up' ? '正' : d === 'down' ? '負' : '');
   const cls = `sv ${tone === 'updown' ? d : 'plain'}`;
   return (
-    <span class={cls}>
-      <span class="sr-only">{`${label ?? ''}${word} ${abs}${unit ?? ''}`}</span>
+    <span class={cls} role="img" aria-label={`${label ?? ''}${word} ${abs}${unit ?? ''}`.trim()}>
       <span aria-hidden="true" class="sv-in">
         {kind === 'arrow'
-          ? <><span class="sv-a">{d === 'up' ? '▲' : d === 'down' ? '▼' : ''}</span>{abs}</>
+          ? <>{d !== 'flat' ? <span class="sv-a">{d === 'up' ? '▲' : '▼'}</span> : null}{abs}</>
           : <>{d === 'up' ? '+' : d === 'down' ? MINUS : ''}{abs}</>}
         {unit ? <Unit u={unit} /> : null}
       </span>
@@ -224,7 +224,7 @@ export function Info({ title, children, label, testid }: { title: string; childr
 
 export type SegOption<T extends string> = readonly [T, string];
 
-/** 分段控制：每格等寬、單行；sticky 時黏在導覽列下方。 */
+/** 分段控制：每格等寬、單行；選中塊滑動（250ms）；sticky 時黏在導覽列下方。 */
 export function Seg<T extends string>({ options, value, onChange, label, sticky = false, testid, small = false }: {
   options: readonly SegOption<T>[];
   value: T;
@@ -234,8 +234,10 @@ export function Seg<T extends string>({ options, value, onChange, label, sticky 
   testid?: string;
   small?: boolean;
 }) {
+  const idx = Math.max(0, options.findIndex(([v]) => v === value));
   const el = (
-    <div class={`ui-seg ${small ? 'small' : ''}`} role="group" aria-label={label} data-testid={testid} style={{ '--n': options.length } as JSX.CSSProperties}>
+    <div class={`ui-seg ${small ? 'small' : ''}`} role="group" aria-label={label} data-testid={testid} style={{ '--n': options.length, '--i': idx } as JSX.CSSProperties}>
+      <span class="ui-seg-ind" aria-hidden="true" />
       {options.map(([v, l]) => (
         <button type="button" key={v} aria-pressed={v === value} onClick={() => onChange(v)}>{l}</button>
       ))}

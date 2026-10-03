@@ -20,6 +20,7 @@ export const IconDiscipline = () => base(<><circle cx="12" cy="12" r="8.6" /><pa
 
 // ---------- 導覽與動作 ----------
 export const IconPerson = () => base(<><circle cx="12" cy="8.6" r="3.4" /><path d="M5.2 19.4c1.2-3.2 3.8-4.8 6.8-4.8s5.6 1.6 6.8 4.8" /></>);
+export const IconGear = () => base(<><circle cx="12" cy="12" r="2.9" /><path d="M12 3.4v2.2M12 18.4v2.2M20.6 12h-2.2M5.6 12H3.4M18.1 5.9l-1.6 1.6M7.5 16.5l-1.6 1.6M18.1 18.1l-1.6-1.6M7.5 7.5 5.9 5.9" /><circle cx="12" cy="12" r="6.2" /></>);
 export const IconSearch = () => base(<><circle cx="10.8" cy="10.8" r="6.3" /><path d="m15.5 15.5 4.6 4.6" /></>);
 export const IconBack = () => base(<path d="M14.8 5.2 8 12l6.8 6.8" />);
 export const IconChevron = () => base(<path d="m9.5 6.5 5.5 5.5-5.5 5.5" />);

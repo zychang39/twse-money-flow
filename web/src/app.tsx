@@ -2,14 +2,15 @@ import { useEffect, useState } from 'preact/hooks';
 import { IconClose } from './components/Icons';
 import { useRoute } from './router';
 import { normCode } from './lib/code';
-import { Dock } from './components/Chrome';
+import { AmbientLayer, Dock } from './components/Chrome';
 import { Footer } from './components/Footer';
+import { HelpHost } from './components/kit';
 import { lazy } from './lazy';
 import Tonight from './pages/Tonight';
 import Placeholder from './pages/Placeholder';
-import { getSetting, subscribe } from './db/db';
+import { subscribe } from './db/db';
 import { BackupReminder } from './components/BackupReminder';
-import { applyTheme } from './lib/theme';
+import { applyAppearance } from './lib/appearance';
 import { getUpdater, subscribeUpdate, updateState, type UpdateState } from './lib/swUpdate';
 
 const Mine = lazy(() => import('./pages/Mine'));
@@ -42,12 +43,16 @@ const StockDaily = lazy(() => import('./pages/StockDaily'));
 const Evidence = lazy(() => import('./pages/Evidence'));
 const Strategies = lazy(() => import('./pages/Strategies'));
 const Leverage = lazy(() => import('./pages/Leverage'));
+const Glossary = lazy(() => import('./pages/Glossary'));
+const Gallery = lazy(() => import('./pages/Gallery'));
 
 function Page({ parts }: { parts: string[] }) {
   const [a, b, c] = parts;
   switch (a) {
     case undefined: return <Tonight />;
     case 'mine': return <Mine />;
+    // 元件展示頁（僅開發用；沒有任何入口）
+    case 'dev': return <Gallery />;
     case 'search': return <Search />;
     case 'stock': {
       if (!b) return <Placeholder title="個股" back="/mine" />;
@@ -96,6 +101,7 @@ function Page({ parts }: { parts: string[] }) {
         case 'methodology': return <Methodology />;
         case 'settings': return <Settings />;
         case 'backup': return <Backup />;
+        case 'glossary': return <Glossary />;
         default: return <Placeholder title="找不到頁面" back="/me" />;
       }
     default: return <Placeholder title="找不到頁面" back="/" />;
@@ -121,15 +127,7 @@ function UpdateToast() {
   );
 }
 
-/**
- * 外觀：深淺色存在 localStorage（lib/theme.ts，index.html 在第一次繪製前已套用）；
- * 環境光開關存在 IndexedDB，寫在 <html> 的 data-ambient。
- */
-export async function applyAppearance(): Promise<void> {
-  applyTheme();
-  const ambient = await getSetting<boolean>('ambient', true);
-  document.documentElement.dataset.ambient = ambient ? 'on' : 'off';
-}
+export { applyAppearance };
 
 export function App() {
   const route = useRoute();
@@ -144,7 +142,7 @@ export function App() {
   }, []);
   return (
     <>
-      <div class="status-scrim" aria-hidden="true" />
+      <AmbientLayer />
       <main class="app" id="main">
         <div class="page-body">
           <BackupReminder />
@@ -153,6 +151,7 @@ export function App() {
         <Footer />
       </main>
       <Dock path={route.path} />
+      <HelpHost />
       <UpdateToast />
     </>
   );

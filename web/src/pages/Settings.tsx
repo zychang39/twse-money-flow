@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
-import { ThemeSwitch, TopBar } from '../components/Chrome';
+import { TopBar } from '../components/Chrome';
+import { applyAppearance } from '../lib/appearance';
 import { Card, PageTitle, Section, Seg } from '../components/ui';
 import { useDb, useInvestStyle } from '../hooks';
 import { STYLE_DESC, STYLE_NAME, setStyle } from '../lib/style';
@@ -18,7 +19,8 @@ export default function Settings() {
   const stored = useDb(async () => ({
     weights: await getSetting<Weights>('weights', DEFAULT_WEIGHTS),
     costs: await getSetting<CostSettings>('costs', DEFAULT_COSTS),
-    ambient: await getSetting<boolean>('ambient', true),
+    helpLevel: await getSetting<string>('helpLevel', 'novice'),
+    tabLabels: await getSetting<boolean>('tabLabels', false),
     gamification: await getSetting<boolean>('gamification', true),
     portfolio: await getSetting<PortfolioSettings>('portfolio', DEFAULT_PORTFOLIO),
   }));
@@ -37,12 +39,13 @@ export default function Settings() {
         <Seg options={(['swing', 'long'] as const).map((v) => [v, STYLE_NAME[v]] as const)} value={style} onChange={(v) => setStyle(v)} label="投資風格" />
       </Section>
 
-      <Section title="外觀" info={<><p>預設深色，不跟隨系統；也可以從右上角頭像選單的第一列切換。</p><p>環境光：頁首柔和光暈，簡報頁代表資金環境（有風險偏琥珀），我的股票與個股頁跟著所選期間的漲跌。關閉即為純黑樣式；系統開啟減少透明度或減少動態效果時自動關閉。</p></>}>
+      <Section title="顯示" info={<><p>說明層級：新手（預設）在每個指標下方顯示一行白話解讀；精簡隱藏解讀行，只在指標超過提醒門檻時於數值旁亮橘點，點橘點看說明。</p><p>分頁列預設只有圖示，可開啟文字標籤。</p></>}>
         <Card>
-          <ThemeSwitch />
+          <Seg options={[['novice', '新手'], ['compact', '精簡']] as const} value={stored.helpLevel === 'compact' ? 'compact' : 'novice'}
+            onChange={async (v) => { await setSetting('helpLevel', v); applyAppearance(); }} label="說明層級" testid="help-level" />
           <div class="switch-row st-notes">
-            <span class="ui-body">環境光</span>
-            <label class="switch"><input type="checkbox" role="switch" aria-label="環境光" checked={stored.ambient} onChange={(e) => setSetting('ambient', (e.target as HTMLInputElement).checked)} /><span /></label>
+            <span class="ui-body">分頁列顯示文字</span>
+            <label class="switch"><input type="checkbox" role="switch" aria-label="分頁列顯示文字" checked={stored.tabLabels} onChange={async (e) => { await setSetting('tabLabels', (e.target as HTMLInputElement).checked); applyAppearance(); }} /><span /></label>
           </div>
         </Card>
       </Section>

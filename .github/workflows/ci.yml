@@ -68,3 +68,9 @@ jobs:
         working-directory: web
         env:
           CI: "true"
+      - name: 對齊稽核（402×874：左緣、數值右緣、基線、溢出、行首標點、4 的倍數間距）
+        working-directory: web
+        run: |
+          (npx vite preview --port 4173 --strictPort > /dev/null 2>&1 &)
+          sleep 3
+          node scripts/align-audit.mjs --out ../align-audit

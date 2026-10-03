@@ -37,9 +37,9 @@ test.describe('M2-1 每日籌碼表', () => {
     const row = table.locator('tbody tr.day').first();
     const h = (await row.boundingBox())!.height;
     expect(h).toBeGreaterThanOrEqual(50);
-    expect(h).toBeLessThanOrEqual(64);
+    expect(h).toBeLessThanOrEqual(68);
     expect(await row.locator('.cd-date').evaluate((el) => getComputedStyle(el).fontSize)).toBe('15px');
-    expect(await row.locator('.cd-sub').evaluate((el) => getComputedStyle(el).fontSize)).toBe('12px');
+    expect(await row.locator('.cd-sub').evaluate((el) => getComputedStyle(el).fontSize)).toBe('13px'); // 最小字級 13（2026-10 恢復環境光改版）
     const totalBg = await table.locator('tr.total td').first().evaluate((el) => getComputedStyle(el).backgroundColor);
     const dayBg = await row.locator('td').first().evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(totalBg).not.toBe(dayBg);

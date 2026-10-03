@@ -41,6 +41,7 @@
 .ui-card, .ui-list {
   background: var(--surface-1);
   border-radius: var(--r-card);
+  box-shadow: inset 0 0 0 1px var(--card-edge);
   padding: 0 var(--card-pad);
   margin: 0;
 }
@@ -95,7 +96,7 @@
 .sv.down { color: var(--down); }
 .sv.flat, .sv.plain { color: inherit; }
 .sv-in { white-space: nowrap; }
-.sv-a { display: inline-block; font-size: max(0.75em, var(--fs-cap)); margin-right: var(--s-1); vertical-align: 0.0625em; }
+.sv-a { display: inline-block; font-size: max(0.75em, var(--fs-cap)); margin-right: var(--s-1); line-height: 1; }
 
 /* ---------- 標籤 ---------- */
 .ui-tag {
@@ -125,9 +126,19 @@
 
 /* ---------- 分段控制 ---------- */
 .ui-seg {
+  position: relative;
   display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr));
   gap: var(--s-1); padding: var(--s-1);
   background: var(--surface-1); border-radius: var(--r-sm);
+}
+/* 選中塊：寬度＝一格，以 translateX(i × (100% ＋ gap)) 滑到選中的格（250ms） */
+.ui-seg-ind {
+  position: absolute; top: var(--s-1); bottom: var(--s-1); left: var(--s-1);
+  width: calc((100% - 2 * var(--s-1) - (var(--n, 2) - 1) * var(--s-1)) / var(--n, 2));
+  border-radius: var(--r-xs); background: var(--surface-3);
+  transform: translateX(calc(var(--i, 0) * (100% + var(--s-1))));
+  transition: transform var(--dur-base) var(--ease-out);
+  pointer-events: none;
 }
 .ui-seg button {
   position: relative; min-width: 0; height: var(--seg-h); padding: 0 var(--s-1);
@@ -137,7 +148,7 @@
 }
 /* 點擊區域上下擴到 44 */
 .ui-seg button::before { content: ''; position: absolute; left: 0; right: 0; top: calc(-1 * var(--s-1)); bottom: calc(-1 * var(--s-1)); }
-.ui-seg button[aria-pressed='true'] { background: var(--surface-3); color: var(--text-1); font-weight: var(--fw-semibold); }
+.ui-seg button[aria-pressed='true'] { color: var(--text-1); font-weight: var(--fw-semibold); }
 .ui-seg-sticky {
   position: sticky; top: calc(var(--safe-top) + var(--navbar-h)); z-index: 5;
   margin: 0 calc(-1 * var(--gutter)); padding: var(--s-1) var(--gutter);
@@ -183,7 +194,7 @@
 .ui-card > .ui-btn.block { margin-top: var(--s-4); }
 
 @media (prefers-reduced-motion: reduce) {
-  .ui-row, .ui-seg button { transition: none; }
+  .ui-row, .ui-seg button, .ui-seg-ind { transition: none; }
 }
 
 /* ---------- 簡報頁：長條圖、指數開高低收 ---------- */

@@ -70,15 +70,18 @@ test('個股頁：同一清單左右切換（按鈕與拖曳手勢）', async ({
   await expect(page.getByTestId('list-position')).toHaveText(/自選\S* 1\/3/);
 });
 
-test('底部面板：頭像選單可開啟、Esc 關閉；拖曳把手往下可關閉', async ({ page }) => {
+test('右上角齒輪推入設定頁；說明面板可開啟、Esc 關閉；拖曳把手往下可關閉', async ({ page }) => {
   await page.goto('#/');
-  await page.getByRole('button', { name: /帳戶選單/ }).click();
-  const dialog = page.getByRole('dialog', { name: '我的' });
+  await page.getByTestId('gear').first().click();
+  await expect(page).toHaveURL(/#\/me\/settings/);
+  await expect(page.getByRole('heading', { name: '設定' })).toBeVisible();
+  await page.goto('#/me/glossary');
+  await page.getByTestId('term-atr14').click();
+  const dialog = page.getByRole('dialog', { name: 'ATR14' });
   await expect(dialog).toBeVisible();
-  for (const name of ['設定', '備份', '資料健康', '方法說明']) await expect(dialog.getByRole('link', { name: new RegExp(name) })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
-  await page.getByRole('button', { name: /帳戶選單/ }).click();
+  await page.getByTestId('term-atr14').click();
   await page.waitForTimeout(700); // 等面板滑入完成
   const grabber = page.locator('.sheet-head').first();
   const b = (await grabber.boundingBox())!;
@@ -86,7 +89,7 @@ test('底部面板：頭像選單可開啟、Esc 關閉；拖曳把手往下可�
   await page.mouse.down();
   await page.mouse.move(b.x + b.width / 2, b.y + 380, { steps: 8 });
   await page.mouse.up();
-  await expect(page.getByRole('dialog', { name: '我的' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'ATR14' })).toHaveCount(0);
 });
 
 test('清單列：長按（右鍵）叫出快速預覽；左滑露出移除', async ({ page }) => {
@@ -128,10 +131,14 @@ test('流程：捲到簡報底部即完成簡報環（簡報頁底部一列 0/1 
   await expect(page.getByTestId('ring-brief')).toContainText('已完成');
 });
 
-test('環境光停用（2026-10 改版）：深色背景純黑、內容卡片不透明，沒有頁首漸層', async ({ page }) => {
-  await page.goto('#/');
-  await expect(page.getByRole('heading', { name: '盤後簡報' })).toBeVisible();
+test('環境光（恢復改版前）：背景純黑，環境光由 y=0 開始、顏色跟隨主標漲跌；導覽列預設透明', async ({ page }) => {
+  await page.goto('#/dev');
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(0, 0, 0)');
-  const visibleGlow = await page.evaluate(() => [...document.querySelectorAll('.ambient')].some((e) => getComputedStyle(e).display !== 'none'));
-  expect(visibleGlow).toBe(false);
+  const amb = page.getByTestId('ambient');
+  await expect(amb).toHaveAttribute('data-mood', 'up');
+  const st = await amb.evaluate((el) => ({ top: el.getBoundingClientRect().top, bg: getComputedStyle(el.querySelector('i.on')!).backgroundImage }));
+  expect(st.top).toBe(0);
+  expect(st.bg).toContain('radial-gradient');
+  const nav = await page.getByTestId('topbar').evaluate((el) => getComputedStyle(el, '::before').opacity);
+  expect(nav).toBe('0');
 });

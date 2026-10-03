@@ -1,6 +1,7 @@
 /* 版面與元件樣式。所有數值取自 tokens.css。2026-10 改版：新元件在 ui.css（components/ui.tsx），這裡是外框與既有元件。 */
 @import './tokens.css';
 @import './ui.css';
+@import './kit.css';
 
 * { box-sizing: border-box; }
 html {
@@ -103,18 +104,38 @@ h1, h2, h3 { margin: 0; font-weight: var(--fw-semibold); }
 .app > .footer { margin-top: var(--s-8); }
 .bleed { margin-left: calc(-1 * var(--gutter)); margin-right: calc(-1 * var(--gutter)); }
 
-/* ---------- 頂列 ---------- */
-/* 導覽列（玻璃材質只用在這裡與分頁列）：黏在頂端，高度 44＋safe-area；左右按鈕的點擊區域伸到頁邊外 4px，圖示對齊頁邊 */
+/* ---------- 導覽列 ----------
+ * 預設完全透明（環境光由 y=0 透出，頂端沒有任何不透明橫帶）；捲動後（.scrolled）才出現玻璃材質。
+ * 高度 44＋safe-area；左右按鈕的點擊區域伸到頁邊外 12px，圖示對齊頁邊；中間是收合後的置中小標題。
+ */
 .topbar {
   position: sticky; top: 0; z-index: 20;
-  display: grid; grid-template-columns: var(--tap) minmax(0, 1fr) auto; align-items: center; column-gap: var(--s-1);
+  display: grid; grid-template-columns: minmax(var(--tap), 1fr) minmax(0, auto) minmax(var(--tap), 1fr); align-items: center; column-gap: var(--s-1);
   min-height: calc(var(--navbar-h) + var(--safe-top)); padding-top: var(--safe-top);
   margin: 0 calc(-1 * var(--gutter)); padding-left: calc(var(--gutter) - var(--s-3)); padding-right: calc(var(--gutter) - var(--s-3));
-  background: var(--glass); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+  background: transparent;
+  transition: background-color var(--dur-base) var(--ease-out);
 }
-.topbar > .grow { text-align: center; font-size: var(--fs-foot); line-height: var(--lh-foot); }
-.topbar-actions { display: inline-flex; align-items: center; }
+.topbar::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; opacity: 0; pointer-events: none;
+  background: var(--glass); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: inset 0 -0.5px 0 var(--line);
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+.topbar.scrolled::before { opacity: 1; }
+.topbar > :first-child { justify-self: start; }
+.topbar-center { position: relative; display: grid; justify-items: center; align-items: center; min-width: 0; text-align: center; }
+.topbar-center > * { grid-area: 1 / 1; }
+.topbar-title {
+  font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); white-space: nowrap; overflow: hidden; max-width: 60vw;
+  opacity: 0; transform: translateY(0.375rem); transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
+}
+.topbar-title.on { opacity: 1; transform: none; }
+.topbar-caption { font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); white-space: nowrap; opacity: 0; transition: opacity var(--dur-base) var(--ease-out); }
+.topbar-caption.on { opacity: 1; }
+.topbar-actions { display: inline-flex; align-items: center; justify-self: end; }
 .topbar .caption { color: var(--text-2); }
+.gear-btn { color: var(--brand); }
 .icon-btn {
   min-width: var(--tap); min-height: var(--tap); border: 0; background: none; color: var(--brand); cursor: pointer;
   border-radius: var(--r-pill); display: inline-flex; align-items: center; justify-content: center; padding: 0;
@@ -308,7 +329,7 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 .nb-tip { position: absolute; top: 0; transform: translateX(0.5rem); display: flex; flex-direction: column; gap: 0.125rem; padding: var(--s-1) var(--s-2); border-radius: var(--r-sm); background: var(--surface-3); box-shadow: var(--shadow-card); font-size: var(--fs-caption); white-space: nowrap; pointer-events: none; z-index: 2; }
 .nb-tip.left { transform: translateX(calc(-100% - 0.5rem)); }
 .chart-wrap svg { display: block; width: 100%; overflow: visible; }
-.chart-line { fill: none; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; transition: stroke var(--dur-slow) var(--ease-out); }
+.chart-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; transition: stroke var(--dur-slow) var(--ease-out); }
 .chart-glow { fill: none; stroke-width: 5; stroke-linejoin: round; opacity: var(--line-glow-opacity); transition: stroke var(--dur-slow) var(--ease-out); }
 .chart-area { transition: opacity var(--dur-slow) var(--ease-out); }
 .chart-base { stroke: var(--text-3); stroke-width: 1; stroke-dasharray: 1 5; stroke-linecap: round; }
@@ -317,6 +338,14 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 @keyframes draw { to { stroke-dashoffset: 0; } }
 .chart-empty { display: flex; align-items: center; justify-content: center; color: var(--text-2); font-size: var(--fs-caption); }
 .chart .dot-halo { opacity: 0.2; }
+/* 線尾光點的外暈：進頁時擴散一次（不循環） */
+.chart .dot-pulse { opacity: 0; stroke-width: 1.5; }
+.chart.draw .dot-pulse { animation: dot-pulse 600ms var(--ease-out) 450ms 1 both; }
+@keyframes dot-pulse { from { opacity: 0.6; transform: scale(0.4); } to { opacity: 0; transform: scale(2.4); } }
+.chart-glow.wide { stroke-width: 10; opacity: calc(var(--line-glow-opacity) * 0.5); }
+/* 起始價虛線的標籤（左端，可點開名詞說明） */
+.chart-base-label { position: absolute; left: var(--gutter); z-index: 1; font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .chart .dot-pulse { animation: none; } }
 /* 今晚頁：期間選擇器只改變走勢圖，區間漲跌標示在圖表上方 */
 .chart-range { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); margin-top: var(--s-3); font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); }
 .chart-range .up, .chart-range .down, .chart-range .flat { font-weight: var(--fw-medium); }
@@ -370,17 +399,15 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 .light-dot.green { background: var(--text-1); }
 .light-dot.gray { background: none; box-shadow: inset 0 0 0 1.5px var(--text-3); }
 
-/* ---------- 環境光（B 方向；靜態漸層，不做即時模糊） ---------- */
-.ambient { display: none; position: absolute; left: 0; top: 0; width: 100%; height: 34rem; pointer-events: none; z-index: 0; overflow: hidden; }
+/* ---------- 環境光（由 y=0 開始、往下淡出到黑；改版前 d6a9362 的強度與範圍；切換時交叉淡入） ---------- */
+.ambient { position: absolute; left: 0; top: 0; width: 100%; height: var(--ambient-h); pointer-events: none; z-index: 0; overflow: hidden; }
 .ambient i { position: absolute; inset: 0; opacity: 0; transition: opacity var(--dur-slow) var(--ease-in-out); }
 .ambient i.on { opacity: 1; }
-.ambient .up { background: radial-gradient(max(60%, 28rem) 100% at 50% 0%, var(--glow-up), transparent 100%); }
-.ambient .down { background: radial-gradient(max(60%, 28rem) 100% at 50% 0%, var(--glow-down), transparent 100%); }
-.ambient .risk { background: radial-gradient(max(60%, 28rem) 100% at 50% 0%, var(--glow-risk), transparent 100%); }
-.ambient .neutral { background: radial-gradient(max(60%, 28rem) 100% at 50% 0%, var(--glow-neutral), transparent 100%); }
-:root[data-ambient='off'] .ambient { display: none; }
-@media (prefers-reduced-transparency: reduce) { .ambient { display: none; } }
-@media (prefers-reduced-motion: reduce) { .ambient { display: none; } }
+.ambient .up { background: radial-gradient(ellipse 130% 100% at 50% 0%, var(--glow-up), transparent 100%); }
+.ambient .down { background: radial-gradient(ellipse 130% 100% at 50% 0%, var(--glow-down), transparent 100%); }
+.ambient .risk { background: radial-gradient(ellipse 130% 100% at 50% 0%, var(--glow-risk), transparent 100%); }
+.ambient .neutral { background: radial-gradient(ellipse 130% 100% at 50% 0%, var(--glow-neutral), transparent 100%); }
+@media (prefers-reduced-motion: reduce) { .ambient i { transition: none; } }
 
 /* 玻璃質感：只用在漂浮元素（Tab、搜尋膠囊、底部面板）；卡片用半透明填色，不做即時模糊 */
 .glass {
@@ -390,7 +417,7 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
   box-shadow: inset 0 0.5px 0 var(--glass-hi), var(--shadow-float);
 }
 /* M3（Liquid Glass 規則）：內容卡片一律實心背景，不放在半透明玻璃上 */
-:root[data-ambient='on'] .card.soft-glass { background: var(--surface-1); box-shadow: inset 0 0.5px 0 var(--glass-hi); }
+.card.soft-glass { background: var(--surface-1); box-shadow: inset 0 0.5px 0 var(--glass-hi); }
 
 /* ---------- 底部導覽：5 個分頁的玻璃膠囊（Instagram／iOS 26 樣式），搜尋在第 4 格 ----------
  * 固定元素一律 bottom: 0，以 safe-area 補齊，不額外疊加 margin：
@@ -434,8 +461,9 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; min-height: var(--tap);
   color: var(--tab-icon); border-radius: var(--r-pill); -webkit-tap-highlight-color: transparent; text-decoration: none;
 }
-/* 2026-10 改版：圖示下方加文字標籤（Caption 12/16）；收合狀態只留圖示（高度與位置各自固定） */
-.tab-label { font-size: var(--fs-cap); line-height: var(--lh-cap); font-weight: var(--fw-medium); white-space: nowrap; }
+/* 分頁列預設只有圖示；設定→顯示可開啟文字標籤（html[data-tablabels='on']）；收合狀態只留圖示 */
+.tab-label { display: none; font-size: 0.6875rem; line-height: 0.875rem; font-weight: var(--fw-medium); white-space: nowrap; }
+:root[data-tablabels='on'] .tab-label { display: block; }
 .dock.compact .tab-label { display: none; }
 .tabbar a[aria-current='page'] { color: var(--tab-icon-on); }
 .tabbar svg { stroke-width: 1.8; }
@@ -447,16 +475,11 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 /* 搜尋頁鍵盤開啟時：導覽列淡出（鍵盤收起後恢復） */
 :root[data-kb='open'] .dock { opacity: 0; transform: translateY(0.75rem); pointer-events: none; }
 :root[data-kb='open'] .dock > * { pointer-events: none; }
-:root[data-ambient='off'] .tabbar { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--tab-bg-solid); }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .glass, .tabbar, .segmented { -webkit-backdrop-filter: none; backdrop-filter: none; }
   .glass { background: var(--surface-2); }
   .tabbar { background: var(--tab-bg-solid); }
 }
-/* 加入主畫面：狀態列為 black-translucent，內容捲到狀態列底下時加一層漸層，避免與時間、電量重疊 */
-.status-scrim { display: none; position: fixed; z-index: 29; left: 0; right: 0; top: 0; height: var(--safe-top); background: linear-gradient(var(--bg) 60%, transparent); pointer-events: none; }
-@media (display-mode: standalone) { .status-scrim { display: block; } }
-:root.standalone .status-scrim { display: block; }
 /* 有新版本（lib/swUpdate）：浮在底部導覽上方，不遮擋內容 */
 .update-toast {
   position: fixed; z-index: 31; left: 50%; bottom: calc(var(--dock-h) + var(--s-3)); transform: translateX(-50%);
@@ -543,7 +566,7 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
   width: 100%; max-width: 40rem; height: calc(100dvh - var(--safe-top) - var(--s-3));
   display: flex; flex-direction: column;
   background: var(--surface-1); border-radius: var(--r-sheet) var(--r-sheet) 0 0; box-shadow: var(--shadow-sheet);
-  transform: translateY(100%); transition: transform var(--dur-slow) var(--ease-spring);
+  transform: translateY(100%); transition: transform var(--dur-sheet) var(--ease-out);
   will-change: transform;
 }
 .sheet.dragging { transition: none; }

@@ -170,7 +170,8 @@ describe('共用版面樣式（styles/*.css）', () => {
   };
   it('內容底部留白＝導覽列＋safe-area＋16px；頁尾上方 32px（不用會歸零邊距的 margin-top: auto）', () => {
     // 內容底部留白＝導覽列高度（e2e ux-fixes 規則 1 的既定規則）；頁尾自己的下邊距提供呼吸空間
-    expect(tokens).toMatch(/--dock-clear:\s*calc\(var\(--tabbar-h\) \+ var\(--safe-bottom\) \+ var\(--s-4\)\)/);
+    // 分頁列浮在 safe-area 之上（--dock-pad ＝ max(safe-area, 8)）：最後一列完整捲出
+    expect(tokens).toMatch(/--dock-clear:\s*calc\(var\(--tabbar-h\) \+ var\(--dock-pad\) \+ var\(--s-4\)\)/);
     expect(rule(global, '.app')).toMatch(/padding:[^;]*var\(--dock-clear\)/);
     expect(rule(global, '.app > .footer')).toContain('margin-top: var(--s-8)');
     expect(rule(global, '.app > .footer')).not.toContain('auto');
@@ -215,9 +216,9 @@ describe('共用版面樣式（styles/*.css）', () => {
     expect(rule(evidence, '.ev-table.ev-seg .seg-name')).toContain('white-space: nowrap');
     expect(rule(evidence, '.ev-table.ev-seg td')).toContain('font-size: 0.875rem');
   });
-  it('四級灰階墨色 --ink-1～4 在淺色、深色（跟隨系統與手動）三個區塊都有定義，環與比例條都用它', () => {
-    expect(tokens.match(/--ink-1:/g)).toHaveLength(3);
-    expect(tokens.match(/--ink-4:/g)).toHaveLength(3);
+  it('四級灰階墨色 --ink-1～4 只定義一次（只做深色），環與比例條都用它', () => {
+    expect(tokens.match(/--ink-1:/g)).toHaveLength(1);
+    expect(tokens.match(/--ink-4:/g)).toHaveLength(1);
     for (const n of [1, 2, 3, 4]) expect(global).toContain(`.ring.ink-${n} .ring-arc, .rings4 > :nth-child(${n}) .ring .ring-arc { stroke: var(--ink-${n}); }`);
     expect(global).toContain('.rings3 .arc.ink-2 { stroke: var(--ink-2); }');
     expect(global).toContain('.discipline .legend i.ink-3 { background: var(--ink-3); }');

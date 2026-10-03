@@ -30,9 +30,42 @@ export function pathD(pts: [number, number][]): string {
   return d;
 }
 
-export function areaD(pts: [number, number][], h: number): string {
+export function areaD(pts: [number, number][], h: number, smooth = false): string {
   if (!pts.length) return '';
-  return `${pathD(pts)}L${pts[pts.length - 1][0].toFixed(1)},${h}L${pts[0][0].toFixed(1)},${h}Z`;
+  return `${smooth ? smoothD(pts) : pathD(pts)}L${pts[pts.length - 1][0].toFixed(1)},${h}L${pts[0][0].toFixed(1)},${h}Z`;
+}
+
+/**
+ * 平滑曲線（單調三次插值，Fritsch–Carlson）：通過每一個資料點，兩點之間不會超出兩端數值（不產生過衝，
+ * 不會畫出比實際最高更高、比實際最低更低的假波峰）。x 必須遞增。
+ */
+export function smoothD(pts: [number, number][]): string {
+  const n = pts.length;
+  if (n < 3) return pathD(pts);
+  const dx: number[] = [], m: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    const h = pts[i + 1][0] - pts[i][0];
+    dx.push(h);
+    m.push(h === 0 ? 0 : (pts[i + 1][1] - pts[i][1]) / h);
+  }
+  const t: number[] = new Array(n);
+  t[0] = m[0];
+  t[n - 1] = m[n - 2];
+  for (let i = 1; i < n - 1; i++) {
+    if (m[i - 1] * m[i] <= 0) t[i] = 0;
+    else {
+      const w1 = 2 * dx[i] + dx[i - 1], w2 = dx[i] + 2 * dx[i - 1];
+      t[i] = (w1 + w2) / (w1 / m[i - 1] + w2 / m[i]);
+    }
+  }
+  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i] / 3;
+    const c1x = pts[i][0] + h, c1y = pts[i][1] + t[i] * h;
+    const c2x = pts[i + 1][0] - h, c2y = pts[i + 1][1] - t[i + 1] * h;
+    d += `C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${pts[i + 1][0].toFixed(1)},${pts[i + 1][1].toFixed(1)}`;
+  }
+  return d;
 }
 
 /** 以線性內插重新取樣成 n 個點（變形過渡用：新舊路徑點數一致）。 */
