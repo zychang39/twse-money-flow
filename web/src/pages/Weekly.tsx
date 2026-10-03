@@ -8,7 +8,7 @@ import { useScoredSummary } from '../data/useSummary';
 import { loadJson } from '../data/api';
 import { listTrades, listWatch } from '../db/db';
 import { addDays } from '../lib/dates';
-import { fmtLots } from '../lib/format';
+import { fmtLots, fmtNum, MINUS, orMissing } from '../lib/format';
 import type { CalEvent } from './Calendar';
 import type { StockRow } from '../data/types';
 import { PAGE_SOURCES } from '../lib/health';
@@ -39,7 +39,7 @@ export default function Weekly() {
                 <td><a href={`#/stock/${r.code}`}>{r.name}</a></td>
                 <td><Change change={r.change} showPrice={r.close} /></td>
                 <td>{scoreText(r.composite as number | null)}</td>
-                <td><Signed value={r.composite_chg_5d as number | null} format={(v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v}`)} /></td>
+                <td><Signed value={r.composite_chg_5d as number | null} format={(v) => orMissing(v, (x) => `${x > 0 ? '+' : x < 0 ? MINUS : ''}${fmtNum(Math.abs(x), 0)} 分`, '沒有 5 日前的分數')} /></td>
                 <td><Signed value={r.foreign_net_5d} format={fmtLots} /></td>
                 <td><Signed value={r.trust_net_5d} format={fmtLots} /></td>
               </tr>

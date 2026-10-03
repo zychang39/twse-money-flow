@@ -2,8 +2,19 @@
 
 export type Period = '1D' | '1W' | '1M' | '3M' | 'YTD' | '1Y' | '5Y' | '10Y' | 'ALL';
 export const PERIODS: Period[] = ['1D', '1W', '1M', '3M', 'YTD', '1Y', '5Y', '10Y', 'ALL'];
-/** 今晚頁：只有盤後日資料，1D 只是兩點直線，期間選擇器從 1W 開始；預設 3M。 */
-export const TONIGHT_PERIODS: Period[] = ['1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
+/** 今晚頁：1D 用盤後取得的證交所每 5 秒指數統計（每分鐘一點，M2 2026-10-03）；其餘為日資料；預設 3M。 */
+export const TONIGHT_PERIODS: Period[] = ['1D', '1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
+/** 盤中走勢 → 視窗：dates 為「日期T時:分」（HeroChart timeAxis 以時間標示），daily 給日漲跌用。 */
+export function intradayWindow(intra: { date: string; points: { t: string; v: number }[] } | null | undefined, daily: { dates: string[]; values: (number | null)[] } | null): Window | null {
+  if (!intra || !intra.points.length) return null;
+  const filled = daily ? fillForward(daily.values) : null;
+  return {
+    dates: intra.points.map((p) => `${intra.date}T${p.t}`),
+    values: intra.points.map((p) => p.v),
+    truncated: false,
+    daily: daily && filled ? { dates: daily.dates, values: filled } : undefined,
+  };
+}
 export const TONIGHT_DEFAULT_PERIOD: Period = '3M';
 /** 個股頁：同樣只有日資料，移除 1D；預設 1Y（v3）。 */
 export const STOCK_PERIODS: Period[] = ['1W', '1M', '3M', 'YTD', '1Y', '5Y', '10Y', 'ALL'];
@@ -80,7 +91,8 @@ export interface Window {
  * 找不到該日或沒有前一日 → null。
  */
 export function dayChangeAt(daily: { dates: string[]; values: number[] }, date: string): { abs: number; pct: number | null; dir: Dir } | null {
-  const i = daily.dates.lastIndexOf(date);
+  // 盤中視窗的日期帶時間（2026-10-02T09:01）→ 只比對日期
+  const i = daily.dates.lastIndexOf(date.slice(0, 10));
   if (i < 1) return null;
   return change([daily.values[i - 1], daily.values[i]]);
 }

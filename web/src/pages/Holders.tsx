@@ -1,6 +1,6 @@
 /**
  * 籌碼結構・15 級完整分布（#/stock/:code/holders）：集保股權分散表。
- * v3：全站統一分級（config/ui.yml holders.tiers：散戶 ≤ 5 張｜中實戶｜大戶 ≥ 400 張｜千張大戶 ≥ 1,000 張），
+ * v3：全站統一分級（config/ui.yml holders.tiers：散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 400–1,000 張｜千張大戶 ≥ 1,000 張），
  * 移除可調門檻（舊版預設與常用組合不一致，圖表曾出現「大戶（超過 100 張）」）。
  * - 一句話結論＋堆疊比例條（每段本週變化）
  * - 走勢：比例｜人數｜人均張數；3 個月｜6 個月｜1 年（資料不足時單點＋說明）
@@ -57,7 +57,7 @@ export default function Holders({ code }: { code: string }) {
         </Banner>
       ) : (
         <>
-          <p class="caption muted" data-testid="hd-definition">分級：{tierDefinition()}。回測與選股固定使用 1,000 張。</p>
+          <p class="caption muted" data-testid="hd-definition">分級（四段互斥，加總 100%）：{tierDefinition()}。回測與選股固定使用 1,000 張。</p>
           <StructureBar block={block} />
           <HolderTrend block={block} d={h!.d} c={h!.c as (number | null)[]} name={h?.name ?? code} />
 
@@ -71,7 +71,8 @@ export default function Holders({ code }: { code: string }) {
           </div>
           <p class="caption muted" data-testid="hd-basis">{glueNumbers(n < 2 ? '目前只有 1 週資料，無法比較變化' : `變化：與 ${latest - first} 週前（${block.d[first].slice(5).replace('-', '/')}）相比，單位為百分點`)}</p>
           <div class="cd-wrap ir-wrap">
-            <table class="cd-table hd-table" style={{ ['--dt' as string]: 1 }}>
+            {/* 15 級＋各段合計共 18–19 列：長表加 .cd-long，表頭捲動時固定 */}
+            <table class="cd-table hd-table cd-long" style={{ ['--dt' as string]: 1 }}>
               <colgroup><col class="hd-col-level" /><col /><col /><col /></colgroup>
               <thead>
                 <tr><th scope="col" class="cd-dh">持股分級（張）</th><th scope="col"><span class="cd-h">人數</span></th><th scope="col"><span class="cd-h">比例</span></th><th scope="col"><span class="cd-h">變化</span></th></tr>
@@ -112,7 +113,7 @@ export default function Holders({ code }: { code: string }) {
           <details class="tech cd-notes">
             <summary>計算方式與資料來源</summary>
             <p class="caption muted">
-              集保股權分散表依「每週最後一個營業日」各集保戶的持股歸戶後分 15 級。四段（全站統一）：散戶＝分級 1–2（≤ 5 張，含零股）、中實戶＝分級 3–11、大戶＝分級 12–15（集保邊界為 400,001 股起，含千張大戶）、千張大戶＝分級 15（1,000,001 股起）；比例條上的「大戶」段不含千張大戶，四段加總為 100%。
+              集保股權分散表依「每週最後一個營業日」各集保戶的持股歸戶後分 15 級。四段（全站統一、互斥）：散戶＝分級 1–2（≤ 5 張，含零股）、中實戶＝分級 3–11（5–400 張）、大戶＝分級 12–14（400–1,000 張；集保邊界為 400,001 股起）、千張大戶＝分級 15（≥ 1,000 張，1,000,001 股起）；四段加總為 100%。要看「400 張以上（含千張大戶）」的合計，請把大戶與千張大戶兩段相加（走勢圖的「大戶」面板即為此合計）。
               比例＝占集保庫存數的比例（%）；人均張數＝該段持股股數 ÷ 人數 ÷ 1,000。同一人以同一身分證歸戶，但法人、信託、外資託管帳戶各自計算，千張大戶不等於單一主力。
             </p>
             <p class="caption muted">資料來源：臺灣集中保管結算所「集保戶股權分散表」（開放資料每週最新一週；過去一年為個股歷史查詢），依政府資料開放授權條款使用。</p>

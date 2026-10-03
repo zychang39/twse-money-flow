@@ -455,9 +455,36 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
         )
     retail_series = [{"date": d, "mtx": clean(v, 2), "tmf": clean(rr_tmf.get(d), 2)} for d, v in rr.iloc[-60:].items()]
     return {
-        "env": {"summary": summary, "score": score, "known": known, "lights": lights},
-        "temperature": {"lights": tl, "retail": retail_series},
+        "env": {
+            "summary": summary,
+            "score": score,
+            "known": known,
+            "lights": lights,
+            # M2 2026-10-03：外資台指期淨未平倉走勢（大台約當口數，近 60 個交易日）
+            "futures_series": [{"date": str(d), "net": clean(v, 0)} for d, v in net.iloc[-60:].items()],
+        },
+        "temperature": {"lights": tl, "retail": retail_series, "pc_series": pc_series(ds.table("taifex_pc"))},
     }
+
+
+def pc_series(pc: pd.DataFrame, days: int = 60) -> list[dict[str, Any]]:
+    """臺指選擇權 Put/Call 比走勢（M2 2026-10-03）：近 N 日的未平倉量比率（pc）與成交量比率（vol），%。
+
+    只作資訊呈現，不設門檻、不進燈號（沒有效度證據之前不做判定）。
+    """
+    if pc is None or pc.empty or "pc_oi_ratio" not in pc.columns:
+        return []
+    s = pc.drop_duplicates("date", keep="last").set_index("date").sort_index()
+    out = []
+    for d, r in s.iloc[-days:].iterrows():
+        out.append(
+            {
+                "date": str(d),
+                "pc": clean(r.get("pc_oi_ratio"), 2),
+                "vol": clean(r.get("pc_vol_ratio"), 2) if "pc_vol_ratio" in s.columns else None,
+            }
+        )
+    return out
 
 
 def active_etf_section(ds: Any, p: Any) -> dict[str, Any]:
@@ -470,6 +497,14 @@ def active_etf_section(ds: Any, p: Any) -> dict[str, Any]:
     ranking: dict[str, Any] = {"date": str(changes["date"].max()) if not changes.empty else None}
     ranking.update(etfmod.ranking(changes, close, names=p.names))
     ranking["coverage"] = etfmod.coverage_text(changes, len(etfs))
+    # M2 2026-10-03：變動分類筆數（ETF × 股票）：新增／加碼／減碼／剔除
+    ranking["kinds"] = etfmod.kind_counts(changes)
+    # 2026-10-02 健檢：結構化的涵蓋數（探索卡與內頁同一個數字）
+    ranking["covered"] = int(changes["etf"].nunique()) if not changes.empty else 0
+    ranking["total"] = len(etfs)
+    covered_codes = set(changes["etf"].unique()) if not changes.empty else set()
+    for e in etfs:
+        e["has_holdings"] = e["code"] in covered_codes
     if not ranking["add"] and not ranking["reduce"]:
         ranking["status"] = (
             "主動式 ETF 每日持股只由各投信官網個別揭露；目前涵蓋"
@@ -481,6 +516,72 @@ def active_etf_section(ds: Any, p: Any) -> dict[str, Any]:
 def _yi(v: Any) -> float | None:
     """元 → 億元；NaN（全部缺值）→ None。"""
     return clean(float(v) / 1e8, 2) if v == v and v is not None else None
+
+
+def turnover_series(p: Any, days: int = 60) -> list[dict[str, Any]]:
+    """首頁成交金額（M2，2026-10-03）：每日成交金額（億元）與「÷ 前 20 日平均」倍數，上市、上櫃、合計各一組。
+
+    倍數的分母是前 20 個交易日（不含當日）的平均，與市場溫度的「成交量相對 20 日平均」同一個定義；
+    不足 20 日時倍數為 None。整天缺值（該市場無成交）輸出 None 而不是 0。
+    """
+    markets = getattr(p, "markets", {}) or {}
+    groups: dict[str, list[str]] = {"total": list(p.value.columns)}
+    for mk in ("twse", "tpex"):
+        cols = [c for c in p.value.columns if markets.get(c) == mk]
+        if cols:
+            groups[mk] = cols
+    series: dict[str, tuple[pd.Series, pd.Series]] = {}
+    for key, cols in groups.items():
+        v = p.value[cols].sum(axis=1, min_count=1)
+        series[key] = (v, v.shift(1).rolling(20, min_periods=20).mean())
+    out = []
+    for d in list(p.dates)[-days:]:
+        row: dict[str, Any] = {"date": d}
+        for key, (v, ma) in series.items():
+            vv, mm = v.get(d), ma.get(d)
+            ok = vv is not None and vv == vv
+            row[key] = {
+                "value": _yi(vv) if ok else None,
+                "ma20_ratio": clean(float(vv) / float(mm), 2) if ok and mm == mm and mm else None,
+            }
+        for key in ("twse", "tpex"):
+            row.setdefault(key, {"value": None, "ma20_ratio": None})
+        out.append(row)
+    return out
+
+
+def market_breadth(p: Any, chg: pd.Series) -> dict[str, Any]:
+    """市場寬度（M2，2026-10-03）：漲跌家數（官方漲跌）、站上 20／60／240 日線比例（還原價）、創 60 日新高／新低家數。
+
+    只算普通股（不含 ETF／ETN 等）；比例的分母是當日有收盤且均線可算的股票數，分母寫在 n_ma 裡。
+    """
+    stocks = [c for c in p.codes if is_common_stock(c)]
+    adj = p.adj_close[stocks]
+    last = adj.iloc[-1]
+    out: dict[str, Any] = {
+        "up": int((chg > 0).sum()),
+        "down": int((chg < 0).sum()),
+        "flat": int((chg == 0).sum()),
+        "n": int(last.notna().sum()),
+    }
+    for n in (20, 60, 240):
+        if len(adj) >= n:
+            ma = adj.iloc[-n:].mean()
+            ok = last.notna() & ma.notna()
+            out[f"above_ma{n}_pct"] = clean(float((last[ok] > ma[ok]).mean() * 100), 1) if ok.any() else None
+            out[f"n_ma{n}"] = int(ok.sum())
+        else:
+            out[f"above_ma{n}_pct"] = None
+            out[f"n_ma{n}"] = 0
+    if len(adj) >= 60:
+        win = adj.iloc[-60:]
+        ok = last.notna() & (win.notna().sum() >= 40)
+        out["high60"] = int((last[ok] >= win.max()[ok]).sum())
+        out["low60"] = int((last[ok] <= win.min()[ok]).sum())
+    else:
+        out["high60"] = None
+        out["low60"] = None
+    return out
 
 
 def market_file(ds: Any, p: Any, mp: Any, out: Path) -> dict[str, Any]:
@@ -508,8 +609,9 @@ def market_file(ds: Any, p: Any, mp: Any, out: Path) -> dict[str, Any]:
             "change": clean(taiex.iloc[-1] - taiex.iloc[-2], 2) if len(taiex) >= 2 else None,
             "ma240": clean(taiex.rolling(240, min_periods=240).mean().iloc[-1], 2),
         },
-        "breadth": {"up": int((chg > 0).sum()), "down": int((chg < 0).sum()), "flat": int((chg == 0).sum())},
+        "breadth": market_breadth(p, chg),
         "flows": flows,
+        "turnover": turnover_series(p),
         "sectors": sector_rotation(p),
         **market_env(ds, p, taiex),
         **active_etf_section(ds, p),
@@ -575,9 +677,41 @@ def calendar_file(ds: Any, p: Any, out: Path) -> int:
     return len(ev)
 
 
+def downsample_minutes(df: pd.DataFrame) -> list[dict[str, Any]]:
+    """每 5 秒 → 每分鐘一點（該分鐘最後一筆；13:30:00 收盤那一筆自成一點）。"""
+    if df.empty:
+        return []
+    d = df.dropna(subset=["taiex"]).copy()
+    d["minute"] = d["time"].astype(str).str.slice(0, 5)
+    last = d.groupby("minute", sort=True)["taiex"].last()
+    return [{"t": str(t), "v": clean(float(v), 2)} for t, v in last.items()]
+
+
+def intraday_file(ds: Any, p: Any, out: Path) -> dict[str, Any] | None:
+    """首頁 1D（M2，2026-10-03）：最新一天的加權指數盤中走勢（證交所每 5 秒統計降採樣成每分鐘）與前一交易日收盤。"""
+    df = ds.table("intraday_index")
+    if df.empty:
+        return None
+    day = str(df["date"].max())
+    points = downsample_minutes(df[df["date"] == day])
+    taiex = index_series(ds, TAIEX, p.dates)
+    prev = taiex[taiex.index < day].dropna()
+    data = {
+        "date": day,
+        "name": TAIEX,
+        "prev_close": clean(float(prev.iloc[-1]), 2) if len(prev) else None,
+        "prev_date": str(prev.index[-1]) if len(prev) else None,
+        "source": "證交所每 5 秒指數統計（盤後取得，降採樣成每分鐘一點）",
+        "points": points,
+    }
+    write_json(out / "intraday.json", data)
+    return data
+
+
 def build_extras(ds: Any, p: Any, mp: Any, sc: Any, fv: Any, out: Path) -> dict[str, Any]:
     report: dict[str, Any] = {}
     index_file(ds, p, out)
+    intraday_file(ds, p, out)
     market_file(ds, p, mp, out)
     report["calendar_events"] = calendar_file(ds, p, out)
     report.update(preset_backtests(ds, p, mp, sc, out))

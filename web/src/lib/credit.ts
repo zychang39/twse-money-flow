@@ -113,10 +113,24 @@ export function foreignHoldLine(d: Delta): { value: string; change: string; dir:
   return { value, change: `${d.abs > 0 ? '▲' : '▼'}${F2.format(Math.abs(d.abs))} 百分點`, dir: d.abs > 0 ? 'up' : 'down' };
 }
 
-/** 融資使用率＝融資餘額 ÷ 融資限額；取不到時說明原因。 */
+/**
+ * 融資使用率＝融資餘額 ÷ 融資限額；取不到時說明原因。
+ * 2026-10-02 健檢 #5：pipeline 已改用最近 5 個交易日內最後一筆有限額的資料補 margin_usage，所以還是 null 時不是「當日未公布」，
+ * 而是這一檔不是融資標的，或官方根本沒有提供融資限額。
+ */
+export const MARGIN_USAGE_MISSING = '非融資標的或官方未提供融資限額';
 export function marginUsageText(usage: N): { text: string; reason: string | null } {
-  if (!ok(usage)) return { text: '—', reason: '官方未提供融資限額（非融資標的、暫停融資，或當日資料未公布）' };
+  if (!ok(usage)) return { text: `—（${MARGIN_USAGE_MISSING}）`, reason: MARGIN_USAGE_MISSING };
   return { text: `${F1.format(usage)}%`, reason: null };
+}
+
+/**
+ * 變化值缺值的原因（畫面上的「—」一律附原因）：沒有這個序列的資料／基準日（N 個交易日前）無資料／資料不足 N 日。
+ */
+export function deltaMissingReason(d: Delta, name = ''): string {
+  if (d.now === null) return `沒有${name}資料`;
+  if (d.then === null) return d.thenDate ? `${mdText(d.thenDate)} 無${name}資料` : `${name}資料不足 ${d.days} 日`;
+  return '資料不足';
 }
 
 // ------------------------------------------------------------------ 個股頁彙整
@@ -136,9 +150,29 @@ export interface CreditInput {
   lastCover?: string | null;
 }
 
+/** 「9/25」 */
+function mdText(iso: string): string { return `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`; }
+const pctText = (v: N): string => (v === null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${F2.format(Math.abs(v))}%`);
+
+/**
+ * 不套用價量標籤的原因（2026-10-02 健檢 #5）：寫出是哪一邊、哪一天的資料缺、或哪一邊持平，不寫籠統的「持平或資料不足」。
+ * 例：「股價 5 日 0.00%（持平）、融資 5 日 −6.40%」「融資 9/25 無資料」「股價資料不足 5 日」。
+ */
+export function pvReason(price: Delta, margin: Delta): string {
+  const side = (name: string, d: Delta): string => {
+    if (d.now === null) return `沒有${name}資料`;
+    if (d.then === null) return d.thenDate ? `${name} ${mdText(d.thenDate)} 無資料` : `${name}資料不足 ${d.days} 日`;
+    const flat = d.abs === 0 ? '（持平）' : '';
+    const v = d.pct === null ? (name === '融資' ? lotsDelta(d) : '—') : pctText(d.pct);
+    return `${name} ${d.days} 日 ${v}${flat}`;
+  };
+  return `${side('股價', price)}、${side('融資', margin)}`;
+}
+
 export interface CreditSummary {
   margin: { d5: Delta; d20: Delta; usage: N };
-  pv: { label: PvLabel | null; price: Delta; margin: Delta };
+  /** label 為 null 時 reason 說明是哪一邊持平或缺哪一天的資料 */
+  pv: { label: PvLabel | null; price: Delta; margin: Delta; reason: string | null };
   short: { bal: Delta; sbl: Delta; ratio: N; high: boolean; lastCover: string | null };
   foreign: { chg: Delta };
 }
@@ -152,7 +186,7 @@ export function creditSummary(x: CreditInput, cfg = uiConfig.credit): CreditSumm
   const ratio = shortRatio(sbNow.now, mb5.now);
   return {
     margin: { d5: mb5, d20: deltaOver(x.d, x.mb, b), usage: x.marginUsage ?? null },
-    pv: { label: priceMarginLabel(price.abs, mbPv.abs), price, margin: mbPv },
+    pv: (() => { const label = priceMarginLabel(price.abs, mbPv.abs); return { label, price, margin: mbPv, reason: label ? null : pvReason(price, mbPv) }; })(),
     short: { bal: sbNow, sbl: deltaOver(x.d, x.sbl, a), ratio, high: shortRatioHigh(ratio, cfg), lastCover: x.lastCover ?? null },
     foreign: { chg: deltaOver(x.d, x.qfii, cfg.foreign_change_days) },
   };
@@ -161,7 +195,7 @@ export function creditSummary(x: CreditInput, cfg = uiConfig.credit): CreditSumm
 /** 區塊標題的一句結論（問題由頁面給）。 */
 export function creditAnswer(s: CreditSummary): string {
   if (s.margin.d5.now === null) return '沒有融資資料（非信用交易標的）';
-  const pv = s.pv.label ? `${s.pv.label.label}（${s.pv.label.tag}）` : '價量方向不明確';
+  const pv = s.pv.label ? `${s.pv.label.label}（${s.pv.label.tag}）` : '價量不套用標籤';
   const d = s.margin.d5.pct;
   return d === null ? pv : `${pv}，融資 5 日 ${d >= 0 ? '+' : '−'}${F1.format(Math.abs(d))}%`;
 }

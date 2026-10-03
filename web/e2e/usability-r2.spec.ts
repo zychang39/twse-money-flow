@@ -30,16 +30,21 @@ test.describe('#1 版本字串與 service worker 更新', () => {
   });
 });
 
-test('#3 個股頁頁首的「今日」漲跌：切換任何期間（含週線取樣的 10Y、ALL）都不變', async ({ page }) => {
+test('#3 個股頁頁首的資料日漲跌：切換任何期間（含週線取樣的 10Y、ALL）都不變', async ({ page }) => {
   await page.goto('#/stock/2330');
   const group = page.getByRole('group', { name: '股價走勢期間' }).first();
   const today = page.locator('.hero-change:not(.second)').first();
-  await expect(today).toContainText('今日');
+  // 2026-10-02 健檢：標籤是資料日（M/D），不再是「今日」字樣
+  const dateLabel = page.getByTestId('hero-change-date').first();
+  await expect(dateLabel).toHaveText(/^\d{1,2}\/\d{1,2}$/);
+  const dateText = await dateLabel.textContent();
   const base = await today.textContent();
   for (const p of ['1W', '1M', '3M', 'YTD', '1Y', '5Y', '10Y', 'ALL']) {
     await group.getByRole('button', { name: new RegExp(`^${p}`) }).click();
     await page.waitForTimeout(150);
     await expect(today, p).toHaveText(base!);
+    // 週線取樣的 10Y／ALL 也不能把資料日換成取樣週的日期
+    await expect(dateLabel, p).toHaveText(dateText!);
   }
 });
 

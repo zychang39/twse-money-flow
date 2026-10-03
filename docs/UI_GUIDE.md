@@ -89,3 +89,16 @@ Playwright 在 402×874、375×667、440×956 三種 viewport，對每個頁面�
 - **累積超額曲線**：寬度 100%（402px 不左右滑動）；95% 區間是灰階帶、平均是實線；峰值日（▲）與 alpha 耗盡日（◆）用標記＋文字，不只靠顏色；手指拖曳、滑鼠移動或方向鍵讀值（第 k 日、累積超額、95% 區間，`aria-live`）；`touch-action: pan-y` 讓垂直滑動仍能捲頁；沒有動畫；SVG 焦點用小寫 `tabindex`（SVG 屬性區分大小寫）。
 - **今日新觸發**：每列可展開「觸發依據」（該股各條件的當日數值），保留加入自選群組與訊號追蹤；0 檔時寫原因（環境條件不符、資料只涵蓋部分股票、沒有股票首次同時符合），不留白。
 - **自動驗收**：`e2e/layout.spec.ts` 另外檢查「指標效度表（排序選單開啟、0050 基準、曲線）」與「策略頁（三方同買）」三種 viewport；`e2e/v3-lab.spec.ts` 三個互動測試：排序選單開關與排序正確、基準切換後捲動位置不變、曲線拖曳讀值。
+
+## 14. 健檢後的共用樣式（2026-10-02～03；新頁面一律沿用，不另寫）
+- **指標格** `.mg`（`components/Metrics.tsx` `MetricGrid`）：2 欄（390pt）；每格「標籤／主數字／副標」，主數字 `.num` 等寬數字；缺值一律 `missing('原因')` → 「—（原因）」。
+- **鍵值列** `.kv`（`KeyValueList`）：`dt` 左、`dd` 右對齊、可換行（`keep-all` + `anywhere`，數字與單位不拆開）；副標 `.kv-sub` 另起一行。
+- **標籤列** `.tags`／`.ev-tags`／`.st-tags`：`flex-wrap`、左對齊、間距 `--s-2`；不撐滿、不直排。
+- **表格**：預設表頭不黏（`.ev-table`、`.cd-table` 皆 `position: static`）；長表（≥ 10 列）才加 `.ev-sticky`／`.cd-long`，表頭黏在 `--safe-top`（有基準列的頁面加 `--bench-h`）。三段表 `.ev-table.ev-seg` 首欄 28%、`.seg-name` 不換行、`.th-unit` 單位第二行 11px。
+- **固定基準列** `.bench-bar`：不透明（`--bg` + 1px 底線），高度 `--bench-h`；頁內標題 `scroll-margin-top` 讓錨點不被蓋住。
+- **灰階可分辨**：四環、三環、比例條用 `--ink-1..4`（`.ring.ink-N`、`.sb-seg.*`），不用透明度；`scripts/contrast.py` 檢查 ink ≥ 3:1、相鄰 ≥ 1.5:1。
+- **底部留白**：`.app { padding-bottom: var(--dock-clear) }`，頁尾 `.footer` 不被導覽列蓋住。
+- **資料日列** `.asof-line`：每個區塊第一行「資料至 10/2（10/3 尚未公布）」；休市日的狀態列前綴 `.stage-prefix`。
+- **圖表**：`Viz.useReadout` 讀值手指放開保留 3 秒；`.nb-dates` 起訖日期；`NetBars neutral` 用於數量型（成交金額），紅綠只給漲跌與買賣超；`EquityChart` 圖例預設全開、缺線寫原因、「最高」與「期末」分開標。
+- **空狀態** `.empty.compact`：一列（圖示＋一句＋按鈕），用於列表內的次要空狀態。
+- **半句模板禁止**：`lib/wording.test.ts` 掃描 `${x ?? '—'} 檔` 這類寫法；缺值用 `fmtCount`／`orMissing`／`missing(原因)` 組完整句。

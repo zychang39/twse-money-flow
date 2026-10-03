@@ -17,6 +17,26 @@ export interface TechFacts {
   dif: number | null;
   /** 柱狀圖由負轉正（正）或由正轉負（負）距今的交易日數；null＝沒有翻轉紀錄 */
   histFlipDays: number | null;
+  /** ATR14（還原價，Wilder 平滑）；不足 15 日為 null（M2，2026-10-03） */
+  atr14: number | null;
+  /** ATR14 ÷ 最新收盤（%） */
+  atrPct: number | null;
+}
+
+/** ATR(n)：真實波幅 TR＝max(高−低, |高−前收|, |低−前收|)，前 n 筆簡單平均起算、之後 Wilder 平滑；缺值日跳過。 */
+export function atrLast(high: N[], low: N[], close: N[], n = 14): number | null {
+  const tr: number[] = [];
+  let prev: number | null = null;
+  for (let i = 0; i < close.length; i++) {
+    const h = high[i], l = low[i], c = close[i];
+    if (!ok(h) || !ok(l) || !ok(c)) continue;
+    if (prev !== null) tr.push(Math.max(h - l, Math.abs(h - prev), Math.abs(l - prev)));
+    prev = c;
+  }
+  if (tr.length < n) return null;
+  let atr = tr.slice(0, n).reduce((a, b) => a + b, 0) / n;
+  for (let i = n; i < tr.length; i++) atr = (atr * (n - 1) + tr[i]) / n;
+  return atr;
 }
 
 /** KD(9,3,3)：RSV＝(收 − 9 日最低) ÷ (9 日最高 − 9 日最低) × 100（高＝低時 50）；K、D 以 ⅔ 前值 ＋ ⅓ 新值遞迴，起始 50。 */
@@ -96,8 +116,11 @@ export function techFacts(high: N[], low: N[], close: N[], af: number[]): TechFa
   for (let i = hv.length - 1; i >= 1; i--) {
     if ((hv[i] > 0) !== (hv[i - 1] > 0)) { histFlipDays = hv.length - 1 - i; break; }
   }
+  const atr14 = atrLast(H, L, C, 14);
   return {
     bias20,
+    atr14,
+    atrPct: atr14 !== null && last !== null && last > 0 ? (atr14 / last) * 100 : null,
     k: kk.length ? kk[kk.length - 1] : null,
     d: dd.length ? dd[dd.length - 1] : null,
     kdHighDays,
@@ -107,13 +130,16 @@ export function techFacts(high: N[], low: N[], close: N[], af: number[]): TechFa
   };
 }
 
-/** MACD 狀態文字：「柱狀為正（3 日前翻正）・DIF 在零軸上」 */
+/**
+ * MACD 狀態文字（柱狀的數值另外顯示）：有翻轉紀錄時「柱狀 3 日前翻正・DIF 在零軸上」（翻正已含方向，不再重複「柱狀為正」）；
+ * 沒有翻轉紀錄時「柱狀為正・DIF 在零軸上」。
+ */
 export function macdText(t: TechFacts): string {
   if (t.hist === null) return '資料不足';
-  const side = t.hist > 0 ? '柱狀為正' : '柱狀為負';
-  const flip = t.histFlipDays === null ? '' : t.histFlipDays === 0 ? `（今日翻${t.hist > 0 ? '正' : '負'}）` : `（${t.histFlipDays} 日前翻${t.hist > 0 ? '正' : '負'}）`;
+  const sign = t.hist > 0 ? '正' : '負';
+  const side = t.histFlipDays === null ? `柱狀為${sign}` : t.histFlipDays === 0 ? `柱狀今日翻${sign}` : `柱狀 ${t.histFlipDays} 日前翻${sign}`;
   const zero = t.dif === null ? '' : t.dif > 0 ? '・DIF 在零軸上' : '・DIF 在零軸下';
-  return `${side}${flip}${zero}`;
+  return `${side}${zero}`;
 }
 
 /** KD 狀態：「K 86・D 78・高檔鈍化 6 天」 */

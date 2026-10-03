@@ -2,13 +2,15 @@
  * 個股籌碼：區間統計卡（1／3／5／10／20／60 日）與「每日籌碼」（預設展開；法人｜信用｜借券當沖）。
  * 數字一律等寬、千分位；正負同時以紅綠色與 ▲▼ 表示（買超、增加為紅）。定義見 METHODOLOGY §4.7.1。
  */
-import type { ComponentChildren } from 'preact';
+import { Fragment, type ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import {
   ALL_COLS,
   type ChipBlock,
   type ChipRow,
   DAY_FIELDS,
+  INSTI_FOOTNOTE,
+  PARTY_HEAD,
   type ColFormat,
   type Unit,
   UNIT_LABEL,
@@ -26,6 +28,7 @@ import {
   colTotal,
   colUnit,
   colValue,
+  concentration,
   dayText,
   missingNotes,
   officialLinks,
@@ -39,8 +42,9 @@ import {
 } from '../lib/chips';
 import { uiConfig } from '../lib/config';
 import { getSetting, setSetting } from '../db/db';
-import { arrow, dirClass, direction, fmtNum, fmtPrice } from '../lib/format';
+import { arrow, dirClass, direction, fmtNum, fmtPrice, missing } from '../lib/format';
 import { IconChevronDown, IconMore } from './Icons';
+import { MetricGrid } from './Metrics';
 import { Sheet } from './Sheet';
 
 /** 帶正負的數字：顏色＋▲▼＋絕對值（0 與四捨五入後為 0 者不加符號）。 */
@@ -68,6 +72,11 @@ function Segmented<T extends string | number>({ label, value, options, onPick, f
 }
 
 // ------------------------------------------------------------------ 區間統計卡
+/*
+ * M2（2026-10-03）：欄位改為 5 欄——外資、投信、自營商（自行買賣）、自營商（避險）、三大法人合計。
+ * 5 欄數字在 375pt 放不下左側的列標題欄，所以每個項目分成兩列：第一列是跨欄的列標題（含單位小字），第二列是 5 個數字；
+ * 不加左右捲動、不縮小字級、不縮寫張數（M3）。
+ */
 export function ChipStats({ block, sharesOut }: { block: ChipBlock; sharesOut: number | null | undefined }) {
   const cfg = uiConfig.chip;
   const [days, setDays] = useState(cfg.stats_default);
@@ -81,11 +90,12 @@ export function ChipStats({ block, sharesOut }: { block: ChipBlock; sharesOut: n
     { label: '現價比成本', unit: '%', name: '現價相對成本（%）', cell: (p) => <Sig v={p.costRel} digits={1} /> },
     { label: '目前連續', cell: (p) => <span class="caption">{streakText(p.streak, block.d.length - 1)}</span> },
   ];
+  const n = s.parties.length;
   return (
     <div class="card chip-stats-card" aria-label="籌碼區間統計">
       <div class="row between" style={{ gap: 'var(--s-2)' }}>
         <span class="body w6">區間統計</span>
-        <span class="caption muted">{s.start ?? '—'}～{s.end ?? '—'}</span>
+        <span class="caption muted">{s.start && s.end ? `${s.start}～${s.end}` : missing('沒有資料')}</span>
       </div>
       <div style={{ marginTop: 'var(--s-3)' }}>
         <Segmented label="統計天數" value={days} options={cfg.stats_periods} onPick={setDays} format={(n) => `${n} 日`} />
@@ -93,22 +103,63 @@ export function ChipStats({ block, sharesOut }: { block: ChipBlock; sharesOut: n
       <p class="body t1" style={{ marginTop: 'var(--s-3)' }} data-testid="chip-sentence">{rangeSentence(s)}</p>
       <div class="cs-unit caption" data-testid="chip-stats-unit">單位：張</div>
       <div>
-        <table class="chip-stats">
+        <table class="chip-stats" style={{ tableLayout: 'fixed' }}>
           <thead>
-            <tr><th scope="col"><span class="sr-only">項目</span></th>{s.parties.map((p) => <th key={p.key} scope="col">{p.key === 'dealerSelf' ? <span aria-label="自營商（自行買賣）">自營商<span class="th-unit" aria-hidden="true">自行買賣</span></span> : p.label}</th>)}</tr>
+            <tr>
+              {s.parties.map((p) => {
+                const [main, sub] = PARTY_HEAD[p.key];
+                return (
+                  <th key={p.key} scope="col">
+                    <span aria-label={p.label}>{main}<span class="th-unit" aria-hidden="true">{sub || ' '}</span></span>
+                  </th>
+                );
+              })}
+            </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.label}><th scope="row" aria-label={r.name}>{r.label}{r.unit ? <span class="th-unit">{r.unit}</span> : null}</th>{s.parties.map((p) => <td key={p.key}>{r.cell(p)}</td>)}</tr>
+              <Fragment key={r.label}>
+                <tr class="cs-label"><th scope="row" colSpan={n} aria-label={r.name} style={{ textAlign: 'left', borderBottom: 0, paddingBottom: 0 }}>{r.label}{r.unit ? <span class="th-unit">{r.unit}</span> : null}</th></tr>
+                {/* 欄寬固定均分；數字只在極端情況（區間合計 ≥ 100 萬張）才會被裁切，完整數值仍在螢幕閱讀器文字裡 */}
+                <tr>{s.parties.map((p) => <td key={p.key} style={{ padding: 'var(--s-2) 2px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.cell(p)}</td>)}</tr>
+              </Fragment>
             ))}
           </tbody>
         </table>
       </div>
       <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>
         收盤 {fmtPrice(s.close)}・區間漲跌 <Sig v={s.change} digits={2} suffix="%" />・區間成交 {fmtNum(s.volumeLots, 0)} 張。
+        自營商拆成自行買賣與避險（兩者相加＝官方自營商）；外資含外資自營商；三大法人合計為官方數字。
         百分比與成本各自標在列名下方；估計成本＝區間內淨買超日的（還原）均價加權，只在區間合計為淨買超時顯示；股本以最新已發行股數計。
       </p>
+      <Concentration block={block} />
     </div>
+  );
+}
+
+/**
+ * 法人集中度（非分點；M2 2026-10-03）：5／20／60 日三大法人合計淨買賣超 ÷ 同期成交量（%）。
+ * 紅 ▲＝合計買超、綠 ▼＝合計賣超；資料不足 N 日時寫出目前只有幾日（不留白）。
+ */
+export function Concentration({ block }: { block: ChipBlock }) {
+  const items = useMemo(() => concentration(block), [block]);
+  return (
+    <section aria-label="法人集中度（非分點）" data-testid="chip-concentration" style={{ marginTop: 'var(--s-4)' }}>
+      <div class="row between" style={{ gap: 'var(--s-2)' }}>
+        <span class="body w6">法人集中度（非分點）</span>
+        <span class="caption muted">三大法人合計 ÷ 成交量</span>
+      </div>
+      <MetricGrid cols={3} label="法人集中度" items={items.map((c) => ({
+        k: `${c.days} 日`,
+        v: c.pct === null ? <span class="muted">{missing(c.available ? '區間內沒有三大法人資料' : '沒有資料')}</span> : <Sig v={c.pct} digits={2} suffix="%" />,
+        sub: c.available < c.days
+          ? `資料累積中：目前只有 ${c.available} 日${c.start ? `（自 ${mdLabel(c.start)} 起）` : ''}`
+          : c.withData < c.available ? `${c.withData}／${c.available} 日有法人資料` : c.start && c.end ? `${mdLabel(c.start)}–${mdLabel(c.end)}` : undefined,
+      }))} />
+      <p class="caption muted" style={{ marginTop: 'var(--s-2)' }}>
+        這裡的集中度＝三大法人合計淨買賣超股數 ÷ 同期成交股數（只計有法人資料的日子），不是券商分點的買賣集中度；分點進出資料的官方查詢頁有驗證碼，依規則不提供（METHODOLOGY §4.7.1）。
+      </p>
+    </section>
   );
 }
 
@@ -421,6 +472,7 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
             <span>{rows.length} 日{period ? `・${period}` : ''}・{mode === 'cards' ? '點卡片' : '點一列'}看當天完整資料</span>
             <span class="cd-unit-label" data-testid="chip-unit-label">單位：{unitLabel}</span>
           </div>
+          {view === 'insti' || mode === 'all' ? <p class="caption muted" data-testid="insti-footnote" style={{ margin: '0 0 var(--s-2)' }}>{INSTI_FOOTNOTE}；三大法人合計為官方數字，等於外資＋投信＋自營商。</p> : null}
 
           <div class="cd-wide-probe" ref={wideRef} aria-hidden="true" />
           <span class="cd-measure" ref={measureRef} aria-hidden="true" />
@@ -458,7 +510,8 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
             </ul>
           ) : (
             <div class={`cd-wrap ${mode === 'all' ? 'cd-wide' : ''}`} role="region" aria-label={`每日籌碼明細・${mode === 'all' ? '全部欄位' : VIEW_LABEL[view]}`} data-mode={mode}>
-              <table class="cd-table">
+              {/* M3（UI_GUIDE §9）：≥ 10 列的長表加 .cd-long，表頭捲動時固定；短表（1／3／5 日）不固定 */}
+              <table class={`cd-table${rows.length >= 10 ? ' cd-long' : ''}`}>
                 <colgroup>
                   <col style={{ width: `${dateW}px` }} />
                   {cols.map((c) => <col key={c.key} />)}
@@ -508,7 +561,7 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
             <summary>欄位說明</summary>
             <p class="caption muted">
               單位一律為張（1,000 股，股數四捨五入到整數張），完整顯示千分位，不縮寫。
-              外資＝外陸資（不含外資自營商）＋外資自營商；自營商欄為自行買賣（避險部位在當天完整資料）；三大法人合計為官方數字。
+              外資＝外陸資（不含外資自營商）＋外資自營商；自營商＝自行買賣＋避險（拆分在當天完整資料）；三大法人合計為官方數字（＝外資＋投信＋自營商）。
               區間合計：數量欄先以股數相加再換算；餘額欄為區間增減；比率欄（券資比、當沖比率，%）為區間平均（當沖比率以成交量加權）。
               0 顯示「0」且不帶箭頭、沒有資料顯示「—」。紅色 ▲＝買超／增加、綠色 ▼＝賣超／減少。
             </p>
@@ -540,7 +593,7 @@ export function DaySheet({ day, onClose, unit, market, onCopy, extra }: {
             <div><dt>成交量</dt><dd class="num">{r.volume === null ? '—' : `${fmtNum(r.volume / 1000, 0)} 張`}</dd></div>
           </dl>
           {extra ? extra(r) : null}
-          <p class="caption muted">以下單位：{UNIT_LABEL[unit]}（比率為 %）</p>
+          <p class="caption muted">以下單位：{UNIT_LABEL[unit]}（比率為 %）・{INSTI_FOOTNOTE}</p>
           {DAY_FIELDS.map((g) => (
             <section key={g.group} aria-label={g.group}>
               <h3 class="eyebrow cd-group">{g.group}</h3>

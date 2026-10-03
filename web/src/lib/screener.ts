@@ -1,5 +1,6 @@
 /** 選股條件引擎：同一組合內條件皆須成立（AND）。 */
 import { screenerConfig, type Condition } from './config';
+import { md } from './format';
 
 export type Row = Record<string, unknown>;
 
@@ -146,6 +147,5 @@ export function newTriggerCodes(days: ScreenDays, conditions: Condition[]): Set<
 /** 條件含週資料（集保大戶）時的說明：「大戶資料：9/18 持股・9/19 公布」。 */
 export function weeklyNote(conditions: Condition[], weekly: { data_date: string; published: string; fields: string[] } | null | undefined): string | null {
   if (!weekly || !conditions.some((c) => weekly.fields.includes(c.field))) return null;
-  const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
   return `大戶資料：${md(weekly.data_date)} 持股・${md(weekly.published)} 公布（週資料，每週更新一次）`;
 }

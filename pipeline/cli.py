@@ -379,6 +379,15 @@ def cmd_build_web(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_guard(args: argparse.Namespace) -> int:
+    """部署前守門（2026-10-02 健檢）：欄位缺漏、日期倒退、筆數驟降 → 非零結束、不部署、線上保留前一版。"""
+    from pipeline.derive.guard import check
+
+    res = check(Path(args.out), Path(args.previous) if args.previous else None)
+    print(json.dumps(res, ensure_ascii=False, indent=1))
+    return 0 if res["ok"] else 1
+
+
 def cmd_evidence(args: argparse.Namespace) -> int:
     """指標效度評估（M1）：寫出 evidence.json／evidence/*.json 與 docs/INDICATOR_EVIDENCE.md。"""
     from pipeline.evidence import data as evdata
@@ -544,6 +553,11 @@ def build_parser() -> argparse.ArgumentParser:
     web.add_argument("--data-dir", default="data")
     web.add_argument("--out", default="web/public/data")
     web.set_defaults(func=cmd_build_web)
+
+    gd = sub.add_parser("guard", help="部署前守門：新版衍生資料 vs 線上前一版（欄位、日期、筆數）")
+    gd.add_argument("--out", default="web/public/data")
+    gd.add_argument("--previous", default="", help="前一版的目錄（deploy.yml 從線上下載）；沒有時只做欄位檢查")
+    gd.set_defaults(func=cmd_guard)
 
     evd = sub.add_parser("evidence", help="指標效度評估（事件研究、分組檢定、walk-forward、判定）")
     evd.add_argument("--data-dir", default="data")

@@ -1,24 +1,44 @@
-/** v3 M5-1 探索頁四張功能卡（選股 → 策略庫 → 指標效度表 → 回測，順序固定、不依 alpha 排序）的即時數字。 */
-import { strategiesConfig } from './config';
-import { type EvidenceFile, type EvidenceToday, isUsable } from './evidence';
+/**
+ * 探索頁功能卡（選股 → 策略庫 → 指標效度表 → 回測，順序固定）的即時數字。
+ * 2026-10-02 健檢 M1-1：策略數改用策略庫的分級（strategies.json 的 grade，與策略庫頁首同一個函式 gradeCounts），
+ * 不再用 config/strategies.yml × 指標判定自己數；今日新觸發＝上架策略（有效／觀察中）的今日新觸發不重複檔數，
+ * 與各策略頁的「今日新觸發」同一份資料。
+ */
+import type { EvidenceFile } from './evidence';
+import { type GradeCounts, gradeCounts, isListed, verdictCounts } from './status';
+import type { StrategyItem } from './strategies';
 
-/** 首頁四張功能卡的即時數字：今日新觸發（通過驗證的指標，不重複的股票）、通過驗證的策略數、判定數、資料更新時間。 */
-export function labStatus(ev: EvidenceFile | null, today: EvidenceToday | null): { today: number; strategies: number; valid: number; env: number; updated: string | null } | null {
+export interface LabStatus {
+  /** 上架策略今日新觸發的不重複股票數 */
+  today: number;
+  /** 不計入總數的策略（例：資料不足區）今日觸發數 */
+  todayExcluded: number;
+  grades: GradeCounts;
+  valid: number;
+  env: number;
+  tests: number;
+  updated: string | null;
+}
+
+export function labStatus(ev: EvidenceFile | null, strategies: StrategyItem[] | null): LabStatus | null {
   if (!ev || !ev.rows?.length) return null;
-  const usable = new Set(ev.rows.filter((r) => isUsable(r.verdict)).map((r) => r.id));
   const codes = new Set<string>();
-  for (const [id, t] of Object.entries(today?.tests ?? {})) {
-    if (!usable.has(id)) continue;
-    for (const [code, d] of Object.entries(t.t)) if (d === today?.date) codes.add(code);
+  let excluded = 0;
+  for (const s of strategies ?? []) {
+    if (!isListed(s)) continue;
+    if (s.limited) { excluded += s.today?.length ?? 0; continue; }
+    for (const x of s.today ?? []) codes.add(x.code);
   }
+  const vc = verdictCounts(ev.rows);
   const g = ev.meta.generated_at;
   const updated = g ? `${Number(g.slice(5, 7))}/${Number(g.slice(8, 10))} ${g.slice(11, 16)}` : null;
   return {
     today: codes.size,
-    strategies: strategiesConfig.strategies.filter((s) => usable.has(s.test)).length,
-    valid: ev.rows.filter((r) => r.verdict === '有效').length,
-    env: ev.rows.filter((r) => r.verdict === '環境依賴').length,
+    todayExcluded: excluded,
+    grades: gradeCounts(strategies),
+    valid: vc['有效'],
+    env: vc['環境依賴'],
+    tests: vc.total,
     updated,
   };
 }
-

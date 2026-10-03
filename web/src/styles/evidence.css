@@ -11,9 +11,11 @@
 }
 .ev-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .ev-label { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); }
-.ev-sub { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.ev-sub { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); font-variant-numeric: tabular-nums; white-space: normal; }
 .ev-verdict { flex: none; }
-.ev-tags { display: inline-flex; flex-direction: column; align-items: flex-end; gap: var(--s-1); flex: none; }
+/* 狀態標籤列（.tags／.ev-tags／.st-tags 同一條規則）：橫排、靠左、可換行、間距 8；在清單列右側時可縮小、不撐寬整列 */
+.tags, .ev-tags, .st-tags { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: var(--s-2); min-width: 0; }
+.ev-row > .ev-tags, .ev-row > .st-tags, .ev-row > .tags { flex: 0 1 auto; }
 .ev-cov { margin-top: var(--s-4); }
 .ev-verdict.strong { background: var(--surface-2); color: var(--text-1); }
 .ev-detail { padding: 0 var(--s-4) var(--s-4); display: flex; flex-direction: column; gap: var(--s-2); }
@@ -23,14 +25,22 @@
 .ev-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 0.9375rem; line-height: 1.25rem; }
 .ev-table th, .ev-table td { padding: var(--s-2) var(--s-1); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: clip; border-bottom: 1px solid var(--line); }
 .ev-table th:first-child, .ev-table td:first-child { text-align: left; }
-.ev-table thead th { position: sticky; top: var(--safe-top); z-index: 1; background: var(--surface-1); color: var(--text-2); font-weight: var(--fw-medium); font-size: 0.8125rem; line-height: 1.125rem; vertical-align: bottom; }
+/*
+ * 表頭預設不固定（2026-10-02 健檢：多數表只有 3～8 列，固定表頭會錯位並蓋住資料列）；
+ * 只有明確標 .ev-sticky 的長表（≥ 10 列）才 sticky：實心底色（surface-1），top 在安全區之下；
+ * 有基準分段控制的頁面（.has-bench）改黏在控制列（--bench-h）之下。.ev-static 保留為相容別名（本來就是靜態）。
+ */
+.ev-table thead th { position: static; background: var(--surface-1); color: var(--text-2); font-weight: var(--fw-medium); font-size: 0.8125rem; line-height: 1.125rem; vertical-align: bottom; }
+.ev-table.ev-sticky thead th { position: sticky; top: var(--safe-top); z-index: 1; }
+.has-bench .ev-table.ev-sticky thead th { top: calc(var(--safe-top) + var(--bench-h)); }
 .ev-table tbody th { font-weight: var(--fw-regular); }
-.ev-table th.ev-wrap { white-space: normal; overflow-wrap: anywhere; }
+/* 列標題與標成 .ev-wrap／.ev-kv 的儲存格可以換行（數字欄維持單行）：只在標點與空白處斷、長英文 id 可緊急斷行 */
+.ev-table tbody th[scope='row'], .ev-table th.ev-wrap, .ev-table td.ev-wrap, .ev-table .ev-kv { white-space: normal; word-break: keep-all; overflow-wrap: anywhere; overflow: visible; vertical-align: top; }
 .ev-table .ev-empty { text-align: left; color: var(--text-2); font-size: 0.8125rem; white-space: normal; }
 .ev-table tr.ev-chosen th, .ev-table tr.ev-chosen td { font-weight: var(--fw-semibold); }
 .ev-foot { margin-top: var(--s-6); }
 /* 策略庫與槓桿計算 */
-.st-tags { display: inline-flex; flex-direction: column; align-items: flex-end; gap: var(--s-1); flex: none; }
+/* .st-tags 與 .tags／.ev-tags 共用同一條規則（見上方） */
 /* 分級標籤：停用＝弱化（只描邊、不填色）；有效沿用 .ev-verdict.strong */
 .tag.muted { background: transparent; color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line); }
 /* 分級區塊：標題帶數量；「停用與未通過」預設收合（44pt 按鈕） */
@@ -71,17 +81,33 @@
   font: inherit; font-size: var(--fs-caption); font-variant-numeric: tabular-nums; cursor: pointer;
 }
 .eq-pill[aria-pressed='true'] { color: var(--text-1); border-color: var(--brand); font-weight: var(--fw-semibold); }
-.st-seg { margin: var(--s-2) 0; }
-.st-seg button { flex: 1; min-height: var(--tap); }
+/* 逐年報酬欄位的分段控制（只套用在 .segmented 上：籌碼結構比例條的 .st-bar > .st-seg 不受影響，見 tools.css .sb-seg） */
+.segmented.st-seg { margin: var(--s-2) 0; }
+.segmented.st-seg button { flex: 1; min-height: var(--tap); }
 /* v3 M3 累積超額曲線：拖曳讀值（垂直滑動仍可捲動頁面） */
 .ac-svg { display: block; touch-action: pan-y; cursor: crosshair; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .ac-svg:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-sm); }
 .ac-read { min-height: 2.5rem; font-variant-numeric: tabular-nums; }
-/* v3 M5-3 基準分段控制（浮動控制層＝玻璃；sticky 在頁面頂端，表頭改黏在它下方） */
-.bench-bar { position: sticky; top: var(--safe-top); z-index: 4; margin: var(--s-3) calc(-1 * var(--s-2)) 0; padding: var(--s-1) var(--s-2); border-radius: var(--r-md, 12px); }
+/*
+ * v3 M5-3 基準分段控制：sticky 在頁面頂端（安全區之下），高度固定＝--bench-h（tokens）。
+ * 2026-10-02 健檢：改為不透明（--bg）、滿版寬、下緣 1px 分隔線，捲過去的標題與清單文字不會透出來；
+ * ::before 往上補滿安全區（加入主畫面時內容不會透到狀態列的時間、電量底下）。
+ */
+.bench-bar {
+  position: sticky; top: var(--safe-top); z-index: 4; box-sizing: border-box; height: var(--bench-h);
+  margin: var(--s-3) calc(-1 * var(--gutter)) 0; padding: var(--s-1) var(--gutter);
+  background: var(--bg); box-shadow: 0 1px 0 var(--line); border-radius: 0;
+}
+.bench-bar::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: var(--safe-top); background: var(--bg); }
+.bench-seg { padding: 0.1875rem; }
 .bench-seg button { flex: 1; min-height: var(--tap); }
 .bench-note { margin: var(--s-2) 0 0; }
-.has-bench .ev-table thead th { top: calc(var(--safe-top) + var(--tap) + var(--s-4)); }
+/* 控制列正下方的說明或標題再留 8px，不會貼著分隔線 */
+.bench-bar + .bench-note, .bench-bar + .st-h, .bench-bar + .ev-h, .bench-bar + .section { padding-top: var(--s-2); }
+/* 錨點跳轉或「跳到區塊」時，標題停在控制列下方而不是被它蓋住 */
+.has-bench .st-h, .has-bench .ev-h, .has-bench .section, .has-bench h1, .has-bench h2, .has-bench h3, .has-bench h4 { scroll-margin-top: calc(var(--safe-top) + var(--bench-h) + var(--s-2)); }
+/* 清單容器用 clip 而不是 hidden：hidden 會讓容器變成捲動容器，裡面的 sticky 表頭黏不住（圓角仍會裁切） */
+@supports (overflow: clip) { .ev-list { overflow: clip; } }
 /* v3 M5-2 排序 */
 .sort-head { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); margin-top: var(--s-4); }
 .sort-now { margin: 0; font-variant-numeric: tabular-nums; }
@@ -104,3 +130,44 @@
 /* v3 M5-2 選股內建組合：判定分級小字 */
 .chip-sub { margin-left: var(--s-1); font-size: var(--fs-micro); font-weight: var(--fw-regular); }
 .ev-table td.ev-ci { font-size: 0.8125rem; white-space: normal; }
+
+/* ---------- 2026-10-02 健檢：共用的指標格、鍵值列、策略卡、狀態標籤列 ---------- */
+/* 指標格：2 欄（或 3 欄），名稱小字在上、數字在下靠左、tabular-nums；最後一格落單時佔滿整列 */
+.mg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2) var(--s-3); margin: var(--s-2) 0 0; }
+.mg-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mg-i { min-width: 0; padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); background: var(--surface-2); }
+.mg-i.mg-wide { grid-column: 1 / -1; }
+.mg-k { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); word-break: keep-all; overflow-wrap: anywhere; }
+.mg-v { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; word-break: keep-all; overflow-wrap: anywhere; }
+.mg-v.risk { color: var(--risk); }
+.mg-s { margin: 0; font-size: var(--fs-micro); line-height: var(--lh-micro); color: var(--text-2); word-break: keep-all; overflow-wrap: anywhere; }
+.card > .mg { margin-top: var(--s-3); }
+.card .mg-i { background: var(--surface-row); }
+/* 鍵值列：上下排列、可換行（取代被裁切的單行表格） */
+.kv { margin: 0; background: var(--surface-1); border-radius: var(--r-card); overflow: hidden; }
+.kv-row { padding: var(--s-3) var(--s-4); }
+.kv-row + .kv-row { box-shadow: inset 0 0.5px 0 var(--line); }
+.kv-k { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); }
+.kv-v { margin: var(--s-1) 0 0; font-size: var(--fs-sub); line-height: var(--lh-sub); font-variant-numeric: tabular-nums; word-break: keep-all; overflow-wrap: anywhere; }
+.kv-sub { display: block; margin-top: var(--s-1); font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); }
+/* 策略卡：名稱＋標籤同一列（標籤靠左、可換行、間距 8）、一句規則、2×2 指標、未達列 */
+.st-card { display: block; }
+.st-card .ev-main { gap: var(--s-1); }
+.st-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.st-rule { color: var(--text-1); }
+.st-unmet { color: var(--risk); }
+.ev-row .mg { margin-top: var(--s-2); }
+/* 表格：段名一行、日期（或原始參數）第二行小字；數字欄 tabular-nums 靠右 */
+.ev-table .seg-name { display: block; word-break: keep-all; overflow-wrap: anywhere; }
+.ev-table .th-unit { display: block; font-size: var(--fs-micro); line-height: var(--lh-micro); font-weight: var(--fw-regular); color: var(--text-2); white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }
+/* 三段績效表（5 欄）：第一欄 28%、段名一行、日期第二行小字；數字欄字級降到 14px（390pt 寬放得下「+12.3%」）、內距縮到 4px */
+.ev-table.ev-seg th:first-child, .ev-table.ev-seg td:first-child { width: 28%; }
+.ev-table.ev-seg .seg-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-table.ev-seg .th-unit { white-space: nowrap; }
+.ev-table.ev-seg td { padding-left: var(--s-1); padding-right: var(--s-1); font-size: 0.875rem; }
+.ev-table.ev-seg tbody th { padding-left: 0; }
+.ev-table thead th br { display: block; }
+/* 相容別名：表頭本來就是靜態，這條保留給已標 ev-static 的表（有 .ev-sticky 才會固定） */
+.ev-table.ev-static thead th, .has-bench .ev-table.ev-static thead th { position: static; top: auto; }
+.eq-note { margin-top: var(--s-2); }
+.eq-pill:disabled { opacity: 0.6; cursor: default; }

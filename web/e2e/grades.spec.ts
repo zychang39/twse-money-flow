@@ -96,7 +96,13 @@ test.describe('策略庫分級版', () => {
     const valid = page.getByTestId('st-sec-有效-list');
     await expect(valid.locator('.ev-row')).toHaveCount(3);
     await expect(valid.getByTestId('grade-tag').first()).toHaveText('有效・待前瞻驗證');
-    await expect(valid.getByTestId('st-line').first()).toContainText(/校正後 t \d\.\d+・40 日扣成本超額 [^・]+（相對 0050 含息）・勝率 [^・]+・每月 \d+ 檔/);
+    // 2026-10-02 健檢：卡片改成 2×2 指標格；判定（等權）兩格固定、相對基準一格隨切換
+    const grid = valid.getByTestId('st-metrics').first();
+    await expect(grid).toContainText('校正後 t（判定・等權）');
+    await expect(grid).toContainText('40 日扣成本超額（判定・等權）');
+    await expect(grid).toContainText('40 日超額（相對 0050 含息）');
+    await expect(grid).toContainText(/超額勝率 \d+\.\d{2}%/);
+    await expect(grid).toContainText('每月觸發');
     // 展開第三區塊
     await fold.click();
     await expect(fold).toHaveAttribute('aria-expanded', 'true');
@@ -104,6 +110,7 @@ test.describe('策略庫分級版', () => {
     await expect(off.locator('.ev-row')).toHaveCount(6);
     await expect(off.locator('.ev-row').first().locator('.ev-sub')).toHaveCount(2);
     await expect(off.locator('.ev-row').first().locator('.ev-sub').nth(1)).toContainText('校正後 t 1.');
+    await expect(off.getByTestId('st-metrics')).toHaveCount(0);
     await expect(off.getByTestId('grade-tag').first()).toHaveText('停用');
     await expect(off.getByTestId('grade-tag').first()).toHaveClass(/muted/);
     await expect(page.getByTestId('cost-note')).toHaveText('回測成本：牌告手續費 0.1425%×2、證交稅 0.3%、滑價 0.1%×2；個人試算用你在設定的券商折扣。');
@@ -147,10 +154,14 @@ test.describe('策略庫分級版', () => {
     await page.goto('./#/explore/strategies');
     const bar = page.getByTestId('bench-switch');
     await expect(bar.getByRole('button', { name: '0050' })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('.bench-note')).toHaveText('判定依同日等權（40 日、扣成本）；畫面可切換顯示相對 0050 含息');
+    // 判定天數＝strategies.json 的主要持有天數（fixtures 為 10、真實資料為 40）
+    await expect(page.locator('.bench-note')).toContainText(`判定一律用同日等權（${graded().horizon} 日、扣成本），不隨切換改變`);
+    await expect(page.locator('.bench-note')).toContainText('目前：0050 含息持有不動');
     await bar.getByRole('button', { name: '等權' }).click();
     await expect(bar.getByRole('button', { name: '等權' })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByTestId('st-sec-有效-list').getByTestId('st-line').first()).not.toContainText('相對 0050');
+    await expect(page.getByTestId('st-sec-有效-list').getByTestId('st-metrics').first()).not.toContainText('相對 0050');
+    await expect(page.getByTestId('st-sec-有效-list').getByTestId('st-metrics').first()).toContainText('超額勝率（相對等權）');
+    await expect(page.getByTestId('st-sec-有效-list').getByTestId('st-metrics').first()).toContainText('絕對勝率');
     await page.reload();
     await expect(bar.getByRole('button', { name: '等權' })).toHaveAttribute('aria-pressed', 'true');
   });
@@ -160,18 +171,23 @@ test.describe('策略庫分級版', () => {
     await page.goto('./#/explore/strategies/swing_demo');
     await expect(page.getByRole('heading', { name: '合成波段' })).toBeVisible();
     await expect(page.getByTestId('grade-tag').first()).toHaveText('觀察中');
-    await expect(page.getByTestId('grade-reason')).toHaveText('九項上線門檻 7/9');
+    await expect(page.getByTestId('grade-reason')).toHaveText('九項上線門檻 7/9'); // fixtures 的字串原樣顯示（實際資料由 pipeline 寫成「未達：…」）
     await expect(page.getByTestId('split2022')).toContainText('2022 前 +1.30%（t 2.00、150 筆）／後 +1.10%（t 1.70、150 筆）');
     const seg = page.getByRole('table', { name: '開發、驗證、最終測試三段的超額報酬' });
-    await expect(seg).toContainText('開發 2017-01～2021-12');
-    await expect(seg).toContainText('驗證 2022-01～2024-10');
-    await expect(seg).toContainText('最終測試 2024-11 起');
-    await expect(seg).toContainText('全樣本（40 日）');
-    await expect(seg).toContainText('全樣本（20 日）');
+    // 2026-10-02 健檢：段名一行、日期第二行小字
+    await expect(seg.locator('tbody tr').nth(0).locator('.seg-name')).toHaveText('開發');
+    await expect(seg.locator('tbody tr').nth(0).locator('.th-unit')).toHaveText('2017-01～2021-12');
+    await expect(seg.locator('tbody tr').nth(1).locator('.th-unit')).toHaveText('2022-01～2024-10');
+    await expect(seg.locator('tbody tr').nth(2).locator('.th-unit')).toHaveText('2024-11 起');
+    await expect(seg.locator('tbody tr').nth(3).locator('.th-unit')).toHaveText('40 日');
+    await expect(seg.locator('tbody tr').nth(4).locator('.th-unit')).toHaveText('20 日');
     await expect(seg.locator('thead')).toContainText('毛超額');
     await expect(seg.locator('thead')).toContainText('扣成本超額');
     await expect(page.getByRole('heading', { name: '上線門檻（7／9 項通過）' })).toBeVisible();
-    await expect(page.getByTestId('swing-gates').locator('li')).toHaveCount(9);
+    // 只列未達的 2 項；展開才看全部 9 項
+    await expect(page.getByTestId('swing-gates').locator('li')).toHaveCount(2);
+    await page.getByRole('button', { name: '看全部 9 項門檻' }).click();
+    await expect(page.getByTestId('swing-gates-all').locator('li')).toHaveCount(9);
     await expect(page.getByRole('heading', { name: '進場延後' })).toBeVisible();
     const delays = page.getByTestId('swing-delays');
     await expect(delays.locator('tbody tr')).toHaveCount(3);
@@ -180,7 +196,17 @@ test.describe('策略庫分級版', () => {
     await expect(delays.locator('tbody tr').nth(2)).toContainText('3 日');
     await expect(page.getByRole('heading', { name: /^前瞻驗證/ })).toBeVisible();
     await expect(page.getByTestId('swing-forward')).toContainText('資料累積中：合併後第 12／60 個交易日（5 個訊號、2 筆已出場）');
-    await expect(page.getByTestId('swing-portfolio')).toContainText('10 檔組合（含共用規則：大盤 240 日線下不開新倉、20 日乖離 > 20% 不進場）：年化 +14.2% vs 等權基準 +9.8% vs 0050 含息 +12.1%、Sharpe 0.78、最大回撤 −22.4%（基準 −28.1%，比值 0.8）、回撤期間 210 日、實際成交 410 筆（槽位滿跳過 35、共用規則擋下 60）、週轉率每槽 4.3 次／年');
+    // 2026-10-02 健檢：10 檔組合摘要改成指標格（百分比 2 位）
+    const port = page.getByTestId('swing-portfolio');
+    await expect(port).toContainText('年化報酬');
+    await expect(port).toContainText('+14.20%');
+    await expect(port).toContainText('等權基準 +9.80%・0050 含息 +12.10%');
+    await expect(port).toContainText('最大回撤');
+    await expect(port).toContainText('−22.40%');
+    await expect(port).toContainText('比值 0.80');
+    await expect(port).toContainText('210 日');
+    await expect(port).toContainText('410 筆');
+    await expect(port).toContainText('每槽 4.3 次／年');
     await expect(page.getByText('最終測試段 2024-11 起上一輪已查看兩次，非全新樣本')).toBeVisible();
     await expect(page.getByTestId('cost-note')).toBeVisible();
   });
@@ -199,7 +225,8 @@ test.describe('策略庫分級版', () => {
     await expect(page.getByRole('heading', { name: '進場延後' })).toBeVisible();
     await expect(page.getByRole('heading', { name: /^前瞻驗證/ })).toBeVisible();
     await expect(page.getByTestId('swing-forward')).toContainText(/資料累積中|前瞻扣成本超額/);
-    await expect(page.getByTestId('swing-gates').locator('li')).toHaveCount(9);
+    await page.getByRole('button', { name: /看全部 \d+ 項門檻/ }).click();
+    await expect(page.getByTestId('swing-gates-all').locator('li')).toHaveCount(9);
     expect(errors).toEqual([]);
   });
 
@@ -213,12 +240,15 @@ test.describe('策略庫分級版', () => {
     const g = graded();
     const allowed = new Set(g.strategies.filter((s) => s.grade !== '停用').map((s) => s.test));
     const ev = JSON.parse(fixture('evidence.json')) as { rows: { id: string; label: string; kind: string }[] };
-    const expected = ev.rows.filter((r) => r.kind === 'event' && allowed.has(r.id)).map((r) => r.label).sort();
+    // 2026-10-02 健檢：有策略的指標顯示策略名（全站名稱表）
+    const byTest = new Map(g.strategies.map((s) => [s.test, s.label]));
+    const expected = ev.rows.filter((r) => r.kind === 'event' && allowed.has(r.id)).map((r) => byTest.get(r.id) ?? r.label).sort();
     const shown = (await panel.locator('.ev-label').allTextContents()).map((s) => s.trim()).sort();
     expect(shown).toEqual(expected);
     expect(shown.length).toBeGreaterThan(0);
     await expect(panel.getByTestId('grade-tag')).toHaveCount(shown.length);
-    const tags = (await panel.getByTestId('grade-tag').allTextContents()).map((s) => s.trim());
+    // 標籤前綴「策略分級」是給 VoiceOver 分辨「指標判定」與「策略分級」用的（2026-10-02 健檢 M1-2）
+    const tags = (await panel.getByTestId('grade-tag').allTextContents()).map((s) => s.trim().replace(/^策略分級\s*/, ''));
     for (const t of tags) expect(['有效・待前瞻驗證', '觀察中']).toContain(t);
   });
 });

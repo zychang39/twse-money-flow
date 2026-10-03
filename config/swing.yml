@@ -6,7 +6,8 @@ version: 2
 strategies:
   - id: rev_strong
     enabled: true
-    label: 營收高強勢
+    label: 營收高漲多
+    aliases: [營收高強勢]          # 2026-10-02 健檢：不用「強勢」這類術語（CLAUDE.md 產品原則 9）
     subtitle: 月營收創 12 個月新高・RS ≥ 70・20 日乖離 ≤ 10%・持有 40 日
     family: 基本面
     base: rev_high12                    # 基礎事件：月營收創 12 個月新高（次月 10 日生效）
@@ -14,7 +15,8 @@ strategies:
     params: { rs_min: 70, bias_max: 0.10 }
   - id: high_flow
     enabled: true
-    label: 近高點外資買
+    label: 高點外資買
+    aliases: [近高點外資買]        # 2026-10-02 健檢：主標最多 5 個字（CLAUDE.md 產品原則 9）
     subtitle: 首次回到 52 週高點 95%・外資 5 日買超・大盤年線上・成交值 ≥ 1 億・持有 20 日
     family: 動能
     base: high52                        # 基礎事件：收盤 ÷ 前 252 日最高收盤首次 ≥ 0.95
@@ -23,7 +25,8 @@ strategies:
     filters: [foreign5_pos, regime_up]  # 固定條件（沒有參數）
   - id: rs_flow
     enabled: true
-    label: 強勢股外資買
+    label: 漲多外資買
+    aliases: [強勢股外資買]        # 2026-10-02 健檢：主標最多 5 個字、不用「強勢」這類術語
     subtitle: RS 百分位首次站上 90・外資 5 日買超・大盤年線上・成交值 ≥ 1 億・持有 40 日
     family: 動能
     base: rs90                          # 基礎事件：RS 百分位當日 ≥ 90 且前一日 < 90
@@ -42,7 +45,8 @@ strategies:
     params: { rs_min: 70, vol_ratio: 1.5 }
   - id: squeeze_breakout
     enabled: true
-    label: 收斂後突破
+    label: 整理後新高
+    aliases: [收斂後突破]          # 2026-10-02 健檢：不用「突破」這類術語
     subtitle: RS ≥ 80・20 日波動低於 60 日・收盤突破前 20 日高點且量 ≥ 1.5 倍・持有 40 日
     family: 動能
     mechanism: B 趨勢延續

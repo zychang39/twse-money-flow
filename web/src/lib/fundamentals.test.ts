@@ -38,3 +38,25 @@ describe('距 52 週高點（區間內有 1:4 分割）', () => {
     expect(high52w([1, 2, 3], ['a', 'b', 'c'])).toBeNull();
   });
 });
+
+import { FAIR_BASIS, fairPosition } from './fundamentals';
+describe('合理價區間的位置（2026-10-02 健檢）', () => {
+  const combined = { cheap: 1123.59, fair: 1402.19, expensive: 1749.32 };
+  it('position 超過 1（2330：2.2）→ 寫「收盤高於區間上緣 X%」，不寫 100%；標記夾在 1', () => {
+    const r = fairPosition({ combined, position: 2.2, price: 2500 });
+    expect(r.marker).toBe(1);
+    // 手算：2500 ÷ 1749.32 − 1 ＝ 42.91%
+    expect(r.text).toBe(`合理價區間（${FAIR_BASIS}）：收盤高於區間上緣 42.91%`);
+    expect(r.text).not.toContain('100%');
+  });
+  it('區間內 → 「位於區間 62%」；低於下緣 → 「收盤低於區間下緣 X%」', () => {
+    expect(fairPosition({ combined, position: 0.62, price: 1511.5 }).text).toBe(`合理價區間（${FAIR_BASIS}）：位於區間 62%`);
+    const low = fairPosition({ combined, position: -0.1, price: 1011.231 });
+    expect(low.marker).toBe(0);
+    expect(low.text).toContain('收盤低於區間下緣 10.00%');
+  });
+  it('沒有合併區間 → 附原因的「—」', () => {
+    expect(fairPosition({ combined: null, position: null, price: 100 }).text).toContain('—（');
+    expect(fairPosition(null).text).toContain('—（');
+  });
+});

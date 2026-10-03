@@ -75,12 +75,81 @@ def test_cathay_uses_query_date():
     assert eh.parse_cathay(sample("etf_cathay_nodata.json"), "00400A", date(2026, 9, 26)).no_data
 
 
+def test_taishin_html_uses_nav_label_and_bloomberg_codes():
+    # 查詢 DataDate（適用日）2026-10-02 → 頁面「2026/10/1預估發行受益權單位數」＝清單製作時的淨值日
+    res = eh.parse_taishin(sample("etf_taishin_00986A.html"), "00986A")
+    assert res.response_date == date(2026, 10, 1)
+    assert list(res.df.columns) == COLS
+    # 彭博代碼「2330 TT」去掉 TT；海外持股（NVDA US、GOOGL US…）不列入
+    assert list(res.df["code"]) == ["2330"]
+    row = res.df.iloc[0]
+    assert (row["name"], row["shares"], row["weight"]) == ("台積電", 18000.0, 7.6628)
+    # 查無資料：版面仍在、日期 0001/1/1、沒有「預估發行受益權單位數」列
+    nodata = eh.parse_taishin(sample("etf_taishin_nodata.html"), "00986A")
+    assert nodata.no_data and nodata.df.empty
+    with pytest.raises(ParseError):
+        eh.parse_taishin(sample("etf_taishin_00986A.html"), "00987A")  # 頁面 ETF_ID 與查詢不符
+
+
+def test_kgi_partial_html_unescapes_entities():
+    # 適用日 2026/10/05 的清單；持股日＝「(2026/10/02)每受益權單位淨資產價值」
+    res = eh.parse_kgi(sample("etf_kgi_J024.html"), "00407A")
+    assert res.response_date == date(2026, 10, 2)
+    assert list(res.df["code"]) == ["2330", "3037", "2454", "3017", "2383", "2412"]  # 含 display:none 的「看更多」列
+    row = res.df.set_index("code").loc["3037"]  # 原始儲存格「3037  」帶尾端空白
+    assert (row["name"], row["shares"], row["weight"]) == ("欣興", 1150000.0, 6.40)
+    assert eh.parse_kgi("<div>查無資料</div>", "00407A").no_data
+
+
+def test_ab_isin_and_equity_section():
+    for code, isin in (
+        ("00404A", "TW00000404A5"),
+        ("00980D", "TW00000980D8"),
+        ("00984D", "TW00000984D0"),
+        ("00994A", "TW00000994A5"),
+    ):
+        assert eh.isin_of(code) == isin  # 官網連結與第一金頁面上的實際 ISIN
+    res = eh.parse_ab(sample("etf_ab_TW00000404A5.json"), "00404A")
+    assert res.response_date == date(2026, 10, 2)  # asOfDate "10/02/2026"
+    assert list(res.df["code"]) == ["6515", "2301", "3034", "7769"]  # 期貨、選擇權段不列入
+    row = res.df.set_index("code").loc["3034"]
+    assert (row["name"], row["shares"], row["weight"]) == ("聯詠科技", 160000.0, 1.991489)
+    assert eh.parse_ab(b'{"domesticHoldings": []}', "00404A").no_data
+
+
+def test_fsitc_webmethod_nested_json():
+    res = eh.parse_fsitc(sample("etf_fsitc_183.json"), "00408A")
+    assert res.response_date == date(2026, 10, 2)  # sdate（查詢日 10/03 無參數＝最新）
+    assert list(res.df["code"]) == ["2330", "2454", "3037", "6669"]  # group 4（現金）、5（配置摘要）不列入
+    row = res.df.iloc[0]
+    assert (row["name"], row["shares"], row["weight"]) == ("台積電", 33998.0, 5.65)  # D 股數、C 權重
+    assert eh.parse_fsitc(b'{"d": null}', "00408A").no_data
+
+
+def test_fhtrust_xlsx_stdlib_reader():
+    res = eh.parse_fhtrust(sample("etf_fhtrust_ETF26.xlsx"), "00409A")
+    assert res.response_date == date(2026, 10, 1)  # 工作表「日期: 2026/10/01」
+    codes = list(res.df["code"])
+    assert "8046" in codes and codes[-1] == "2360" and not any(" " in c for c in codes)  # LITE US、009150 KS 等海外略過
+    row = res.df.set_index("code").loc["8046"]
+    assert (row["name"], row["shares"], row["weight"]) == ("南亞電路", 446000.0, 4.078)
+    assert len(eh.xlsx_rows(sample("etf_fhtrust_ETF26.xlsx"))) == 60
+    nodata = eh.parse_fhtrust(sample("etf_fhtrust_nodata.json"), "00409A")  # HTTP 200 的「查無資料」
+    assert nodata.no_data and nodata.df.empty
+
+
 def test_bad_payload_raises():
     for fn in (
         lambda: eh.parse_nomura(b"<html></html>", "00980A"),
         lambda: eh.parse_capital(b'{"foo": 1}', "00982A"),
         lambda: eh.parse_yuanta(b"[]", "00990A"),
         lambda: eh.parse_cathay(b'{"x": 1}', "00400A", date(2026, 9, 24)),
+        lambda: eh.parse_taishin("<html>維護中</html>", "00986A"),
+        lambda: eh.parse_kgi("<html>維護中</html>", "00407A"),
+        lambda: eh.parse_ab(b'{"x": 1}', "00404A"),
+        lambda: eh.parse_fsitc(b'{"x": 1}', "00408A"),
+        lambda: eh.parse_fhtrust(b"<html>maintenance</html>", "00409A"),
+        lambda: eh.parse_fhtrust(b"PK\x03\x04broken", "00409A"),
     ):
         with pytest.raises(ParseError):
             fn()
@@ -96,6 +165,10 @@ def test_issuer_detection_from_config():
     assert eh.issuer_of("主動統一台股增長", issuers) == "uni"
     assert eh.issuer_of("主動中信ARK創新", issuers) == "ctbc"
     assert eh.issuer_of("主動第一金優股息", issuers) == "fsitc"
+    assert eh.issuer_of("主動台新龍頭成長", issuers) == "taishin"
+    assert eh.issuer_of("主動凱基台灣", issuers) == "kgi"
+    assert eh.issuer_of("主動聯博台灣優息", issuers) == "ab"
+    assert eh.issuer_of("主動復華未來50", issuers) == "fhtrust"
     assert eh.issuer_of("某某台灣50", issuers) is None
     # 已實作的投信都要有端點；跳過／待處理的都要寫原因
     for iid, cfg in issuers.items():
@@ -103,6 +176,10 @@ def test_issuer_detection_from_config():
             assert cfg.get("url"), iid
         else:
             assert cfg["status"] in ("skipped", "pending") and cfg.get("reason"), iid
+    # 沒有清單端點的投信：config 的 funds 要涵蓋文件列出的主動式 ETF
+    assert set(issuers["kgi"]["funds"]) == {"00407A"}
+    assert set(issuers["fsitc"]["funds"]) == {"00408A", "00994A"}
+    assert set(issuers["fhtrust"]["funds"]) == {"00409A", "00991A", "00998A"}
 
 
 # ------------------------------------------------------------------ 每日任務
@@ -185,6 +262,31 @@ def test_run_daily_fetches_supported_issuers_and_heals(tmp_path):
     again = ctx.client.calls  # type: ignore[attr-defined]
     assert not any("SearchDate=2026-09-24" in c or "date=2026/09/24" in c for c in again)
     assert len([c for c in again if "GetFundAssets" in c]) == 2
+
+
+def test_fetcher_builds_requests_for_new_issuers(tmp_path):
+    """台新、凱基、聯博、第一金、復華：查詢日 → 網址／本文的組法，與回應日期（持股日）。"""
+    routes = {
+        "tsit.com.tw/ETF/Home/Pcf/00986A?FundType=ALL&DataDate=2026-10-02": sample("etf_taishin_00986A.html"),
+        "kgifund.com.tw/Fund/RedemptionVC": sample("etf_kgi_J024.html"),
+        "investor/TW00000404A5/holdings?date=2026-10-02": sample("etf_ab_TW00000404A5.json"),
+        "WebAPI.aspx/Get_hd pStrFundID=183 pStrDate=": sample("etf_fsitc_183.json"),
+        "api/assetsExcel/ETF26/20261001": sample("etf_fhtrust_ETF26.xlsx"),
+        "api/assetsExcel/ETF26/20261003": sample("etf_fhtrust_nodata.json"),
+    }
+    ctx = _ctx(tmp_path, routes)
+    f = tasks_advanced._EtfFetcher(ctx, config.source("active_etf")["issuers"])
+    assert f.fetch("taishin", "00986A", date(2026, 10, 2)).response_date == date(2026, 10, 1)  # 適用日 → 淨值日
+    assert f.fetch("kgi", "00407A", date(2026, 10, 5)).response_date == date(2026, 10, 2)
+    assert f.fetch("ab", "00404A", date(2026, 10, 2)).response_date == date(2026, 10, 2)
+    assert f.fetch("fsitc", "00408A", None).response_date == date(2026, 10, 2)  # 不帶日期＝最新
+    assert f.fetch("fhtrust", "00409A", date(2026, 10, 1)).response_date == date(2026, 10, 1)
+    assert f.fetch("fhtrust", "00409A", date(2026, 10, 3)).no_data  # 「查無資料」不是錯誤
+    assert "funds 沒有" in f.fetch("fhtrust", "00986D", date(2026, 10, 1)).message  # config 沒列的代號不請求
+    calls = ctx.client.calls  # type: ignore[attr-defined]
+    assert any(c.endswith("RedemptionVC") for c in calls)  # 凱基：POST 表單（本文不在網址）
+    assert "https://www.fsitc.com.tw/WebAPI.aspx/Get_hd pStrFundID=183 pStrDate=" in calls  # 第一金：POST JSON
+    assert not any("00986D" in c for c in calls)
 
 
 def test_run_replaces_same_day_holdings(tmp_path):

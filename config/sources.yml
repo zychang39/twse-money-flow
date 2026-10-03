@@ -337,6 +337,14 @@ sources:
     url: https://www.twse.com.tw/rwd/zh/dayTrading/TWTB4U?date={date}&selectType=All&response=json
     publish: "當日晚間，T+2 前可能更新"
     status: verified
+  twse_intraday_index:
+    label: 加權指數每 5 秒統計（首頁 1D 走勢）
+    market: twse
+    tier: advanced
+    frequency: daily
+    url: https://www.twse.com.tw/exchangeReport/MI_5MINS_INDEX?response=json&date={date}
+    publish: "盤後（約 14:00）；只存發行量加權股價指數，前端降採樣成每分鐘一點"
+    status: verified
   tpex_daytrade:
     label: 上櫃當沖交易
     market: tpex
@@ -419,6 +427,17 @@ sources:
     encoding: big5
     commodities: [TX, MTX, TMF]
     listed_since: { TMF: "2024-07-29" }
+    status: verified
+  taifex_pc:
+    label: 臺指選擇權 Put/Call 比（成交量與未平倉量比率）
+    market: futures
+    tier: advanced
+    frequency: range
+    method: POST
+    url: https://www.taifex.com.tw/cht/3/pcRatioDown
+    form: { queryStartDate: "{start_slash}", queryEndDate: "{end_slash}" }
+    encoding: big5
+    # M2 2026-10-03：只作資訊呈現（市場溫度頁的走勢），不設門檻、不進燈號；本機實測 2026-10-03（tests/fixtures/samples/taifex_pcRatio.csv）
     status: verified
   fx_usdtwd:
     label: 台幣兌美元匯率（期交所每日匯率）
@@ -503,42 +522,53 @@ sources:
         label: 永豐投信
         keyword: 永豐
         status: pending
-        reason: 開發環境連線失敗（逾時），尚未取得樣本
+        reason: 2026-10-03：開發環境的對外代理對 www.sinopacfunds.com.tw 的 CONNECT 回 502（2 次，無法建立連線），尚未取得樣本；需在 Actions 或其他網路環境再試
       taishin:
         label: 台新投信
         keyword: 台新
-        status: pending
-        reason: 開發環境連線失敗（逾時），尚未取得樣本
+        status: verified
+        method: 'GET HTML；DataDate＝申購買回清單適用日（不帶＝網站最新一份）；持股日＝頁面「YYYY/M/D預估發行受益權單位數」的日期（清單製作時的最新淨值日，通常為適用日前 1 個交易日）；代號為彭博格式（2330 TT）、海外持股不列入；查無資料時版面仍在但日期為 0001/1/1'
+        lag_days: 1   # 查詢日（適用日）比持股日晚 1 個交易日
+        url: https://www.tsit.com.tw/ETF/Home/Pcf/{etf}?FundType=ALL   # 查歷史時加上 &DataDate=YYYY-MM-DD
       jpmorgan:
         label: 摩根投信
         keyword: 摩根
         status: pending
-        reason: 官網回應 HTTP 500，尚未取得樣本
+        reason: 2026-10-03：官網可連（首頁、ETF 專區 twetf、00401A 基金頁與產品頁 …/twetf/products/…tw00000401a1#/pcf），但產品頁為 FundsMarketingHandler 單頁應用（webpack 分塊載入），6 次請求（含 loader 與 pdp-v3 chunk）內未找到持股／PCF 資料端點
       kgi:
         label: 凱基投信
         keyword: 凱基
-        status: pending
-        reason: 首頁可連，基金明細頁逾時，尚未找到持股端點
+        status: verified
+        method: 'POST 表單 {fundID: 基金代碼, queryDate: "YYYY/MM/DD" 或 ""＝最新}（網頁以 jQuery .load 取得的局部 HTML）；queryDate＝申購買回清單適用日，持股日＝頁面「(YYYY/MM/DD)每受益權單位淨資產價值」的淨值日；中文為 HTML 實體編碼；基金代碼由 funds 設定（官網沒有可解析的代號清單；00407A→J024 見 Upload/Activity/KGI00407A 與局部頁面標題「主動凱基台灣(00407A)」）'
+        lag_days: 1
+        funds: { "00407A": "J024" }
+        url: https://www.kgifund.com.tw/Fund/RedemptionVC
       ab:
         label: 聯博投信
         keyword: 聯博
-        status: pending
-        reason: 首頁可連（靜態網站），尚未找到持股端點
+        status: verified
+        method: 'GET JSON；{isin}＝TW000＋代號＋檢查碼（etf_holdings.isin_of，00404A→TW00000404A5）；date＝持股日（不帶＝最新）；domesticHoldings 的 holdings-section-equity 為股票（期貨、選擇權另段）；asOfDate 為 MM/DD/YYYY'
+        url: https://webapi.alliancebernstein.com/v2/funds/tw/zh-tw/investor/{isin}/holdings   # 查歷史時加上 ?date=YYYY-MM-DD
       ctbc:
         label: 中國信託投信
         keyword: 中信
-        status: pending
-        reason: 單頁應用程式，尚未找到持股端點
+        status: skipped
+        reason: 2026-10-03：官網為單頁應用程式（Vue），所有 API（www.ctbcinvestments.com.tw/API/…，含 ETF 申購買回清單 Buyback、持股 ShareHolding）都要先 POST home/AuthToken 取得權杖再以 token 參數請求（驗證機制），依規則不繞過
       fsitc:
         label: 第一金投信
         keyword: 第一金
-        status: pending
-        reason: 首頁可連，尚未找到主動式 ETF 持股端點
+        status: verified
+        method: 'POST JSON {"pStrFundID": 基金代碼, "pStrDate": "YYYY/MM/DD" 或 ""＝最新}（ASP.NET WebMethod，回應 {"d": JSON 字串}）；pStrDate＝公告日，回應 sdate 為持股日（早 1 個交易日）；group 1＝股票（A 代號、B 名稱、C 權重、D 股數）；基金代碼由 funds 設定（FundDetail.aspx?ID=183 股票代號 00408A、ID=182 為 00994A）'
+        lag_days: 1
+        funds: { "00408A": "183", "00994A": "182" }
+        url: https://www.fsitc.com.tw/WebAPI.aspx/Get_hd
       fhtrust:
         label: 復華投信
         keyword: 復華
-        status: pending
-        reason: 首頁可連，尚未找到持股端點
+        status: verified
+        method: 'GET xlsx（基金資產明細，標準函式庫解析）；{ymd}＝持股日 YYYYMMDD；無資料時回 HTTP 200 的 JSON 文字「查無資料」；工作表「日期: YYYY/MM/DD」為持股日，海外持股（LITE US）不列入；基金代碼由 funds 設定（ETF 專區 /ETF/index 的基金卡片：00409A→ETF26、00991A→ETF23、00998A→ETF24）'
+        funds: { "00409A": "ETF26", "00991A": "ETF23", "00998A": "ETF24" }
+        url: https://www.fhtrust.com.tw/api/assetsExcel/{fund}/{ymd}
 
   # ---------- 選配 ----------
   twse_insider:

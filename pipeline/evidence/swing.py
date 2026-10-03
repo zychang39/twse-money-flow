@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 
 from pipeline.core import config
-from pipeline.evidence import audit, engine, stats, verdict
+from pipeline.evidence import audit, curve, engine, stats, verdict
 from pipeline.evidence import indicators as ind
 
 log = logging.getLogger(__name__)
@@ -424,6 +424,14 @@ def evaluate_spec(
         )
     out["years"] = {str(y): stats.brief(part, c) for y, part in scope.groupby("year")}
     out["dist"] = event_dist(scope)
+    # 2026-10-02 健檢：多期間表所有策略用同一組期間（config horizons 5／10／20／40／60），不只 hold 與 other
+    out["h_extra"] = {}
+    for hz in sorted({int(h) for h in c["horizons"]}):
+        if hz in (hold, other) or hz not in mk.horizons:
+            continue
+        dh = events(mk, mask, uni, start, hz)
+        dh = dh[dh["date"] < (scope_end if not with_test else "9999")]
+        out["h_extra"][hz] = {**stats.brief(dh, c), "bench": stats.bench_stats(dh, c) if len(dh) else {}}
     allowed = common_rule_mask(ev, f, mk, g)
     out["portfolio"] = portfolio(mk, ev, scope, int(g.get("portfolio_slots", 10)), start, allowed)
     if delays:
@@ -521,24 +529,84 @@ def gates(r: dict[str, Any], g: dict[str, Any]) -> dict[str, Any]:
         "win_payoff": wp_ok,
         "portfolio": port_ok,
     }
+    # 2026-10-02 健檢：每個門檻寫「目前值（門檻）」；百分比 2 位小數、比例一律轉百分比，不輸出原始小數
+    pc = _pp
+    conc = full.get("concentration") or {}
+    share = conc.get("top5pct_share")
     labels = {
-        "net_40_20": f"40 與 20 日扣成本超額皆 > 0：{base}% / {other.get('mean_excess')}%",
-        "t_corrected": f"校正後 t ≥ {g.get('t_corr_min', 3)}：{full.get('t_corr')}（{full.get('t_corr_method', '')}）",
-        "segments": f"三段皆 > 0 且測試 ≥ 開發 50%：{dev.get('mean_excess')}% / {val.get('mean_excess')}% / {test.get('mean_excess')}%",
-        "years": f"逐年至少 {g.get('year_pass_ratio', 0.7):.0%} 為正：{pos}/{len(years)}",
-        "perturb": "參數 ±20% 皆 > 0："
+        "net_40_20": f"40／20 日扣成本超額 {pc(base)}／{pc(other.get('mean_excess'))}（門檻皆 > 0）",
+        "t_corrected": f"校正後 t {_f(full.get('t_corr'), sign=False)}（門檻 ≥ {g.get('t_corr_min', 3)}；{PARAM_LABEL.get(full.get('t_corr_method', ''), full.get('t_corr_method', ''))}）",
+        "segments": f"開發／驗證／測試 {pc(dev.get('mean_excess'))}／{pc(val.get('mean_excess'))}／{pc(test.get('mean_excess'))}（門檻皆 > 0 且測試 ≥ 開發 {float(g.get('test_vs_dev_min', 0.5)):.0%}）",
+        "years": f"逐年為正 {pos}／{len(years)} 年（門檻 ≥ {float(g.get('year_pass_ratio', 0.7)):.0%}）",
+        "perturb": "參數 ±20% "
         + "、".join(
-            f"{p['param']}×{p['mult']:.1f} {p.get('mean_excess')}%"
+            f"{PARAM_LABEL.get(p['param'], p['param'])}×{p['mult']:.1f} {pc(p.get('mean_excess'))}"
             for p in r.get("perturb") or []
             if "mean_excess" in p
-        ),
-        "delays": f"延後 1、3 日 ≥ 原本 {keep:.0%}："
-        + "、".join(f"+{x['delay']} 日 {x.get('mean_excess')}%" for x in delays),
-        "per_month": f"每月觸發 ≥ {g.get('per_month_min', 10)}：{full.get('per_month')}（進場日 {((full.get('concentration') or {}).get('dates'))} 個、最集中 5% 的日子承載 {((full.get('concentration') or {}).get('top5pct_share'))}）",
-        "win_payoff": f"勝率 ≥ 50% 且賺賠比 ≥ 1.5，或 ≥ 55% 且 ≥ 1.2：{win}% / {payoff}",
-        "portfolio": f"10 檔組合年化 > 等權基準、最大回撤 ≤ 基準 ×{g.get('portfolio_mdd_ratio', 1.2)}：{port.get('ann_return')}% vs {bench.get('ann_return')}%，回撤 {port.get('mdd')}% vs {bench.get('mdd')}%",
+        )
+        + "（門檻皆 > 0）",
+        "delays": "進場延後 "
+        + "、".join(f"{x['delay']} 日 {pc(x.get('mean_excess'))}" for x in delays)
+        + f"（門檻 ≥ 原本 {pc(base)} 的 {keep:.0%}）",
+        "per_month": f"每月觸發 {full.get('per_month') if full.get('per_month') is not None else '—'}（門檻 ≥ {g.get('per_month_min', 10)}；進場日 {conc.get('dates') if conc.get('dates') is not None else '—'} 個、最集中 5% 的日子承載 {pc(share * 100, 1, False) if share is not None else '—'}）",
+        "win_payoff": f"勝率 {pc(win, 1, False)}、賺賠比 {payoff if payoff is not None else '—'}（門檻：勝率 ≥ 50% 且賺賠比 ≥ 1.5，或 ≥ 55% 且 ≥ 1.2）",
+        "portfolio": f"{port.get('slots') or 10} 檔組合年化 {pc(port.get('ann_return'), 1)} vs 等權 {pc(bench.get('ann_return'), 1)}、最大回撤 {pc(port.get('mdd'), 1)} vs {pc(bench.get('mdd'), 1)}（門檻：年化 > 等權、回撤 ≤ 等權 ×{g.get('portfolio_mdd_ratio', 1.2)}）",
     }
     return {"checks": checks, "labels": labels, "passed": all(checks.values())}
+
+
+def audit_flags(r: dict[str, Any], g: dict[str, Any]) -> dict[str, Any]:
+    """2026-10-02 健檢 M2 訊號稽核：卡片上明示的兩件事。
+
+    - param_peak：選定參數是否為「鄰近最高點」——±20% 兩側的扣成本超額都低於選定值（例：營收高帶量持有 32／48 日都低於 40 日）。
+      不是失敗條件（兩側仍為正才過 perturb 門檻），但要在卡片寫明，讓人知道結果對參數位置敏感。
+    - val_t_low：驗證段校正後 t < 觀察中門檻（2）時明示（例：營收高帶量驗證段 1.16）。
+    """
+    base = (r.get("full") or {}).get("mean_excess")
+    peaks: list[dict[str, Any]] = []
+    by_param: dict[str, list[dict[str, Any]]] = {}
+    for p in r.get("perturb") or []:
+        if "mean_excess" in p:
+            by_param.setdefault(str(p["param"]), []).append(p)
+    for name, rows in by_param.items():
+        vals = [x.get("mean_excess") for x in rows]
+        if base is not None and len(vals) == 2 and all(v is not None and v < base for v in vals):
+            peaks.append(
+                {
+                    "param": name,
+                    "label": PARAM_LABEL.get(name, name),
+                    "chosen": r["hold"] if name == "hold" else (r.get("params") or {}).get(name),
+                    "neighbors": [{"value": x.get("value"), "mean_excess": x.get("mean_excess")} for x in rows],
+                }
+            )
+    val = (r.get("segments") or {}).get("val") or {}
+    vt = val.get("t_corr", val.get("t"))
+    watch_min = 2.0
+    return {
+        "param_peak": peaks,
+        "val_t": vt,
+        "val_t_low": vt is not None and float(vt) < watch_min,
+        "val_t_min": watch_min,
+        "trials": int(g.get("max_trials", 0) or 0),
+    }
+
+
+def _pp(v: Any, digits: int = 2, sign: bool = True) -> str:
+    """百分比文字：None → 「—」（不輸出「—%」），其餘帶 % 與 U+2212。"""
+    return "—" if v is None else _f(v, digits, sign) + "%"
+
+
+# 參數的中文標籤（策略頁參數表、門檻說明；原始參數名另列一列）
+PARAM_LABEL = {
+    "rs_min": "RS 門檻",
+    "vol_ratio": "量比門檻",
+    "hold": "持有日數",
+    "bias_max": "乖離上限",
+    "value_min": "成交值下限",
+    "trust_ratio": "投信買超門檻",
+    "calendar": "日曆時間法",
+    "min": "日曆、NW、區塊三者取最小",
+}
 
 
 # ------------------------------------------------------------------ 前瞻驗證
@@ -667,6 +735,16 @@ def build(res: dict[str, Any], f: dict[str, Any] | None = None, *, with_test: bo
                     if r.get("other")
                     else {}
                 ),
+                **{
+                    str(hz): {
+                        "n": v.get("n"),
+                        "mean_excess": v.get("mean_excess"),
+                        "mean_gross_excess": v.get("mean_gross_excess"),
+                        "t": v.get("t"),
+                        "bench": v.get("bench"),
+                    }
+                    for hz, v in (r.get("h_extra") or {}).items()
+                },
             },
             "years": {y: v.get("mean_excess") for y, v in r["years"].items()},
             "health": _health(d, c, hold, T, full.get("mean_excess")),
@@ -690,6 +768,7 @@ def build(res: dict[str, Any], f: dict[str, Any] | None = None, *, with_test: bo
                 "other": r.get("other"),
                 "forward": fwd,
                 "test_note": "最終測試段 2024-11 起上一輪已查看兩次，非全新樣本",
+                "audit": audit_flags(r, g),
             },
         }
         split_date = str(((c.get("grading") or {}).get("valid") or {}).get("split_date", "2022-01-01"))
@@ -701,13 +780,39 @@ def build(res: dict[str, Any], f: dict[str, Any] | None = None, *, with_test: bo
         item["today_note"] = None if item["today"] else f"{ev.dates[last]} 收盤後沒有股票首次同時符合全部條件。"
         if r["portfolio"].get("equity_weekly"):
             w = r["portfolio"]["equity_weekly"]
-            item["curve"] = {"dates": w["dates"], "equity": w["equity"], "bench": [], "etf": {}}
+            # 2026-10-02 健檢：權益曲線的三條基準（加權報酬、0050、00631L）與一般策略同一個函式產生，
+            # 以週取樣日「該日或之前最近一筆」對齊、第一個有值的週為基期＝1；slots 讓前端標示「10 檔組合」
+            from pipeline.evidence.strategies import weekly_bench_lines
+
+            item["curve"] = {
+                "dates": w["dates"],
+                "equity": w["equity"],
+                "slots": int(r["portfolio"].get("slots") or g.get("portfolio_slots", 10)),
+                **weekly_bench_lines(mk, ev, w["dates"]),
+            }
+        # 累積超額曲線（事件時間，第 1～60 日）：與一般指標同一個函式；樣本＝主判定持有天數的去重事件
+        cc = c.get("curve") or {}
+        try:
+            item["_curve_detail"] = curve.curve(
+                mk,
+                d,
+                int(cc.get("days", 60)),
+                int(c["stats"]["bootstrap"]),
+                int(c["stats"]["seed"]),
+                int(cc.get("exhaust_run", 5)),
+            )
+        except Exception:  # 曲線失敗不影響策略本身
+            log.exception("swing %s 累積超額曲線失敗", spec["id"])
+            item["_curve_detail"] = None
         signals[spec["id"]] = {
             ev.dates[t]: [ev.codes[i] for i in np.nonzero(mask[t])[0]]
             for t in range(max(0, T - 250), T)
             if mask[t].any()
         }
         details[spec["id"]] = dict(item["swing"])
+        cd = item.pop("_curve_detail", None)
+        if cd and cd.get("n"):
+            details[spec["id"]]["curve"] = cd
         series[spec["id"]] = audit.daily_series(mk, d)
         items.append(item)
         log.info(

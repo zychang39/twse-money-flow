@@ -9,7 +9,7 @@ import type { ComponentChildren } from 'preact';
 import { type ChartPanel, StackedChart } from './StackedChart';
 import { Sheet } from './Sheet';
 import { IconChevron } from './Icons';
-import { dirClass, fmtPrice, numberFormat } from '../lib/format';
+import { dirClass, fmtPrice, md, missing, numberFormat } from '../lib/format';
 import {
   METRICS,
   METRIC_NAME,
@@ -22,6 +22,7 @@ import {
   type HolderBlock,
   type Metric,
   alignClose,
+  bigInclusiveLabel,
   bigLabel,
   changeText,
   groupSeries,
@@ -37,6 +38,9 @@ import '../styles/tools.css';
 const F1 = numberFormat(1);
 const F2 = numberFormat(2);
 const INT = numberFormat(0);
+
+/** 單週變動超過幾個百分點就標記核對來源（M2，2026-10-03） */
+export const BIG_MOVE_PP = 3;
 
 export const HOLDER_PERIODS = [{ weeks: 13, label: '3 個月' }, { weeks: 26, label: '6 個月' }, { weeks: 52, label: '1 年' }] as const;
 
@@ -56,7 +60,8 @@ export function StructureBar({ block }: { block: HolderBlock }) {
   return (
     <div class="st-bar-wrap" data-testid="structure-bar">
       <div class="st-bar" role="img" aria-label={`籌碼結構（${block.d[block.d.length - 1]}）：${st.map((s) => `${tierName(s.tier, whale)} ${s.pct === null ? '沒有資料' : `${F1.format(s.pct)}%`}`).join('、')}`}>
-        {st.map((s) => <span key={s.tier} class={`st-seg ${s.tier}`} style={{ width: `${((s.pct ?? 0) / total) * 100}%` }} />)}
+        {/* 分段 class 為 .sb-seg（2026-10-02 改名：.st-seg 與 evidence.css 逐年報酬的分段控制撞名；樣式見 tools.css） */}
+        {st.map((s) => <span key={s.tier} class={`sb-seg ${s.tier}`} style={{ width: `${((s.pct ?? 0) / total) * 100}%` }} />)}
       </div>
       <dl class="st-legend">
         {st.map((s) => {
@@ -66,15 +71,21 @@ export function StructureBar({ block }: { block: HolderBlock }) {
             <div key={s.tier} class={`st-item ${s.tier}`}>
               <dt><span class="st-swatch" aria-hidden="true" />{tierName(s.tier, whale)}<span class="st-range">{tierRange(s.tier, whale)}</span></dt>
               <dd>
-                <span class="num st-pct">{s.pct === null ? '—' : `${F1.format(s.pct)}%`}</span>
+                <span class="num st-pct">{s.pct === null ? missing('該週分級缺值') : `${F1.format(s.pct)}%`}</span>
                 <span class={`num st-chg ${dir}`}>
-                  {d === null ? <span class="muted">週變化 —</span> : (
+                  {d === null ? <span class="muted">週變化 {missing(block.d.length < 2 ? '只有 1 週資料' : '前一週缺值')}</span> : (
                     <>
                       <span aria-hidden="true">{dir === 'up' ? '▲' : dir === 'down' ? '▼' : ''}{F2.format(Math.abs(d))}</span>
                       <span class="sr-only">本週{dir === 'up' ? '增加' : dir === 'down' ? '減少' : '持平'} {F2.format(Math.abs(d))} 個百分點</span>
                     </>
                   )}
                 </span>
+                {/* M2（2026-10-03）：單週變動超過 3 個百分點時標記並附來源週，提醒核對（集保分級變動、股本變動或資料修正都可能造成） */}
+                {d !== null && Math.abs(d) > BIG_MOVE_PP ? (
+                  <span class="tag risk" data-testid="st-bigmove" title={`單週變動 ${F2.format(Math.abs(d))} 個百分點，超過 ${BIG_MOVE_PP} 個百分點；請核對集保 ${block.d[block.d.length - 1]} 與前一週 ${block.d[block.d.length - 2]} 的原始資料`}>
+                    單週變動 &gt; {BIG_MOVE_PP} 個百分點・核對來源（集保 {md(block.d[block.d.length - 1])}）
+                  </span>
+                ) : null}
               </dd>
             </div>
           );
@@ -100,7 +111,7 @@ export function HolderTrend({ block, d, c, name }: { block: HolderBlock; d: stri
   const panels: ChartPanel[] = s400.dates.length ? [
     { id: 'close', title: '收盤價（元）', kind: 'lines', height: 64, series: [{ key: 'close', label: '收盤', values: closes }], format: (v) => numberFormat(Number.isInteger(v) ? 0 : 1).format(v), tipFormat: (v) => `${fmtPrice(v)} 元` },
     { id: 'whale', title: `${topName}（${bigLabel(whale)}）${METRIC_NAME[metric]}（${unit}）`, kind: 'lines', height: 80, series: [{ key: 'whale', label: topName, values: s1000.big }], format: axis(metric), tipFormat: (v) => metricText(v, metric) },
-    { id: 'big', title: `大戶（${bigLabel(big)}${whale > big ? `，含${topName}` : ''}）${METRIC_NAME[metric]}（${unit}）`, kind: 'lines', height: 80, series: [{ key: 'big', label: '大戶', values: s400.big }], format: axis(metric), tipFormat: (v) => metricText(v, metric) },
+    { id: 'big', title: `大戶（${whale > big ? bigInclusiveLabel(big, tierSel) : bigLabel(big)}）${METRIC_NAME[metric]}（${unit}）`, kind: 'lines', height: 80, series: [{ key: 'big', label: '大戶', values: s400.big }], format: axis(metric), tipFormat: (v) => metricText(v, metric) },
     { id: 'small', title: `散戶（${smallLabel(small)}）${METRIC_NAME[metric]}（${unit}）`, kind: 'lines', height: 80, series: [{ key: 'small', label: '散戶', values: s400.small, style: 'dashed' }], format: axis(metric), tipFormat: (v) => metricText(v, metric) },
     { id: 'whaleChg', title: `${topName}每週增減（${metric === 'pct' ? '百分點' : unit}）`, kind: 'bars', height: 72, series: [{ key: 'whaleChg', label: `${topName}週增減`, values: s1000.bigChange }], format: axis(metric), tipFormat: (v) => changeText(v, metric) },
   ] : [];
@@ -128,7 +139,7 @@ export function StructureBlock({ block, d, c, name, code, extra }: { block: Hold
   return (
     <>
       <StructureBar block={block} />
-      <p class="caption muted st-def">分級：{tierDefinition(getWhaleTier())}。資料日 {block.d[block.d.length - 1]}，變化為與前一週相比（百分點）。最上面一段的門檻可在設定頁改為 400／800／1,000 張；回測與選股固定使用 {BACKTEST_WHALE.toLocaleString('zh-TW')} 張。</p>
+      <p class="caption muted st-def">分級（四段互斥，加總 100%）：{tierDefinition(getWhaleTier())}。資料日 {block.d[block.d.length - 1]}，變化為與前一週相比（百分點）。最上面一段的門檻可在設定頁改為 400／800／1,000 張；回測與選股固定使用 {BACKTEST_WHALE.toLocaleString('zh-TW')} 張。</p>
       {extra}
       <div class="list">
         <button class="list-item brand" onClick={() => setOpen(true)}>

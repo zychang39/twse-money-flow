@@ -5,6 +5,7 @@
 import type { Activity, ActivityType, Trade } from '../db/db';
 import { uiConfig, type BadgeConfig } from './config';
 import { addDays } from './dates';
+import { md } from './format';
 
 type Gcfg = typeof uiConfig.gamification;
 
@@ -48,6 +49,23 @@ export function ritualRings(day: string, activities: Activity[], trades: Trade[]
     },
   ];
   return { rings, complete: rings.every((r) => r.done) };
+}
+
+/**
+ * 「我該記錄或檢討什麼？」的答案（今晚頁第四區塊、紀律頁標題；2026-10-02 健檢 M1-2）。
+ * - 交易日：「今晚的紀律已完成」／「今晚的紀律：還差 N 項」
+ * - 休市日：「今天休市，不計入連續天數；上一交易日 10/2 的紀律：已完成 X／3」，絕不寫「還差」。
+ *   rings 是依資料日（＝上一交易日）計算的，所以 X 就是該日完成的環數。
+ */
+export function ritualAnswer(ritual: { rings: Pick<RingState, 'done'>[]; complete: boolean }, isTradingDay: boolean, lastTradingDate: string | null): string {
+  const done = ritual.rings.filter((r) => r.done).length;
+  const total = ritual.rings.length;
+  if (!isTradingDay) {
+    const when = lastTradingDate ? `上一交易日 ${md(lastTradingDate)} ` : '上一交易日';
+    return `今天休市，不計入連續天數；${when}的紀律：已完成 ${done}／${total}`;
+  }
+  if (ritual.complete) return '今晚的紀律已完成';
+  return `今晚的紀律：還差 ${total - done} 項`;
 }
 
 /** 連續天數：只看交易日（休市日不在清單中，所以不會中斷）。今天尚未完成時，連續天數算到上一個交易日。 */

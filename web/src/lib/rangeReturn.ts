@@ -19,12 +19,22 @@ export interface RangeResult {
   abs: number;
   /** 報酬率 %（起點為 0 → null） */
   pct: number | null;
-  /** 相隔的交易日數（索引差） */
+  /**
+   * 相隔的交易日數。有 tradingDays（日資料或交易日曆）時用它計算；沒有時退回索引差——
+   * 週線取樣的 10Y／ALL 視窗索引差是「週數」，所以 HeroChart 一律提供 tradingDays（2026-10-02 健檢 M1-8）。
+   */
   days: number;
   dir: 'up' | 'down' | 'flat';
 }
 
-export function rangeReturn(dates: string[], values: number[], a: number, b: number): RangeResult | null {
+/** dates（遞增）裡 after 之後（不含）到 until（含）的日數：日資料視窗的交易日計數。 */
+export function countDatesBetween(dates: string[], after: string, until: string): number {
+  let n = 0;
+  for (const d of dates) if (d > after && d <= until) n++;
+  return n;
+}
+
+export function rangeReturn(dates: string[], values: number[], a: number, b: number, tradingDays?: (from: string, to: string) => number): RangeResult | null {
   const n = Math.min(dates.length, values.length);
   if (n < 2) return null;
   const clamp = (i: number) => Math.max(0, Math.min(n - 1, Math.round(i)));
@@ -37,7 +47,7 @@ export function rangeReturn(dates: string[], values: number[], a: number, b: num
   return {
     from, to, fromDate: dates[from], toDate: dates[to], fromValue: v0, toValue: v1, abs,
     pct: v0 ? (abs / v0) * 100 : null,
-    days: to - from,
+    days: tradingDays ? tradingDays(dates[from], dates[to]) : to - from,
     dir: Math.abs(abs) < 1e-9 ? 'flat' : abs > 0 ? 'up' : 'down',
   };
 }

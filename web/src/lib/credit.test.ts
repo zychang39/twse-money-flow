@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PV_LABELS, basisText, foreignHoldLine, creditAnswer, creditSummary, deltaOver, lotsDelta, marginUsageText, priceMarginLabel, shortAnswer, shortRatio, shortRatioHigh } from './credit';
+import { MARGIN_USAGE_MISSING, PV_LABELS, basisText, deltaMissingReason, foreignHoldLine, creditAnswer, creditSummary, deltaOver, lotsDelta, marginUsageText, priceMarginLabel, shortAnswer, shortRatio, shortRatioHigh } from './credit';
 
 // 8 個交易日（手算用）
 const d = ['2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24'];
@@ -59,6 +59,33 @@ describe('價量解讀（股價 × 融資 5 日方向）', () => {
   });
 });
 
+describe('#5 不套用價量標籤時寫出原因（2026-10-02 健檢）', () => {
+  const cfg = { compare_days: [5, 20] as [number, number], pv_days: 5, short_ratio_high: 30, foreign_change_days: 5 };
+  it('股價 5 日持平、融資 5 日 −6.40% → 「股價 5 日 0.00%（持平）、融資 5 日 −6.40%」', () => {
+    const adj = [100, 100, 100, 100, 100, 100, 100, 100];
+    const mb = [1000, 1000, 1000, 1000, 1000, 1000, 1000, 936]; // 936 ÷ 1000 − 1 ＝ −6.4%
+    const s = creditSummary({ d, adj, mb, sb: mb.map(() => 10) }, cfg);
+    expect(s.pv.label).toBeNull();
+    expect(s.pv.reason).toBe('股價 5 日 0.00%（持平）、融資 5 日 −6.40%');
+    expect(s.pv.reason).not.toMatch(/持平或資料不足/);
+    expect(creditAnswer(s)).toBe('價量不套用標籤，融資 5 日 −6.4%');
+  });
+  it('基準日缺融資資料 → 「融資 9/17 無資料」；有標籤時 reason 為 null', () => {
+    const adj = [98, 99, 100, 101, 102, 103, 103.5, 104];
+    const mb = [900, 950, null, 1020, 1040, 1060, 1080, 1100];
+    const s = creditSummary({ d, adj, mb, sb: mb.map(() => 10) }, cfg);
+    expect(s.pv.label).toBeNull();
+    expect(s.pv.reason).toBe('股價 5 日 +4.00%、融資 9/17 無資料');
+    const ok = creditSummary({ d, adj, mb: [900, 950, 1000, 1020, 1040, 1060, 1080, 1100], sb: mb.map(() => 10) }, cfg);
+    expect(ok.pv.label?.label).toBe('價漲資增');
+    expect(ok.pv.reason).toBeNull();
+  });
+  it('資料不足 5 日 → 「股價資料不足 5 日」', () => {
+    const s = creditSummary({ d: d.slice(0, 3), adj: [1, 2, 3], mb: [10, 11, 12], sb: [0, 0, 0] }, cfg);
+    expect(s.pv.reason).toBe('股價資料不足 5 日、融資資料不足 5 日');
+  });
+});
+
 describe('空方與融資使用率', () => {
   it('券資比＝融券 ÷ 融資；融資 0 或缺值 → null', () => {
     expect(shortRatio(50, 1000)).toBeCloseTo(5);
@@ -66,10 +93,15 @@ describe('空方與融資使用率', () => {
     expect(shortRatio(null, 1000)).toBeNull();
     expect(shortRatioHigh(29.9, { compare_days: [5, 20], pv_days: 5, short_ratio_high: 30, foreign_change_days: 20 })).toBe(false);
   });
-  it('融資使用率取不到時說明原因', () => {
-    expect(marginUsageText(null)).toMatchObject({ text: '—' });
-    expect(marginUsageText(null).reason).toMatch(/融資限額/);
+  it('融資使用率取不到時說明原因：pipeline 已回看 5 日補值，仍為 null → 「非融資標的或官方未提供融資限額」（不再寫「當日資料未公布」）', () => {
+    expect(marginUsageText(null)).toEqual({ text: `—（${MARGIN_USAGE_MISSING}）`, reason: '非融資標的或官方未提供融資限額' });
+    expect(marginUsageText(null).reason).not.toMatch(/當日|未公布/);
     expect(marginUsageText(12.345)).toEqual({ text: '12.3%', reason: null });
+  });
+  it('變化值缺值的原因：沒有資料／基準日無資料／資料不足 N 日', () => {
+    expect(deltaMissingReason(deltaOver(d, [null, null, null, null, null, null, null, null], 5), '融資')).toBe('沒有融資資料');
+    expect(deltaMissingReason(deltaOver(d, [900, 950, null, 1020, 1040, 1060, 1080, 1100], 5), '融資')).toBe('9/17 無融資資料');
+    expect(deltaMissingReason(deltaOver(d.slice(0, 3), [1, 2, 3], 5), '融券')).toBe('融券資料不足 5 日');
   });
 });
 

@@ -68,12 +68,22 @@ function streakPhrase(name: string, s: number): string | null {
   return `${name}連${s > 0 ? '買' : '賣'} ${Math.abs(s)} 日`;
 }
 
+/** 本益比百分位的三段：低 ≤ 20、高 ≥ 80、其餘為中（2026-10-02 健檢：全站用「低／中／高區間」，不用偏低／中段／偏高）。 */
+export const PE_PCT_LOW = 20;
+export const PE_PCT_HIGH = 80;
+export function peBand(pePct: number): '低' | '中' | '高' {
+  const p = Math.round(pePct);
+  return p <= PE_PCT_LOW ? '低' : p >= PE_PCT_HIGH ? '高' : '中';
+}
+
+/**
+ * 「本益比位於 3 年第 78 百分位（中區間；低 ≤ 20、高 ≥ 80）」：每一句寫自己的基準。
+ * 合理價區間的滑桿是另一個基準（本益比、淨值比、殖利率三法平均），文字見 lib/fundamentals.fairPosition。
+ */
 export function valuationPhrase(pePct: N): string | null {
   if (pePct === null) return null;
   const p = Math.round(pePct);
-  if (p <= 20) return `本益比位於 3 年第 ${p} 百分位（偏低）`;
-  if (p >= 80) return `本益比位於 3 年第 ${p} 百分位（偏高）`;
-  return `本益比位於 3 年第 ${p} 百分位（中段）`;
+  return `本益比位於 3 年第 ${p} 百分位（${peBand(p)}區間；低 ≤ ${PE_PCT_LOW}、高 ≥ ${PE_PCT_HIGH}）`;
 }
 
 export function conclusionLine(style: InvestStyle, x: VerdictInput): string {

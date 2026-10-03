@@ -65,6 +65,8 @@ class EvData:
     whale_chg4: np.ndarray = field(default_factory=lambda: np.zeros((0, 0)))  # 4 週變化（延用）
     revenue: pd.DataFrame = field(default_factory=pd.DataFrame)  # code, ym, revenue, yoy, row
     starts: dict[str, str | None] = field(default_factory=dict)  # 各資料的起始日
+    # 2026-10-02 健檢 M2：集保全市場回補進度（data 分支 manifest 的 holders_backfill），效度表寫明涵蓋率斷崖的原因
+    backfill: dict[str, Any] = field(default_factory=dict)
     # v3 M1：官方終止上市櫃日期（不含轉上市）、變更交易（全額交割）逐日標記
     delist_date: dict[str, str] = field(default_factory=dict)
     full_delivery: np.ndarray = field(default_factory=lambda: np.zeros((0, 0), dtype=bool))
@@ -326,6 +328,7 @@ def from_dataset(ds: Any) -> EvData:
         taiex=tx.to_numpy(dtype=float),
         taiex_tr=tr.to_numpy(dtype=float),
     )
+    ev.backfill = dict((getattr(ds, "manifest", None) or {}).get("holders_backfill") or {})
     wf = whale_frames(ds.table("tdcc"))
     wp = whale_panels(wf, dates, codes, int(cfg()["indicators"]["whale_weeks"]))
     ev.whale_pct, ev.whale_chg, ev.whale_chg4 = wp["pct"], wp["chg"], wp["chg4"]

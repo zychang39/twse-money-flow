@@ -12,6 +12,8 @@ describe('累積超額曲線（v3 M3）', () => {
   it('摘要寫峰值日與 alpha 耗盡日', () => {
     expect(curveSummary(line)).toBe('峰值第 3 日 +1.20%；第 4 日起 alpha 耗盡');
     expect(curveSummary({ ...line, exhaust: null })).toBe('峰值第 3 日 +1.20%；60 日內沒有連續 5 日邊際超額 ≤ 0');
-    expect(curveSummary(undefined)).toBe('曲線資料累積中');
+    expect(curveSummary(undefined)).toBe('—（曲線資料累積中：需要至少 2 個進場日）');
+    expect(curveSummary({ ...line, peak: null })).toBe('—（曲線資料累積中：需要至少 2 個進場日）');
+    expect(curveSummary({ ...line, mean: [0.5, 1.0, null, 1.1] })).toBe('峰值第 3 日 —（沒有讀值）；第 4 日起 alpha 耗盡');
   });
 });

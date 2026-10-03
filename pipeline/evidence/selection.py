@@ -27,6 +27,18 @@ log = logging.getLogger(__name__)
 
 VALID, WATCH, OFF = "有效", "觀察中", "停用"
 VALID_PENDING = "有效・待前瞻驗證"
+# 九項上線門檻的短名（分級理由只寫未達的門檻名，不寫整句）
+GATE_SHORT = {
+    "net_40_20": "40／20 日超額",
+    "t_corrected": "校正後 t",
+    "segments": "三段績效",
+    "years": "逐年為正",
+    "perturb": "參數 ±20%",
+    "delays": "進場延後",
+    "per_month": "每月觸發",
+    "win_payoff": "勝率與賺賠比",
+    "portfolio": "組合層",
+}
 
 
 def grading_cfg(c: dict[str, Any]) -> dict[str, Any]:
@@ -41,7 +53,12 @@ def _pos(v: Any) -> bool:
 
 
 def _pct(v: Any) -> str:
-    return "無樣本" if v is None else f"{v}%"
+    """百分比 2 位小數、帶正負號、U+2212（全站同一格式）；沒有樣本寫明。"""
+    return "無樣本" if v is None else audit._f(v, 2, True) + "%"
+
+
+def _tt(v: Any) -> str:
+    return "—" if v is None else audit._f(v, 2, False)
 
 
 def _years_span(start: str | None, end: str | None) -> float | None:
@@ -65,33 +82,39 @@ def grade_one(row: dict[str, Any], g: dict[str, Any]) -> tuple[str, dict[str, bo
         "years": bool(years) and pos / len(years) >= ratio - 1e-9,
         "per_month": (row.get("per_month") or 0) >= float(v.get("per_month_min", 10)),
     }
+    gc = row.get("gates_count")  # (通過數, 總數)；只有波段策略有
     if row.get("gates_passed") is not None:  # 波段策略另需九項上線門檻
         checks["gates"] = bool(row["gates_passed"])
     min_years = float(g.get("min_years_for_valid", 5))
     span = row.get("span_years")
     checks["sample_years"] = span is not None and span >= min_years
+    # 2026-10-02 健檢：理由只列「未達」的項目，每項寫目前值與門檻（「每月觸發 6.1（門檻 ≥ 10）」），
+    # 不再出現「九項上線門檻全過」這種把門檻名稱當理由的寫法；百分比一律 2 位小數
+    t_min, w_min = v.get("t_corr_min", 3), w.get("t_corr_min", 2)
     labels = {
-        "net_excess": "40 與 20 日扣成本超額皆 > 0：" + " / ".join(_pct(ex.get(h)) for h in hs),
-        "t_corr": f"校正後 t ≥ {v.get('t_corr_min', 3)}：{row.get('t_corr')}",
-        "split": f"{v.get('split_date', '2022-01-01')[:4]} 前後皆為正：{_pct(row.get('pre'))} / {_pct(row.get('post'))}",
-        "years": f"逐年 ≥ {ratio:.0%} 為正：{pos}/{len(years)}",
-        "per_month": f"每月觸發 ≥ {v.get('per_month_min', 10)}：{row.get('per_month')}",
-        "gates": "九項上線門檻全過",
-        "sample_years": f"樣本 ≥ {min_years:.0f} 年：{span} 年",
+        "net_excess": f"{hs[0]}／{hs[1]} 日扣成本超額 {_pct(ex.get(hs[0]))}／{_pct(ex.get(hs[1]))}（門檻皆 > 0）",
+        "t_corr": f"校正後 t {_tt(row.get('t_corr'))}（門檻 ≥ {t_min}）",
+        "split": f"{v.get('split_date', '2022-01-01')[:4]} 前／後 {_pct(row.get('pre'))}／{_pct(row.get('post'))}（門檻皆 > 0）",
+        "years": f"逐年為正 {pos}／{len(years)} 年（門檻 ≥ {ratio:.0%}）",
+        "per_month": f"每月觸發 {row.get('per_month') if row.get('per_month') is not None else '—'}（門檻 ≥ {v.get('per_month_min', 10)}）",
+        "gates": (
+            f"上線門檻 {gc[0]}／{gc[1]} 項通過（未達：{'、'.join(row.get('gates_unmet') or []) or '—'}；門檻全過）"
+            if gc
+            else "上線門檻未全過"
+        ),
+        "sample_years": f"樣本 {span if span is not None else '—'} 年（門檻 ≥ {min_years:.0f} 年）",
     }
     failed = [labels[k] for k, ok in checks.items() if not ok]
     if all(checks.values()):
         return VALID, checks, []
-    watch = (
-        _pos(ex.get(hs[0])) and row.get("t_corr") is not None and float(row["t_corr"]) >= float(w.get("t_corr_min", 2))
-    )
+    watch = _pos(ex.get(hs[0])) and row.get("t_corr") is not None and float(row["t_corr"]) >= float(w_min)
     if watch:
         return WATCH, checks, failed
     reasons = []
     if not _pos(ex.get(hs[0])):
-        reasons.append(f"40 日扣成本超額 {ex.get(hs[0])}% ≤ 0")
-    if row.get("t_corr") is None or float(row["t_corr"]) < float(w.get("t_corr_min", 2)):
-        reasons.append(f"校正後 t {row.get('t_corr')} < {w.get('t_corr_min', 2)}")
+        reasons.append(f"{hs[0]} 日扣成本超額 {_pct(ex.get(hs[0]))}（觀察中門檻 > 0）")
+    if row.get("t_corr") is None or float(row["t_corr"]) < float(w_min):
+        reasons.append(f"校正後 t {_tt(row.get('t_corr'))}（觀察中門檻 ≥ {w_min}）")
     return OFF, checks, reasons or failed
 
 
@@ -127,6 +150,13 @@ def annotate(lib: dict[str, Any], res: dict[str, Any]) -> dict[str, Any]:
                 "per_month": full.get("per_month"),
                 "span_years": _years_span(s.get("signal_start"), s.get("signal_end")),
                 "gates_passed": bool(sw.get("gates", {}).get("passed")),
+                "gates_count": (
+                    sum(1 for ok in (sw.get("gates", {}).get("checks") or {}).values() if ok),
+                    len(sw.get("gates", {}).get("checks") or {}),
+                ),
+                "gates_unmet": [
+                    GATE_SHORT.get(k, k) for k, ok in (sw.get("gates", {}).get("checks") or {}).items() if not ok
+                ],
                 "win": full.get("win"),
                 "family": s.get("family") or "組合",
                 "forward": s.get("forward"),
@@ -200,7 +230,20 @@ def annotate(lib: dict[str, Any], res: dict[str, Any]) -> dict[str, Any]:
     for sid in alive[cap:]:
         grade[sid] = OFF
         reasons[sid] = [f"超過 {cap} 套名額（依校正後 t 排序）"]
-    ranked = alive[:cap]
+    # 2026-10-02 健檢 M2：資料不足區——後見之明測試（原 31 檔）在集保涵蓋率達 coverage_full 並重算前，
+    # 保留分級但不排名、不計入今日新觸發總數、數字旁固定顯示偏差警語（前端 limited／limited_note）
+    full_at = float((c.get("verdict") or {}).get("coverage_full", 0.9))
+    hind = set(c.get("hindsight_tests") or [])
+    limited: dict[str, str] = {}
+    for s in lib["strategies"]:
+        cov = (s.get("coverage") or {}).get("ratio")
+        if s.get("test") in hind and cov is not None and float(cov) < full_at:
+            span = _years_span(s.get("signal_start"), s.get("signal_end"))
+            limited[s["id"]] = (
+                f"資料不足：千張大戶資料只涵蓋 {float(cov) * 100:.0f}% 的股票（原 31 檔為 2026-09 依成交值事後挑選，有後見之明偏差）、"
+                f"訊號期間 {span if span is not None else '—'} 年；涵蓋率 ≥ {full_at:.0%} 並重算前不排名、不計入今日新觸發總數。"
+            )
+    ranked = [sid for sid in alive[:cap] if sid not in limited]
     rank = {sid: i + 1 for i, sid in enumerate(ranked)}
     counts = {VALID: 0, WATCH: 0, OFF: 0}
     for s in lib["strategies"]:
@@ -221,11 +264,13 @@ def annotate(lib: dict[str, Any], res: dict[str, Any]) -> dict[str, Any]:
         if gr == VALID:
             fwd = rows[sid].get("forward") or {}
             label = VALID if fwd.get("ready") and _pos(fwd.get("mean_excess")) else VALID_PENDING
-        reason = "；".join(reasons[sid]) if gr != VALID else ""
+        reason = ("未達：" + "；".join(reasons[sid])) if gr != VALID and reasons[sid] else ""
         if not registered:
             reason = ("註冊清單停用" + ("；" + reason if reason else "")).strip()
         s["grade"], s["grade_label"], s["grade_reason"] = gr, label, reason
         s["grade_checks"] = checks[sid]
+        s["limited"] = sid in limited
+        s["limited_note"] = limited.get(sid)
         s["family"] = s.get("family") or rows[sid]["family"]
         s["enabled"] = registered and gr != OFF
         s["rank"] = rank.get(sid) if registered else None

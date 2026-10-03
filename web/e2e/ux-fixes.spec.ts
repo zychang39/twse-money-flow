@@ -287,14 +287,16 @@ test.describe('4. 資料源異常的呈現', () => {
 });
 
 // ---------------------------------------------------------------- 5. 今晚主角數字、6. 中文排版
-test('5. 今晚：主角數字下方固定是「今日」漲跌；走勢圖預設 3M、期間從 1W 開始，只改變走勢圖', async ({ page }) => {
+test('5. 今晚：主角數字下方固定是資料日（M/D）的漲跌；走勢圖預設 3M、期間從 1D（盤後盤中走勢）開始，只改變走勢圖', async ({ page }) => {
   await page.goto('#/');
   const periods = page.getByRole('group', { name: '加權指數走勢期間' }).getByRole('button');
-  await expect(periods.first()).toHaveText(/^1W/);
-  await expect(page.getByRole('group', { name: '加權指數走勢期間' }).getByRole('button', { name: /^1D/ })).toHaveCount(0);
+  // M2（2026-10-03）：1D 用盤後取得的每 5 秒指數統計；示範資料沒有盤中檔時仍可選，圖表寫原因
+  await expect(periods.first()).toHaveText(/^1D/);
+  await expect(page.getByRole('group', { name: '加權指數走勢期間' }).getByRole('button', { name: /^1D/ })).toHaveCount(1);
   await expect(page.getByRole('group', { name: '加權指數走勢期間' }).getByRole('button', { name: /^3M/ })).toHaveAttribute('aria-pressed', 'true');
   const change = page.locator('.hero-change').first();
-  await expect(change).toContainText('今日');
+  // 2026-10-02 健檢：標籤從「今日」改為資料日（M/D），休市日也不會寫成「今日」
+  await expect(page.getByTestId('hero-change-date').first()).toHaveText(/^\d{1,2}\/\d{1,2}$/);
   const today = await change.textContent();
   await expect(page.locator('.chart-range').first()).toContainText('近 3 個月');
   await page.getByRole('group', { name: '加權指數走勢期間' }).getByRole('button', { name: /^1Y/ }).click();

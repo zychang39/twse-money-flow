@@ -58,6 +58,15 @@ export const IconLayers = () => base(<><path d="m12 4.5 8 4-8 4-8-4Z" /><path d=
 export const IconThermo = () => base(<><path d="M10 14.6V5.5a2 2 0 0 1 4 0v9.1a3.8 3.8 0 1 1-4 0Z" /><path d="M12 9.5v7" /></>);
 export const IconCalendar = () => base(<><rect x="4" y="5.5" width="16" height="14.5" rx="3" /><path d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5" /></>);
 export const IconShield = () => base(<><path d="M12 3.8 18.8 6.5v5.2c0 4.2-2.9 7.3-6.8 8.5-3.9-1.2-6.8-4.3-6.8-8.5V6.5Z" /><path d="M12 9v4M12 15.6v.2" /></>);
+// 2026-10-02 健檢：探索九宮格每格一個不重複的圖示
+/** 燒瓶：指標效度表（統計檢定） */
+export const IconFlask = () => base(<><path d="M9.5 3.8h5M10.5 3.8v5.6L5.6 18a1.6 1.6 0 0 0 1.4 2.4h10a1.6 1.6 0 0 0 1.4-2.4l-4.9-8.6V3.8" /><path d="M8.2 14.5h7.6" /></>);
+/** 書架：策略庫 */
+export const IconBooks = () => base(<><path d="M4.5 4.5h4v15h-4ZM10.5 4.5h4v15h-4Z" /><path d="m15.6 6.1 3.9-1 3.8 14.5-3.9 1Z" /><path d="M4.5 15.5h4M10.5 15.5h4" /></>);
+/** 警示三角：處置預警 */
+export const IconAlert = () => base(<><path d="M12 4.2 20.4 19H3.6L12 4.2Z" /><path d="M12 9.5v4.4M12 16.4v.2" /></>);
+/** 公事包：主動式 ETF（基金） */
+export const IconBriefcase = () => base(<><rect x="3.5" y="7.5" width="17" height="12" rx="2" /><path d="M9 7.5V5.8A1.8 1.8 0 0 1 10.8 4h2.4A1.8 1.8 0 0 1 15 5.8v1.7M3.5 12.5h17" /></>);
 
 // ---------- 紀律 ----------
 export const IconNotebook = () => base(<><path d="M6.5 3.8h11a1.5 1.5 0 0 1 1.5 1.5v13.4a1.5 1.5 0 0 1-1.5 1.5h-11Z" /><path d="M6.5 3.8v16.4M4.5 8h4M4.5 12h4M4.5 16h4M11 8.5h5" /></>);

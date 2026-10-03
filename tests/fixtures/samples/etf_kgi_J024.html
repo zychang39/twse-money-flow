@@ -1,0 +1,157 @@
+<style>
+    .md-DISPLAY-B{
+        min-width: 10em;
+    }
+    .DownloadPCF{
+        width: 1.3em;
+    }
+    .bootstrap-datepicker {
+        display: flex;
+        align-items: center;
+        gap: 1%; /* 間距依需求調整 */
+    }
+    .bootstrap-datepicker a {
+        display: inline-flex;
+        width: 59px;
+        font-family: "Microsoft JhengHei";
+        font-size: 14px;
+        font-weight: normal;
+        align-items: center;
+    }
+    .bootstrap-datepicker a .DownloadPCF {
+        margin-left: 4px;
+    }
+    .bootstrap-datepicker-input {
+        display: flex;
+        align-items: center;
+    }
+</style>
+<div class="FundOverviewDiv">
+<input id="DataDate" name="DataDate" type="hidden" value="2026/10/05" /><input id="StartDate" name="StartDate" type="hidden" value="" /><input data-val="true" data-val-required="The PageSize field is required." id="PageSize" name="PageSize" type="hidden" value="10" />            <div class="border-G bg-fff marginB-100r md-border-N">
+                <div class="RedemptionDiv-title padding-100r md-paddingL-0">
+                    <p class="fontS-125r fontW-600 textC-blue2 md-paddingL-100r showfund" data-fundid="J024">&#x4E3B;&#x52D5;&#x51F1;&#x57FA;&#x53F0;&#x7063;(00407A)</p>
+                    <div class="md-display-N">
+                        <a href="#" onclick="SetCommonlyETFCookie('J024',2)" class="paddingLR-050r removeHot">移除常用<i class="fas fa-minus marginL-050r"></i></a>
+                        <a href="#" onclick="SetCommonlyETFCookie('J024',1)" class="paddingLR-050r addHot">加入常用<i class="fas fa-plus marginL-050r"></i></a>
+                    </div>
+                </div>
+                <div class="RedemptionDiv-label padding-100r md-paddingLR-0">
+                    <div class="md-DISPLAY-B md-textA-C">
+                        <p class="textC-blue">2026/10/05 </p>
+                        <p class="textC-blue">現金申購買回清單公告</p>
+                    </div>
+
+                    <div class="bootstrap-datepicker">
+                        <a href="/Fund/DownLoadRedemptionExcel?fundID=J024&amp;queryDate=10%2F05%2F2026%2000%3A00%3A00" class="textC-blue md-display-N">下載<img class="DownloadPCF" src="/images/DownloadPCF.png" alt="Download PCF" /></a>
+                        <span class="bootstrap-datepicker-input RedemptionList">
+                            <input type="text" class="form-control rounded-0" id="datepicker" value="2026/10/05">
+                        </span>
+
+                    </div>
+                </div>
+                <ul class="w-100 list-style-striped Redemption">
+                        <li class="paddingTB-125r paddingLR-175r md-paddingLR-050r">
+                            <span>&#x6BCF;&#x7533;&#x8CFC;&#x57FA;&#x6578;&#x4E4B;&#x9810;&#x6536;&#x7533;&#x8CFC;&#x7E3D;&#x50F9;&#x91D1;(&#x5143;)</span>
+                            <span>TWD$5,678,000</span>
+                        </li>
+                        <li class="paddingTB-125r paddingLR-175r md-paddingLR-050r">
+                            <span>&#x57FA;&#x91D1;&#x6DE8;&#x8CC7;&#x7522;&#x50F9;&#x503C;(&#x5143;)</span>
+                            <span>TWD$23,440,868,078</span>
+                        </li>
+                        <li class="paddingTB-125r paddingLR-175r md-paddingLR-050r">
+                            <span>&#x5DF2;&#x767C;&#x884C;&#x53D7;&#x76CA;&#x6B0A;&#x55AE;&#x4F4D;&#x7E3D;&#x6578;</span>
+                            <span>2,272,739,000</span>
+                        </li>
+                        <li class="paddingTB-125r paddingLR-175r md-paddingLR-050r">
+                            <span>&#x8207;&#x524D;&#x65E5;&#x5DF2;&#x767C;&#x884C;&#x55AE;&#x4F4D;&#x5DEE;&#x7570;&#x6578;</span>
+                            <span>-43,000,000</span>
+                        </li>
+                        <li class="paddingTB-125r paddingLR-175r md-paddingLR-050r">
+                            <span>(2026/10/02)&#x6BCF;&#x53D7;&#x76CA;&#x6B0A;&#x55AE;&#x4F4D;&#x6DE8;&#x8CC7;&#x7522;&#x50F9;&#x503C;(&#x5143;)</span>
+                            <span>TWD$10.31</span>
+                        </li>
+                        <li class="paddingTB-125r paddingLR-175r md-paddingLR-050r">
+                            <span>&#x6BCF;&#x73FE;&#x91D1;&#x7533;&#x8CFC;&#x55AE;&#x4F4D;&#x7D04;&#x7576;&#x5E02;&#x503C;(&#x5143;)</span>
+                            <span>TWD$5,158,941</span>
+                        </li>
+                        <li class="paddingTB-125r paddingLR-175r md-paddingLR-050r">
+                            <span>(2026/10/02)&#x6BCF;&#x57FA;&#x6578;&#x7533;&#x8CFC;&#x7E3D;&#x50F9;&#x91D1;&#x5DEE;&#x7570;&#x984D;(&#x5143;)</span>
+                            <span>TWD$-436,879</span>
+                        </li>
+                        <li class="paddingTB-125r paddingLR-175r md-paddingLR-050r">
+                            <span>(2026/10/02)&#x6BCF;&#x57FA;&#x6578;&#x5BE6;&#x969B;&#x7533;&#x8CFC;&#x7E3D;&#x50F9;&#x91D1;(&#x5143;)</span>
+                            <span>TWD$5,167,121</span>
+                        </li>
+                </ul>
+            </div>
+            <p class="fontS-075r marginB-225r">
+                *匯率:<br />
+                1 = 0TWD (2026/10/02)
+            </p>
+                <div class="redemption-rest">
+                    <h4 class="redemption-rest__sub-title">&#x80A1;&#x7968;</h4>
+
+                    <div class="responsive-table-wrap" style="margin-bottom:20px;">
+                        <table class="responsive-table responsive-table--md js-table-0">
+                            <thead>
+                                <tr>
+                                            <th style="text-align:center;width:calc(100% / 4)">&#x80A1;&#x7968;&#x4EE3;&#x865F;</th>
+                                            <th style="text-align:center;width:calc(100% / 4)">&#x80A1;&#x7968;&#x540D;&#x7A31;</th>
+                                            <th style="text-align:center;width:calc(100% / 4)">&#x80A1;&#x6578;</th>
+                                            <th style="text-align:center;width:calc(100% / 4)">&#x6B0A;&#x91CD;(%)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                            <tr name="content" style="">
+                                                        <td style="text-align:center">2330</td>
+                                                        <td style="text-align:center">&#x53F0;&#x7A4D;&#x96FB;</td>
+                                                        <td style="text-align:center">870,000</td>
+                                                        <td style="text-align:center">9.28</td>
+                                            </tr>
+                                            <tr name="content" style="">
+                                                        <td style="text-align:center">3037  </td>
+                                                        <td style="text-align:center">&#x6B23;&#x8208;</td>
+                                                        <td style="text-align:center">1,150,000</td>
+                                                        <td style="text-align:center">6.40</td>
+                                            </tr>
+                                            <tr name="content" style="">
+                                                        <td style="text-align:center">2454</td>
+                                                        <td style="text-align:center">&#x806F;&#x767C;&#x79D1;</td>
+                                                        <td style="text-align:center">282,000</td>
+                                                        <td style="text-align:center">5.95</td>
+                                            </tr>
+                                            <tr name="content" style="">
+                                                        <td style="text-align:center">3017  </td>
+                                                        <td style="text-align:center">&#x5947;&#x92D0;</td>
+                                                        <td style="text-align:center">393,000</td>
+                                                        <td style="text-align:center">5.77</td>
+                                            </tr>
+                                            <tr name="content" style="">
+                                                        <td style="text-align:center">2383</td>
+                                                        <td style="text-align:center">&#x53F0;&#x5149;&#x96FB;</td>
+                                                        <td style="text-align:center">236,000</td>
+                                                        <td style="text-align:center">5.22</td>
+                                            </tr>
+                                            <tr name="content" style="display:none">
+                                                        <td style="text-align:center">2412</td>
+                                                        <td style="text-align:center">&#x4E2D;&#x83EF;&#x96FB;</td>
+                                                        <td style="text-align:center">67,000</td>
+                                                        <td style="text-align:center">0.04</td>
+                                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="marginB-225r">
+                    <a href="javascript:void(0)" onclick="SetMoreBtnClickEvent('.js-table-0', '#tableMoreBtn-0')" id="tableMoreBtn-0" class="btn-more" ><span>看更多</span><i class="fa fa-chevron-down"></i></a>
+                </div>
+            <p class="fontS-075r marginB-225r">&nbsp; </p>
+</div>
+<script>
+    //針對IE11 日曆點選不到的問題
+    $(document).ready(function () {
+        $('.bootstrap-datepicker-input').click(function () {
+            $(this).find('input').focus();
+        })
+    })
+</script>

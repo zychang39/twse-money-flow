@@ -92,10 +92,13 @@ export interface UiConfig {
 }
 export const uiConfig = uiYml as UiConfig;
 
-// ---------- 策略庫（config/strategies.yml；M2） ----------
+// ---------- 策略庫（config/strategies.yml；M2）與波段策略（config/swing.yml） ----------
 export interface StrategyDef { id: string; test: string; label: string; subtitle: string; aliases?: string[] }
 export interface StrategiesConfig { horizon: number; slots: number[]; strategies: StrategyDef[] }
 export const strategiesConfig = strategiesYml as StrategiesConfig;
+import swingYml from '../../../config/swing.yml';
+export interface SwingDef { id: string; label: string; subtitle: string; family?: string; hold: number; params: Record<string, number>; aliases?: string[] }
+export const swingConfig = swingYml as { version: number; strategies: SwingDef[] };
 /** 訊號追蹤裡策略庫的 presetId 前綴（signals.json 的 lab:{id}） */
 export const LAB_PREFIX = 'lab:';
 export const labStrategy = (presetId: string | null | undefined): StrategyDef | undefined =>

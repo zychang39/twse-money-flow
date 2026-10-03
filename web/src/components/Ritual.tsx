@@ -34,7 +34,7 @@ export function RitualPanel({ rings, complete, animate, gamification, streak, le
         <div class="legend">
           {rings.map((r, i) => (
             <div key={r.id}>
-              <i style={{ opacity: [1, 0.72, 0.46][i] }} />
+              <i class={`ink-${i + 1}`} />
               <span class="caption t1">{r.label}</span>
               <span class="caption muted">{r.status}</span>
             </div>

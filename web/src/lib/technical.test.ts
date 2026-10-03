@@ -28,7 +28,10 @@ describe('技術指標（與 pipeline 同定義，手算）', () => {
     expect(t.bias20).toBeCloseTo((139 / 129.5 - 1) * 100, 6);
     expect(t.kdHighDays).toBeGreaterThan(0);
     expect(kdText(t)).toContain('K ≥ 80 連');
-    expect(macdText({ ...t, hist: 0.5, histFlipDays: 3, dif: 1 })).toBe('柱狀為正（3 日前翻正）・DIF 在零軸上');
+    // 2026-10-02 健檢：方向只寫一次（翻正已含方向），柱狀數值另外顯示
+    expect(macdText({ ...t, hist: 0.5, histFlipDays: 3, dif: 1 })).toBe('柱狀 3 日前翻正・DIF 在零軸上');
+    expect(macdText({ ...t, hist: -0.5, histFlipDays: 0, dif: -1 })).toBe('柱狀今日翻負・DIF 在零軸下');
+    expect(macdText({ ...t, hist: 0.5, histFlipDays: null, dif: 1 })).toBe('柱狀為正・DIF 在零軸上');
     expect(macdText({ ...t, hist: null })).toBe('資料不足');
   });
 });

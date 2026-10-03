@@ -75,3 +75,5 @@ export const loadInactive = () =>
     .then((x) => new Map(x.rows.map((r) => [r.code, r])))
     .catch(() => new Map<string, import('./types').InactiveRow>());
 export const loadIndex = () => getJson<import('./types').IndexData>('index.json');
+/** 首頁 1D 盤中走勢；舊版部署或當天尚未取得時為 null。 */
+export const loadIntraday = () => getJson<import('./types').IntradayData>('intraday.json').catch(() => null);

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import numpy as np
@@ -15,6 +16,8 @@ import pandas as pd
 from pipeline.core import config
 from pipeline.evidence import engine, exits, stats, verdict
 from pipeline.evidence.engine import Market
+
+log = logging.getLogger(__name__)
 
 ENV_STATE = {"regime": "regime_up", "trend": "trend_up", "quarter_end": "quarter_end"}
 
@@ -198,6 +201,50 @@ def bench_compare(eq: np.ndarray, mk: Market, ev: Any, start: int) -> dict[str, 
     return out
 
 
+def weekly_bench_lines(mk: Market, ev: Any, weekly_dates: list[str]) -> dict[str, Any]:
+    """權益曲線的三條基準線（加權報酬、0050、00631L），一般策略與波段策略共用（2026-10-02 健檢）。
+
+    - 對齊：每個週取樣日取「該日或之前最近一筆」有值的收盤（不是剛好同一天）。
+    - 基期：序列在第一個週取樣日沒有值時，用之後第一個有值的週當基期（＝1），之前的週為 null。
+    - 0050、00631L 用還原收盤（含息、已處理分割，evidence/data.py 的 af）；加權報酬指數為含息指數。
+    回傳 {"bench": [...], "etf": {"0050": [...], "00631L": [...]}, "missing": {key: 原因}}。
+    """
+    dates = np.asarray(ev.dates)
+    series: dict[str, np.ndarray] = {"tr": np.asarray(mk.bench, dtype=float)}
+    missing: dict[str, str] = {}
+    for code in ("0050", "00631L"):
+        s = (getattr(ev, "etf", {}) or {}).get(code)
+        if s is None:
+            missing[code] = f"資料檔沒有 {code} 的還原收盤序列"
+        else:
+            series[code] = np.asarray(s["close"], dtype=float)
+
+    def line(vals: np.ndarray) -> list[float | None]:
+        out: list[float | None] = []
+        base: float | None = None
+        for wd in weekly_dates:
+            i = int(np.searchsorted(dates, wd, side="right")) - 1
+            while i >= 0 and not np.isfinite(vals[i]):
+                i -= 1
+            if i < 0:
+                out.append(None)
+                continue
+            if base is None:
+                base = float(vals[i])
+            out.append(round(float(vals[i]) / base, 4) if base else None)
+        return out
+
+    lines = {k: line(v) for k, v in series.items()}
+    for k, v in lines.items():
+        if all(x is None for x in v):
+            missing[k] = "整段期間沒有值"
+    return {
+        "bench": lines.get("tr", []),
+        "etf": {k: v for k, v in lines.items() if k != "tr"},
+        "missing": missing,
+    }
+
+
 def basis_values(basis: list[Any], ev: Any, code: str, t: int) -> list[dict[str, Any]]:
     """v3 M5-5 觸發依據：該股在訊號日的各條件數值（名稱、數值、單位）。"""
     i = ev.codes.index(code)
@@ -323,7 +370,12 @@ def build(res: dict[str, Any]) -> dict[str, Any]:
                 for t in range(max(0, T - 250), T)
                 if mask[t].any()
             }
+        # 2026-10-02 健檢：組合模擬對每一套都算（上架與否由之後的分級決定，不再由這裡的判定決定）；
+        # 前端依分級決定是否顯示（停用的不顯示組合與權益曲線）
+        try:
             item.update(_portfolio(ev, mk, uni, c, sc, keep, details.get(s["test"]) or {}, H))
+        except Exception:  # 單一策略的組合模擬失敗不影響其他策略
+            log.exception("策略 %s 組合模擬失敗", s["id"])
         out.append(item)
     return {
         "date": ev.dates[last],
@@ -378,22 +430,9 @@ def _portfolio(
         port[str(k)] = curve_stats(eq, ev.dates[max(s_row, 1) :])
     eq5 = simulate(mk, trades, ev.value, 5, max(s_row, 1))
     weekly = pd.Series(eq5, index=pd.to_datetime(ev.dates[max(s_row, 1) :])).resample("W-FRI").last().dropna()
-    bench = (
-        pd.Series(mk.bench[max(s_row, 1) :], index=pd.to_datetime(ev.dates[max(s_row, 1) :]))
-        .resample("W-FRI")
-        .last()
-        .dropna()
-    )
     s0 = max(s_row, 1)
     compare = bench_compare(eq5, mk, ev, s0)
-    etf_w = {}
-    for code in ("0050", "00631L"):
-        src = (getattr(ev, "etf", {}) or {}).get(code)
-        if src is not None:
-            w = pd.Series(src["close"][s0:], index=pd.to_datetime(ev.dates[s0:])).resample("W-FRI").last()
-            w = w.reindex(weekly.index).ffill()
-            base = w.dropna().iloc[0] if w.notna().any() else np.nan
-            etf_w[code] = [None if not np.isfinite(x) else round(float(x / base), 4) for x in w.to_numpy()]
+    weekly_dates = [x.date().isoformat() for x in weekly.index]
     return {
         "compare": compare,
         "exit": {
@@ -416,12 +455,10 @@ def _portfolio(
         },
         "portfolio": port,
         "curve": {
-            "dates": [x.date().isoformat() for x in weekly.index],
+            "dates": weekly_dates,
             "equity": [round(float(v), 4) for v in weekly.to_numpy()],
-            "bench": [round(float(v / bench.iloc[0]), 4) for v in bench.reindex(weekly.index).ffill().to_numpy()]
-            if len(bench)
-            else [],
-            # v3 M2：可疊加的基準線（每週、以期初為 1）；前端預設顯示策略與 0050
-            "etf": etf_w,
+            "slots": 5,
+            # v3 M2：可疊加的基準線（每週、以期初為 1）；2026-10-02 健檢：與波段策略共用 weekly_bench_lines
+            **weekly_bench_lines(mk, ev, weekly_dates),
         },
     }

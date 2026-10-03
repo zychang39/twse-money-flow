@@ -48,7 +48,16 @@ h1, h2, h3 { margin: 0; font-weight: var(--fw-semibold); }
 @supports (text-wrap: balance) {
   .title, .large-title, .section { text-wrap: balance; }
 }
+/* 沒有粗體中文字型的環境（例：CI 的 Chromium 回退字型）不要合成粗體：合成會把部分字形重疊成雙影；iOS／Android 的中文字型都有真正的 600 */
+.title, .large-title, .section { font-synthesis-weight: none; }
 .section-title { margin: var(--s-6) 0 var(--s-2); }
+/*
+ * 2026-10-02 健檢：註解、表格與指標格的數字不和單位斷開（「+5,887 張」「近 5 日」「創 12 個月」不會在中間換行）：
+ * 只在空白、標點（、・，）處換行（keep-all＋line-break: strict，也不讓「／」落到行首）；
+ * 很長的英文 id（例：vol_ratio_20d）仍可在任意處緊急換行（overflow-wrap: anywhere），不會撐寬版面。
+ * 註解中的「／」請改用「・」（頁面作者處理），這裡只保證不把數字拆開。
+ */
+.caption, .ev-sub, .mg-k, .mg-s, .kv-v, td, th { word-break: keep-all; overflow-wrap: anywhere; line-break: strict; }
 
 /* ---------- 文字色與工具 ---------- */
 .t1 { color: var(--text-1); }
@@ -81,15 +90,16 @@ h1, h2, h3 { margin: 0; font-weight: var(--fw-semibold); }
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  /* 底部保留剛好等於導覽列（含 safe-area）的高度，最後一段內容（頁尾免責聲明）不被遮住 */
-  padding: 0 var(--safe-right) var(--dock-h) var(--safe-left);
+  /* 底部保留導覽列（含 safe-area）＋16px（--dock-clear），最後一段內容（頁尾免責聲明）完整露出在導覽列上方 */
+  padding: 0 var(--safe-right) var(--dock-clear) var(--safe-left);
 }
 .page-body { flex: 1 0 auto; min-height: 100dvh; }
 /* .app／.page 不設定定位：環境光以整個頁面寬度定位（不會撐寬版面），內容再疊在上面 */
 .page { padding: calc(var(--safe-top) + var(--s-2)) var(--gutter) 0; }
 /* 零特異度：讓 .ambient、.sheet 等自己的定位規則優先 */
 :where(.page > *) { position: relative; }
-.app > .footer { margin-top: auto; }
+/* .page-body 已是 flex: 1，頁尾自然在最下方；不用 margin-top: auto（flex 的 auto 邊距會把 .footer 的 32px 上邊距歸零） */
+.app > .footer { margin-top: var(--s-8); }
 .bleed { margin-left: calc(-1 * var(--gutter)); margin-right: calc(-1 * var(--gutter)); }
 
 /* ---------- 頂列 ---------- */
@@ -122,6 +132,8 @@ h1, h2, h3 { margin: 0; font-weight: var(--fw-semibold); }
 }
 .card + .card { margin-top: var(--s-2); }
 .card.flush { padding: 0; overflow: hidden; }
+/* 用 clip 裁切圓角而不是 hidden：hidden 會讓卡片變成捲動容器，裡面長表（.ev-sticky）的 sticky 表頭黏不住 */
+@supports (overflow: clip) { .card.flush { overflow: clip; } }
 a.card, button.card { display: block; color: inherit; width: 100%; text-align: left; border: 0; font: inherit; cursor: pointer; }
 .list { background: var(--surface-1); border-radius: var(--r-card); overflow: hidden; margin: var(--s-2) 0; box-shadow: var(--shadow-card); }
 .list-item {
@@ -275,9 +287,12 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 .chart-wrap { position: relative; margin-top: var(--s-4); touch-action: pan-y; cursor: crosshair; user-select: none; -webkit-user-select: none; }
 .netbars { margin: 0; }
 .k-readout { display: flex; flex-wrap: wrap; gap: 0 var(--s-2); min-height: 2.5rem; align-items: flex-start; font-variant-numeric: tabular-nums; }
-.netbars-plot { display: flex; gap: var(--s-2); }
-.nb-axes { flex: none; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; min-width: 4.25rem; font-size: 0.6875rem; line-height: 1; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.nb-bars { position: relative; flex: 1; min-width: 0; touch-action: pan-y; cursor: crosshair; user-select: none; -webkit-user-select: none; }
+/* 柱狀圖：左側數值軸、右側柱子；第二列是日期軸（首末日期，對齊柱子的範圍）。列高由 NetBars 以 grid-template-rows 指定 */
+.netbars-plot { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--s-2); }
+.nb-axes { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; min-width: 4.25rem; font-size: 0.6875rem; line-height: 1; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nb-bars { position: relative; min-width: 0; touch-action: pan-y; cursor: crosshair; user-select: none; -webkit-user-select: none; }
+.nb-dates { grid-column: 2; position: relative; height: var(--lh-micro); margin-top: 2px; font-size: var(--fs-micro); line-height: var(--lh-micro); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.nb-dates span { position: absolute; top: 0; white-space: nowrap; }
 .nb-bars:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
 .nb-tip { position: absolute; top: 0; transform: translateX(0.5rem); display: flex; flex-direction: column; gap: 0.125rem; padding: var(--s-1) var(--s-2); border-radius: var(--r-sm); background: var(--surface-3); box-shadow: var(--shadow-card); font-size: var(--fs-caption); white-space: nowrap; pointer-events: none; z-index: 2; }
 .nb-tip.left { transform: translateX(calc(-100% - 0.5rem)); }
@@ -302,7 +317,13 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 .ring { position: relative; display: inline-block; }
 .ring svg { display: block; }
 .ring .ring-track { stroke: var(--surface-2); }
-.ring .ring-arc { stroke: var(--text-1); transition: stroke-dasharray var(--dur-slow) var(--ease-spring); }
+/* 弧線用四級灰階墨色（--ink-1～4）：四環並排時每一環的明度不同，灰階截圖也分得出哪一環是哪一類；
+   ScoreRing 的 tone 屬性（.ink-N）明確指定；沒有指定時依在 .rings4 中的順序 */
+.ring .ring-arc { stroke: var(--ink-1); transition: stroke-dasharray var(--dur-slow) var(--ease-spring); }
+.ring.ink-1 .ring-arc, .rings4 > :nth-child(1) .ring .ring-arc { stroke: var(--ink-1); }
+.ring.ink-2 .ring-arc, .rings4 > :nth-child(2) .ring .ring-arc { stroke: var(--ink-2); }
+.ring.ink-3 .ring-arc, .rings4 > :nth-child(3) .ring .ring-arc { stroke: var(--ink-3); }
+.ring.ink-4 .ring-arc, .rings4 > :nth-child(4) .ring .ring-arc { stroke: var(--ink-4); }
 .ring .ring-v { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: var(--fw-semibold); letter-spacing: -0.02em; }
 .ring.lg .ring-v { font-size: var(--fs-section); }
 .ring.sm .ring-v { font-size: 0.6875rem; }
@@ -311,10 +332,16 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 /* ---------- 紀律三環 ---------- */
 .discipline { display: grid; grid-template-columns: 8.25rem 1fr; gap: var(--s-5); align-items: center; }
 .discipline .legend > div { display: grid; grid-template-columns: 0.625rem 1fr auto; gap: var(--s-2); align-items: center; min-height: 2rem; }
-.discipline .legend i { width: 0.625rem; height: 0.625rem; border-radius: 50%; background: var(--text-1); display: block; }
+/* 三環與圖例圓點用同一組灰階墨色（外→內＝ink-1～3），不用透明度（透明度在灰階下分不出來） */
+.discipline .legend i { width: 0.625rem; height: 0.625rem; border-radius: 50%; background: var(--ink-1); display: block; }
+.discipline .legend i.ink-1 { background: var(--ink-1); }
+.discipline .legend i.ink-2 { background: var(--ink-2); }
+.discipline .legend i.ink-3 { background: var(--ink-3); }
 .rings3 { position: relative; width: 8.25rem; height: 8.25rem; }
 .rings3 svg { position: absolute; }
-.rings3 .arc { stroke: var(--text-1); transition: stroke-dasharray var(--dur-slow) var(--ease-spring); }
+.rings3 .arc { stroke: var(--ink-1); transition: stroke-dasharray var(--dur-slow) var(--ease-spring); }
+.rings3 .arc.ink-2 { stroke: var(--ink-2); }
+.rings3 .arc.ink-3 { stroke: var(--ink-3); }
 .rings3 .track { stroke: var(--surface-2); }
 .rings3.complete { animation: rings-complete 1.4s var(--ease-out) 1; }
 .rings3 .done-mark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-1); opacity: 0; transform: scale(0.8); transition: opacity var(--dur-slow) var(--ease-out), transform var(--dur-slow) var(--ease-spring); }
@@ -532,11 +559,21 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 .hscroll::-webkit-scrollbar { display: none; }
 .hscroll > * { scroll-snap-align: start; flex: 0 0 auto; }
 .index-card { width: 10.5rem; background: var(--surface-1); border-radius: var(--r-card); padding: var(--s-3) var(--s-4); color: inherit; }
-.tile-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-3); }
-@media (min-width: 40rem) { .tile-grid { grid-template-columns: repeat(3, 1fr); } }
-.tile { display: flex; flex-direction: column; justify-content: space-between; min-height: 7.5rem; padding: var(--s-4); border-radius: var(--r-card); background: var(--surface-1); color: inherit; }
-.tile .ico { color: var(--brand); }
+.tile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
+@media (min-width: 40rem) { .tile-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/*
+ * 探索／紀律的功能卡：同一列等高（grid 自動拉齊）＋ min-height；內部兩列固定（圖示 24px、文字），
+ * 所以每張卡的圖示與名稱都在同一條基準線上；狀態小字最多 2 行（超過截斷），不會把某一張撐得特別高。
+ */
+.tile {
+  display: grid; grid-template-rows: 1.5rem minmax(0, 1fr); align-content: start; row-gap: var(--s-3);
+  min-height: 8rem; min-width: 0; padding: var(--s-4); border-radius: var(--r-card); background: var(--surface-1); color: inherit;
+}
+.tile .ico { color: var(--brand); display: flex; align-items: center; height: 1.5rem; }
 .tile .ico svg { width: 1.5rem; height: 1.5rem; }
+.tile > .ico + span { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+.tile .tile-label, .tile > .ico + span > .body { display: block; line-height: var(--lh-body); }
+.tile-status { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* ---------- 熱力圖（產業輪動）：紅漲綠跌，以透明度表示強度 ---------- */
 .heat { display: grid; grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr)); gap: var(--s-2); }
@@ -687,6 +724,17 @@ table.table tbody tr td:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0;
 .empty .ico { width: 3rem; height: 3rem; margin: 0 auto var(--s-3); color: var(--text-2); }
 .empty .ico svg { width: 3rem; height: 3rem; }
 .empty p { color: var(--text-2); margin: var(--s-1) 0 var(--s-4); }
+/*
+ * 精簡空狀態（例：「還沒有持倉」）：一列＝圖示 20px＋標題＋動作按鈕；說明文字（若有）在第二列。
+ * 寬度不夠時按鈕自己換到下一列靠右，不把標題擠成多行。頁面作者在 EmptyState 外層加 class「compact」。
+ */
+.empty.compact { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); text-align: left; padding: var(--s-3) var(--s-4); background: var(--surface-1); border-radius: var(--r-card); }
+.empty.compact .ico { flex: none; width: 1.25rem; height: 1.25rem; margin: 0; display: inline-flex; }
+.empty.compact .ico svg { width: 1.25rem; height: 1.25rem; }
+.empty.compact > .body { flex: 1 1 auto; min-width: 0; }
+.empty.compact > p { order: 1; flex: 1 1 100%; margin: 0; }
+.empty.compact > div:not(.ico):not(.body) { display: none; } /* 沒有說明文字時的佔位 */
+.empty.compact > .btn, .empty.compact > a { flex: none; margin-left: auto; }
 .skeleton { background: var(--surface-1); border-radius: var(--r-md); min-height: 4rem; animation: breathe 2.4s var(--ease-in-out) infinite; }
 .skeleton.line { min-height: 1rem; border-radius: var(--r-xs); }
 .skeleton.hero { min-height: var(--lh-hero); width: 60%; border-radius: var(--r-sm); }
@@ -749,7 +797,7 @@ details.tech ul { margin: var(--s-1) 0 0; padding-left: var(--s-4); color: var(-
 .xp-bar > i { display: block; height: 100%; background: var(--text-1); border-radius: var(--r-pill); transform-origin: left; }
 
 /* ---------- 頁尾 ---------- */
-.footer { text-align: center; color: var(--text-2); font-size: var(--fs-caption); line-height: var(--lh-caption); margin: var(--s-12) var(--gutter) var(--s-4); }
+.footer { text-align: center; color: var(--text-2); font-size: var(--fs-caption); line-height: var(--lh-caption); margin: var(--s-8) var(--gutter) var(--s-4); }
 .footer p + p { margin-top: var(--s-1); }
 
 /* ---------- 圖表容器（lightweight-charts） ---------- */
@@ -802,7 +850,8 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 .range-band { fill: var(--text-1); opacity: 0.06; }
 .range-marks { transition: opacity var(--dur-slow) var(--ease-out, ease-out); }
 .range-marks.fading, .range-tip.fading { opacity: 0; }
-.range-tip { position: absolute; left: 50%; top: calc(-1 * var(--s-2)); transform: translate(-50%, -100%); z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 0.125rem; min-width: 12rem; padding: var(--s-2) var(--s-3); border-radius: var(--r-md); background: var(--surface-3); box-shadow: var(--shadow-float); pointer-events: none; transition: opacity 0.3s ease-out; font-variant-numeric: tabular-nums; }
+/* M1-9：提示框固定在圖表上緣內側（HeroChart 以 inline style 指定 top），不再往上翻到主角數字上（舊的 translateY(-100%) 已移除） */
+.range-tip { position: absolute; left: 50%; top: var(--s-1); transform: translateX(-50%); z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 0.125rem; min-width: 12rem; padding: var(--s-2) var(--s-3); border-radius: var(--r-md); background: var(--surface-3); box-shadow: var(--shadow-float); pointer-events: none; transition: opacity 0.3s ease-out; font-variant-numeric: tabular-nums; }
 .range-dates { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-1); white-space: nowrap; }
 .range-days { color: var(--text-2); }
 .range-chg { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); white-space: nowrap; }
@@ -853,9 +902,14 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 .st-entry { background: var(--surface-1); border-radius: var(--r-card); margin-top: var(--s-4); min-height: var(--tap); }
 /* M3：區間統計的單位只在右上角顯示一次 */
 .cs-unit { text-align: right; color: var(--text-1); font-weight: var(--fw-medium); margin-top: var(--s-2); }
-/* M3.4 分段更新狀態列：逾時用琥珀（風險），其他中性 */
+/* M3.4 分段更新狀態列：逾時用琥珀（風險），其他中性；「最近交易日 10/2：」前綴用主要文字色 */
 .stage-line { margin-top: 0; }
+.stage-prefix { color: var(--text-1); }
 .stage.late { color: var(--risk); }
+/* M1-2：各資料集資料日那一行緊接在狀態列下方（不再多一段 8px） */
+.asof-line { margin-top: 0; }
+/* 主角走勢圖的最高／最低標示與首末日期（SVG 文字）：11px 下限、次要文字色（HeroChart 的 inline style 同值，這裡是樣式的唯一來源） */
+.chart-hilo text, .chart-dates text { font-size: 11px; fill: var(--text-2); font-variant-numeric: tabular-nums; }
 /* M3：欄名與標題下方的連續天數可換成兩行，不加寬欄位 */
 .cd-table thead th .cd-sub { white-space: normal; }
 /* M3：日期下方的收盤與漲跌分兩行（日期欄變窄，數字欄放得下完整千分位張數） */
@@ -866,8 +920,10 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
   .periods { margin-left: calc(-1 * var(--s-2)); margin-right: calc(-1 * var(--s-2)); }
 }
 
-/* M3（UI_GUIDE §9）：表頭捲動時固定在區塊頂端；1px 分隔線（深色也看得見）；合計列半粗體 */
-.cd-table thead th { position: sticky; top: var(--safe-top); z-index: 2; background: var(--surface-1); }
+/* M3（UI_GUIDE §9）：長表（≥ 10 列，表格加 .cd-long）的表頭捲動時固定在區塊頂端、實心底色；
+   短表不固定（固定表頭會蓋住資料列；2026-10-02 健檢）。1px 分隔線（深色也看得見）；合計列半粗體 */
+.cd-table thead th { position: static; background: var(--surface-1); }
+.cd-table.cd-long thead th { position: sticky; top: var(--safe-top); z-index: 2; }
 .chip-daily .cd-table tbody th, .chip-daily .cd-table tbody td { box-shadow: inset 0 -1px 0 var(--line); }
 .cd-table tbody tr > :first-child { background-image: linear-gradient(var(--line), var(--line)); background-size: calc(100% - var(--s-2)) 1px; }
 .cd-table tr.total .cd-v { font-weight: var(--fw-semibold); }

@@ -85,9 +85,18 @@ export interface EvidenceMeta {
   regime_share?: number;
   price_start?: string;
   starts?: Record<string, string | null>;
-  config?: { primary_horizon: number; stats: { t_threshold: number } };
+  config?: {
+    primary_horizon: number;
+    secondary_horizon?: number;
+    stats: { t_threshold: number };
+    universe?: { min_listed_days?: number; min_avg_value?: number; min_close?: number };
+    grading?: unknown;
+    swing_gates?: unknown;
+  };
   coverage_weekly?: Record<string, WeeklyCoverage[]>;
   coverage_rule?: { limited: number; full: number };
+  /** 2026-10-02 健檢 M2：集保回補進度的一句話 */
+  coverage_backfill?: string | null;
   error?: string;
 }
 
@@ -115,20 +124,9 @@ export const isUsable = (v: Verdict): boolean => v === '有效' || v === '環境
 export const verdictTone = (v: Verdict): 'risk' | 'strong' | 'plain' =>
   v === '樣本範圍受限' ? 'risk' : isUsable(v) ? 'strong' : 'plain';
 
-export const MINUS = '−';
-
-/** 百分比：帶正負號、全站統一的負號（U+2212）。 */
-export function pctSigned(v: number | null | undefined, digits = 2): string {
-  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
-  const s = Math.abs(v).toFixed(digits);
-  if (Number(s) === 0) return `${s}%`;
-  return `${v > 0 ? '+' : MINUS}${s}%`;
-}
-
-export function tText(v: number | null | undefined): string {
-  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
-  return v < 0 ? `${MINUS}${Math.abs(v).toFixed(2)}` : v.toFixed(2);
-}
+// 2026-10-02 健檢：數字格式器集中在 lib/format.ts（全站唯一），這裡只轉出供既有呼叫端使用
+import { MINUS, pctSigned, ratioPct, tText } from './format';
+export { MINUS, pctSigned, tText };
 
 export function ciText(ci: [number | null, number | null] | undefined): string {
   if (!ci || ci[0] === null || ci[1] === null) return '—';
@@ -163,11 +161,13 @@ export function coverageLabel(ratio: number | null | undefined, rule = { limited
   return null;
 }
 
-/** 「涵蓋率 67%（每日平均 887／1,320 檔）」：百分比與檔數出自同一個定義，一定對得上。 */
+/**
+ * 「25.73%（每日平均 164／637 檔）」：百分比與檔數出自同一個定義（Σ每日有資料檔數 ÷ Σ每日 universe 檔數），一定對得上。
+ * 不含「涵蓋率」三個字（標籤由呼叫端放，避免「涵蓋率 涵蓋率 —」這種標籤重複）；沒有資料時附原因。
+ */
 export function coverageText(c: Coverage | undefined): string {
-  if (!c) return '涵蓋率 —';
-  const pct = Math.round(c.ratio * 100);
-  return `涵蓋率 ${pct}%（每日平均 ${c.included.toLocaleString('zh-TW')}／${c.universe.toLocaleString('zh-TW')} 檔）`;
+  if (!c) return '—（這個指標沒有涵蓋率資料）';
+  return `${ratioPct(c.ratio)}（每日平均 ${c.included.toLocaleString('zh-TW')}／${c.universe.toLocaleString('zh-TW')} 檔）`;
 }
 
 /** 「期間內曾納入 1,601 檔，其中已下市 23 檔；持有期間下市 4 筆（最後收盤出場）；保守版本（下市 −100%）+0.52%（t 3.40）」 */
@@ -231,10 +231,28 @@ export function panelItems(rows: EvidenceRow[], today: EvidenceToday | null, cod
     });
 }
 
-export function panelSummary(items: PanelItem[]): string {
+/**
+ * 面板的一句結論（個股頁區塊標題）：面板列的是「上架策略」（策略分級為有效或觀察中）對應的指標，不是「有效指標」
+ * （觀察中的策略也在清單裡）。grades＝指標 id → 策略分級（lib/strategies.gradeByTest）；有分級資料時附分級計數。
+ * 例：「4 個上架策略的指標（1 有效・3 觀察中）：觸發 1・接近 1」「…都未觸發」「目前沒有上架的策略」。
+ * 沒有策略庫資料（grades 為 null）時退回判定規則：「N 個判定可用的指標：…」。
+ */
+export function panelSummary(items: PanelItem[], grades: Map<string, { grade: string; label: string }> | null = null): string {
   const trig = items.filter((i) => i.state === 'triggered').length;
   const near = items.filter((i) => i.state === 'near').length;
-  if (!items.length) return '目前沒有通過驗證的指標';
-  if (!trig && !near) return `${items.length} 個有效指標都未觸發`;
-  return `${items.length} 個有效指標：觸發 ${trig}・接近 ${near}`;
+  if (!items.length) return grades ? '目前沒有上架的策略' : '目前沒有通過判定的指標';
+  let head: string;
+  if (grades) {
+    let valid = 0, watch = 0;
+    for (const it of items) {
+      const g = grades.get(it.row.id)?.grade;
+      if (g === '有效') valid++;
+      else if (g === '觀察中') watch++;
+    }
+    head = `${items.length} 個上架策略的指標（${valid} 有效・${watch} 觀察中）`;
+  } else {
+    head = `${items.length} 個判定可用的指標`;
+  }
+  if (!trig && !near) return `${head}都未觸發`;
+  return `${head}：觸發 ${trig}・接近 ${near}`;
 }

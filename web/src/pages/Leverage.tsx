@@ -8,13 +8,19 @@ import { ErrorState, Loading } from '../components/DataStatus';
 import { useAsync } from '../hooks';
 import { getSetting, setSetting } from '../db/db';
 import { useRoute } from '../router';
-import { pctSigned } from '../lib/evidence';
+import { fmtCount, missing, orMissing, pctPlain, pctSigned, ratioText } from '../lib/format';
 import { BREAKER_TEXT, type LeverageInput, leverage, nearestSlots } from '../lib/leverage';
+import { isListed } from '../lib/status';
 import { loadStrategies } from './Strategies';
 import '../styles/evidence.css';
 
-const money = (v: number) => `${Math.round(v).toLocaleString('zh-TW')} 元`;
-const LIMITED = { drawdown: '可承受回撤', kelly: '半凱利', ceiling: '2.5 倍天花板', none: '—' } as const;
+const money = (v: number) => `${fmtCount(v)} 元`;
+const LIMITED = { drawdown: '可承受回撤', kelly: '半凱利', ceiling: '2.5 倍天花板', none: missing('沒有限制條件') } as const;
+const times = (v: number) => `${ratioText(v)} 倍`;
+/** 歷史數字缺值的原因：策略還沒有逐筆或組合模擬資料。 */
+const NO_TRADES = '沒有逐筆模擬資料';
+const NO_PORT = '沒有組合模擬資料';
+const NO_INPUT = '尚未計算';
 
 function Num({ label, value, onInput, step = 1, unit }: { label: string; value: number | null; onInput: (v: number | null) => void; step?: number; unit: string }) {
   return (
@@ -29,7 +35,8 @@ function Num({ label, value, onInput, step = 1, unit }: { label: string; value: 
 export default function Leverage() {
   const route = useRoute();
   const d = useAsync(loadStrategies, []);
-  const enabled = (d.data?.strategies ?? []).filter((s) => s.enabled);
+  // 只列上架（分級為有效／觀察中）的策略；portfolio 現在每套有評估的策略都有，所以不能再用 portfolio 有無來判斷
+  const enabled = (d.data?.strategies ?? []).filter((s) => isListed(s));
   const [sid, setSid] = useState<string>(route.query.get('s') ?? '');
   const [input, setInput] = useState<LeverageInput | null>(null);
   useEffect(() => {
@@ -85,14 +92,14 @@ export default function Leverage() {
           <h2 class="section st-h">計算結果</h2>
           <table class="ev-table" aria-label="槓桿倍數">
             <tbody>
-              <tr><th scope="row">波動目標法倍數</th><td>{res?.lDd === null || res?.lDd === undefined ? '—' : `${res.lDd.toFixed(2)} 倍`}</td></tr>
-              <tr><th scope="row">半凱利倍數</th><td>{res?.lKelly === null || res?.lKelly === undefined ? '—' : `${res.lKelly.toFixed(2)} 倍`}</td></tr>
-              <tr><th scope="row"><b>計算結果（兩者取小）</b></th><td><b>{res ? `${res.multiple.toFixed(2)} 倍` : '—'}</b></td></tr>
-              <tr><th scope="row">受限於</th><td>{res ? LIMITED[res.limitedBy] : '—'}</td></tr>
-              <tr><th scope="row">總部位</th><td>{res ? money(res.exposure) : '—'}</td></tr>
-              <tr><th scope="row">融資金額</th><td>{res ? money(res.loan) : '—'}</td></tr>
-              <tr><th scope="row">一年融資利息</th><td>{res ? money(res.interestYear) : '—'}</td></tr>
-              <tr><th scope="row">扣利息後年化（歷史）</th><td>{pctSigned(res?.netReturn)}</td></tr>
+              <tr><th scope="row">波動目標法倍數</th><td>{res ? orMissing(res.lDd, times, '沒有回撤與不利波動資料') : missing(NO_INPUT)}</td></tr>
+              <tr><th scope="row">半凱利倍數</th><td>{res ? orMissing(res.lKelly, times, '沒有年化報酬與波動資料') : missing(NO_INPUT)}</td></tr>
+              <tr><th scope="row"><b>計算結果（兩者取小）</b></th><td><b>{res ? times(res.multiple) : missing(NO_INPUT)}</b></td></tr>
+              <tr><th scope="row">受限於</th><td>{res ? LIMITED[res.limitedBy] : missing(NO_INPUT)}</td></tr>
+              <tr><th scope="row">總部位</th><td>{res ? money(res.exposure) : missing(NO_INPUT)}</td></tr>
+              <tr><th scope="row">融資金額</th><td>{res ? money(res.loan) : missing(NO_INPUT)}</td></tr>
+              <tr><th scope="row">一年融資利息</th><td>{res ? money(res.interestYear) : missing(NO_INPUT)}</td></tr>
+              <tr><th scope="row">扣利息後年化（歷史）</th><td>{res ? orMissing(res.netReturn, pctSigned, '沒有年化報酬資料') : missing(NO_INPUT)}</td></tr>
             </tbody>
           </table>
 
@@ -104,37 +111,39 @@ export default function Leverage() {
                 <tr key={x.label}>
                   <th scope="row" class="ev-wrap">{x.label}</th>
                   <td>{money(x.loss)}</td>
-                  <td class={x.call ? 'risk-text' : ''}>{x.maintenance === null ? '無融資' : `${x.maintenance.toFixed(0)}%${x.call ? '・追繳' : ''}`}</td>
+                  <td class={x.call ? 'risk-text' : ''}>{x.maintenance === null ? '無融資' : `${pctPlain(x.maintenance)}${x.call ? '・追繳' : ''}`}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p class="caption muted">維持率＝融資買進的股票市值 ÷ 融資金額（融資 6 成，初始約 167%），低於 {d.data.leverage.maintenance_call}% 會被追繳。連續 2 日跌停：每日 −10%，合計約 −19%，期間無法賣出。</p>
+          <p class="caption muted">維持率＝以融資取得的股票市值 ÷ 融資金額（融資 6 成，初始約 167%），低於 {d.data.leverage.maintenance_call}% 會被追繳。連續 2 日跌停：每日 −10%，合計約 −19%，期間無法出場。</p>
 
           <h2 class="section st-h">策略的歷史數字（{k} 檔組合）</h2>
           <table class="ev-table" aria-label="策略歷史">
             <tbody>
-              <tr><th scope="row">最大回撤</th><td>{pctSigned(port?.mdd)}</td></tr>
-              <tr><th scope="row">目前自高點回撤</th><td>{pctSigned(port?.current_dd)}</td></tr>
-              <tr><th scope="row">年化報酬</th><td>{pctSigned(port?.ann_return)}</td></tr>
-              <tr><th scope="row">年化波動</th><td>{port?.vol_ann === null || port?.vol_ann === undefined ? '—' : `${port.vol_ann.toFixed(1)}%`}</td></tr>
-              <tr><th scope="row">單筆最大不利波動（中位數／最差 10%／最差 1%）</th><td>{s.trades?.mae_p50 ?? '—'}／{s.trades?.mae_p90 ?? '—'}／{s.trades?.mae_p99 ?? '—'}%</td></tr>
-              <tr><th scope="row">持有期間遇到跌停鎖死</th><td>{s.trades?.lock_rate ?? '—'}% 的交易</td></tr>
+              <tr><th scope="row">最大回撤</th><td>{orMissing(port?.mdd, pctSigned, NO_PORT)}</td></tr>
+              <tr><th scope="row">目前自高點回撤</th><td>{orMissing(port?.current_dd, pctSigned, NO_PORT)}</td></tr>
+              <tr><th scope="row">年化報酬</th><td>{orMissing(port?.ann_return, pctSigned, NO_PORT)}</td></tr>
+              <tr><th scope="row">年化波動</th><td>{orMissing(port?.vol_ann, pctPlain, NO_PORT)}</td></tr>
+              <tr><th scope="row">單筆最大不利波動（中位數／最差 10%／最差 1%）</th><td>{s.trades && [s.trades.mae_p50, s.trades.mae_p90, s.trades.mae_p99].some((v) => v !== null && v !== undefined)
+                ? [s.trades.mae_p50, s.trades.mae_p90, s.trades.mae_p99].map((v) => orMissing(v, pctPlain, '樣本不足')).join('／')
+                : missing(NO_TRADES)}</td></tr>
+              <tr><th scope="row">持有期間遇到跌停鎖死</th><td>{orMissing(s.trades?.lock_rate, (v) => `${pctPlain(v)} 的交易`, NO_TRADES)}</td></tr>
             </tbody>
           </table>
           <p class="caption muted">
             波動目標法＝min(可承受回撤 ÷ 歷史最大回撤, 可承受回撤 × 檔數 ÷ 單筆最差 1% 不利波動)；半凱利＝0.5 ×（年化平均報酬 − 融資利率）÷ 年化波動²；兩者取小、最多 {d.data.leverage.ceiling} 倍。
-            模擬期間 {s.signal_start} 起，大盤以多頭為主。
+            {s.signal_start ? `模擬期間 ${s.signal_start} 起，大盤以多頭為主。` : `模擬期間：${missing('沒有訊號期間')}`}
           </p>
           {s.compare?.['00631L'] ? (
             <>
               <h2 class="section st-h">對照：00631L（2 倍槓桿 ETF）同期</h2>
               <table class="ev-table" aria-label="00631L 同期表現">
                 <tbody>
-                  <tr><th scope="row">年化報酬</th><td>{pctSigned(s.compare['00631L'].ann_return)}</td></tr>
-                  <tr><th scope="row">年化波動</th><td>{pctSigned(s.compare['00631L'].vol_ann)}</td></tr>
-                  <tr><th scope="row">最大回撤</th><td>{pctSigned(s.compare['00631L'].mdd)}</td></tr>
-                  <tr><th scope="row">回撤天數</th><td>{s.compare['00631L'].dd_days?.toLocaleString('zh-TW') ?? '—'}</td></tr>
+                  <tr><th scope="row">年化報酬</th><td>{orMissing(s.compare['00631L'].ann_return, pctSigned, '沒有同期資料')}</td></tr>
+                  <tr><th scope="row">年化波動</th><td>{orMissing(s.compare['00631L'].vol_ann, pctPlain, '沒有同期資料')}</td></tr>
+                  <tr><th scope="row">最大回撤</th><td>{orMissing(s.compare['00631L'].mdd, pctSigned, '沒有同期資料')}</td></tr>
+                  <tr><th scope="row">回撤天數</th><td>{orMissing(s.compare['00631L'].dd_days, (v) => `${fmtCount(v)} 日`, '沒有同期資料')}</td></tr>
                 </tbody>
               </table>
               <p class="caption muted">00631L 是追蹤台灣 50 指數單日 2 倍報酬的 ETF，每日再平衡：盤整時有波動耗損，長期報酬不等於指數的 2 倍。它是槓桿情境可以直接買到的替代品，不需要融資、沒有追繳，但同樣會遇到大盤急跌；個股融資另有跌停鎖死、當天賣不掉的風險。</p>
@@ -142,7 +151,7 @@ export default function Leverage() {
           ) : null}
         </>
       ) : null}
-      {d.data && !enabled.length ? <p class="caption">目前沒有通過驗證的策略。</p> : null}
+      {d.data && !enabled.length ? <p class="caption">目前沒有上架（有效／觀察中）的策略。</p> : null}
     </div>
   );
 }

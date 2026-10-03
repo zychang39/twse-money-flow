@@ -70,12 +70,17 @@ test.describe('v3 實驗室互動', () => {
     const after = await page.evaluate(() => window.scrollY);
     expect(Math.abs(after - before)).toBeLessThanOrEqual(2);
     await expect(bar.getByRole('button', { name: '0050' })).toHaveAttribute('aria-pressed', 'true');
-    const high = page.getByTestId('ev-row-high52').getByTestId('ev-line');
-    await expect(high).toContainText('（0050）');
+    // 2026-10-02 健檢：第一行固定是判定依據（等權），第二行才隨基準切換
+    const judge = page.getByTestId('ev-row-high52').getByTestId('ev-line');
+    await expect(judge).toContainText('判定依據（等權');
+    const high = page.getByTestId('ev-row-high52').getByTestId('ev-bench-line');
+    await expect(high).toContainText('相對0050');
+    await expect(high).toContainText('超額勝率');
     await bar.getByRole('button', { name: '加權報酬' }).click();
     await page.waitForTimeout(150);
     expect(Math.abs((await page.evaluate(() => window.scrollY)) - before)).toBeLessThanOrEqual(2);
-    await expect(high).toContainText('（加權報酬）');
+    await expect(high).toContainText('相對加權報酬');
+    await expect(judge).toContainText('判定依據（等權');
   });
 
   test('累積超額曲線：拖曳讀值、峰值日與 alpha 耗盡日有文字標示', async ({ page }) => {

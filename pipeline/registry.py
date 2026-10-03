@@ -216,6 +216,16 @@ SPECS: dict[str, Spec] = {
             tier="advanced",
         ),
         Spec(
+            "twse_intraday_index",
+            "daily",
+            advanced.parse_twse_intraday_index,
+            "daily",
+            keys=("time",),
+            numeric=("taiex",),
+            min_rows=1000,
+            tier="advanced",
+        ),
+        Spec(
             "twse_insider",
             "snapshot",
             advanced.parse_insider,
@@ -288,7 +298,15 @@ CORE_SNAPSHOT = [
     "twse_cmode",
     "tpex_cmode",
 ]
-ADVANCED_DAILY = ["twse_sbl", "tpex_sbl", "twse_qfii", "tpex_qfii", "twse_daytrade", "tpex_daytrade"]
+ADVANCED_DAILY = [
+    "twse_sbl",
+    "tpex_sbl",
+    "twse_qfii",
+    "tpex_qfii",
+    "twse_daytrade",
+    "tpex_daytrade",
+    "twse_intraday_index",
+]
 ADVANCED_SNAPSHOT = ["twse_short_halt", "tpex_short_halt", "twse_insider", "tpex_insider"]
 BACKFILL_DEFAULT = [
     "twse_quotes",

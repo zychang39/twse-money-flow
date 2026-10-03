@@ -50,3 +50,17 @@ def test_build_lists_from_summary_columns():
 
 def test_default_config_loads():
     assert hot_momentum([])["rule"]["value_rank_top"] > 0
+
+
+def test_marks_and_values():
+    """M2：每檔列實際數值；處置／注意、20 日乖離 > 20%、漲停、流動性不足只標記不剔除。"""
+    row = r("2330", 8000, 90, [{"id": "attention", "label": "注意股", "level": "warn"}])
+    row.update({"ma20_gap": 23.4, "change_pct": 9.8})
+    low = r("2317", 50, 85)
+    low.update({"ma20_gap": 3.0, "change_pct": 1.0})
+    out = hot_momentum([row, low], CFG)
+    a, b = out["items"]
+    assert a["marks"] == ["注意股", "20 日乖離 +23.4%", "漲停"]
+    assert a["value_million"] == 8000 and a["ma20_gap"] == 23.4 and a["change_pct"] == 9.8
+    assert b["marks"] == ["流動性不足"]
+    assert out["rule"]["mark_bias_above"] == 20

@@ -16,7 +16,7 @@ import { byReason, closedStats, countBy, lossIfAllStopped, tradePnl } from '../l
 import { adjustTrade, eventsFor, unrealizedPnl, type AdjEvent } from '../lib/corpActions';
 import { alignTo, correlation, equityCurve, maxDrawdown, monthlyReturns, normalize, type DividendEvent } from '../lib/portfolio';
 import { adjClose } from '../lib/history';
-import { fmtMoney, fmtPct } from '../lib/format';
+import { fmtMoney, fmtNum, missing, orMissing, pctSigned, ratioPct, ratioText } from '../lib/format';
 
 function Portfolio({ trades, capital, byCode }: { trades: Trade[]; capital: number; byCode: Map<string, StockRow> }) {
   const codes = [...new Set(trades.map((t) => t.code))];
@@ -59,16 +59,16 @@ function Portfolio({ trades, capital, byCode }: { trades: Trade[]; capital: numb
     <>
       <div class="card">
         <div class="grid two caption">
-          <div>總報酬 <b><Signed value={total * 100} format={(v) => fmtPct(v)} /></b></div>
-          <div>最大回撤 <b>{fmtPct(-mdd * 100)}</b></div>
+          <div>總報酬 <b><Signed value={total * 100} format={pctSigned} /></b></div>
+          <div>最大回撤 <b>{pctSigned(-mdd * 100)}</b></div>
           <div>已實現損益 <Signed value={realized} format={fmtMoney} /></div>
           <div>未實現損益 <Signed value={unrealized} format={fmtMoney} /></div>
-          <div>0050（還原）同期 {etfRet === null ? '—' : fmtPct(etfRet * 100)}</div>
-          <div>加權報酬指數同期 {trRet === null ? '—' : fmtPct(trRet * 100)}</div>
+          <div>0050（還原）同期 {etfRet === null ? missing('沒有 0050 同期價格') : pctSigned(etfRet * 100)}</div>
+          <div>加權報酬指數同期 {trRet === null ? missing('沒有同期指數資料') : pctSigned(trRet * 100)}</div>
         </div>
       </div>
       <div class="card">
-        <LineChart dates={data.cal} ariaLabel={`權益曲線，總報酬 ${fmtPct(total * 100)}，最大回撤 ${fmtPct(-mdd * 100)}`} lines={[
+        <LineChart dates={data.cal} ariaLabel={`權益曲線，總報酬 ${pctSigned(total * 100)}，最大回撤 ${pctSigned(-mdd * 100)}`} lines={[
           { label: '我的權益', tone: 'primary', values: normalize(values) },
           { label: '0050（還原）', tone: 'secondary', dash: '5 4', values: normalize(data.etfAdj) },
           { label: '加權報酬指數', tone: 'secondary', dash: '1 4', values: normalize(data.trAligned) },
@@ -78,7 +78,7 @@ function Portfolio({ trades, capital, byCode }: { trades: Trade[]; capital: numb
       <h3 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>月報酬</h3>
       <div class="scroll-x">
         <table class="table"><thead><tr><th>月份</th><th>報酬</th></tr></thead>
-          <tbody>{months.map((m) => <tr key={m.month}><td>{m.month}</td><td><Signed value={m.ret * 100} format={(v) => fmtPct(v)} /></td></tr>)}</tbody>
+          <tbody>{months.map((m) => <tr key={m.month}><td>{m.month}</td><td><Signed value={m.ret * 100} format={pctSigned} /></td></tr>)}</tbody>
         </table>
       </div>
     </>
@@ -106,7 +106,7 @@ function RiskPanel({ open, byCode }: { open: Trade[]; byCode: Map<string, StockR
       <div class="card">
         {[...byInd.entries()].sort((a, b) => b[1] - a[1]).map(([ind, v]) => (
           <div key={ind} style={{ marginBottom: 'var(--s-2)' }}>
-            <div class="row between caption"><span>{ind}</span><span>{fmtPct((v / (total || 1)) * 100, 1, false)}</span></div>
+            <div class="row between caption"><span>{ind}</span><span>{ratioPct(v / (total || 1))}</span></div>
             <div class="bar"><i style={{ width: `${(v / (total || 1)) * 100}%` }} /></div>
           </div>
         ))}
@@ -123,7 +123,7 @@ function RiskPanel({ open, byCode }: { open: Trade[]; byCode: Map<string, StockR
                   return (
                     <tr key={a.code}><td>{a.name}</td>{hs.map((b) => {
                       const c = a.code === b.code ? 1 : correlation(pa, alignTo(a.d, { dates: b.d, close: adjClose(b) }));
-                      return <td key={b.code} class={c !== null && c > 0.7 && a.code !== b.code ? 'risk w6' : ''}>{c === null ? '—' : c.toFixed(2)}</td>;
+                      return <td key={b.code} class={c !== null && c > 0.7 && a.code !== b.code ? 'risk w6' : ''}>{orMissing(c, ratioText, '重疊日數不足')}</td>;
                     })}</tr>
                   );
                 })}
@@ -154,17 +154,17 @@ export default function Stats() {
       <TopBar back="/discipline" />
       <PageHead eyebrow="我的紀律與結果" title={stats.n ? <>已平倉 {stats.n} 筆{topTag ? <>，<br />最常見的錯誤是「{topTag[0]}」</> : ''}</> : '個人統計'} />
       {!trades.length ? (
-        <EmptyState icon={<IconBars />} title="還沒有交易紀錄" text="建立持倉並平倉後，這裡會出現勝率、期望值與錯誤標籤。" action={<a class="btn primary" href="#/discipline/checklist">開始新增持倉前檢查表</a>} />
+        <EmptyState icon={<IconBars />} title="還沒有交易紀錄" text="建立持倉並平倉後，這裡會出現絕對勝率（報酬 > 0 的比例）、期望值與錯誤標籤。" action={<a class="btn primary" href="#/discipline/checklist">開始新增持倉前檢查表</a>} />
       ) : (
         <>
           <div class="card" style={{ marginTop: 'var(--s-5)' }}>
             <div class="grid two caption">
               <div>交易筆數 <b>{stats.n}</b>{stats.n < 20 ? <span class="tag" style={{ marginLeft: 'var(--s-1)' }}>樣本少</span> : null}</div>
-              <div>勝率 <b>{stats.winRate === null ? '—' : fmtPct(stats.winRate * 100, 1, false)}</b></div>
-              <div>平均賺賠比 <b>{stats.payoff === null ? '—' : stats.payoff.toFixed(2)}</b></div>
-              <div>平均持有 <b>{stats.avgHoldDays === null ? '—' : `${stats.avgHoldDays.toFixed(1)} 天`}</b></div>
-              <div>期望值（金額）<b>{stats.evAmount === null ? '—' : fmtMoney(stats.evAmount)}</b></div>
-              <div>期望值（R）<b>{stats.evR === null ? '—' : `${stats.evR.toFixed(2)} R`}</b></div>
+              <div>絕對勝率 <b>{orMissing(stats.winRate, ratioPct, '沒有已平倉交易')}</b></div>
+              <div>平均賺賠比 <b>{orMissing(stats.payoff, ratioText, '需要同時有獲利與虧損的交易')}</b></div>
+              <div>平均持有 <b>{orMissing(stats.avgHoldDays, (v) => `${fmtNum(v, 1)} 天`, '沒有已平倉交易')}</b></div>
+              <div>期望值（金額）<b>{orMissing(stats.evAmount, fmtMoney, '沒有已平倉交易')}</b></div>
+              <div>期望值（R）<b>{orMissing(stats.evR, (v) => `${ratioText(v)} R`, '沒有設定停損的交易')}</b></div>
             </div>
           </div>
           <h3 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>錯誤標籤頻率</h3>
@@ -176,9 +176,9 @@ export default function Stats() {
           <h3 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>各理由類型績效</h3>
           <div class="scroll-x">
             <table class="table">
-              <thead><tr><th>理由</th><th>筆數</th><th>勝率</th><th>期望值</th></tr></thead>
+              <thead><tr><th>理由</th><th>筆數</th><th>絕對勝率</th><th>期望值</th></tr></thead>
               <tbody>{byReason(trades).map(({ reason, stats: s }) => (
-                <tr key={reason}><td>{reason}</td><td>{s.n}</td><td>{s.winRate === null ? '—' : fmtPct(s.winRate * 100, 0, false)}</td><td>{s.evAmount === null ? '—' : fmtMoney(s.evAmount)}</td></tr>
+                <tr key={reason}><td>{reason}</td><td>{s.n}</td><td>{orMissing(s.winRate, ratioPct, '沒有已平倉交易')}</td><td>{orMissing(s.evAmount, fmtMoney, '沒有已平倉交易')}</td></tr>
               ))}</tbody>
             </table>
           </div>

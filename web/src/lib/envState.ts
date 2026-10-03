@@ -37,6 +37,24 @@ export function envInfo(lights: Light[] | undefined | null, cfg = uiConfig.env_s
   return { state, label: ENV_LABEL[state], red, green, yellow, gray, counts: parts.join('・') };
 }
 
+/**
+ * 判定是怎麼來的（2026-10-02 健檢 M1-7）：「3 項風險 → 保守（任一項風險即保守）」。
+ * 指數創高、法人買超時仍可能是「保守」，所以要把規則寫在旁邊，不只給結論。
+ */
+export function envVerdict(env: Pick<EnvInfo, 'state' | 'label' | 'red' | 'green' | 'yellow'>, cfg = uiConfig.env_state): string {
+  const red = env.red.length, green = env.green.length;
+  switch (env.state) {
+    case 'conservative':
+      return `${red} 項風險 → ${env.label}（${cfg.conservative_min_red <= 1 ? '任一項風險即保守' : `風險 ≥ ${cfg.conservative_min_red} 項即保守`}）`;
+    case 'aggressive':
+      return `沒有風險、${green} 項有利 → ${env.label}（沒有風險且有利 ≥ ${cfg.aggressive_min_green} 項）`;
+    case 'neutral':
+      return `沒有風險、${green} 項有利 → ${env.label}（有利不足 ${cfg.aggressive_min_green} 項）`;
+    default:
+      return `${env.label}（指標都還沒有資料）`;
+  }
+}
+
 /** 今晚頁的環境光：只代表資金環境燈號。有風險＝琥珀；其餘＝中性灰藍。 */
 export function tonightMood(state: EnvState): 'risk' | 'neutral' {
   return state === 'conservative' ? 'risk' : 'neutral';

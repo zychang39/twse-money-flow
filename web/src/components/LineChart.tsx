@@ -1,6 +1,8 @@
 /** 輕量 SVG 折線圖（分析用、次要層級）：灰階＋虛線區分多條線，不使用額外顏色；只有起訖日期與上下限標示。
+ * 日期軸：起點 YYYY/M/D（月資料 YYYY/M）、終點 M/D（跨年時也帶年份）靠右對齊（text-anchor="end"），不會超出圖右緣。
  * 前後都缺值的孤立點（含只有 1 點）畫成單點標記。 */
 import { segments } from '../lib/series';
+import { axisDate } from './Viz';
 
 export interface Line { label: string; values: (number | null)[]; tone?: 'primary' | 'secondary' | 'tertiary'; dash?: string }
 
@@ -15,6 +17,8 @@ export function LineChart({ dates, lines, height = 180, ariaLabel, format = (v: 
   const lo = Math.min(...all), hi = Math.max(...all);
   const sx = (i: number) => padL + (dates.length === 1 ? 0.5 : i / (dates.length - 1)) * (W - padL - padR);
   const sy = (v: number) => padT + (1 - (v - lo) / (hi - lo || 1)) * (H - padT - padB);
+  const first = dates[0], last = dates[dates.length - 1];
+  const crossYear = first.slice(0, 4) !== last.slice(0, 4);
   return (
     <figure style={{ margin: 0 }}>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={ariaLabel}>
@@ -30,8 +34,8 @@ export function LineChart({ dates, lines, height = 180, ariaLabel, format = (v: 
             </g>
           );
         })}
-        <text x={padL} y={H - 6} font-size="11" fill="var(--text-2)">{dates[0]}</text>
-        {dates.length > 1 ? <text x={W - padR - 56} y={H - 6} font-size="11" fill="var(--text-2)">{dates[dates.length - 1]}</text> : null}
+        <text x={padL} y={H - 6} font-size="11" fill="var(--text-2)">{axisDate(first, true)}</text>
+        {dates.length > 1 ? <text x={W - padR} y={H - 6} font-size="11" text-anchor="end" fill="var(--text-2)">{axisDate(last, crossYear)}</text> : null}
       </svg>
       <figcaption class="row wrap caption" style={{ gap: 'var(--s-3)' }}>
         {lines.map((l) => (

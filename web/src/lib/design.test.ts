@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import type { StockRow } from '../data/types';
 import type { Activity, Trade } from '../db/db';
 import { envInfo, tonightMood, type Light } from './envState';
@@ -159,5 +160,116 @@ describe('持股組合走勢與結論句', () => {
       expect(clauses.length).toBeLessThanOrEqual(2);
       for (const c of clauses) expect(width(c)).toBeLessThanOrEqual(12.5);
     }
+  });
+});
+
+/** 2026-10-02 手機版面健檢：共用樣式的規則（詳細的像素驗收在 e2e/layout.spec.ts；這裡守住 CSS 不被改回去）。 */
+describe('共用版面樣式（styles/*.css）', () => {
+  const css = (name: string) => readFileSync(new URL(`../styles/${name}`, import.meta.url), 'utf8');
+  const tokens = css('tokens.css'), global = css('global.css'), evidence = css('evidence.css'), tools = css('tools.css');
+  /** 取出某個選擇器的宣告（第一個完全相符的規則） */
+  const rule = (sheet: string, selector: string) => {
+    const i = sheet.indexOf(`${selector} {`);
+    expect(i, `找不到規則 ${selector}`).toBeGreaterThanOrEqual(0);
+    return sheet.slice(i, sheet.indexOf('}', i));
+  };
+  it('內容底部留白＝導覽列＋safe-area＋16px；頁尾上方 32px（不用會歸零邊距的 margin-top: auto）', () => {
+    // 內容底部留白＝導覽列高度（e2e ux-fixes 規則 1 的既定規則）；頁尾自己的下邊距提供呼吸空間
+    expect(tokens).toMatch(/--dock-clear:\s*var\(--dock-h\)/);
+    expect(rule(global, '.app')).toMatch(/padding:[^;]*var\(--dock-clear\)/);
+    expect(rule(global, '.app > .footer')).toContain('margin-top: var(--s-8)');
+    expect(rule(global, '.app > .footer')).not.toContain('auto');
+    expect(global).toMatch(/\n\.footer \{[^}]*margin: var\(--s-8\) var\(--gutter\) var\(--s-4\)/);
+  });
+  it('表頭預設不固定，只有 .ev-sticky／.cd-long 的長表才 sticky，且實心底色、top 用 --bench-h 而不是魔術數字', () => {
+    expect(rule(evidence, '.ev-table thead th')).toContain('position: static');
+    expect(rule(evidence, '.ev-table thead th')).toContain('background: var(--surface-1)');
+    expect(rule(evidence, '.ev-table.ev-sticky thead th')).toContain('position: sticky');
+    expect(rule(evidence, '.has-bench .ev-table.ev-sticky thead th')).toContain('var(--bench-h)');
+    expect(evidence).not.toMatch(/\.has-bench \.ev-table thead th \{[^}]*var\(--tap\) \+ var\(--s-4\)/);
+    expect(global).toContain('.cd-table thead th { position: static; background: var(--surface-1); }');
+    expect(global).not.toMatch(/\n\.cd-table thead th \{[^}]*position: sticky/);
+    expect(rule(global, '.cd-table.cd-long thead th')).toContain('position: sticky');
+    expect(tokens).toMatch(/--bench-h:\s*calc\(var\(--tap\)/);
+  });
+  it('基準分段控制列不透明（--bg）、高度＝--bench-h；有控制列的頁面標題帶 scroll-margin-top', () => {
+    const bar = rule(evidence, '.bench-bar');
+    expect(bar).toContain('background: var(--bg)');
+    expect(bar).toContain('height: var(--bench-h)');
+    expect(bar).toContain('var(--line)');
+    expect(evidence).toMatch(/\.has-bench \.st-h, \.has-bench \.ev-h, \.has-bench \.section[^{]*\{ scroll-margin-top: calc\(var\(--safe-top\) \+ var\(--bench-h\)/);
+    // 清單容器用 clip：hidden 會讓 sticky 黏不住
+    expect(evidence).toContain('.ev-list { overflow: clip; }');
+  });
+  it('狀態標籤列：.tags／.ev-tags／.st-tags 同一條規則，橫排靠左可換行、間距 8', () => {
+    const r = rule(evidence, '.tags, .ev-tags, .st-tags');
+    expect(r).toContain('display: flex');
+    expect(r).toContain('flex-wrap: wrap');
+    expect(r).toContain('justify-content: flex-start');
+    expect(r).toContain('gap: var(--s-2)');
+    expect(evidence).not.toMatch(/\.(ev|st)-tags \{[^}]*flex-direction: column/);
+  });
+  it('表格列標題與 .ev-wrap／.ev-kv 可換行；數字與單位不拆開（keep-all＋overflow-wrap: anywhere）', () => {
+    expect(evidence).toMatch(/\.ev-table tbody th\[scope='row'\], \.ev-table th\.ev-wrap, \.ev-table td\.ev-wrap, \.ev-table \.ev-kv \{[^}]*white-space: normal/);
+    expect(rule(global, '.caption, .ev-sub, .mg-k, .mg-s, .kv-v, td, th')).toContain('word-break: keep-all');
+    expect(rule(global, '.caption, .ev-sub, .mg-k, .mg-s, .kv-v, td, th')).toContain('overflow-wrap: anywhere');
+    expect(rule(global, '.caption, .ev-sub, .mg-k, .mg-s, .kv-v, td, th')).toContain('line-break: strict');
+    expect(rule(evidence, '.ev-sub')).toContain('white-space: normal');
+    // 三段績效表：第一欄 28%、段名一行、數字 14px（≥ 13px 下限）
+    expect(evidence).toContain('.ev-table.ev-seg th:first-child, .ev-table.ev-seg td:first-child { width: 28%; }');
+    expect(rule(evidence, '.ev-table.ev-seg .seg-name')).toContain('white-space: nowrap');
+    expect(rule(evidence, '.ev-table.ev-seg td')).toContain('font-size: 0.875rem');
+  });
+  it('四級灰階墨色 --ink-1～4 在淺色、深色（跟隨系統與手動）三個區塊都有定義，環與比例條都用它', () => {
+    expect(tokens.match(/--ink-1:/g)).toHaveLength(3);
+    expect(tokens.match(/--ink-4:/g)).toHaveLength(3);
+    for (const n of [1, 2, 3, 4]) expect(global).toContain(`.ring.ink-${n} .ring-arc, .rings4 > :nth-child(${n}) .ring .ring-arc { stroke: var(--ink-${n}); }`);
+    expect(global).toContain('.rings3 .arc.ink-2 { stroke: var(--ink-2); }');
+    expect(global).toContain('.discipline .legend i.ink-3 { background: var(--ink-3); }');
+    expect(global).not.toMatch(/\.rings3 \.arc \{[^}]*stroke: var\(--text-1\)/);
+    // 籌碼結構比例條：.sb-seg（新名）與 .st-bar > .st-seg（Structure.tsx 改名前）都套四級墨色，不再用透明度
+    for (const [tier, ink] of [['retail', 4], ['mid', 3], ['big', 2], ['whale', 1]] as const) {
+      expect(tools).toContain(`.sb-seg.${tier}, .st-bar > .st-seg.${tier}, .st-item.${tier} .st-swatch { background: var(--ink-${ink}); }`);
+    }
+    expect(tools).not.toContain('color-mix(in srgb, var(--text-1)');
+    // evidence.css 的分段控制 .st-seg 只套在 .segmented 上，不再與比例條撞名
+    expect(evidence).not.toMatch(/^\.st-seg \{/m);
+    expect(evidence).toContain('.segmented.st-seg {');
+  });
+  it('功能卡等高、圖示列固定 24px、狀態最多 2 行；精簡空狀態 .empty.compact 一列排版', () => {
+    const tile = rule(global, '.tile');
+    expect(tile).toContain('display: grid');
+    expect(tile).toContain('grid-template-rows: 1.5rem');
+    expect(tile).toContain('min-height: 8rem');
+    expect(rule(global, '.tile-grid')).toContain('gap: var(--s-3)');
+    expect(rule(global, '.tile-status')).toContain('-webkit-line-clamp: 2');
+    const empty = rule(global, '.empty.compact');
+    expect(empty).toContain('display: flex');
+    expect(empty).toContain('text-align: left');
+    expect(rule(global, '.empty.compact .ico')).toContain('width: 1.25rem');
+  });
+  it('日期工程師要的小修：資料日列緊接狀態列、階段前綴主色、走勢圖 SVG 文字 11px；區間提示框不再往上翻（HeroChart 以 inline top 定位）', () => {
+    expect(rule(global, '.asof-line')).toContain('margin-top: 0');
+    expect(rule(global, '.stage-prefix')).toContain('color: var(--text-1)');
+    const svgText = rule(global, '.chart-hilo text, .chart-dates text');
+    expect(svgText).toContain('font-size: 11px');
+    expect(svgText).toContain('fill: var(--text-2)');
+    const tip = rule(global, '.range-tip');
+    expect(tip).not.toContain('-100%');
+    expect(tip).not.toMatch(/top: calc\(-1/);
+    // 卡片容器用 clip：hidden 會讓裡面的 sticky 表頭黏不住（與 .ev-list、.cd-wrap 同一個做法）
+    expect(global).toContain('.card.flush { overflow: clip; }');
+  });
+  it('累積超額曲線的無障礙說明：沒有峰值或耗盡日時寫原因，不輸出「第 — 日」', () => {
+    const ac = readFileSync(new URL('../components/AlphaCurve.tsx', import.meta.url), 'utf8');
+    expect(ac).not.toContain("峰值第 ${line.peak ?? '—'} 日");
+    expect(ac).toContain("missing('曲線資料累積中')");
+    expect(ac).toContain('60 日內沒有 alpha 耗盡');
+  });
+  it('柱狀圖有日期軸列（11px 下限）；BenchSwitch 不再用玻璃', () => {
+    expect(rule(global, '.nb-dates')).toContain('font-size: var(--fs-micro)');
+    expect(rule(global, '.netbars-plot')).toContain('display: grid');
+    const bench = readFileSync(new URL('../components/BenchSwitch.tsx', import.meta.url), 'utf8');
+    expect(bench).not.toContain('bench-bar glass');
   });
 });

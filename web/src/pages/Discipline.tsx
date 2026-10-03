@@ -8,11 +8,12 @@ import { Loading } from '../components/DataStatus';
 import { RitualPanel } from '../components/Ritual';
 import { IconBars, IconClipboard, IconMedal, IconNotebook, IconPaper, IconPulse } from '../components/Icons';
 import { useAsync } from '../hooks';
-import { loadIndex, loadSummary } from '../data/api';
+import { loadIndex, loadMeta, loadSummary } from '../data/api';
 import { useUser } from '../data/useUser';
-import { badgeMetrics, badges, hasReview, levelFor, ritualRings, streaks, totalXp } from '../lib/ritual';
+import { badgeMetrics, badges, hasReview, levelFor, ritualAnswer, ritualRings, streaks, totalXp } from '../lib/ritual';
 import { todayTpe } from '../lib/dates';
 import { glueNumbers } from '../lib/format';
+import { makeCalendar } from '../lib/tradingCalendar';
 
 /** U-06：數字與單位不斷開（不換行空白），只在「・」後換行（零寬空格）；搭配 CSS word-break: keep-all */
 const tileText = (s: string) => glueNumbers(s).replace(/・/g, '・\u200b');
@@ -30,9 +31,15 @@ export default function Discipline() {
   const user = useUser();
   const summary = useAsync(loadSummary, []);
   const index = useAsync(loadIndex, []);
+  const meta = useAsync(loadMeta, []);
   const day = summary.data?.date ?? null;
   if (!user || !day) return <div class="page"><TopBar caption="紀律" /><PageHead eyebrow="我該記錄或檢討什麼？" title="紀律" /><Loading /></div>;
-  const r = ritualRings(day, user.activity, user.trades, todayTpe());
+  const today = todayTpe();
+  const r = ritualRings(day, user.activity, user.trades, today);
+  // M1-2：休市日不寫「還差」，改寫上一交易日（交易日曆）的完成數；沒有日曆資料時視為交易日
+  const calendar = meta.data ? makeCalendar(meta.data.calendar) : null;
+  const isTradingToday = calendar ? calendar.isTradingDay(today) : true;
+  const lastTradingDate = calendar && !isTradingToday ? calendar.previous(today) : day;
   const st = streaks(index.data?.dates ?? [], user.activity);
   const xp = totalXp(user.activity);
   const lv = levelFor(xp);
@@ -44,7 +51,7 @@ export default function Discipline() {
   return (
     <div class="page">
       <TopBar caption="紀律" />
-      <PageHead twoLine eyebrow="我該記錄或檢討什麼？" title={r.complete ? '今晚的紀律已完成。' : <>今晚還差 {missing.length} 項：<br />{missing.map((x) => x.label).join('、')}</>} />
+      <PageHead twoLine eyebrow="我該記錄或檢討什麼？" title={!isTradingToday ? `${ritualAnswer(r, false, lastTradingDate)}。` : r.complete ? '今晚的紀律已完成。' : <>今晚還差 {missing.length} 項：<br />{missing.map((x) => x.label).join('、')}</>} />
       <div style={{ marginTop: 'var(--s-6)' }}>
         <RitualPanel rings={r.rings} complete={r.complete} gamification={user.gamification} />
       </div>

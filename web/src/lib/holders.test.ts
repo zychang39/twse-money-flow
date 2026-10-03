@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   LEVEL_LABEL,
   alignClose,
+  bigInclusiveLabel,
   bigMinLevel,
   changeText,
   clampThresholds,
@@ -110,7 +111,9 @@ describe('v3 全站統一分級（散戶 ≤ 5｜中實戶｜大戶 ≥ 400｜�
     expect(tierRange('mid')).toBe('5–400 張');
     expect(tierRange('big')).toBe('400–1,000 張');
     expect(tierRange('whale')).toBe('≥ 1,000 張');
-    expect(tierDefinition()).toBe('散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 ≥ 400 張（含千張大戶）｜千張大戶 ≥ 1,000 張');
+    // 2026-10-02 健檢：定義句與比例條的段名、範圍完全相同（互斥），不再寫「大戶 ≥ 400 張（含千張大戶）」
+    expect(tierDefinition()).toBe('散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 400–1,000 張｜千張大戶 ≥ 1,000 張');
+    expect(bigInclusiveLabel(400)).toBe('≥ 400 張，含千張大戶');
   });
 
   it('M3：顯示層大戶門檻 400／800／1,000 張三選一（回測固定 1,000）', () => {
@@ -119,7 +122,8 @@ describe('v3 全站統一分級（散戶 ≤ 5｜中實戶｜大戶 ≥ 400｜�
     expect(tierName('whale', 800)).toBe('800 張大戶');
     expect(tierName('whale', 1000)).toBe('千張大戶');
     expect(tierRange('big', 800)).toBe('400–800 張');
-    expect(tierDefinition(800)).toBe('散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 ≥ 400 張（含800 張大戶）｜800 張大戶 ≥ 800 張');
+    expect(tierDefinition(800)).toBe('散戶 ≤ 5 張｜中實戶 5–400 張｜大戶 400–800 張｜800 張大戶 ≥ 800 張');
+    expect(bigInclusiveLabel(400, 800)).toBe('≥ 400 張，含800 張大戶');
     expect(tierOf(12, 400)).toBe('whale');
     expect(tierOrder(400)).toEqual(['retail', 'mid', 'whale']);
     expect(tierDefinition(400)).toBe('散戶 ≤ 5 張｜中實戶 5–400 張｜400 張大戶 ≥ 400 張');

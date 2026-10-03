@@ -161,7 +161,10 @@ def build_metrics(p: Panels, revenue: pd.DataFrame, extra: dict[str, pd.DataFram
     mb = p.margin_balance
     P["margin_change_5d"] = (mb / mb.shift(5) - 1) * 100
     P["price_change_5d"] = (adj / adj.shift(5) - 1) * 100
-    P["margin_usage"] = (mb / p.margin_limit * 100).where(p.margin_limit > 0)
+    # 2026-10-02 健檢 M2：信用資料比行情晚一天公布（21:30），最新行情日的融資限額是 NaN，原本整欄使用率都變成 null、
+    # 畫面寫成「官方未提供融資限額」。改用最近 5 個交易日內最後一筆有值的餘額與限額（兩者同一天），限額為 0 才是非融資標的
+    mb_f, lim_f = mb.ffill(limit=5), p.margin_limit.ffill(limit=5)
+    P["margin_usage"] = (mb_f / lim_f * 100).where(lim_f > 0)
     shares = pd.Series({c: p.shares.get(c, np.nan) for c in p.codes})
     P["turnover"] = p.volume.div(shares, axis=1) * 100
     for name in (

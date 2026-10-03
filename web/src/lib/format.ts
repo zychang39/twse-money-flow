@@ -123,3 +123,65 @@ export function daysBetween(a: string, b: string): number {
 export function glueNumbers(s: string): string {
   return s.replace(/(\d[\d,.]*%?) (?=\S)/g, '$1\u00a0');
 }
+
+// ---------- 全站唯一的統計數字格式器（2026-10-02 健檢 M1-3） ----------
+// 規則：百分比 2 位小數、t 值 2 位、比例（0–1）一律轉成百分比；負號 U+2212；缺值一律「—」並由呼叫端附原因（missing）。
+
+/** 百分比（值已是 %）：帶正負號、2 位小數；0 不帶符號。例：+1.68%、−0.51%、0.00%。 */
+export function pctSigned(v: number | null | undefined, digits = 2): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+  const s = Math.abs(v).toFixed(digits);
+  if (Number(s) === 0) return `${s}%`;
+  return `${v > 0 ? '+' : MINUS}${s}%`;
+}
+
+/** 百分比（值已是 %）不帶正負號、2 位小數：勝率、涵蓋率、完整度。例：53.81%。 */
+export function pctPlain(v: number | null | undefined, digits = 2): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+  return `${v.toFixed(digits)}%`;
+}
+
+/** 比例（0–1）→ 百分比文字（2 位）：0.1398 → 13.98%、0.2573 → 25.73%。 */
+export function ratioPct(v: number | null | undefined, digits = 2): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+  return pctPlain(v * 100, digits);
+}
+
+/** t 值：2 位小數、U+2212。 */
+export function tText(v: number | null | undefined): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+  return v < 0 ? `${MINUS}${Math.abs(v).toFixed(2)}` : v.toFixed(2);
+}
+
+/** 倍數、比值（Sharpe、賺賠比、回撤比值）：2 位小數。 */
+export function ratioText(v: number | null | undefined, digits = 2): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+  return v < 0 ? `${MINUS}${Math.abs(v).toFixed(digits)}` : v.toFixed(digits);
+}
+
+/**
+ * 缺值一律「—（原因）」：畫面上任何破折號都要附原因，不輸出「— 起」「—%」這類半句模板。
+ * 例：missing('資料累積中') → 「—（資料累積中）」。
+ */
+export function missing(reason: string): string {
+  return `—（${reason}）`;
+}
+
+/** 有值就格式化，沒有就「—（原因）」。 */
+export function orMissing(v: number | null | undefined, fmt: (x: number) => string, reason: string): string {
+  return v === null || v === undefined || !Number.isFinite(v) ? missing(reason) : fmt(v);
+}
+
+/** 日期 ISO → 「M/D」；沒有日期時回傳 missing(reason)。 */
+export function md(iso: string | null | undefined, reason = '沒有日期'): string {
+  if (!iso) return missing(reason);
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return iso;
+  return `${Number(m[2])}/${Number(m[3])}`;
+}
+
+/** 整數千分位（樣本數、筆數）。 */
+export function fmtCount(v: number | null | undefined): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+  return numberFormat(0).format(Math.round(v));
+}

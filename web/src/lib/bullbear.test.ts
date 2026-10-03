@@ -56,7 +56,10 @@ describe('多空對照', () => {
     expect(side('ma240')).toBe('bear');
     expect(side('align')).toBe('bull');
     expect(side('rsi')).toBe('bear'); // 一路上漲 → 過熱
-    expect(checks.find((x) => x.id === 'margin')?.text).toBe('融資 5 日增加 6.0%，股價下跌 2.0%（融資增加但股價下跌）');
+    // 百分比全站 2 位小數
+    expect(checks.find((x) => x.id === 'margin')?.text).toBe('融資 5 日增加 6.00%，股價下跌 2.00%（融資增加但股價下跌）');
+    expect(checks.find((x) => x.id === 'roe')?.text).toBe('ROE 2.00%');
+    expect(checks.find((x) => x.id === 'gm')?.text).toBe('2026Q2 毛利率 53.50%，較去年同季增加 3.50 個百分點');
   });
 
   it('標題與結論句：只做條件統計，不用買賣字眼', () => {

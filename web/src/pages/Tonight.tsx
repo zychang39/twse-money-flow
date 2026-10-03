@@ -6,25 +6,27 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Ambient, Block, PageHead, TopBar } from '../components/Chrome';
 import { DataStatus, EmptyState, ErrorState, Loading, StageStatus } from '../components/DataStatus';
 import { HeroChart } from '../components/HeroChart';
-import { AiCard, EnvDetail, FlowsRow } from '../components/Market';
+import { AiCard, EnvDetail, EnvList, EnvVerdictLine, FlowsRow, TurnoverRow } from '../components/Market';
 import { RitualPanel } from '../components/Ritual';
 import { Sheet } from '../components/Sheet';
 import { ChangePill } from '../components/Change';
 import { StockMiniRow } from '../components/StockRow';
-import { IconChevron, IconChevronDown, IconClipboard, IconStar } from '../components/Icons';
+import { IconChevron, IconChevronDown, IconStar } from '../components/Icons';
 import { useAsync, useHistories, useRestoredState } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { useUser } from '../data/useUser';
-import { loadAiSummary, loadIndex, loadMarket } from '../data/api';
-import { TAIEX, type StockRow } from '../data/types';
+import { loadAiSummary, loadIndex, loadIntraday, loadMarket, loadMeta } from '../data/api';
+import { TAIEX } from '../data/types';
 import { logActivityOnce } from '../db/db';
 import { envInfo, tonightMood } from '../lib/envState';
 import { tonightConclusion } from '../lib/conclusion';
-import { diffAll, makeSnapshot, sinceLabel, type Snapshot } from '../lib/changes';
+import { makeSnapshot, type Snapshot } from '../lib/changes';
+import { WATCH_SCOPE, snapshotRows, watchAnswer, watchRows as watchRowsOf, watchSummary } from '../lib/watchChanges';
 import { holdingAlerts } from '../lib/holdings';
-import { levelFor, ritualRings, streaks, totalXp } from '../lib/ritual';
-import { TONIGHT_DEFAULT_PERIOD, TONIGHT_PERIODS, sliceWindow, type Period } from '../lib/periods';
+import { levelFor, ritualAnswer, ritualRings, streaks, totalXp } from '../lib/ritual';
+import { TONIGHT_DEFAULT_PERIOD, TONIGHT_PERIODS, intradayWindow, sliceWindow, type Period } from '../lib/periods';
 import { PAGE_SOURCES } from '../lib/health';
+import { makeCalendar } from '../lib/tradingCalendar';
 import { baseline, commit, commitHero, heroSeen } from '../lib/seen';
 import { setListContext } from '../lib/listContext';
 import { todayTpe } from '../lib/dates';
@@ -40,7 +42,9 @@ export default function Tonight() {
   const summary = useScoredSummary();
   const market = useAsync(loadMarket, []);
   const index = useAsync(loadIndex, []);
+  const intraday = useAsync(loadIntraday, []);
   const ai = useAsync(loadAiSummary, []);
+  const meta = useAsync(loadMeta, []);
   const user = useUser();
   // 每晚都從 3M 開始（盤後簡報的脈絡）；期間只影響走勢圖，主角數字下方固定是「今日」漲跌
   const [period, setPeriod] = useState<Period>(TONIGHT_DEFAULT_PERIOD);
@@ -52,7 +56,8 @@ export default function Tonight() {
   const [animate, setAnimate] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { baseline('tonight').then(setSnap); heroSeen('taiex').then(setSeen); }, []);
+  // M1-1：與「我的股票」共用同一個快照範圍（WATCH_SCOPE），兩頁的「自選顯著變化」檔數才會一致
+  useEffect(() => { baseline(WATCH_SCOPE).then(setSnap); heroSeen('taiex').then(setSeen); }, []);
 
   const day = summary.data?.date ?? market.data?.date ?? null;
   const env = envInfo(market.data?.env?.lights);
@@ -63,26 +68,34 @@ export default function Tonight() {
   const alerts = useMemo(() => (byCode ? holdingAlerts(open, byCode, undefined, holdHist) : []), [open, byCode, holdHist]);
   const risky = alerts.filter((a) => a.risk);
   const calm = alerts.filter((a) => !a.risk);
-  const holdCodes = new Set(open.map((t) => t.code));
-  const watchRows = useMemo(() => (byCode && user ? user.watch.map((w) => byCode.get(w.code)).filter((r): r is StockRow => !!r && !holdCodes.has(r.code)) : []), [byCode, user]);
-  const changes = useMemo(() => (snap === undefined ? [] : diffAll(watchRows, snap)), [watchRows, snap]);
-  const sig = changes.filter((c) => c.significant);
-  const quiet = changes.filter((c) => !c.significant);
+  // 自選股（不含同時持有的）與顯著變化：lib/watchChanges 是唯一來源（M1-1）
+  const watchRows = useMemo(() => watchRowsOf(user?.watch ?? [], user?.trades ?? [], byCode), [byCode, user]);
+  const watchSum = useMemo(() => watchSummary(watchRows, snap ?? null), [watchRows, snap]);
+  const changes = snap === undefined ? [] : watchSum.changes;
+  const sig = snap === undefined ? [] : watchSum.significant;
+  const quiet = snap === undefined ? [] : watchSum.quiet;
 
-  const taiex = index.data ? sliceWindow(index.data.dates, index.data.series[TAIEX] ?? [], period) : null;
+  // 1D：盤後取得的每 5 秒指數統計（每分鐘一點）；其餘期間為日資料。盤中檔的日期要和日資料最新一日相同才用（避免畫到前一天）
+  const taiexDaily = index.data ? { dates: index.data.dates, values: index.data.series[TAIEX] ?? [] } : null;
+  const intraOk = intraday.data && index.data && intraday.data.date === index.data.dates[index.data.dates.length - 1] ? intraday.data : null;
+  const taiex = period === '1D' ? intradayWindow(intraOk, taiexDaily) : index.data ? sliceWindow(index.data.dates, index.data.series[TAIEX] ?? [], period) : null;
   const latestTaiex = index.data ? (index.data.series[TAIEX] ?? []).filter((v) => v !== null).pop() ?? null : null;
   const flow = market.data?.flows[market.data.flows.length - 1];
 
   const today = todayTpe();
   const ritual = day && user ? ritualRings(day, user.activity, user.trades, today) : null;
+  // M1-2／M1-4：休市日不寫「還差」；最近交易日依交易日曆
+  const calendar = useMemo(() => (meta.data ? makeCalendar(meta.data.calendar) : null), [meta.data]);
+  const isTradingToday = calendar ? calendar.isTradingDay(today) : true;
+  const lastTradingDate = calendar && !isTradingToday ? calendar.previous(today) : day;
   const tradingDays = index.data?.dates ?? [];
   const st = user ? streaks(tradingDays, user.activity) : undefined;
   const lv = user ? levelFor(totalXp(user.activity)) : undefined;
 
-  // 下次開啟時的比較基準
+  // 下次開啟時的比較基準：全部自選＋持股（兩頁都能找到上次的值）
   useEffect(() => {
     if (!summary.data || !user || snap === undefined) return;
-    commit('tonight', makeSnapshot(watchRows, summary.data.date));
+    commit(WATCH_SCOPE, makeSnapshot(snapshotRows(user.watch, user.trades, summary.data.byCode), summary.data.date));
   }, [summary.data, user, snap]);
   useEffect(() => { if (seen !== undefined) commitHero('taiex', latestTaiex); }, [seen, latestTaiex]);
 
@@ -124,7 +137,7 @@ export default function Tonight() {
             <span class="muted">{env.counts}</span>
           </button>
         </div>
-        <DataStatus date={day} uses={PAGE_SOURCES.tonight} />
+        <DataStatus date={day} uses={PAGE_SOURCES.tonight} asof={['quotes', 'insti', 'credit', 'taifex']} />
         <StageStatus />
       </PageHead>
 
@@ -133,17 +146,22 @@ export default function Tonight() {
         <div class="block-body">
           {index.data ? (
             <HeroChart label="加權指數" win={taiex} period={period} onPeriod={setPeriod} seen={seen ?? null}
-              format={(v) => fmtNum(v, 2)} periodsLabel="加權指數走勢期間" periods={TONIGHT_PERIODS} heroChange="daily" />
+              format={(v) => fmtNum(v, 2)} periodsLabel="加權指數走勢期間" periods={TONIGHT_PERIODS} heroChange="daily"
+              emptyText={period === '1D' ? (intraday.data ? `${md(intraday.data.date)} 的盤中走勢與最新交易日不同，尚未取得當日資料` : '盤中走勢尚未取得（盤後由證交所每 5 秒統計產生）') : '資料累積中'}
+              caption={period === '1D' && taiex ? `盤中每分鐘一點（證交所每 5 秒指數統計，盤後取得）・前一交易日收盤 ${fmtNum(intraOk?.prev_close ?? null, 2)}` : undefined} />
           ) : index.loading ? <Loading hero /> : null}
-          <FlowsRow flow={flow} />
+          <FlowsRow flow={flow} note="期間只影響走勢圖" marketDate={market.data?.date} />
+          <TurnoverRow turnover={market.data?.turnover} />
           {market.data ? (
-            <button class="card row between" onClick={() => setEnvOpen(true)} style={{ marginTop: 'var(--s-4)' }}>
-              <span>
-                <span class="body" style={{ display: 'block' }}>{market.data.env?.lights.length ?? 0} 項資金指標</span>
-                <span class="caption muted">{(market.data.env?.lights ?? []).map((l) => `${l.label.replace(/（.*?）/, '')}${l.state === 'red' ? '（風險）' : ''}`).join('・')}</span>
-              </span>
-              <span class="brand" style={{ width: '1.25rem', display: 'inline-flex' }}><IconChevron /></span>
-            </button>
+            <div class="card" style={{ marginTop: 'var(--s-4)' }} data-testid="env-card">
+              <div class="row between">
+                <span class="body">{market.data.env?.lights.length ?? 0} 項資金指標</span>
+                <button class="btn small" onClick={() => setEnvOpen(true)} aria-haspopup="dialog">市場溫度</button>
+              </div>
+              {/* M1-7：每一項都列名稱／目前值／門檻／判定，並寫出判定規則，不只列指標名稱 */}
+              <EnvVerdictLine lights={market.data.env?.lights} />
+              {market.data.env?.lights.length ? <div style={{ marginTop: 'var(--s-3)' }}><EnvList lights={market.data.env.lights} /></div> : <p class="caption muted">資料源待處理。</p>}
+            </div>
           ) : null}
           {ai.data && ai.data.date === market.data?.date ? <AiCard ai={ai.data} /> : null}
         </div>
@@ -152,8 +170,13 @@ export default function Tonight() {
       <Block question="我的持股有沒有出事？" answer={!user ? '' : !open.length ? '還沒有持倉' : risky.length ? `${risky.length} 檔需要注意` : '沒有需要注意的持股'}>
         <div class="block-body">
           {user && !open.length ? (
-            <EmptyState icon={<IconClipboard />} title="建立第一筆持倉" text="先完成新增持倉前檢查表（市場、趨勢、營收、估值、停損與目標），持股出狀況時這裡會提醒你。"
-              action={<a class="btn primary" href="#/discipline/checklist">開始新增持倉前檢查表</a>} />
+            // M1-10：沒有持倉時只佔一列（主要動作就在列上），不用整塊高的空狀態
+            <div class="list">
+              <a class="list-item brand" href="#/discipline/checklist" data-testid="holdings-empty-row">
+                <span class="grow"><span class="body">開始新增持倉前檢查表</span><span class="caption muted" style={{ display: 'block' }}>還沒有持倉；持股出狀況時這裡會提醒你</span></span>
+                <span class="chev"><IconChevron /></span>
+              </a>
+            </div>
           ) : null}
           {risky.map((a) => (
             <a key={a.trade.id} class="card" href={`#/stock/${a.trade.code}`} onClick={() => setListContext({ name: '持股', codes: alerts.map((x) => x.trade.code) })}>
@@ -176,8 +199,8 @@ export default function Tonight() {
         </div>
       </Block>
 
-      <Block question="自選股出現了什麼新變化？" answer={!user ? '' : !watchRows.length ? '還沒有自選股' : sig.length ? `${sig.length} 檔有顯著變化` : '沒有顯著變化'}>
-        {watchRows.length ? <p class="caption muted">{sinceLabel(snap ?? null)}；門檻見設定。</p> : null}
+      <Block question="自選股出現了什麼新變化？" answer={!user || snap === undefined ? '' : watchAnswer(watchSum, watchRows.length)}>
+        {watchRows.length && snap !== undefined ? <p class="caption muted" data-testid="watch-basis">{watchSum.basis}；門檻見設定。</p> : null}
         <div class="block-body stock-list">
           {user && !user.watch.length ? (
             <EmptyState icon={<IconStar />} title="加入想追蹤的股票" text="可以先加入範例自選，或從依規則產生的「熱門動能」挑幾檔；每晚只列出有顯著變化的。"
@@ -196,7 +219,7 @@ export default function Tonight() {
         <div ref={endRef} aria-hidden="true" style={{ height: '1px' }} />
       </Block>
 
-      <Block question="我該記錄或檢討什麼？" answer={ritual ? (ritual.complete ? '今晚的紀律已完成' : `今晚的紀律：還差 ${ritual.rings.filter((r) => !r.done).length} 項`) : ''}>
+      <Block question="我該記錄或檢討什麼？" answer={ritual ? ritualAnswer(ritual, isTradingToday, lastTradingDate) : ''}>
         <div class="block-body">
           {ritual && user ? (
             <RitualPanel rings={ritual.rings} complete={ritual.complete} animate={animate} gamification={user.gamification}

@@ -3,7 +3,7 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Sheet } from './Sheet';
 import {
-  IconBack, IconDiscipline, IconDoc, IconExplore, IconExport, IconMine, IconPerson, IconPulse, IconSearch, IconSliders, IconTonight,
+  IconBack, IconDiscipline, IconDoc, IconExplore, IconExport, IconLayers, IconMine, IconPerson, IconPulse, IconSearch, IconSliders, IconTonight,
 } from './Icons';
 import { TAB_DEFS, tabIndexOf } from '../lib/tabs';
 import { goBack, navigate } from '../router';
@@ -182,6 +182,7 @@ const MENU = [
   { path: '/me/settings', label: '設定', desc: '投資風格、環境光、遊戲化、分數權重、交易成本、外觀、提醒匯出', icon: IconSliders },
   { path: '/me/backup', label: '備份', desc: '匯出／匯入所有本機資料（單一 JSON）', icon: IconExport },
   { path: '/me/health', label: '資料健康', desc: '各資料源狀態、推估事件與最近執行紀錄', icon: IconPulse },
+  { path: '/me/data', label: '資料狀態', desc: '每個資料集的最新日、應有日、涵蓋率與回補進度', icon: IconLayers },
   { path: '/me/methodology', label: '方法說明', desc: '所有指標與分數的計算方式', icon: IconDoc },
 ];
 
@@ -218,12 +219,12 @@ export function ThemeSwitch() {
   );
 }
 
-/** 右上角頭像：第一列深淺色，其下為設定、備份、資料健康、方法說明。 */
+/** 右上角頭像：第一列深淺色，其下為設定、備份、資料健康、資料狀態、方法說明。 */
 export function AvatarButton() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button class="avatar-btn" aria-label="帳戶選單：深淺色、設定、備份、資料健康、方法說明" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+      <button class="avatar-btn" aria-label="帳戶選單：深淺色、設定、備份、資料健康、資料狀態、方法說明" aria-haspopup="dialog" onClick={() => setOpen(true)}>
         <span><IconPerson /></span>
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title="我的">

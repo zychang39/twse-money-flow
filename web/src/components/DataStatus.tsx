@@ -4,10 +4,11 @@
  */
 import type { ComponentChildren } from 'preact';
 import { useAsync } from '../hooks';
-import { stageItems } from '../lib/stages';
+import { stageLine, stageLineText } from '../lib/stages';
 import { loadMeta } from '../data/api';
 import { dataPhase, makeCalendar } from '../lib/tradingCalendar';
-import { affectedFor } from '../lib/health';
+import { affectedFor, asofSummary } from '../lib/health';
+import type { AsofKey } from '../lib/asof';
 import { IconClock, IconCloudOff, IconMoonRest, IconRisk, IconSeed } from './Icons';
 
 function md(iso: string): string {
@@ -21,8 +22,10 @@ export type { DataPhase } from '../lib/tradingCalendar';
  * 頁首下方的一行資料說明：資料日期、更新時間；休市／過期／異常時以平靜的提示呈現。
  * uses：這一頁實際用到的資料來源 id（見 lib/health 的 PAGE_SOURCES）。只有其中有來源異常、
  * 而且影響最新資料時，才在最後加一段琥珀色小字「N 個資料源異常」（連到資料健康頁）；沒傳 uses 的頁面不顯示。
+ * asof（2026-10-02 健檢 M1-4）：這一頁用到的資料集，第二行小字標各自的資料日「各資料集：三大法人 10/2・融資融券 10/1・…」，
+ * 因為頁首的「資料至」只是收盤行情的日期，法人、信用、集保各有自己的日期。
  */
-export function DataStatus({ date, extra, uses }: { date?: string | null; extra?: ComponentChildren; uses?: string[] }) {
+export function DataStatus({ date, extra, uses, asof }: { date?: string | null; extra?: ComponentChildren; uses?: string[]; asof?: AsofKey[] }) {
   const meta = useAsync(loadMeta, []);
   if (meta.error) return <ErrorState error={meta.error} title="尚無可用資料" />;
   if (!meta.data) return <div class="meta-line" aria-hidden="true">&nbsp;</div>;
@@ -32,18 +35,31 @@ export function DataStatus({ date, extra, uses }: { date?: string | null; extra?
   const genText = gen ? new Date(gen.getTime() + 8 * 3600 * 1000).toISOString().slice(11, 16) : null;
   const { phase, lag } = dataPhase(d, makeCalendar(meta.data.calendar));
   const failed = affectedFor(uses, meta.data.sources_affected ?? meta.data.sources_failed).length;
+  const asofLine = asof ? asofSummary(meta.data.asof, asof) : null;
   return (
     <>
       <p class="meta-line">
         {phase === 'holiday' ? <span class="meta-phase" title="休市日不會中斷你的連續天數"><IconMoonRest />今天休市・</span> : null}
         {phase === 'pending' ? <span class="meta-phase" title="分段更新：14:15 收盤行情、15:30 法人、21:30 信用"><IconClock />今天的資料尚未更新・</span> : null}
         {meta.data.demo ? <span class="meta-demo w6">示範資料（合成數據）・</span> : null}
-        資料至 {md(d)} 收盤{genText ? `・${genText} 更新` : ''}{extra ? <>・{extra}</> : null}
+        <a href="#/me/data" class="meta-link" title="資料狀態：每個資料集的來源、最新日、應有日、涵蓋率、回補進度">資料至 {md(d)} 收盤</a>{genText ? `・${genText} 更新` : ''}{extra ? <>・{extra}</> : null}
         {failed ? <>・<a class="meta-alert" href="#/me/health">{failed} 個資料源異常</a></> : null}
       </p>
+      {asofLine ? <p class="meta-line asof-line" data-testid="asof-line" style={{ marginTop: 0 }}>各資料集：{asofLine}</p> : null}
       {phase === 'stale' ? <Banner kind="risk" icon={<IconRisk />} title="資料可能過期">最新資料停在 {md(d)}，落後 {lag} 個交易日。可到「資料健康」查看原因。</Banner> : null}
     </>
   );
+}
+
+/**
+ * 各資料集的資料日（獨立一行，給沒有 DataStatus 的頁面或區塊）：「各資料集：三大法人 10/2・融資融券 10/1」。
+ * meta.json 還沒有 asof（舊版）時不顯示。
+ */
+export function AsOf({ keys, prefix = '各資料集：' }: { keys: AsofKey[]; prefix?: string }) {
+  const meta = useAsync(loadMeta, []);
+  const line = meta.data ? asofSummary(meta.data.asof, keys) : null;
+  if (!line) return null;
+  return <p class="meta-line asof-line" data-testid="asof-line">{prefix}{line}</p>;
 }
 
 export function Banner({ kind = 'info', icon, title, children, action }: { kind?: 'info' | 'risk'; icon?: ComponentChildren; title: ComponentChildren; children?: ComponentChildren; action?: ComponentChildren }) {
@@ -111,15 +127,21 @@ export function Accumulating({ what, since, detail }: { what: string; since?: st
   );
 }
 
-/** M3.4：今晚頁狀態列顯示分段更新（收盤行情、法人、信用）各段的狀態。 */
+/**
+ * M3.4：今晚頁狀態列顯示分段更新（收盤行情、法人、信用）各段的狀態。
+ * M1-2：依交易日曆——休市日寫「休市・最近交易日 10/2：收盤行情 完成・法人 完成・信用 未更新」；
+ * 交易日 14:15 之前寫「今天尚未開始更新（約 14:15 起）」。
+ */
 export function StageStatus() {
   const meta = useAsync(loadMeta, []);
   if (!meta.data?.schedule) return null;
-  const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
-  const items = stageItems(meta.data, today);
+  const tpe = new Date(Date.now() + 8 * 3600 * 1000).toISOString();
+  const line = stageLine(meta.data, tpe.slice(0, 10), makeCalendar(meta.data.calendar), tpe.slice(11, 16));
   return (
-    <p class="meta-line stage-line" data-testid="stage-status" aria-label="今日分段更新">
-      {items.map((s, i) => (
+    <p class="meta-line stage-line" data-testid="stage-status" data-kind={line.kind} aria-label={`分段更新：${stageLineText(line)}`}>
+      {line.message ? <span class="stage waiting">{line.message}</span> : null}
+      {line.prefix ? <span class="stage-prefix">{line.prefix}</span> : null}
+      {line.items.map((s, i) => (
         <span key={s.id} class={`stage ${s.state}`}>{i ? '・' : ''}{s.label} {s.text}</span>
       ))}
     </p>
