@@ -206,7 +206,7 @@ export function NetBars({ values, dates, label, height = 120, unit = '張', form
       </div>
       <figcaption class="row between wrap caption muted" style={{ marginTop: 'var(--s-1)', gap: '0 var(--s-3)' }}>
         <span>{caption ?? `${n} 個交易日`}</span>
-        <span style={{ whiteSpace: 'nowrap' }}><span class="up" aria-hidden="true">■</span> 紅色＝{words[0]}{' '}<span class="down" aria-hidden="true">■</span> 綠色＝{words[1]}</span>
+        {neutral ? null : <span style={{ whiteSpace: 'nowrap' }}><span class="up" aria-hidden="true">■</span> 紅色＝{words[0]}{' '}<span class="down" aria-hidden="true">■</span> 綠色＝{words[1]}</span>}
       </figcaption>
     </figure>
   );
