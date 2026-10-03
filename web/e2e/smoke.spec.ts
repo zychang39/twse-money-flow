@@ -138,7 +138,7 @@ test('日誌：冷靜卡 → 新增持倉前檢查表 → 新增持倉 → 平�
   await cont.click();
   const save = page.getByTestId('checklist-submit');
   await expect(save).toBeDisabled();
-  await page.getByLabel('1. 市場燈號（見今晚頁）').selectOption('中性');
+  await page.getByLabel('1. 市場燈號（見盤後簡報）').selectOption('中性');
   for (const [label, idx] of [['2. 趨勢', 1], ['3. 營收', 1], ['4. 估值', 1]] as const) {
     const sel = page.getByLabel(label);
     if (!(await sel.inputValue())) await sel.selectOption({ index: idx });

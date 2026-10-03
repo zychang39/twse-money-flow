@@ -9,7 +9,7 @@
 import { useMemo, useState } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
 import { ErrorState, Loading } from '../components/DataStatus';
-import { Card, CardLabel, EmptyRow, List, PageTitle, Row, Section, Seg, Signed, StatGrid, Table, Tag, Warn } from '../components/ui';
+import { Card, CardLabel, EmptyRow, List, Num, PageTitle, Row, Section, Seg, Signed, StatGrid, Table, Tag, Warn } from '../components/ui';
 import { Sheet } from '../components/Sheet';
 import { EquityChart } from '../components/EquityChart';
 import { AlphaCurve } from '../components/AlphaCurve';
@@ -35,6 +35,8 @@ const sigT = (s: StrategyItem) => s.judge?.sig.t ?? s.t_corr ?? -99;
 const byGrade = (a: StrategyItem, b: StrategyItem) => GRADE_ORDER[gradeOf(a)] - GRADE_ORDER[gradeOf(b)] || sigT(b) - sigT(a);
 const pctOr = (v: number | null | undefined) => <Signed v={v ?? null} unit="%" tone="plain" />;
 const nowrap = (t: string) => <span class="ui-num">{t}</span>;
+/** 不帶號的百分比（勝率、涵蓋率）：與 Signed 同一種數字＋單位排法。 */
+const pctN = (v: number | null | undefined) => <Num v={v ?? null} digits={2} unit="%" />;
 
 /** 頁面層級的基準（記在 localStorage tmf-bench；切換時保持捲動位置）。 */
 function useBench(): [BenchKey, (k: BenchKey) => void] {
@@ -100,7 +102,7 @@ function JudgeSection({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
           { label: '(b) 訊號檢定・等權', value: pctOr(j.sig.excess), testid: 'judge-sig' },
           { label: '校正後 t', value: tText(j.opp.t) },
           { label: '校正後 t', value: tText(j.sig.t) },
-          { label: '超額勝率', value: j.opp.win === null || j.opp.win === undefined ? '—' : `${pctPlain(j.opp.win)}` },
+          { label: '超額勝率', value: pctN(j.opp.win) },
           { label: '樣本', value: <>{fmtCount(j.sig.n)}<span class="ui-unit">筆</span></> },
         ]} />
         <CardLabel aside={j.opp.period ? `${md(j.opp.period[0])}（${j.opp.period[0].slice(0, 4)}）起` : undefined}>{j.opp.slots} 檔組合 vs 0050</CardLabel>
@@ -140,7 +142,7 @@ function HealthSection({ s }: { s: StrategyItem }) {
       <List>
         <Row
           testid="st-health"
-          label={<>近 60 日 {pctOr(r.excess)}{nowrap(`(${fmtCount(r.n)} 筆)`)}｜長期 {pctOr(healthLong(h))}</>}
+          label={<>近 60 日 {pctOr(r.excess)} {nowrap(`(${fmtCount(r.n)} 筆)`)}｜長期 {pctOr(healthLong(h))}</>}
           value={risk ? <Tag tone="risk">{h.status}</Tag> : undefined}
         />
       </List>
@@ -180,7 +182,7 @@ function EventSection({ s, bench, setBench }: { s: StrategyItem; bench: BenchKey
             cols={[
               { key: 'h', label: '持有', render: ([k]) => `${k} 日` },
               { key: 'e', label: '超額', align: 'r', render: ([, v]) => pctOr(pick(v).mean_excess) },
-              { key: 'w', label: '超額勝率', align: 'r', render: ([, v]) => (pick(v).win === null || pick(v).win === undefined ? '—' : pctPlain(pick(v).win)) },
+              { key: 'w', label: '超額勝率', align: 'r', render: ([, v]) => pctN(pick(v).win) },
               { key: 'n', label: '樣本', align: 'r', render: ([, v]) => fmtCount(v.n ?? 0) },
             ]}
             rows={hs}
@@ -259,7 +261,7 @@ function PortfolioSection({ s, data }: { s: StrategyItem; data: StrategiesFile }
               { key: 'k', label: '指標', render: (r) => r.k },
               { key: 'r', label: '規則', align: 'r', width: '23%', render: (r) => pctOr(r.spec) },
               { key: 'm', label: '中位數', align: 'r', width: '23%', render: (r) => pctOr(r.q.p50) },
-              { key: 'q', label: '5～95%', align: 'r', width: '32%', render: (r) => nowrap(`${pctRange(r.q.p5)}～${pctRange(r.q.p95)}`) },
+              { key: 'q', label: '5～95%', align: 'r', width: '30%', render: (r) => nowrap(`${pctRange(r.q.p5)}～${pctRange(r.q.p95)}`) },
             ]}
             rows={[
               { k: '年化報酬', spec: sel.spec.cagr, q: rnd.cagr },
@@ -273,10 +275,10 @@ function PortfolioSection({ s, data }: { s: StrategyItem; data: StrategiesFile }
   );
 }
 
-/** 區間端點：一位小數、帶號（U+2212）。 */
+/** 區間端點：整數百分比、帶號（U+2212）；單位在表頭。 */
 function pctRange(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return '—';
-  const a = Math.abs(v).toFixed(1);
+  const a = Math.abs(v).toFixed(0);
   return `${v > 0 ? '+' : v < 0 ? '−' : ''}${a}`;
 }
 
@@ -357,11 +359,11 @@ function SampleSection({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
         <Row label="訊號期間" value={s.signal_start ? `${s.signal_start.slice(0, 7)} 起` : '—'} />
         <Row label="去重樣本" value={<>{fmtCount(s.judge?.sig.n ?? s.n ?? 0)}<span class="ui-unit">筆</span></>} />
         <Row label="持有期間下市" value={<>{fmtCount(smp?.delisted_events ?? 0)}<span class="ui-unit">筆</span></>} />
-        {s.coverage ? <Row label="涵蓋率" value={coverageText(s.coverage)} /> : null}
+        {s.coverage ? <Row label="涵蓋率" sub={`每日平均 ${fmtCount(s.coverage.included)}／${fmtCount(s.coverage.universe)} 檔`} value={pctN(s.coverage.ratio * 100)} /> : null}
         {revenue ? <Row label="月營收生效" sub="遇休市順延，不提前" value="次月 10 日" /> : null}
-        <Row label="交易成本" sub="手續費・證交稅・滑價" value="來回 0.79%" />
+        <Row label="交易成本" sub="手續費・證交稅・滑價，來回" value={<Num v={0.79} digits={2} unit="%" />} />
         {params.length ? <Row label="參數" sub={params.map((p) => `${p.label} ${p.value}`).join('・')} /> : null}
-        {s.hindsight?.status === 'waiting' ? <Row label="原 31 檔 vs 全市場" sub={`涵蓋率 ${pctPlain((s.hindsight.coverage ?? 0) * 100, 0)} 時計算`} value="—" /> : null}
+        {s.hindsight?.status === 'waiting' ? <Row label="原 31 檔 vs 全市場" sub={`涵蓋率達 ${pctPlain((s.hindsight.threshold ?? 0.9) * 100, 0)} 後計算`} value="—" /> : null}
         {gates ? <Row label="上線門檻" value={`${passed}/${total}`} onClick={() => setSwingOpen(true)} testid="st-gates" /> : null}
       </List>
       {s.limited && s.limited_note ? <Warn>{s.limited_note}</Warn> : null}

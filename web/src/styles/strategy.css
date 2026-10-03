@@ -3,7 +3,7 @@
  */
 
 /* 圖表：寬度 100%、左右緣＝卡片內容緣 */
-.st-chart svg, .st-eq svg { display: block; width: 100%; height: auto; }
+.st-chart > svg, .st-eq .chart-wrap > svg { display: block; width: 100%; height: auto; }
 .st-read { margin-top: var(--s-2); }
 .ui-card > .st-chart + .ui-list, .ui-card > .st-eq + .ui-list { margin-top: var(--s-2); }
 

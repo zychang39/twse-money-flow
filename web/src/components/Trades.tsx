@@ -136,7 +136,7 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
         <div style={{ marginTop: 'var(--s-4)' }}><CalmCard facts={facts} onContinue={() => setAck(true)} onCancel={onClose} /></div>
       ) : row ? (
         <>
-          {sel('market', FIELD_LABEL.market, ['偏多', '中性', '偏空'], '（見今晚頁）')}
+          {sel('market', FIELD_LABEL.market, ['偏多', '中性', '偏空'], '（見盤後簡報）')}
           {sel('trend', FIELD_LABEL.trend, ['多頭（年線、季線之上）', '年線之上、短線整理', '年線之下'])}
           {sel('revenue', FIELD_LABEL.revenue, ['高成長（近 3 月年增 ≥ 20%）', '成長', '衰退', '不適用'])}
           {sel('valuation', FIELD_LABEL.valuation, ['偏便宜', '合理', '偏貴', '不適用'])}
