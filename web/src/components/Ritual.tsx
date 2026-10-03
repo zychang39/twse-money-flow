@@ -38,8 +38,8 @@ export function FlowRings({ rings, animate }: { rings: Ring[]; animate?: boolean
           return (
             <g key={r.id} class={`na ring-${n}`}>
               <circle class="track thin" cx={S / 2} cy={S / 2} r={rad} fill="none" />
-              <rect class="na-gap" x={S / 2 - 6} y={S / 2 - rad - 3} width={12} height={6} />
-              <text class="na-dash" x={S / 2} y={S / 2 - rad} text-anchor="middle" dominant-baseline="central">—</text>
+              <rect class="na-gap" x={S / 2 - 8} y={S / 2 - rad - 4} width={16} height={8} />
+              <line class="na-dash" x1={S / 2 - 5} x2={S / 2 + 5} y1={S / 2 - rad} y2={S / 2 - rad} />
             </g>
           );
         }
@@ -68,7 +68,7 @@ export function MiniRings({ rings, animate }: { rings: Ring[]; animate?: boolean
             {r.status === 'na' ? (
               <>
                 <circle class="track thin" cx={12} cy={12} r={10} fill="none" />
-                <text class="na-dash" x={12} y={12} text-anchor="middle" dominant-baseline="central">—</text>
+                <line class="na-dash" x1={8.5} x2={15.5} y1={12} y2={12} />
               </>
             ) : (
               <>

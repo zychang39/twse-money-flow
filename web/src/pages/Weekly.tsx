@@ -1,20 +1,17 @@
 import { useMemo } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
-import { List, Num, PageTitle, Row, Section } from '../components/ui';
+import { Card, List, Num, PageTitle, Row, Section, Signed as USigned, Table, Tag } from '../components/ui';
 import { useFlow, type FlowState } from '../data/useFlow';
 import { weeklyFlow } from '../lib/flowStats';
 import { tpeDate, VIOLATION_TAGS, weekOf } from '../lib/ritual';
 import { logActivity } from '../db/db';
 import { mdw } from '../components/Brief';
 import { DataStatus, Loading } from '../components/DataStatus';
-import { Change, Signed } from '../components/Change';
-import { scoreText } from '../components/Scores';
 import { useAsync, useDb } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { loadJson } from '../data/api';
 import { listTrades, listWatch } from '../db/db';
 import { addDays } from '../lib/dates';
-import { fmtLots, fmtNum, MINUS, orMissing } from '../lib/format';
 import type { CalEvent } from './Calendar';
 import type { StockRow } from '../data/types';
 import { PAGE_SOURCES } from '../lib/health';
@@ -59,41 +56,32 @@ export default function Weekly() {
       {flow ? <WeekFlow flow={flow} day={date ?? ''} /> : null}
       <DataStatus date={date} uses={PAGE_SOURCES.weekly} />
       {summary.loading ? <Loading /> : null}
-      <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>本週分數與籌碼</h2>
-      <div class="scroll-x">
-        <table class="table">
-          <thead><tr><th>股票</th><th>收盤</th><th>綜合分</th><th>週變化</th><th>外資 5 日</th><th>投信 5 日</th></tr></thead>
-          <tbody>
-            {[...rows].sort((a, b) => Math.abs((b.composite_chg_5d as number) ?? 0) - Math.abs((a.composite_chg_5d as number) ?? 0)).map((r) => (
-              <tr key={r.code}>
-                <td><a href={`#/stock/${r.code}`}>{r.name}</a></td>
-                <td><Change change={r.change} showPrice={r.close} /></td>
-                <td>{scoreText(r.composite as number | null)}</td>
-                <td><Signed value={r.composite_chg_5d as number | null} format={(v) => orMissing(v, (x) => `${x > 0 ? '+' : x < 0 ? MINUS : ''}${fmtNum(Math.abs(x), 0)} 分`, '沒有 5 日前的分數')} /></td>
-                <td><Signed value={r.foreign_net_5d} format={fmtLots} /></td>
-                <td><Signed value={r.trust_net_5d} format={fmtLots} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!rows.length ? <div class="empty"><p>尚未加入自選或持股。</p><a class="btn primary" href="#/mine">加入自選股</a></div> : null}
-      </div>
-      <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>本週新出現的風險旗標</h2>
-      <div class="list">
-        {newFlags.length ? newFlags.map(({ r, f }) => (
-          <a key={`${r.code}-${f.id}`} class="list-item" href={`#/stock/${r.code}`}>
-            <span class="tag risk">{f.label}</span>
-            <span class="grow caption">{r.name}</span>
-            <span class="caption muted">{f.detail ?? ''}</span>
-          </a>
-        )) : <div class="list-item caption muted">本週沒有新的風險旗標。</div>}
-      </div>
-      <h2 class="section" style={{ marginTop: 'var(--s-8)' }}>下週事件</h2>
-      <div class="list">
-        {upcoming.length ? upcoming.map((e, i) => (
-          <div key={i} class="list-item"><span class="caption muted">{e.date.slice(5)}</span><span class="badge">{e.type}</span><span class="grow caption">{e.name ?? ''} {e.text}</span></div>
-        )) : <div class="list-item caption muted">無。</div>}
-      </div>
+      <Section title="自選與持股" aside="法人 5 日">
+        {rows.length ? (
+          <Card>
+            <Table cols={[
+              { key: 'n', label: '股票', render: (r) => <a href={`#/stock/${r.code}`}>{r.name}</a> },
+              { key: 'c', label: '漲跌', align: 'r', width: '5.5rem', render: (r) => <USigned v={r.change_pct} kind="arrow" unit="%" /> },
+              { key: 'f', label: '外資（張）', align: 'r', width: '6rem', render: (r) => <USigned v={r.foreign_net_5d} digits={0} /> },
+              { key: 't', label: '投信（張）', align: 'r', width: '6rem', render: (r) => <USigned v={r.trust_net_5d} digits={0} /> },
+            ]} rows={[...rows].sort((a, b) => Math.abs((b.foreign_net_5d ?? 0) + (b.trust_net_5d ?? 0)) - Math.abs((a.foreign_net_5d ?? 0) + (a.trust_net_5d ?? 0)))} rowKey={(r) => r.code} caption="自選與持股的本週籌碼" />
+          </Card>
+        ) : <List chev><Row label="無自選或持股" href="#/mine" /></List>}
+      </Section>
+      <Section title="新風險旗標" aside={newFlags.length ? undefined : '無'}>
+        {newFlags.length ? (
+          <List tags chev>
+            {newFlags.map(({ r, f }) => <Row key={`${r.code}-${f.id}`} label={r.name} sub={f.detail ?? undefined} tag={<Tag tone="risk">{f.label}</Tag>} href={`#/stock/${r.code}`} />)}
+          </List>
+        ) : null}
+      </Section>
+      <Section title="下週事件" aside={upcoming.length ? undefined : '無'}>
+        {upcoming.length ? (
+          <List>
+            {upcoming.map((e, i) => <Row key={i} label={`${e.name ?? ''} ${e.text}`.trim()} sub={e.type} value={mdw(e.date)} />)}
+          </List>
+        ) : null}
+      </Section>
     </div>
   );
 }

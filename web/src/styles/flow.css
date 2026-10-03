@@ -15,16 +15,16 @@
 .flow-mini .track.thin { stroke-width: 1.5; }
 .flow-rings .arc, .flow-mini .arc { stroke: var(--rc); }
 .flow-rings .na-gap { fill: var(--surface-1); }
-.flow-rings .na-dash, .flow-mini .na-dash { fill: var(--text-2); font-size: var(--fs-foot); font-weight: var(--fw-semibold); }
-.flow-mini .na-dash { font-size: 0.625rem; }
+.flow-rings .na-dash, .flow-mini .na-dash { stroke: var(--text-2); stroke-width: 2; stroke-linecap: round; }
 .flow-rings.anim .arc, .flow-mini.anim .arc { animation: flow-ring-fill var(--dur-ring) var(--ease-out) both; }
 @keyframes flow-ring-fill { from { stroke-dasharray: 0 1; } }
 .flow-ring-rows .ui-row-icon { color: var(--rc); }
 .flow-dot-ico { fill: var(--rc); }
 
 /* ---------- 簡報頁流程列：三個 24px 小環＋文字 ---------- */
-.flow-brief-v { display: inline-flex; align-items: center; gap: var(--s-2); }
-.flow-mini { display: inline-flex; gap: var(--s-1); }
+.flow-brief-v { white-space: nowrap; }
+/* 小環以文字 x 高度置中（vertical-align: middle），數值文字仍與名稱同基線 */
+.flow-mini { display: inline-flex; gap: var(--s-1); vertical-align: middle; margin-right: var(--s-2); }
 .flow-mini svg { display: block; width: var(--ring-sm); height: var(--ring-sm); overflow: visible; }
 
 /* ---------- 連續與逐日小點 ---------- */

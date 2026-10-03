@@ -2,12 +2,11 @@
 import { useMemo } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
 import { Loading } from '../components/DataStatus';
-import { Card, List, Num, PageTitle, Row, Section, StatGrid, type Stat } from '../components/ui';
+import { Card, CardLabel, EmptyRow, List, Num, PageTitle, Row, Section, Signed as USigned, StatGrid, Table, type Stat } from '../components/ui';
 import { useFlow, type FlowState } from '../data/useFlow';
 import { compliantSplit, recentViolations, rSummary, type GroupStat } from '../lib/flowStats';
 import { completionRate, VIOLATION_TAGS } from '../lib/ritual';
 import { uiConfig } from '../lib/config';
-import { Signed } from '../components/Change';
 import { LineChart } from '../components/LineChart';
 import { useAsync, useDb } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
@@ -20,7 +19,7 @@ import { byReason, countBy, lossIfAllStopped, tradePnl } from '../lib/sizing';
 import { adjustTrade, eventsFor, unrealizedPnl, type AdjEvent } from '../lib/corpActions';
 import { alignTo, correlation, equityCurve, maxDrawdown, monthlyReturns, normalize, type DividendEvent } from '../lib/portfolio';
 import { adjClose } from '../lib/history';
-import { fmtMoney, missing, orMissing, pctSigned, ratioPct, ratioText } from '../lib/format';
+import { orMissing, pctSigned, ratioText } from '../lib/format';
 
 function Portfolio({ trades, capital, byCode }: { trades: Trade[]; capital: number; byCode: Map<string, StockRow> }) {
   const codes = [...new Set(trades.map((t) => t.code))];
@@ -47,7 +46,7 @@ function Portfolio({ trades, capital, byCode }: { trades: Trade[]; capital: numb
     const etfAdj = etf.data ? alignTo(cal, { dates: etf.data.d, close: adjClose(etf.data) }) : cal.map(() => null);
     return { cal, eq, trAligned, etfAdj };
   }, [hist.data, idx.data, etf.data, trades, capital]);
-  if (!data) return <div class="card caption muted">資料載入中或資料不足（需要已部署的歷史價格）。</div>;
+  if (!data) return <List><EmptyRow>資料載入中或歷史價格不足</EmptyRow></List>;
   const values = data.eq.map((p) => p.equity);
   const mdd = maxDrawdown(values);
   const months = monthlyReturns(data.eq);
@@ -61,30 +60,29 @@ function Portfolio({ trades, capital, byCode }: { trades: Trade[]; capital: numb
   const etfRet = etfFirst && data.etfAdj[data.etfAdj.length - 1] ? (data.etfAdj[data.etfAdj.length - 1] as number) / etfFirst - 1 : null;
   return (
     <>
-      <div class="card">
-        <div class="grid two caption">
-          <div>總報酬 <b><Signed value={total * 100} format={pctSigned} /></b></div>
-          <div>最大回撤 <b>{pctSigned(-mdd * 100)}</b></div>
-          <div>已實現損益 <Signed value={realized} format={fmtMoney} /></div>
-          <div>未實現損益 <Signed value={unrealized} format={fmtMoney} /></div>
-          <div>0050（還原）同期 {etfRet === null ? missing('沒有 0050 同期價格') : pctSigned(etfRet * 100)}</div>
-          <div>加權報酬指數同期 {trRet === null ? missing('沒有同期指數資料') : pctSigned(trRet * 100)}</div>
-        </div>
-      </div>
-      <div class="card">
+      <Card>
+        <StatGrid items={[
+          { label: '總報酬', value: <USigned v={total * 100} unit="%" /> },
+          { label: '最大回撤', value: <Num v={-mdd * 100} digits={2} unit="%" /> },
+          { label: '已實現損益', value: <USigned v={realized} digits={0} unit="元" /> },
+          { label: '未實現損益', value: <USigned v={unrealized} digits={0} unit="元" /> },
+          { label: '0050（還原）同期', value: <USigned v={etfRet === null ? null : etfRet * 100} unit="%" tone="plain" /> },
+          { label: '加權報酬指數同期', value: <USigned v={trRet === null ? null : trRet * 100} unit="%" tone="plain" /> },
+        ]} />
+      </Card>
+      <Card>
         <LineChart dates={data.cal} ariaLabel={`權益曲線，總報酬 ${pctSigned(total * 100)}，最大回撤 ${pctSigned(-mdd * 100)}`} lines={[
           { label: '我的權益', tone: 'primary', values: normalize(values) },
           { label: '0050（還原）', tone: 'secondary', dash: '5 4', values: normalize(data.etfAdj) },
           { label: '加權報酬指數', tone: 'secondary', dash: '1 4', values: normalize(data.trAligned) },
         ]} />
-        <p class="caption muted">以期初資金為 100 標準化；權益曲線自動計入除息現金股利與除權配股。</p>
-      </div>
-      <h3 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>月報酬</h3>
-      <div class="scroll-x">
-        <table class="table"><thead><tr><th>月份</th><th>報酬</th></tr></thead>
-          <tbody>{months.map((m) => <tr key={m.month}><td>{m.month}</td><td><Signed value={m.ret * 100} format={pctSigned} /></td></tr>)}</tbody>
-        </table>
-      </div>
+      </Card>
+      <Card>
+        <Table cols={[
+          { key: 'm', label: '月份', render: (m) => m.month },
+          { key: 'r', label: '報酬', align: 'r', render: (m) => <USigned v={m.ret * 100} unit="%" /> },
+        ]} rows={months} rowKey={(m) => m.month} caption="月報酬" />
+      </Card>
     </>
   );
 }
@@ -105,36 +103,36 @@ function RiskPanel({ open, byCode }: { open: Trade[]; byCode: Map<string, StockR
   const hs = (hist.data ?? []).filter((h): h is StockHistory => !!h);
   return (
     <>
-      <div class="card caption">持倉市值 {fmtMoney(total)}・全部觸及停損的總虧損 <b class="risk">{fmtMoney(loss)}</b></div>
-      <h3 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>產業集中度</h3>
-      <div class="card">
-        {[...byInd.entries()].sort((a, b) => b[1] - a[1]).map(([ind, v]) => (
-          <div key={ind} style={{ marginBottom: 'var(--s-2)' }}>
-            <div class="row between caption"><span>{ind}</span><span>{ratioPct(v / (total || 1))}</span></div>
-            <div class="bar"><i style={{ width: `${(v / (total || 1)) * 100}%` }} /></div>
-          </div>
-        ))}
-      </div>
+      <List>
+        <Row label="持倉市值" value={<Num v={total} unit="元" />} />
+        <Row label="全部觸及停損的虧損" value={<span class="ui-risk"><Num v={loss} unit="元" /></span>} />
+      </List>
+      <Card>
+        <CardLabel>產業集中度</CardLabel>
+        <List>
+          {[...byInd.entries()].sort((a, b) => b[1] - a[1]).map(([ind, v]) => <Row key={ind} label={ind} value={<Num v={(v / (total || 1)) * 100} digits={1} unit="%" />} />)}
+        </List>
+      </Card>
       {hs.length >= 2 ? (
         <>
-          <h3 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>持股相關性（近 60 日）</h3>
-          <div class="scroll-x">
-            <table class="table">
-              <thead><tr><th></th>{hs.map((h) => <th key={h.code}>{h.name}</th>)}</tr></thead>
+          <Card>
+            <CardLabel>持股相關性（近 60 日）</CardLabel>
+            <table class="ui-table">
+              <thead><tr><th class="l"></th>{hs.map((h) => <th key={h.code} class="r">{h.name}</th>)}</tr></thead>
               <tbody>
                 {hs.map((a) => {
                   const pa = adjClose(a);
                   return (
-                    <tr key={a.code}><td>{a.name}</td>{hs.map((b) => {
+                    <tr key={a.code}><td class="l">{a.name}</td>{hs.map((b) => {
                       const c = a.code === b.code ? 1 : correlation(pa, alignTo(a.d, { dates: b.d, close: adjClose(b) }));
-                      return <td key={b.code} class={c !== null && c > 0.7 && a.code !== b.code ? 'risk w6' : ''}>{orMissing(c, ratioText, '重疊日數不足')}</td>;
+                      return <td key={b.code} class={`r ${c !== null && c > 0.7 && a.code !== b.code ? 'ui-risk' : ''}`}>{orMissing(c, ratioText, '重疊日數不足')}</td>;
                     })}</tr>
                   );
                 })}
               </tbody>
             </table>
-            <p class="caption muted">相關係數 &gt; 0.7 以琥珀色標示，代表風險可能集中。</p>
-          </div>
+            <p class="ui-foot ui-muted">相關係數 &gt; 0.7 以橘色標示。</p>
+          </Card>
         </>
       ) : null}
     </>
@@ -217,28 +215,29 @@ export default function Stats() {
         <div class="ui-sec"><List chev><Row label="無交易紀錄" sub="新增持倉前檢查表" href="#/discipline/checklist" /></List></div>
       ) : (
         <>
-          <h3 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>錯誤標籤頻率</h3>
-          <div class="card">
-            {Object.keys(tags).length ? Object.entries(tags).sort((a, b) => b[1] - a[1]).map(([t, n]) => (
-              <div key={t} class="row between caption" style={{ minHeight: '2rem' }}><span>{t}</span><span>{n} 次</span></div>
-            )) : <p class="caption muted">尚無資料。</p>}
-          </div>
-          <h3 class="eyebrow" style={{ marginTop: 'var(--s-6)' }}>各理由類型績效</h3>
-          <div class="scroll-x">
-            <table class="table">
-              <thead><tr><th>理由</th><th>筆數</th><th>絕對勝率</th><th>期望值</th></tr></thead>
-              <tbody>{byReason(trades).map(({ reason, stats: s }) => (
-                <tr key={reason}><td>{reason}</td><td>{s.n}</td><td>{orMissing(s.winRate, ratioPct, '沒有已平倉交易')}</td><td>{orMissing(s.evAmount, fmtMoney, '沒有已平倉交易')}</td></tr>
-              ))}</tbody>
-            </table>
-          </div>
-          <h2 class="section" style={{ marginTop: 'var(--s-10)' }}>組合分析</h2>
-          <Portfolio trades={trades} capital={portfolio.capital} byCode={byCode} />
+          <Section title="錯誤標籤" aside="自選標籤">
+            <List>
+              {Object.keys(tags).length ? Object.entries(tags).sort((a, b) => b[1] - a[1]).map(([t, n]) => <Row key={t} label={t} value={<Num v={n} unit="次" />} />)
+                : <EmptyRow>無</EmptyRow>}
+            </List>
+          </Section>
+          <Section title="理由類型">
+            <Card>
+              <Table cols={[
+                { key: 'r', label: '理由', render: (x) => x.reason },
+                { key: 'n', label: '筆數', align: 'r', render: (x) => x.stats.n },
+                { key: 'w', label: '勝率', align: 'r', render: (x) => <Num v={x.stats.winRate === null ? null : x.stats.winRate * 100} digits={0} unit="%" /> },
+                { key: 'e', label: '期望值', align: 'r', width: '7rem', render: (x) => <USigned v={x.stats.evAmount} digits={0} unit="元" /> },
+              ]} rows={byReason(trades)} rowKey={(x) => x.reason} caption="各理由類型績效" />
+            </Card>
+          </Section>
+          <Section title="組合分析" info={<p>以期初資金為 100 標準化；權益曲線計入除息現金股利與除權配股。</p>}>
+            <Portfolio trades={trades} capital={portfolio.capital} byCode={byCode} />
+          </Section>
           {open.length ? (
-            <>
-              <h2 class="section" style={{ marginTop: 'var(--s-10)' }}>持倉風險</h2>
+            <Section title="持倉風險">
               <RiskPanel open={open} byCode={byCode} />
-            </>
+            </Section>
           ) : null}
         </>
       )}

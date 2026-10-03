@@ -96,7 +96,22 @@ export interface Summary {
   rows: unknown[][];
 }
 
+/** 注意／處置（2026-10；只呈現交易所公告的事實與次數） */
+export interface StockAttnPeriod { start: string; end: string; interval: string | null }
+export interface StockAttn {
+  count10: number;
+  count30: number;
+  /** 近 30 個營業日每次注意（新→舊） */
+  days: { date: string; reason: string }[];
+  /** 近一年處置（新→舊）；interval 例「5 分鐘」 */
+  disposition: (StockAttnPeriod & { reason: string | null; measure?: string | null })[];
+  /** 處置期間涵蓋最新資料日 */
+  active: StockAttnPeriod | null;
+  /** 已公告、尚未開始 */
+  upcoming?: StockAttnPeriod | null;
+}
 export interface StockHistory {
+  attn?: StockAttn;
   code: string;
   name: string;
   market: string;
@@ -179,7 +194,7 @@ export interface Lists {
 
 // ---------- market.json ----------
 export type LightStateT = 'green' | 'yellow' | 'red' | 'gray';
-export interface MarketLight { id: string; label: string; state: LightStateT; value: string; basis: string; /** 外資期貨淨未平倉：近 250 個交易日百分位（0–100） */ pct250?: number | null }
+export interface MarketLight { id: string; label: string; state: LightStateT; value: string; basis: string; /** 外資期貨淨未平倉：近 250 個交易日百分位（0–100） */ pct250?: number | null; /** 2026-10：右欄短數值（負號 U+2212；資料不足為「—」） */ short?: string; /** 2026-10：副資訊一行（資料不足時為原因） */ detail?: string }
 export interface Sector { industry: string; count: number; up: number; down: number; foreign_1: number | null; trust_1: number | null; [k: string]: string | number | null }
 /** 主動式 ETF 持股日變動分類（M2 2026-10-03）：new 新增（前次沒有）、add 加碼、reduce 減碼、exit 剔除（本次 0 股） */
 export type EtfKind = 'new' | 'add' | 'reduce' | 'exit';
@@ -222,13 +237,15 @@ export interface IntradayData {
   date: string; name: string; prev_close: number | null; prev_date: string | null; source: string; points: { t: string; v: number }[];
   /** 2026-10 改版：備援來源（證交所取不到時） */
   fallback?: boolean;
+  /** 用了備援的日期（可能只有 1W 的較早日子） */
+  fallback_dates?: string[];
   /** 最近交易日的開高低收 */
   ohlc?: { o: number | null; h: number | null; l: number | null; c: number | null };
   /** 最近 ≤5 個交易日的 5 分鐘走勢（舊→新），1W 用 */
   days?: { date: string; prev_close: number | null; points: { t: string; v: number }[] }[];
 }
 /** 個股 5 分 K（Yahoo Finance，非官方）：bars＝[時間 HH:MM, 開, 高, 低, 收, 量（股）] */
-export interface StockIntraday { code: string; date: string; source: string; days: { date: string; prev_close: number | null; bars: [string, number, number, number, number, number][] }[] }
+export interface StockIntraday { code: string; date: string; source: string; days: { date: string; prev_close: number | null; bars: [string, number | null, number | null, number | null, number | null, number | null][] }[] }
 export interface StockIntradayIndex { date: string; source: string; codes: string[] }
 export const TAIEX = '發行量加權股價指數';
 export const TAIEX_TR = '發行量加權股價報酬指數';

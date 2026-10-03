@@ -324,3 +324,19 @@ def test_validation_without_history_is_unverified() -> None:
     v2 = {"verified": False, "n": 12, "period": ["2026-01-05", "2026-08-01"]}
     assert etf.unverified_label(v2) == "排序口徑未驗證（樣本 12 筆、2026-01-05～2026-08-01）"
     assert etf.unverified_label({"verified": True}) is None
+
+
+def test_creation_into_cash_is_not_reduce() -> None:
+    """實測最常見的情況：申購 5%（單位數 ×1.05）但多數持股股數不變（申購款留現金）→ 不變，不是減碼；
+    同一天實際加買的 2330 才是加碼，計入股數＝min(實際增加, 超額股數)。"""
+    before = [("2330", 100_000, 9.0), ("2317", 30_000, 3.0), ("2454", 10_000, 1.0)]
+    after = [("2330", 120_000, 9.0), ("2317", 30_000, 3.0), ("2454", 10_000, 1.0)]
+    ch = etf.holdings_changes(_two_days(before, after, 1e6, 1.05e6)).set_index("code")
+    assert ch.loc["2317", "excess_shares"] < -1000 and ch.loc["2317", "kind"] == "hold"
+    assert ch.loc["2317", "trade_shares"] == 0
+    assert ch.loc["2330", "kind"] == "add"
+    assert ch.loc["2330", "excess_shares"] == 15_000 and ch.loc["2330", "trade_shares"] == 15_000
+    # 買回時仍加買：實際 +10 張、超額 +20 張 → 計入 10 張
+    assert etf.trade_shares(100_000, 110_000, 20_000.0) == 10_000
+    assert etf.trade_shares(100_000, 100_000, -5_000.0) == 0.0
+    assert etf.trade_shares(100_000, 0, -90_000.0) == -90_000

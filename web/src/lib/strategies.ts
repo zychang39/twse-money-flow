@@ -25,14 +25,24 @@ export interface StrategyItem {
   mean_excess?: number | null;
   n?: number;
   note?: string;
-  health?: { status: string; recent: number | null; recent_n: number; recent_t: number | null; since: string | null; long: number | null };
+  health?: {
+    status: string; recent: number | null; recent_n: number; recent_t: number | null; since: string | null;
+    /** 2026-10-03：長期平均超額（相對同日等權）；舊資料為數字 */
+    long: { excess: number | null } | number | null;
+    /** 2026-10-03：近 60 個交易日已出場的去重事件 */
+    recent60?: { excess: number | null; n: number; since?: string };
+  };
   today?: { code: string; name: string; basis?: { label: string; value: number | null; unit: string }[] }[];
   /** 今日 0 檔的原因（不留白） */
   today_note?: string | null;
   exit?: { rule: string; param: string; label: string; stats: Partial<ExitRow>; alternatives: ExitRow[] };
   trades?: TradeStats & { n: number; mean_net: number | null; win: number | null; hold: number | null; yearly: Record<string, { n: number; mean_net: number | null; exc_idx: number | null; win: number | null }> };
   portfolio?: Record<string, PortfolioStats & { yearly?: Record<string, number | null>; total?: number | null }>;
-  curve?: { dates: string[]; equity: number[]; bench: (number | null)[]; etf?: Record<string, (number | null)[]>; slots?: number; missing?: Record<string, string> };
+  curve?: {
+    dates: string[]; equity: number[]; bench: (number | null)[]; etf?: Record<string, (number | null)[]>; slots?: number; missing?: Record<string, string>;
+    /** 2026-10-03 累積超額曲線摘要（完整序列在 evidence/{test}.json） */
+    excess?: CurveBrief;
+  };
   /** v3 M2：事件對四種基準的超額（判定仍以等權為準） */
   bench?: Record<BenchKey, BenchStat | null>;
   t_0050?: number | null;
@@ -45,12 +55,18 @@ export interface StrategyItem {
   rank?: number | null;
   t_corr?: number | null;
   per_month?: number | null;
-  selection?: { score?: number | null; reasons?: string[]; status?: string; family?: string; registered?: boolean } | null;
+  selection?: {
+    score?: number | null; reasons?: string[]; status?: string; family?: string; registered?: boolean;
+    /** 2026-10-03：5 檔選股規則（預先指定）與 200 次隨機排序模擬 */
+    rule_text?: string;
+    random?: RandomSim | null;
+    spec?: { cagr: number | null; mdd: number | null };
+  } | null;
   registered?: boolean;
   kind?: 'swing' | string;
   swing?: SwingBlock;
-  /** 2026-10-02 分級：有效／觀察中／停用（舊資料沒有時由 enabled 推回）；grade_reason 在觀察中／停用時一定有內容 */
-  grade?: Grade;
+  /** 2026-10-03 分級物件（舊資料為字串「有效／觀察中／停用」，gradeOf 會換算）；grade_reason 為未達條件 */
+  grade?: GradeInfo | string;
   grade_label?: string;
   grade_reason?: string;
   grade_checks?: Record<string, boolean>;
@@ -71,9 +87,68 @@ export interface StrategyItem {
    */
   limited?: boolean;
   limited_note?: string | null;
+  /** 2026-10-03 判定卡 */
+  judge?: Judge;
+  exits?: ExitsSplit;
+  /** 逐年：5 檔組合｜0050｜差額（百分點） */
+  yearly?: { year: string; port: number | null; bench: number | null; diff: number | null }[];
+  /** 事件研究區的逐年訊號超額（相對同日等權） */
+  event?: { horizon: number; yearly: { year: string; excess: number | null; n: number }[] };
+  sample?: { includes_delisted: boolean; universe_text: string; delisted_stocks: number; delisted_events: number };
+  leverage?: LeverageRisk;
 }
 
-export type Grade = '有效' | '觀察中' | '停用';
+/** 2026-10-03 分級：valid 有效／sig_only 訊號顯著・未勝 0050／watch 觀察中／invalid 無效。 */
+export type Grade = 'valid' | 'sig_only' | 'watch' | 'invalid';
+export const GRADE_LABEL: Record<Grade, string> = { valid: '有效', sig_only: '訊號顯著・未勝 0050', watch: '觀察中', invalid: '無效' };
+export interface GradeInfo { id: Grade; label: string; notes: string[]; checks?: Record<string, boolean>; reasons?: string[]; rule?: string }
+
+export interface JudgeSide {
+  bench: string; excess: number | null; t: number | null; n: number; dates?: number; win?: number | null;
+  t_parts?: { calendar: number | null; nw: number | null; nw_lag?: number | null; block: number | null };
+}
+export interface PortTriple { cagr: number | null; sharpe: number | null; mdd: number | null; vol?: number | null }
+export interface Judge {
+  horizon: number;
+  t_name: string;
+  sig: JudgeSide;
+  opp: JudgeSide & { slots: number; period: [string, string] | null; port: PortTriple; bench_port: PortTriple };
+}
+export interface CurveBriefSide { peak: number | null; peak_value: number | null; peak_at_edge: boolean; at40?: number | null; at120?: number | null }
+export interface CurveBrief { days: number | null; n: number; ew?: CurveBriefSide; '0050'?: CurveBriefSide; peak_at_edge?: boolean }
+export interface RuleSummary { n: number; ev?: number | null; exc_idx?: number | null; rel?: Record<string, number | null>; win?: number | null; hold?: number | null; mae?: number | null; locked?: number }
+export interface ExitsSplit {
+  train_end: string;
+  oos_start: string;
+  metric: string;
+  min_events: number;
+  max_days: number;
+  rules: { rule: string; param: string; label: string; chosen: boolean; in_sample: RuleSummary; oos: RuleSummary }[];
+  chosen: { rule: string; param: string; label: string; basis: 'in_sample' | 'fallback' } | null;
+  note: string | null;
+  peak_train?: { day: number; train_end: string };
+}
+export interface RandomSim { n: number; runs: number; seed: number; slots: number; cagr: Pct3; mdd: Pct3 }
+export interface Pct3 { p5: number | null; p50: number | null; p95: number | null }
+export interface LeverageRiskSlot { port_mdd: number | null; port_max_adverse: number | null; max_adverse_start?: string | null }
+export interface LeverageRisk extends LeverageRiskSlot { slots: number; window: number; by_slots: Record<string, LeverageRiskSlot> }
+
+/** strategies.json 頂層：判定卡的說明文字與門檻（ⓘ 用）。 */
+export interface JudgeMeta {
+  horizon: number;
+  slots: number;
+  t_name: string;
+  t_text: string;
+  bench_text: { ew: string; '0050': string };
+  grade_rule: string;
+  selection_rule: string;
+  random: { n: number; seed: number };
+  exits_train_end: string;
+  exit_note: string;
+  trigger_window: number;
+  sample: { includes_delisted: boolean; universe_stocks: number; stopped_stocks: number; official_delisted: number; universe_text: string; revenue_timing: string };
+}
+export interface MultiTest { M: number; parts: { indicators: number; swing_trials: number; horizons: number }; t_min: number; expected_false_t2: number; expected_false: number; bonferroni_t: number; reason: string }
 export interface SplitHalf { n?: number; mean_excess?: number | null; t?: number | null }
 export interface ForwardBlock {
   since: string;
@@ -87,15 +162,31 @@ export interface ForwardBlock {
   backtest_mean_excess: number | null;
 }
 
-/** 分級：舊資料沒有 grade 時由 enabled 推回（上架＝觀察中、未上架＝停用）。 */
-export const gradeOf = (s: Pick<StrategyItem, 'grade' | 'enabled'>): Grade =>
-  s.grade === '有效' || s.grade === '觀察中' || s.grade === '停用' ? s.grade : s.enabled ? '觀察中' : '停用';
+const OLD_GRADE: Record<string, Grade> = { 有效: 'valid', 觀察中: 'watch', 停用: 'invalid' };
 
-/** 分級標籤的語氣：有效＝強調、觀察中＝一般、停用＝弱化（琥珀只給風險，不用在分級）。 */
-export const gradeTone = (g: Grade): 'strong' | 'plain' | 'muted' => (g === '有效' ? 'strong' : g === '觀察中' ? 'plain' : 'muted');
+/** 分級：2026-10-03 的物件 → id；舊字串（有效／觀察中／停用）換算；都沒有時由 enabled 推回（上架＝觀察中）。 */
+export function gradeOf(s: Pick<StrategyItem, 'grade' | 'enabled'>): Grade {
+  const g = s.grade;
+  if (g && typeof g === 'object' && g.id in GRADE_LABEL) return g.id;
+  if (typeof g === 'string' && g in OLD_GRADE) return OLD_GRADE[g];
+  return s.enabled ? 'watch' : 'invalid';
+}
 
-/** 主判定持有天數：波段策略用自己的 hold，其餘 40 日（2026-10-02 起）。 */
-export const judgeHold = (s: Pick<StrategyItem, 'swing'>): number => s.swing?.hold ?? 40;
+/** 分級標籤文字（全站只有一個標籤：有效／訊號顯著・未勝 0050／觀察中／無效）。 */
+export const gradeLabel = (s: Pick<StrategyItem, 'grade' | 'enabled'>): string => GRADE_LABEL[gradeOf(s)];
+
+/** 分級附註（樣本不足、待前瞻驗證、涵蓋率…）；舊資料沒有。 */
+export const gradeNotes = (s: Pick<StrategyItem, 'grade'>): string[] => (s.grade && typeof s.grade === 'object' ? s.grade.notes ?? [] : []);
+
+/** 分級標籤的語氣：有效＝強調；其他中性（琥珀只給風險，不用在分級）。 */
+export const gradeTone = (g: Grade): 'strong' | 'neutral' => (g === 'valid' ? 'strong' : 'neutral');
+
+/** 長期平均超額：新資料 {excess}、舊資料數字。 */
+export const healthLong = (h: StrategyItem['health']): number | null =>
+  h?.long === null || h?.long === undefined ? null : typeof h.long === 'number' ? h.long : h.long.excess ?? null;
+
+/** 判定持有天數：2026-10-03 起全部策略（含波段策略）統一 40 日（strategies.json judge.horizon）。 */
+export const judgeHold = (s: Pick<StrategyItem, 'judge'>): number => s.judge?.horizon ?? 40;
 
 /** 40 日（主判定）扣成本超額：excess_h 優先，其次 h[hold]，最後 mean_excess。 */
 export function netExcess(s: StrategyItem, hold = judgeHold(s)): number | null {
@@ -105,7 +196,7 @@ export function netExcess(s: StrategyItem, hold = judgeHold(s)): number | null {
   return s.h?.[k]?.mean_excess ?? s.mean_excess ?? null;
 }
 
-/** 個股頁有效訊號面板：只列分級為有效或觀察中的策略；回傳指標 id → 分級標籤。 */
+/** 指標 id → 最好的策略分級與標籤。 */
 export function gradeByTest(list: StrategyItem[] | null | undefined): Map<string, { grade: Grade; label: string }> | null {
   if (!list) return null;
   const out = new Map<string, { grade: Grade; label: string }>();
@@ -113,18 +204,18 @@ export function gradeByTest(list: StrategyItem[] | null | undefined): Map<string
     const g = gradeOf(s);
     const prev = out.get(s.test);
     // 同一個指標對應多套策略時，取最好的分級
-    if (!prev || GRADE_ORDER[g] < GRADE_ORDER[prev.grade]) out.set(s.test, { grade: g, label: s.grade_label ?? g });
+    if (!prev || GRADE_ORDER[g] < GRADE_ORDER[prev.grade]) out.set(s.test, { grade: g, label: GRADE_LABEL[g] });
   }
   return out;
 }
 
-export const GRADE_ORDER: Record<Grade, number> = { 有效: 0, 觀察中: 1, 停用: 2 };
+export const GRADE_ORDER: Record<Grade, number> = { valid: 0, sig_only: 1, watch: 2, invalid: 3 };
 
-/** 允許出現在個股頁訊號面板的指標 id（分級為有效或觀察中）；沒有策略資料時回傳 null（沿用判定規則）。 */
+/** 有上架策略的指標 id（分級不是無效）；沒有策略資料時回傳 null（沿用判定規則）。 */
 export function allowedTests(list: StrategyItem[] | null | undefined): Set<string> | null {
   const m = gradeByTest(list);
   if (!m) return null;
-  return new Set([...m.entries()].filter(([, v]) => v.grade !== '停用').map(([k]) => k));
+  return new Set([...m.entries()].filter(([, v]) => v.grade !== 'invalid').map(([k]) => k));
 }
 
 export interface SwingSegment { period?: [string, string]; n?: number; per_month?: number; mean_excess?: number | null; mean_gross_excess?: number | null; t?: number | null; t_corr?: number | null; win?: number | null; payoff?: number | null }
@@ -210,6 +301,8 @@ export const PERF_ROWS: { key: keyof Perf; label: string; kind: 'pct' | 'ratio' 
 
 export interface StrategiesFile {
   date: string;
+  judge_meta?: JudgeMeta;
+  multi_test?: MultiTest;
   horizon: number;
   env_today: { regime: boolean; trend: boolean; quarter_end: boolean };
   leverage: LeverageRules & { default_max_dd: number; default_interest: number; default_breaker: number };

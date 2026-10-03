@@ -10,7 +10,10 @@
   超額股數 Δ* ＝ 本次股數 − 前次股數 × k（＝每單位持股數的變化 × 本次單位數）
   每單位持股數變化 r ＝ 本次股數 ÷（前次股數 × k）− 1
   新增：前次 0、本次 > 0；剔除：前次 > 0、本次 0；
-  加碼／減碼：|Δ*| ≥ MIN_LOT 股 且 |r| ≥ FLOW_TOL，依 Δ* 正負；其餘＝不變（等比例變動與零股尾差）。
+  加碼：原始股數增加 ≥ MIN_LOT 且 Δ* ≥ MIN_LOT 且 r ≥ FLOW_TOL；減碼：三者皆同樣幅度往下；其餘＝不變。
+  要求「原始股數同方向變動」：實測（本機回補 2025-10～2026-10，8 檔有單位數的 ETF）有單位數變動的日子裡，
+  多數是「單位數變了、多數持股股數不變」（申購款先留現金或只買部分個股），只看 Δ* 會把沒有交易的持股全判成減碼。
+  計入金額的股數（trade_shares）＝原始股數差與 Δ* 同號時取絕對值較小者，否則 0。
 門檻理由：純申購買回時每檔持股依 k 等比例增減，再四捨五入到整張，誤差最多 0.5 張 → |Δ*| ≥ 1 張可排除；
 1% 排除大型持股上的零星尾差（例：200 張的持股差 2 張）。
 """
@@ -69,6 +72,7 @@ CHANGE_COLS = [
     "flow",
     "change_shares",
     "excess_shares",
+    "trade_shares",
     "per_unit_change",
     "d_weight",
     "kind",
@@ -82,10 +86,12 @@ ACTIVE_KINDS = ("new", "add", "reduce", "exit")
 METHOD_TEXT = (
     "加減碼判定：申購買回會讓每檔持股等比例增減，所以先扣除受益權單位數的變動。"
     "超額股數＝本次股數 − 前次股數 ×（本次單位數 ÷ 前次單位數）；"
-    f"超額股數至少 {MIN_LOT / 1000:.0f} 張且每單位持股數變化至少 {FLOW_TOL * 100:.0f}% 才算加碼或減碼，"
+    f"股數實際同方向變動、超額股數至少 {MIN_LOT / 1000:.0f} 張且每單位持股數變化至少 {FLOW_TOL * 100:.0f}% "
+    "才算加碼或減碼（申購時股數不變的持股不算減碼），"
     "前次沒有、本次有＝新增，前次有、本次沒有＝剔除。"
     "投信沒有揭露單位數時（聯博），以兩次都持有的個股股數比的中位數估計單位數變化。"
-    f"金額＝超額股數 × 持股日成交均價（估），{MIN_VALUE_YI} 億元以下不列入；"
+    "金額＝計入股數 × 持股日成交均價（估），計入股數＝實際股數變動與超額股數中絕對值較小者，"
+    f"{MIN_VALUE_YI} 億元以下不列入；"
     "佔 20 日均成交額＝金額 ÷ 持股日（含）前 20 個交易日平均成交金額；佔市值＝金額 ÷（發行股數 × 持股日收盤價）。"
     "幾檔同向＝同一天往同一方向調整的 ETF 檔數。"
 )
@@ -140,9 +146,24 @@ def flow_kind(before: float, now: float, excess: float | None, per_unit: float |
         return "hold"
     if excess is None or per_unit is None or not (math.isfinite(excess) and math.isfinite(per_unit)):
         return None
-    if abs(excess) >= MIN_LOT and abs(per_unit) >= FLOW_TOL:
-        return "add" if excess > 0 else "reduce"
+    raw = now - before
+    # 經理人要實際買賣該股（原始股數同方向變動 ≥ 1 張），且超過申購買回的等比例部分（超額股數 ≥ 1 張、每單位變化 ≥ 1%）
+    if raw >= MIN_LOT and excess >= MIN_LOT and per_unit >= FLOW_TOL:
+        return "add"
+    if raw <= -MIN_LOT and excess <= -MIN_LOT and per_unit <= -FLOW_TOL:
+        return "reduce"
     return "hold"
+
+
+def trade_shares(before: float, now: float, excess: float | None) -> float | None:
+    """計入金額的股數：原始股數差與超額股數同號時取絕對值較小者（只算經理人實際買賣、且超過等比例變動的部分）；
+    不同號（例：申購時股數不變 → 超額為負，但沒有賣出）為 0。"""
+    raw = now - before
+    if excess is None or not math.isfinite(excess):
+        return None
+    if raw == 0 or excess == 0 or (raw > 0) != (excess > 0):
+        return 0.0
+    return math.copysign(min(abs(raw), abs(excess)), raw)
 
 
 def _finite(x: Any) -> float | None:
@@ -196,6 +217,7 @@ def _pair(etf: str, prev: pd.DataFrame | None, cur: pd.DataFrame, d0: str | None
                 "flow": np.nan,
                 "change_shares": nan,
                 "excess_shares": nan,
+                "trade_shares": nan,
                 "per_unit_change": nan,
                 "d_weight": nan,
                 "kind": None,
@@ -224,6 +246,7 @@ def _pair(etf: str, prev: pd.DataFrame | None, cur: pd.DataFrame, d0: str | None
     ]
     # 剔除列的超額股數：本次 0 − 前次 × k；k 未知時退回原始差
     excess = np.where((s0 > 0) & (s1 <= 0) & ~np.isfinite(excess), -s0, excess)
+    trade = [trade_shares(float(a), float(b), _finite(x)) for a, b, x in zip(s0, s1, excess, strict=True)]
     return pd.DataFrame(
         {
             "etf": etf,
@@ -241,6 +264,7 @@ def _pair(etf: str, prev: pd.DataFrame | None, cur: pd.DataFrame, d0: str | None
             "flow": flow,
             "change_shares": s1 - s0,
             "excess_shares": excess,
+            "trade_shares": np.array([np.nan if t is None else t for t in trade], dtype=float),
             "per_unit_change": per_unit,
             "d_weight": np.where(s1 > 0, w1, 0.0) - np.where(s0 > 0, w0, 0.0),
             "kind": kinds,
@@ -372,9 +396,9 @@ def cross_items(
         net = 0.0
         for r in part.itertuples():
             px = mk.price(code, str(r.date))
-            if px is None or not math.isfinite(float(r.excess_shares)):
+            if px is None or not math.isfinite(float(r.trade_shares)):
                 continue
-            v = float(r.excess_shares) * px
+            v = float(r.trade_shares) * px
             net += v
             rows.append((r, v))
         if not rows:
@@ -400,7 +424,8 @@ def cross_items(
                     {
                         "code": str(r.etf),
                         "name": names.get(str(r.etf), str(r.etf)),
-                        "d_shares": _r(float(r.excess_shares), 0),
+                        "d_shares": _r(float(r.trade_shares), 0),
+                        "d_shares_excess": _r(float(r.excess_shares), 0),
                         "d_shares_raw": _r(float(r.change_shares), 0),
                         "d_weight": _r(float(r.d_weight), 4) if r.d_weight == r.d_weight else None,
                         "kind": str(r.kind),
@@ -439,14 +464,14 @@ def ranking(
     changes: pd.DataFrame, close: dict[str, float], top: int = 30, names: dict[str, str] | None = None
 ) -> dict[str, list[dict[str, Any]]]:
     """舊版排行（add／reduce 陣列，前端相容）：改用 §7 分類與超額股數；names（行情簡稱）優先。"""
-    if changes.empty or "excess_shares" not in changes.columns:
+    if changes.empty or "trade_shares" not in changes.columns:
         return {"add": [], "reduce": []}
     ch = changes[changes["kind"].isin(ACTIVE_KINDS)]
     if ch.empty:
         return {"add": [], "reduce": []}
     agg = []
     for code, part in ch.groupby("code"):
-        ex = part["excess_shares"].astype(float)
+        ex = part["trade_shares"].astype(float).fillna(0.0)
         net = float(ex.sum())
         if net == 0:
             continue
@@ -462,7 +487,7 @@ def ranking(
                 "cross": (adders if net > 0 else reducers) >= 2,
                 "net_shares": round(net),
                 "net_value": round(net * px / 1e8, 2) if px else None,
-                "detail": "、".join(f"{r.etf} {r.excess_shares:+,.0f}" for r in part.itertuples() if r.excess_shares),
+                "detail": "、".join(f"{r.etf} {r.trade_shares:+,.0f}" for r in part.itertuples() if r.trade_shares),
                 "kind": _dominant_kind([str(k) for k in same_side["kind"].tolist()], net > 0),
             }
         )
@@ -481,7 +506,7 @@ def holders_by_stock(changes: pd.DataFrame, names: dict[str, str]) -> dict[str, 
         kind = getattr(r, "kind", None)
         if not r.shares and kind != "exit":
             continue
-        ex = getattr(r, "excess_shares", None)
+        ex = getattr(r, "trade_shares", None)
         out.setdefault(r.code, []).append(
             {
                 "etf": r.etf,
@@ -519,9 +544,9 @@ def stock_summary(h: pd.DataFrame, p: Any, days: int = 5) -> dict[str, dict[str,
     net: dict[str, float] = {}
     for r in recent.itertuples():
         px = mk.price(str(r.code), str(r.date))
-        if px is None or not math.isfinite(float(r.excess_shares)):
+        if px is None or not math.isfinite(float(r.trade_shares)):
             continue
-        net[str(r.code)] = net.get(str(r.code), 0.0) + float(r.excess_shares) * px
+        net[str(r.code)] = net.get(str(r.code), 0.0) + float(r.trade_shares) * px
     out: dict[str, dict[str, Any]] = {}
     for code in set(hold.index.astype(str)) | set(net):
         v = net.get(code, 0.0)

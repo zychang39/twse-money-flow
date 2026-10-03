@@ -33,5 +33,9 @@ for (const [id, hash] of [['flow', '#/discipline'], ['badges', '#/discipline/bad
   out.push(`${id}: ${v.length}`);
   for (const x of v.slice(0, 15)) out.push(`  [${x.rule}] ${x.msg} ${x.at ?? ''}`);
 }
+await page.goto(`${BASE}#/`); await page.reload(); await page.waitForTimeout(2500);
+const row = page.getByTestId('flow-brief-row');
+await row.scrollIntoViewIfNeeded();
+await row.locator('xpath=..').screenshot({ path: `/tmp/claude-0/sp/shots-flow/brief-row${empty ? '-empty' : ''}.png` });
 console.log(out.join('\n'));
 await browser.close();
