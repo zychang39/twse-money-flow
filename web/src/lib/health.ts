@@ -55,9 +55,12 @@ export function describeSource(s: HealthSource): { tone: HealthTone; text: strin
 export function healthConclusion(sources: HealthSource[]): string {
   const risk = sources.filter((s) => describeSource(s).tone === 'risk').length;
   const compat = sources.filter((s) => describeSource(s).tone === 'compat').length;
-  if (risk) return `${risk}\u00a0個資料源需要注意，其餘正常`;
-  if (compat) return `資料都能正常更新，${compat}\u00a0個來源使用相容模式`;
-  return '所有資料源都正常更新';
+  // 2026-10-03：頁首副資訊以數字陳述（不寫敘事句）
+  const total = sources.length;
+  const parts = [`${total - risk - compat}／${total} 正常`];
+  if (compat) parts.push(`相容模式 ${compat}`);
+  if (risk) parts.push(`需要注意 ${risk}`);
+  return parts.join('・');
 }
 
 const QUOTES = ['twse_quotes', 'tpex_quotes'];

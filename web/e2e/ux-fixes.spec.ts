@@ -208,7 +208,11 @@ test.describe('3. 我的股票：自選優先與新用戶', () => {
     await page.getByRole('button', { name: '加入範例自選' }).click();
     await page.getByRole('button', { name: /熱門動能\s*系統/ }).click();
     await expect(page.getByText('依規則產生，非推薦', { exact: true })).toBeVisible();
+    // 2026-10-03：完整規則在 ⓘ；卡片上一行摘要
+    await expect(page.getByText(/成交值前 \d+ 名・RS 百分位 ≥ \d+/)).toBeVisible();
+    await page.getByRole('button', { name: '熱門動能的規則的說明' }).click();
     await expect(page.getByText(/成交值排名前 \d+ 名、RS 百分位 ≥ \d+/)).toBeVisible();
+    await page.keyboard.press('Escape');
     const hotRows = await page.locator('.srow').count();
     expect(hotRows).toBeGreaterThan(0);
     await page.getByRole('button', { name: '複製成我的群組' }).click();
@@ -282,7 +286,7 @@ test.describe('4. 資料源異常的呈現', () => {
     await expect(tech).toBeHidden();
     await page.locator('.list-item', { hasText: '上櫃本益比' }).getByText('詳細資訊').click();
     await expect(tech).toBeVisible();
-    await expect(page.locator('.ui-head')).toContainText('相容模式');
+    await expect(page.locator('.ui-head')).toContainText(/相容模式 \d+/); // 2026-10-03：頁首副資訊為「n／N 正常・相容模式 n・需要注意 n」
   });
 });
 

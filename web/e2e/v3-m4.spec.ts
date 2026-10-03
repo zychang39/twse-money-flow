@@ -31,7 +31,7 @@ test('兩指：兩條垂直標線＋上方兩個日期、漲跌、報酬率、�
   await expect(tip).toBeVisible();
   await expect(page.locator('[data-testid="range-marks"] line')).toHaveCount(2);
   await expect(tip).toContainText(/\d+\/\d+ – [\d/]+・\d+ 個交易日/);
-  await expect(tip).toContainText(/[\d,.]+\s+[+−]?[\d.]+%/);
+  await expect(tip).toContainText(/[▲▼][\d,.]+.*[+−]?[\d.]+%/);
   const dateBefore = await page.getByTestId('hero-change-date').first().textContent();
   const first = await tip.textContent();
   const days1 = Number(first!.match(/(\d+) 個交易日/)![1]);

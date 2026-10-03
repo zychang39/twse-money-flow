@@ -38,7 +38,7 @@ export default function Methodology() {
       <TopBar back="/" avatar={false} />
       <PageTitle title="方法說明" sub="依設定自動產生・報酬、均線、RS、回測一律使用還原價" />
       <Section title="分項分數（進階）">
-        <p class="small">籌碼、動能、基本面、估值四個分項分數只在個股頁「進階」顯示；不合成綜合分（未經驗證的加權平均已移除）。分項分數＝可用因子子分數依權重平均（缺資料的因子不計）。</p>
+        <p class="small">籌碼、動能、基本面、估值四個分項分數只在個股頁「進階」顯示；不合成綜合分（加權平均未經驗證）。分項分數＝可用因子子分數依權重平均（缺資料的因子不計）。</p>
       </Section>
 
       {CATEGORY_IDS.map((cid) => {
