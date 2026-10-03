@@ -23,7 +23,7 @@ const LABEL: Record<string, string> = { valid: '有效', sig_only: '訊號顯著
 function graded(): { strategies: Item[] } & Record<string, unknown> {
   const f = JSON.parse(fixture('strategies.json')) as { strategies: Item[] } & Record<string, unknown>;
   f.strategies.forEach((s, i) => {
-    const g = GRADES[i] ?? 'invalid';
+    const g: string = GRADES[i] ?? 'invalid';
     Object.assign(s, {
       grade: { id: g, label: LABEL[g], notes: g === 'valid' ? ['待前瞻驗證'] : i === 4 ? ['樣本不足'] : [], reasons: g === 'valid' ? [] : [`相對 0050 t 1.${i}0（門檻 ≥ 2.0）`] },
       grade_label: LABEL[g],
@@ -97,6 +97,7 @@ test.describe('策略庫（2026-10-03）', () => {
   test('策略頁：版面順序、判定卡兩格、單一 t 名稱、健康度一列、沒有舊字樣', async ({ page }) => {
     await useFixtures(page);
     await page.goto('./#/explore/strategies/near_high');
+    await expect(page.getByTestId('st-today')).toBeVisible();
     const titles = (await page.locator('.ui-sec-title').allTextContents()).map((s) => s.trim());
     expect(titles).toEqual(['規則', '判定', '健康度', '事件研究', '組合回測', '出場規則', '樣本與成本', '新觸發']);
     await expect(page.getByTestId('grade-tag')).toHaveCount(1);

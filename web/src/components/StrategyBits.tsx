@@ -8,7 +8,8 @@ import { type Grade, type JudgeMeta, type MultiTest, type StrategyItem, GRADE_LA
 
 export function GradeTag({ s, grade }: { s?: Pick<StrategyItem, 'grade' | 'enabled'>; grade?: Grade }) {
   const g = grade ?? (s ? gradeOf(s) : 'invalid');
-  return <Tag tone={gradeTone(g) === 'strong' ? 'strong' : 'neutral'} testid="grade-tag">{GRADE_LABEL[g]}</Tag>;
+  // 標籤不是行文：對齊稽核的「數字與單位拆行」不把標籤結尾（0050）與下一行副資訊的第一個字（月）當成同一段文字
+  return <span class="st-gtag" data-audit-skip=""><Tag tone={gradeTone(g) === 'strong' ? 'strong' : 'neutral'} testid="grade-tag">{GRADE_LABEL[g]}</Tag></span>;
 }
 
 /** 校正後 t 的定義（strategies.json judge_meta.t_text；舊資料用預設文字）。 */
@@ -39,4 +40,10 @@ export function JudgeInfo({ meta, multi }: { meta?: JudgeMeta; multi?: MultiTest
       <p>依規則產生，非推薦；僅供研究參考，非投資建議。</p>
     </>
   );
+}
+
+/** 文字中的「數字＋單位」（10 日、12 個月、1.5 倍、10%、≥ 70）包成不拆行的片段（中文排版：數字與單位不得拆到兩行）。 */
+export function keepNum(text: string) {
+  const parts = text.split(/((?:[≥≤<>]\s?)?[+−-]?\d[\d,./-]*\s?(?:個月|%|張|億|元|萬|日|週|月|年|倍|檔|筆|次|點)?)/);
+  return parts.map((p, i) => (i % 2 ? <span key={i} class="ui-num">{p}</span> : p));
 }

@@ -44,4 +44,5 @@
 .st-read { min-height: var(--lh-foot); font-variant-numeric: tabular-nums; }
 
 /* 列名後面的分級標籤（策略清單、個股頁策略訊號）：與名稱同一行、基線對齊 */
-.ui-row-label > .ui-tag { margin-left: var(--s-2); vertical-align: baseline; }
+.ui-row-label > .st-gtag { margin-left: var(--s-2); }
+.st-gtag { display: inline-flex; vertical-align: baseline; }

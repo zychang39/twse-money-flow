@@ -101,6 +101,10 @@ def test_taishin_html_uses_nav_label_and_bloomberg_codes():
     assert nodata.no_data and nodata.df.empty
     with pytest.raises(ParseError):
         eh.parse_taishin(sample("etf_taishin_00986A.html"), "00987A")  # 頁面 ETF_ID 與查詢不符
+    # 國內型 00987A：沒有「預估發行受益權單位數」列 → 持股日取「2026/10/2每基數實際申購總價金」（淨值 17.76 ≈ 10/02 收盤 17.68）
+    dom = eh.parse_taishin(sample("etf_taishin_00987A.html"), "00987A")
+    assert dom.response_date == date(2026, 10, 2) and len(dom.df) == 6
+    assert dom.df.iloc[0][["code", "shares", "weight", "units"]].tolist() == ["2330", 90000.0, 8.6665, 146143000.0]
 
 
 def test_kgi_partial_html_unescapes_entities():

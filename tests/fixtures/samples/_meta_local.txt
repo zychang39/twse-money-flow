@@ -63,3 +63,4 @@ yahoo_chart_2330_5m.json|GET（Yahoo Finance chart，非官方；裁切成最後
 yahoo_chart_TWII_1m.json|GET（加權指數 1 分 K，非官方；裁切成最後 280 根：10/02 全日 271 根＋前一日尾段）|https://query1.finance.yahoo.com/v8/finance/chart/%5ETWII?interval=1m&range=5d|200|2026-10-03
 tpex_insti_summary.json|GET（上櫃三大法人買賣金額彙總表；未裁切）|https://www.tpex.org.tw/www/zh-tw/insti/summary?type=Daily&date=2026/10/02&response=json|200 1837|2026-10-03
 twse_rwd_BFI82U.json|GET（上市三大法人買賣金額統計表；notes 裁切成 1 條）|https://www.twse.com.tw/rwd/zh/fund/BFI82U?type=day&dayDate=20261002&response=json|200|2026-10-03
+etf_taishin_00987A.html|GET FundType=ALL（不帶 DataDate＝最新；國內型 00987A 頁面沒有「預估發行受益權單位數」列，持股日取「2026/10/2每基數實際申購總價金」的日期，淨值 17.76 對應 10/02 收盤 17.68；持股表裁切為前 6 列、移除 script）|https://www.tsit.com.tw/ETF/Home/Pcf/00987A|200 50481|2026-10-03

@@ -242,6 +242,9 @@ def parse_fubon(html: bytes | str, etf: str) -> ParseResult:
 # ------------------------------------------------------------------ 台新投信（GET HTML ETF/Home/Pcf/{etf}?FundType=ALL&DataDate=YYYY-MM-DD）
 _TAISHIN_ETF = re.compile(r'id="ETF_ID"[^>]*value="([^"]*)"')
 _TAISHIN_NAV = re.compile(r"(\d{4}/\d{1,2}/\d{1,2})預估發行受益權單位數")
+# 國內型（00987A）頁面沒有「預估發行受益權單位數」列：改取「YYYY/M/D每基數實際申購總價金」的日期（2026-10-03 實測：
+# 淨值 17.76 對應 10/02 收盤 17.68）
+_TAISHIN_ACTUAL = re.compile(r"(\d{4}/\d{1,2}/\d{1,2})每基數實際申購總價金")
 
 
 def _strip_tt(code: Any) -> Any:
@@ -253,6 +256,7 @@ def _strip_tt(code: Any) -> Any:
 def parse_taishin(payload: bytes | str, etf: str) -> ParseResult:
     """DataDate 為申購買回清單適用日；持股日取頁面「YYYY/M/D預估發行受益權單位數」的日期（清單製作時的最新淨值日）。
 
+    國內型（00987A）沒有「預估發行受益權單位數」列，改取「YYYY/M/D每基數實際申購總價金」的日期。
     查無資料時版面仍在：金額為 0、日期顯示 0001/1/1、沒有「預估發行受益權單位數」列。
     """
     text = _html_text(payload)
@@ -260,10 +264,11 @@ def parse_taishin(payload: bytes | str, etf: str) -> ParseResult:
     if page_etf and clean_code(page_etf.group(1)) != etf:
         raise ParseError(f"台新：頁面 ETF_ID 為 {page_etf.group(1)!r}，與查詢的 {etf} 不符")
     m = _TAISHIN_NAV.search(text)
+    if not m and "0001/1/1" in text:
+        return _empty("台新：該日無申購買回清單")
+    m = m or _TAISHIN_ACTUAL.search(text)
     if not m:
-        if "0001/1/1" in text:
-            return _empty("台新：該日無申購買回清單")
-        raise ParseError("台新：找不到「預估發行受益權單位數」的日期")
+        raise ParseError("台新：找不到「預估發行受益權單位數」或「每基數實際申購總價金」的日期")
     d = parse_date(m.group(1))
     if d is None:
         raise ParseError(f"台新：無法解析日期 {m.group(1)!r}")

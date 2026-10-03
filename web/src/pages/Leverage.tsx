@@ -14,6 +14,7 @@ import { fmtCount, md, pctPlain, ratioText } from '../lib/format';
 import { BREAKER_TEXT, type LeverageInput, leverage, nearestSlots } from '../lib/leverage';
 import { isListed } from '../lib/status';
 import { loadStrategies } from './Strategies';
+import { keepNum } from '../components/StrategyBits';
 import '../styles/strategy.css';
 
 const money = (v: number) => `${fmtCount(v)} 元`;
@@ -118,7 +119,7 @@ export default function Leverage() {
               <Table
                 caption="情境損失與融資維持率"
                 cols={[
-                  { key: 'l', label: '情境', render: (x) => x.label },
+                  { key: 'l', label: '情境', render: (x) => keepNum(x.label) },
                   { key: 'loss', label: '損失', align: 'r', width: '7rem', render: (x) => money(x.loss) },
                   { key: 'm', label: '維持率', align: 'r', width: '5.5rem', render: (x) => (x.maintenance === null ? '無融資' : <span class={x.call ? 'ui-risk' : ''}>{pctPlain(x.maintenance)}{x.call ? ' 追繳' : ''}</span>) },
                 ]}

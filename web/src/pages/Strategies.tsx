@@ -14,7 +14,7 @@ import { Sheet } from '../components/Sheet';
 import { EquityChart } from '../components/EquityChart';
 import { AlphaCurve } from '../components/AlphaCurve';
 import { SwingCard } from '../components/SwingCard';
-import { GradeTag, JudgeInfo } from '../components/StrategyBits';
+import { GradeTag, JudgeInfo, keepNum } from '../components/StrategyBits';
 import { useAsync, useDb } from '../hooks';
 import { loadJson } from '../data/api';
 import { addWatchMany, listStrategies, saveStrategy, uid } from '../db/db';
@@ -58,7 +58,7 @@ function StrategyList({ data }: { data: StrategiesFile }) {
     return { listed: all.filter((s) => isListed(s)), off: all.filter((s) => !isListed(s)) };
   }, [data.strategies]);
   const row = (s: StrategyItem) => (
-    <Row key={s.id} label={<>{s.label}<GradeTag s={s} /></>} sub={s.subtitle} href={`#/explore/strategies/${s.id}`} testid={`st-row-${s.id}`} />
+    <Row key={s.id} label={<>{s.label}<GradeTag s={s} /></>} sub={keepNum(s.subtitle)} href={`#/explore/strategies/${s.id}`} testid={`st-row-${s.id}`} />
   );
   return (
     <>
@@ -365,7 +365,7 @@ function SampleSection({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
         {s.hindsight?.status === 'waiting' ? <Row label="原 31 檔 vs 全市場" sub={`涵蓋率達 ${pctPlain((s.hindsight.threshold ?? 0.9) * 100, 0)} 後計算`} value="—" /> : null}
         {gates ? <Row label="上線門檻" value={`${passed}/${total}`} onClick={() => setSwingOpen(true)} testid="st-gates" /> : null}
       </List>
-      {s.limited && s.limited_note ? <Warn>{s.limited_note}</Warn> : null}
+      {s.limited && s.limited_note ? <Warn>{keepNum(s.limited_note)}</Warn> : null}
       {s.swing ? (
         <Sheet open={swingOpen} onClose={() => setSwingOpen(false)} title="上線門檻">
           <SwingCard sw={s.swing} hold={s.swing.hold} />
@@ -417,7 +417,7 @@ function Detail({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
       <PageTitle title={s.label} sub={`資料至 ${md(data.date)}・依規則產生，非推薦`} aside={<GradeTag s={s} />} />
       <Section title="規則">
         <Card testid="st-rule">
-          <p class="st-rule">{s.subtitle}</p>
+          <p class="st-rule">{keepNum(s.subtitle)}</p>
           {notes.length ? <p class="st-notes ui-foot ui-muted" data-testid="grade-notes">{notes.join('・')}</p> : null}
         </Card>
       </Section>
