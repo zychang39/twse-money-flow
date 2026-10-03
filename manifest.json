@@ -1469,20 +1469,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-03T04:11:24+08:00",
-   "by_source": {
-    "tdcc_full": 74027
-   },
-   "chained": true,
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 74027,
-   "requests": 565,
-   "task": "holders_backfill"
-  },
-  {
    "at": "2026-10-03T04:52:13+08:00",
    "by_source": {
     "tdcc_full": 73483
@@ -2020,6 +2006,17 @@
    "remaining": 0,
    "requests": 5,
    "task": "backfill"
+  },
+  {
+   "at": "2026-10-04T04:47:14+08:00",
+   "by_source": {},
+   "failed": [],
+   "ok": 172,
+   "pending": [],
+   "progressed": true,
+   "remaining": 0,
+   "requests": 172,
+   "task": "backfill"
   }
  ],
  "sources": {
@@ -2278,6 +2275,16 @@
    "rows": 906,
    "validation": "ok"
   },
+  "tpex_insti_amount": {
+   "consecutive_failures": 0,
+   "last_attempt": "2026-10-04T04:47:14+08:00",
+   "last_message": null,
+   "last_status": "ok",
+   "last_success": "2026-10-02",
+   "last_success_at": "2026-10-04T04:47:14+08:00",
+   "rows": 6,
+   "validation": "ok"
+  },
   "tpex_margin": {
    "consecutive_failures": 0,
    "last_attempt": "2026-10-03T02:37:45+08:00",
@@ -2533,6 +2540,16 @@
    "rows": 1320,
    "validation": "ok"
   },
+  "twse_insti_amount": {
+   "consecutive_failures": 0,
+   "last_attempt": "2026-10-04T04:47:09+08:00",
+   "last_message": null,
+   "last_status": "ok",
+   "last_success": "2026-10-02",
+   "last_success_at": "2026-10-04T04:47:09+08:00",
+   "rows": 6,
+   "validation": "ok"
+  },
   "twse_intraday_index": {
    "consecutive_failures": 0,
    "last_attempt": "2026-10-04T04:20:49+08:00",
@@ -2662,6 +2679,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-04T04:20:49+08:00",
+ "updated_at": "2026-10-04T04:47:14+08:00",
  "version": 1
 }
