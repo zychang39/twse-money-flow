@@ -1250,6 +1250,50 @@
   "updated_at": "2026-10-04T03:34+08:00",
   "weeks": 51
  },
+ "kbar": {
+  "at": "2026-10-04T04:20+08:00",
+  "covered": 2335,
+  "empty": [
+   "00643K",
+   "00707R",
+   "1522A",
+   "2323",
+   "2751",
+   "3085",
+   "3684",
+   "4175",
+   "4192",
+   "4305",
+   "4527",
+   "5301",
+   "5455",
+   "5703",
+   "6276",
+   "6592A",
+   "6661",
+   "6680",
+   "6721",
+   "7584",
+   "7713",
+   "8080",
+   "8444",
+   "8455",
+   "8905",
+   "8917",
+   "8923"
+  ],
+  "failed": [
+   "00625K",
+   "00793B",
+   "2601",
+   "3067",
+   "8183"
+  ],
+  "remaining": 5,
+  "stopped": null,
+  "target": "2026-10-02",
+  "total": 2367
+ },
  "last_target_date": "2026-10-02",
  "publish_probe": {
   "2026-09-30": {
@@ -1468,20 +1512,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-03T04:52:13+08:00",
-   "by_source": {
-    "tdcc_full": 73483
-   },
-   "chained": true,
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 73483,
-   "requests": 545,
-   "task": "holders_backfill"
-  },
   {
    "at": "2026-10-03T05:33:23+08:00",
    "by_source": {
@@ -2017,6 +2047,28 @@
    "remaining": 0,
    "requests": 172,
    "task": "backfill"
+  },
+  {
+   "at": "2026-10-04T04:52:50+08:00",
+   "by_tier": {
+    "1": 500,
+    "2": 442,
+    "3": 1420
+   },
+   "chained": true,
+   "covered": 2335,
+   "failed": [],
+   "fetched": 2362,
+   "kbar_target": "2026-10-02",
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "pruned": 0,
+   "remaining": 5,
+   "requests": 0,
+   "rows": 366393,
+   "task": "kbar",
+   "total": 2367
   }
  ],
  "sources": {
@@ -2659,6 +2711,16 @@
    "last_success_at": "2026-10-03T02:42:24+08:00",
    "rows": 189,
    "validation": "ok"
+  },
+  "yahoo_kbar": {
+   "consecutive_failures": 0,
+   "last_attempt": "2026-10-04T04:52:47+08:00",
+   "last_message": "涵蓋 2335/2367 檔；本次 2362 檔請求、失敗 5、查無 27",
+   "last_status": "ok",
+   "last_success": "2026-10-02",
+   "last_success_at": "2026-10-04T04:52:47+08:00",
+   "rows": 2335,
+   "validation": "ok"
   }
  },
  "stages": {
@@ -2679,6 +2741,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-04T04:47:14+08:00",
+ "updated_at": "2026-10-04T04:52:50+08:00",
  "version": 1
 }
