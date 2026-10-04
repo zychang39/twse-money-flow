@@ -201,10 +201,12 @@ describe('共用版面樣式（styles/*.css）', () => {
     expect(rule(evidence, '.ev-table.ev-seg .seg-name')).toContain('white-space: nowrap');
     expect(rule(evidence, '.ev-table.ev-seg td')).toContain('font-size: 0.875rem');
   });
-  it('四級灰階墨色 --ink-1～4 只定義一次（只做深色），環與比例條都用它', () => {
+  it('四級灰階墨色 --ink-1～4（＝單色層次 --d-1～4）只定義一次，比例條用它；分數環一律白色', () => {
     expect(tokens.match(/--ink-1:/g)).toHaveLength(1);
     expect(tokens.match(/--ink-4:/g)).toHaveLength(1);
-    for (const n of [1, 2, 3, 4]) expect(global).toContain(`.ring.ink-${n} .ring-arc, .rings4 > :nth-child(${n}) .ring .ring-arc { stroke: var(--ink-${n}); }`);
+    // 單色（A5，2026-10-04）：四環分數一律白色填色＋深灰軌道
+    expect(global).toContain('.ring.ink-1 .ring-arc, .rings4 > :nth-child(1) .ring .ring-arc { stroke: var(--ink-1); }');
+    for (const n of [2, 3, 4]) expect(global).toContain(`.ring.ink-${n} .ring-arc, .rings4 > :nth-child(${n}) .ring .ring-arc { stroke: var(--d-1); }`);
     expect(global).toContain('.discipline .legend i.ink-3 { background: var(--ink-3); }');
     // 紀律三環（.rings3）已在 M6 移除（流程頁改為一個進度環）
     // 籌碼結構比例條：.sb-seg（新名）與 .st-bar > .st-seg（Structure.tsx 改名前）都套四級墨色，不再用透明度

@@ -192,11 +192,11 @@ function useGrow(): boolean {
 }
 
 /** 進度條（0–100；例：RS 百分位）。color：資料強調色或風險橘。 */
-export function ProgressBar({ value, color = 'var(--c-blue)', label, max = 100, testid }: { value: number | null | undefined; color?: string; label?: string; max?: number; testid?: string }) {
+export function ProgressBar({ value, color = 'var(--d-1)', label, max = 100, testid, dim = false }: { value: number | null | undefined; color?: string; label?: string; max?: number; testid?: string; /** 資料不完整：降低不透明度 */ dim?: boolean }) {
   const on = useGrow();
   const v = value === null || value === undefined || !Number.isFinite(value) ? null : Math.max(0, Math.min(max, value));
   return (
-    <span class="pbar" role="img" aria-label={label ?? (v === null ? '無資料' : `${Math.round(v)}／${max}`)} data-testid={testid}>
+    <span class={`pbar ${dim ? 'dim' : ''}`} role="img" aria-label={label ?? (v === null ? '無資料' : `${Math.round(v)}／${max}`)} data-testid={testid}>
       {v !== null ? <i style={{ background: color, transform: `scaleX(${on ? v / max : 0})` }} /> : null}
     </span>
   );
@@ -230,7 +230,7 @@ export function RangeBar({ low, high, markers, band, label, testid }: {
 export function DivergingBar({ value, max, tone = 'updown', label }: { value: number | null | undefined; max: number; tone?: 'updown' | 'plain'; label?: string }) {
   const on = useGrow();
   const v = value === null || value === undefined || !Number.isFinite(value) || !max ? 0 : Math.max(-1, Math.min(1, value / max));
-  const color = tone === 'plain' ? 'var(--c-blue)' : v >= 0 ? 'var(--up)' : 'var(--down)';
+  const color = tone === 'plain' ? 'var(--d-1)' : v >= 0 ? 'var(--up)' : 'var(--down)';
   return (
     <span class="dbar" role="img" aria-label={label ?? ''}>
       <i class="dbar-mid" />
@@ -246,7 +246,7 @@ export function MiniLine({ values, w = 72, h = 28, base, color, lines, testid }:
   base?: number | null;
   color?: string;
   /** 額外的線（例：均線）：同一個 Y 軸 */
-  lines?: { values: (number | null)[]; color: string }[];
+  lines?: { values: (number | null)[]; color: string; dash?: 'dash' | 'dot' }[];
   testid?: string;
 }) {
   const v = (values ?? []).filter((x): x is number => x !== null && Number.isFinite(x));
@@ -264,7 +264,7 @@ export function MiniLine({ values, w = 72, h = 28, base, color, lines, testid }:
       {(lines ?? []).map((l, i) => {
         const lv = l.values.map((x) => (x === null || !Number.isFinite(x) ? null : x));
         const pts = points(lv.map((x) => x ?? NaN), f, range).filter((_, k) => lv[k] !== null);
-        return <path key={i} d={smoothD(pts)} fill="none" stroke={l.color} stroke-width={1} opacity={0.9} />;
+        return <path key={i} d={smoothD(pts)} fill="none" stroke={l.color} stroke-width={1} opacity={0.9} stroke-dasharray={l.dash === 'dash' ? '4 3' : l.dash === 'dot' ? '1.5 3' : undefined} />;
       })}
       <path d={d} fill="none" stroke={c} stroke-width={3} opacity={0.25} stroke-linejoin="round" stroke-linecap="round" />
       <path d={d} fill="none" stroke={c} stroke-width={1.5} stroke-linejoin="round" stroke-linecap="round" />
@@ -273,10 +273,11 @@ export function MiniLine({ values, w = 72, h = 28, base, color, lines, testid }:
 }
 
 /**
- * 環（0–100）：四種強調色之一；進頁時由 0 填到分數（400ms）。中間顯示分數，下方小字（例「資料 80%」）。
+ * 環（0–100）：白色填色＋深灰軌道（改版前樣式）；資料不完整（dim）時降低不透明度；進頁時由 0 填到分數（400ms）。
+ * 中間顯示分數，下方小字（例「資料 80%」）。
  */
-export function Ring({ value, color = 'var(--c-blue)', size = 72, stroke = 6, sub, label, onClick, testid }: {
-  value: number | null | undefined; color?: string; size?: number; stroke?: number; sub?: Kids; label: string; onClick?: () => void; testid?: string;
+export function Ring({ value, color = 'var(--d-1)', size = 72, stroke = 6, sub, label, onClick, testid, dim = false }: {
+  value: number | null | undefined; color?: string; size?: number; stroke?: number; sub?: Kids; label: string; onClick?: () => void; testid?: string; dim?: boolean;
 }) {
   const on = useGrow();
   const r = (size - stroke) / 2;
@@ -288,7 +289,7 @@ export function Ring({ value, color = 'var(--c-blue)', size = 72, stroke = 6, su
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--track)" stroke-width={stroke} />
           {v !== null ? (
-            <circle class="ring2-arc" cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} stroke-width={stroke} stroke-linecap="round"
+            <circle class="ring2-arc" opacity={dim ? 0.5 : 1} cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} stroke-width={stroke} stroke-linecap="round"
               stroke-dasharray={`${c} ${c}`} style={{ strokeDashoffset: on ? c * (1 - v / 100) : c }} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
           ) : null}
         </svg>

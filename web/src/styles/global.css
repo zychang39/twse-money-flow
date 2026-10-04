@@ -179,8 +179,8 @@ a.card, button.card { display: block; color: inherit; width: 100%; text-align: l
 .bb-meter { margin-top: var(--s-4); }
 .bb-bar { display: flex; gap: 2px; height: 0.5rem; border-radius: var(--r-pill); overflow: hidden; background: var(--surface-2); }
 .bb-seg { flex-basis: 0; min-width: 0.25rem; }
-.bb-seg.bull { background: var(--up); }
-.bb-seg.bear { background: var(--down); }
+.bb-seg.bull { background: var(--d-1); }
+.bb-seg.bear { background: var(--d-3); }
 .bb-seg.neutral { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--text-3); }
 .bb-legend { display: flex; justify-content: space-between; margin-top: var(--s-1); font-size: var(--fs-caption); line-height: var(--lh-caption); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
 /* 研究參考：法說會清單與外部連結 */
@@ -232,7 +232,7 @@ a.list-item { text-decoration: none; }
 .srow .price { text-align: right; }
 .srow-rs { display: flex; flex-direction: column; align-items: flex-end; gap: var(--s-1); font-variant-numeric: tabular-nums; }
 .srow-rs-bar { position: relative; display: block; width: 2.5rem; height: 0.25rem; border-radius: var(--r-pill); background: var(--track); overflow: hidden; }
-.srow-rs-bar i { position: absolute; inset: 0; background: var(--c-blue); transform-origin: 0 50%; transition: transform var(--dur-grow) var(--ease-out); }
+.srow-rs-bar i { position: absolute; inset: 0; background: var(--d-1); transform-origin: 0 50%; transition: transform var(--dur-grow) var(--ease-out); }
 .mine-seg { margin-top: var(--s-6); }
 .srow .sub { display: block; font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -242,7 +242,7 @@ a.list-item { text-decoration: none; }
 .pill.down { background: var(--down-tint); }
 .pill.flat { background: var(--surface-2); color: var(--text-2); }
 .tag, .badge, .pill { flex: none; white-space: nowrap; }
-.tag { display: inline-flex; align-items: center; gap: var(--s-1); height: var(--tag-h); padding: 0 var(--s-2); border-radius: var(--r-xs); font-size: var(--fs-caption); line-height: var(--tag-h); font-weight: var(--fw-semibold); background: var(--surface-2); color: var(--text-2); }
+.tag { display: inline-flex; align-items: center; gap: var(--s-1); height: var(--tag-h); padding: 0 var(--s-2); border-radius: var(--r-xs); font-size: var(--fs-caption); line-height: var(--tag-h); font-weight: var(--fw-semibold); background: var(--surface-2); color: var(--text-1); }
 .tag.risk, .flag, .flag.danger { background: var(--risk-tint); color: var(--risk); }
 .flag { display: inline-flex; align-items: center; gap: var(--s-1); font-size: var(--fs-caption); line-height: 1.2; font-weight: var(--fw-semibold); padding: 0.125rem var(--s-2); border-radius: var(--r-pill); }
 .est { display: inline-flex; align-items: center; height: 1.125rem; padding: 0 0.3125rem; margin-left: var(--s-1); border-radius: var(--r-xs); font-size: 0.6875rem; line-height: 1; font-weight: var(--fw-medium); color: var(--text-2); background: var(--surface-2); vertical-align: 0.125rem; }
@@ -371,9 +371,9 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
    ScoreRing 的 tone 屬性（.ink-N）明確指定；沒有指定時依在 .rings4 中的順序 */
 .ring .ring-arc { stroke: var(--ink-1); transition: stroke-dasharray var(--dur-slow) var(--ease-spring); }
 .ring.ink-1 .ring-arc, .rings4 > :nth-child(1) .ring .ring-arc { stroke: var(--ink-1); }
-.ring.ink-2 .ring-arc, .rings4 > :nth-child(2) .ring .ring-arc { stroke: var(--ink-2); }
-.ring.ink-3 .ring-arc, .rings4 > :nth-child(3) .ring .ring-arc { stroke: var(--ink-3); }
-.ring.ink-4 .ring-arc, .rings4 > :nth-child(4) .ring .ring-arc { stroke: var(--ink-4); }
+.ring.ink-2 .ring-arc, .rings4 > :nth-child(2) .ring .ring-arc { stroke: var(--d-1); }
+.ring.ink-3 .ring-arc, .rings4 > :nth-child(3) .ring .ring-arc { stroke: var(--d-1); }
+.ring.ink-4 .ring-arc, .rings4 > :nth-child(4) .ring .ring-arc { stroke: var(--d-1); }
 .ring .ring-v { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: var(--fw-semibold); letter-spacing: -0.02em; }
 .ring.lg .ring-v { font-size: var(--fs-section); }
 .ring.sm .ring-v { font-size: 0.6875rem; }

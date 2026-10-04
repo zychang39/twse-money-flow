@@ -24,6 +24,23 @@ export interface Series {
   noLegend?: boolean;
   /** 不標線尾（例：逐年疊圖的較早年份；突顯時才標） */
   noEnd?: boolean;
+  /** 線型（單色風格靠線型區分序列）：'dash'＝虛線、'dot'＝點線；預設實線 */
+  dash?: 'dash' | 'dot';
+}
+
+/** 單色風格的序列樣式（2026-10-04）：主序列白色加粗帶柔光；所選基準淺灰實線；其餘深灰並以虛線、點線區分；區間色帶白 10%。 */
+export const MONO = { main: 'var(--d-1)', bench: 'var(--d-2)', other: 'var(--d-3)', faint: 'var(--d-4)', band: 'var(--d-band)' } as const;
+export const DASH: Record<NonNullable<Series['dash']>, string> = { dash: '5 4', dot: '1.5 3' };
+
+/** 圖例與讀值面板的線型示意（灰階＋線型，不靠顏色辨識）；kind='band' 畫色帶、'bar' 畫長條 */
+export function Swatch({ color, dash, kind = 'line', main = false }: { color: string; dash?: Series['dash']; kind?: 'line' | 'band' | 'bar'; main?: boolean }) {
+  return (
+    <svg class="sc2-sw" width={16} height={10} viewBox="0 0 16 10" aria-hidden="true">
+      {kind === 'band' ? <rect x={0} y={1} width={16} height={8} rx={2} fill={color} />
+        : kind === 'bar' ? <rect x={4} y={0} width={8} height={10} rx={1.5} fill={color} />
+          : <line x1={1} x2={15} y1={5} y2={5} stroke={color} stroke-width={main ? 2.5 : 1.75} stroke-linecap="round" stroke-dasharray={dash ? DASH[dash] : undefined} />}
+    </svg>
+  );
 }
 
 export interface Band { lo: (number | null)[]; hi: (number | null)[]; color: string; name: string }
@@ -209,7 +226,7 @@ export function SeriesChart({
             return (
               <g key={s.id} class={`sc2-line ${off ? 'off' : ''} ${dim ? 'dim' : ''} ${s.main ? 'main' : ''} ${s.thin ? 'thin' : ''}`} data-series={s.id}>
                 {s.main ? <path d={d} class="sc2-glow" stroke={s.color} /> : null}
-                <path d={d} stroke={s.color} />
+                <path d={d} stroke={s.color} stroke-dasharray={s.dash ? DASH[s.dash] : undefined} />
               </g>
             );
           })}
@@ -232,7 +249,7 @@ export function SeriesChart({
             <span class="sc2-r-date">{dateFormat(dates[scrub])}</span>
             {visible.map((s) => {
               const v = s.values[scrub];
-              return <span key={s.id} class="sc2-r-item"><i style={{ background: s.color }} />{s.name} {v === null || !Number.isFinite(v) ? '—' : format(v)}</span>;
+              return <span key={s.id} class="sc2-r-item"><Swatch color={s.color} dash={s.dash} main={s.main} />{s.name} {v === null || !Number.isFinite(v) ? '—' : format(v)}</span>;
             })}
             {readoutExtra ? <span class="sc2-r-extra">{readoutExtra(scrub)}</span> : null}
           </div>
@@ -246,10 +263,10 @@ export function SeriesChart({
           <button type="button" key={s.id} class={`sc2-chip ${hidden.has(s.id) ? 'off' : ''} ${focus === s.id ? 'focus' : ''}`} aria-pressed={!hidden.has(s.id)}
             onPointerDown={() => legendDown(s.id)} onPointerUp={() => legendUp(s.id)} onPointerLeave={() => { if (press.current) { clearTimeout(press.current.timer); press.current = null; } }}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(s.id); } }} data-testid={`chip-${s.id}`}>
-            <i style={{ background: s.color }} />{s.name}
+            <Swatch color={s.color} dash={s.dash} main={s.main} />{s.name}
           </button>
         ))}
-        {band ? <span class="sc2-chip static"><i class="band" style={{ background: band.color }} />{band.name}</span> : null}
+        {band ? <span class="sc2-chip static"><Swatch color={band.color} kind="band" />{band.name}</span> : null}
       </div> : null}
     </div>
   );
@@ -327,12 +344,12 @@ export function BarChart({ labels, series, format, height = 180, label, testid, 
         {sel !== null ? (
           <div class="sc2-readout" role="status" data-testid="bar-readout">
             <span class="sc2-r-date">{labels[sel]}</span>
-            {series.map((s) => <span key={s.id} class="sc2-r-item"><i style={{ background: s.color }} />{s.name} {s.values[sel] === null ? '—' : format(s.values[sel] as number)}</span>)}
+            {series.map((s) => <span key={s.id} class="sc2-r-item"><Swatch color={s.color} kind="bar" />{s.name} {s.values[sel] === null ? '—' : format(s.values[sel] as number)}</span>)}
           </div>
         ) : null}
       </div>
       <div class="sc2-legend">
-        {series.map((s) => <span key={s.id} class="sc2-chip static"><i style={{ background: s.color }} />{s.name}</span>)}
+        {series.map((s) => <span key={s.id} class="sc2-chip static"><Swatch color={s.color} kind="bar" />{s.name}</span>)}
       </div>
     </div>
   );
@@ -354,7 +371,7 @@ export function BarSeries({ dates, stacks, signed = false, words, unit, line, fo
   stacks: { id: string; name: string; color: string; values: (number | null)[] }[];
   /** 單一序列依正負上色（紅漲綠跌） */
   signed?: boolean;
-  line?: { name: string; color: string; values: (number | null)[] };
+  line?: { name: string; color: string; values: (number | null)[]; dash?: Series['dash'] };
   format: (v: number) => string;
   /** 讀值面板內容（預設列出每個序列） */
   readout?: (i: number) => ComponentChildren;
@@ -425,14 +442,15 @@ export function BarSeries({ dates, stacks, signed = false, words, unit, line, fo
                   if (v === null || !Number.isFinite(v)) return null;
                   const a = y(acc + Math.max(0, v)), b = y(acc + Math.min(0, v));
                   if (!signed) acc += v;
-                  const color = signed ? (v >= 0 ? 'var(--up)' : 'var(--down)') : st.color;
+                  // 單色：帶號＝紅綠；不帶號的單一序列＝灰階、最新一根白色；堆疊＝各序列自己的灰階
+                  const color = signed ? (v >= 0 ? 'var(--up)' : 'var(--down)') : stacks.length === 1 ? (i === n - 1 ? 'var(--d-1)' : 'var(--d-3)') : st.color;
                   return <rect key={st.id} x={x} y={Math.min(a, b, y0)} width={bw} height={Math.max(1, Math.abs((signed ? y(v) : b) - (signed ? y0 : a)))} fill={color} rx={1.5} />;
                 })}
               </g>
             );
           })}
           <line class="sc2-zero" x1={0} x2={pw} y1={y0} y2={y0} />
-          {line && linePath ? <path d={linePath} fill="none" stroke={line.color} stroke-width={1.5} class="sc2-ma" /> : null}
+          {line && linePath ? <path d={linePath} fill="none" stroke={line.color} stroke-width={1.5} stroke-dasharray={line.dash ? DASH[line.dash] : undefined} class="sc2-ma" /> : null}
           {sel !== null ? <line class="sc2-cross" x1={slot * sel + slot / 2} x2={slot * sel + slot / 2} y1={PAD_TOP} y2={height - PAD_BOTTOM} /> : null}
           {n >= 2 ? (
             <g class="sc2-dates">
@@ -445,16 +463,16 @@ export function BarSeries({ dates, stacks, signed = false, words, unit, line, fo
           <div class="sc2-readout" role="status" data-testid="bars-readout" onClick={() => setSel(null)}>
             <span class="sc2-r-date">{dateFormat(dates[sel])}</span>
             {readout ? readout(sel) : stacks.map((st) => (
-              <span key={st.id} class="sc2-r-item"><i style={{ background: st.color }} />{st.name} {st.values[sel] === null ? '—' : format(st.values[sel] as number)}</span>
+              <span key={st.id} class="sc2-r-item"><Swatch color={st.color} kind="bar" />{st.name} {st.values[sel] === null ? '—' : format(st.values[sel] as number)}</span>
             ))}
           </div>
         ) : null}
       </div>
       {stacks.length > 1 || line || (signed && words) ? (
         <div class="sc2-legend">
-          {signed && words ? <><span class="sc2-chip static"><i style={{ background: 'var(--up)' }} />紅色＝{words[0]}</span><span class="sc2-chip static"><i style={{ background: 'var(--down)' }} />綠色＝{words[1]}</span></> : null}
-          {signed ? null : stacks.map((st) => <span key={st.id} class="sc2-chip static"><i style={{ background: st.color }} />{st.name}</span>)}
-          {line ? <span class="sc2-chip static"><i class="band" style={{ background: line.color, height: '2px', opacity: 1 }} />{line.name}</span> : null}
+          {signed && words ? <><span class="sc2-chip static"><Swatch color="var(--up)" kind="bar" />紅色＝{words[0]}</span><span class="sc2-chip static"><Swatch color="var(--down)" kind="bar" />綠色＝{words[1]}</span></> : null}
+          {signed ? null : stacks.length === 1 ? <span class="sc2-chip static"><Swatch color="var(--d-1)" kind="bar" />最新一日</span> : stacks.map((st) => <span key={st.id} class="sc2-chip static"><Swatch color={st.color} kind="bar" />{st.name}</span>)}
+          {line ? <span class="sc2-chip static"><Swatch color={line.color} dash={line.dash} />{line.name}</span> : null}
         </div>
       ) : null}
     </div>

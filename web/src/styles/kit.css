@@ -67,7 +67,7 @@ div.sum-card { cursor: default; }
 .pbar { position: relative; display: block; width: 100%; height: 0.375rem; border-radius: var(--r-pill); background: var(--track); overflow: hidden; }
 .pbar i { position: absolute; inset: 0; border-radius: inherit; transform-origin: 0 50%; transition: transform var(--dur-grow) var(--ease-out); }
 .rbar { position: relative; display: block; width: 100%; height: 0.375rem; border-radius: var(--r-pill); background: var(--track); }
-.rbar-band { position: absolute; top: 0; bottom: 0; border-radius: inherit; background: rgba(235, 235, 245, 0.18); }
+.rbar-band { position: absolute; top: 0; bottom: 0; border-radius: inherit; background: var(--d-4); }
 .rbar-m { position: absolute; top: 50%; transition: opacity var(--dur-grow) var(--ease-out); }
 .rbar-m.dot { width: 0.75rem; height: 0.75rem; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 2px var(--surface-1); }
 .rbar-m.tick { width: 2px; height: 1rem; transform: translate(-50%, -50%); border-radius: 1px; }
@@ -142,7 +142,7 @@ button.ring2 { cursor: pointer; }
 .sc2-grid line { stroke: var(--line); stroke-width: 0.5; }
 .sc2-grid text, .sc2-dates text, .sc2-stripe text, .sc2-xl { font-size: 11px; fill: var(--text-2); font-variant-numeric: tabular-nums; }
 .sc2-stripe rect { fill: rgba(235, 235, 245, 0.04); }
-.sc2-band { opacity: 0.22; transition: opacity var(--dur-base) var(--ease-out); }
+.sc2-band { opacity: 1; transition: opacity var(--dur-base) var(--ease-out); }
 .sc2-line path { fill: none; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
 .sc2-line { transition: opacity var(--dur-base) var(--ease-out); }
 .sc2-line.main path { stroke-width: 2.5; }
@@ -197,7 +197,7 @@ button.ring2 { cursor: pointer; }
 .laxis-m { --lv: 0; }
 .laxis-m.above .laxis-l { bottom: calc(var(--s-3) + var(--lv) * 1.25rem); }
 .laxis-m.below .laxis-l { top: calc(var(--s-3) + var(--lv) * 1.25rem); }
-.sc2-ma { stroke-dasharray: none; }
+/* 疊在長條上的均線：線型由元件決定（單色風格用虛線） */
 @media (prefers-reduced-motion: reduce) { .laxis-m { transition: none; } }
 
 /* ---------- 簡報頁（M2） ---------- */
@@ -229,7 +229,17 @@ button.ring2 { cursor: pointer; }
 /* 策略訊號列的兩個資訊塊（M3）：各自不斷行 */
 .sig-blks { display: flex; flex-wrap: wrap; column-gap: var(--s-3); }
 .sig-blk { white-space: nowrap; }
-.sc2-mark rect { fill: rgba(10, 132, 255, 0.10); }
+.sc2-mark rect { fill: var(--d-band); }
 .sc2-mark text { font-size: 11px; fill: var(--text-2); }
 /* 名詞按鈕是行內區塊（按鈕不能拆成兩個行框）：換行時以上緣對齊，列名的基線維持在第一行，數值才與第一行同基線 */
 .ui-row-label .term, .ui-sec-title .term, th .term { vertical-align: top; }
+.pbar.dim i { opacity: 0.5; }
+/* 圖例與讀值的線型示意（單色風格：灰階＋線型） */
+.sc2-sw { flex: none; display: inline-block; vertical-align: middle; margin-right: var(--s-1); overflow: visible; }
+
+.sc2-chip .sc2-sw { margin-right: 0; }
+.sc2-chip.off .sc2-sw { opacity: 0.4; }
+/* 元件展示頁：色票 */
+.g-swatches { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-3); }
+.g-sw { display: inline-flex; align-items: center; gap: var(--s-1); font-size: var(--fs-foot); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.g-sw i { display: inline-block; width: var(--s-4); height: var(--s-4); border-radius: var(--r-xs); box-shadow: inset 0 0 0 1px var(--card-edge); }

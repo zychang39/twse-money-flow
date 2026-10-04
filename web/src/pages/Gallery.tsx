@@ -5,7 +5,7 @@
 import { useState } from 'preact/hooks';
 import { TopBar, useAmbient } from '../components/Chrome';
 import { HeroChart, PeriodSelector } from '../components/HeroChart';
-import { BarChart, SeriesChart } from '../components/SeriesChart';
+import { BarChart, BarSeries, MONO, SeriesChart } from '../components/SeriesChart';
 import { Card, List, PageTitle, Row, Section, Seg, Signed, StatGrid, Tag, Table } from '../components/ui';
 import {
   Conclusion, DataState, DivergingBar, Interp, Metric, MiniLine, ProgressBar, RangeBar, Ring, RiskDot, RollNum, Skeleton, StaleNote, SummaryCard, Term,
@@ -42,6 +42,14 @@ export default function Gallery() {
       <TopBar back="/" />
       <PageTitle title="元件展示" sub="僅開發用・合成數列" />
 
+      <Section title="色彩規則" info={<p>基底單色：背景純黑、文字白色三階、資料圖形白到灰。彩色只有三種用途：紅綠＝帶正負號的漲跌與增減、主走勢線、環境光；藍＝可點的元素；橘＝風險與提醒。</p>}>
+        <div class="g-swatches" data-testid="g-swatches">
+          {(['--d-1', '--d-2', '--d-3', '--d-4', '--d-band'] as const).map((v) => <span key={v} class="g-sw"><svg width={16} height={16} aria-hidden="true"><rect width={16} height={16} rx={4} fill={`var(${v})`} stroke="var(--card-edge)" /></svg>{v}</span>)}
+          {(['--up', '--down', '--brand', '--risk'] as const).map((v) => <span key={v} class="g-sw"><svg width={16} height={16} aria-hidden="true"><rect width={16} height={16} rx={4} fill={`var(${v})`} stroke="var(--card-edge)" /></svg>{v}</span>)}
+        </div>
+        <p class="ui-foot"><span style={{ color: 'var(--text-1)' }}>文字 100%</span>・<span style={{ color: 'var(--text-2)' }}>文字 60%</span>・<span style={{ color: 'var(--text-3)' }}>文字 30%</span></p>
+      </Section>
+
       <Section title="主走勢圖">
         <HeroChart label="加權指數" win={win} period={period} onPeriod={setPeriod} format={fmt2} area periods={['1D', '1W', '1M', '3M', 'YTD', '1Y', '5Y', 'ALL']} />
       </Section>
@@ -75,14 +83,16 @@ export default function Gallery() {
 
       <Section title="摘要卡">
         <SummaryCard title="報酬與相對強弱" conclusion="近 3 個月 +18.2%・RS 92" graphic={<MiniLine values={wave(60, 100, 6, 0.3)} w={300} h={40} base={100} />} interp="近 3 個月漲幅高於全市場 92% 的股票" href="#/dev" />
-        <SummaryCard title="位置" conclusion="10/2 創 52 週收盤新高" graphic={<RangeBar low={502} high={828} markers={[{ v: 828, color: 'var(--up)' }]} label="52 週區間" />} />
+        <SummaryCard title="位置" conclusion="10/2 創 52 週收盤新高" graphic={<RangeBar low={502} high={828} markers={[{ v: 828, color: 'var(--d-1)' }]} label="52 週區間" />} />
       </Section>
 
       <Section title="進度條、區間條、發散橫條">
         <Card>
           <ProgressBar value={64} label="64" />
           <div style={{ height: 'var(--s-4)' }} />
-          <RangeBar low={-10} high={30} band={[-4, 12]} markers={[{ v: 3, kind: 'tick', color: 'var(--text-2)' }, { v: 18, color: 'var(--text-1)' }, { v: 7, color: 'var(--c-blue)' }]} label="隨機 5–95%" />
+          <ProgressBar value={64} dim label="64（資料不完整）" />
+          <div style={{ height: 'var(--s-4)' }} />
+          <RangeBar low={-10} high={30} band={[-4, 12]} markers={[{ v: 3, kind: 'tick', color: 'var(--text-2)' }, { v: 18, color: 'var(--d-1)' }, { v: 7, color: 'var(--d-3)' }]} label="隨機 5–95%" />
           <div style={{ height: 'var(--s-4)' }} />
           <DivergingBar value={42} max={100} label="+42" />
           <div style={{ height: 'var(--s-2)' }} />
@@ -92,10 +102,10 @@ export default function Gallery() {
 
       <Section title="環">
         <div class="rings">
-          <Ring value={72} color="var(--c-blue)" label="籌碼" sub="資料 100%" />
-          <Ring value={58} color="var(--c-cyan)" label="動能" sub="資料 100%" />
-          <Ring value={41} color="var(--c-indigo)" label="基本面" sub="資料 80%" />
-          <Ring value={null} color="var(--c-purple)" label="估值" sub="資料 0%" />
+          <Ring value={72} label="籌碼" sub="資料 100%" />
+          <Ring value={58} label="動能" sub="資料 100%" />
+          <Ring value={41} dim label="基本面" sub="資料 80%" />
+          <Ring value={null} label="估值" sub="資料 0%" />
         </div>
       </Section>
 
@@ -116,14 +126,22 @@ export default function Gallery() {
         <Seg options={[['log', '對數'], ['lin', '線性']] as const} value={log ? 'log' : 'lin'} onChange={(v) => setLog(v === 'log')} label="Y 軸" small />
         <SeriesChart dates={eqDates} axisKey="all" log={log} label="組合回測" format={(v) => v.toFixed(2)}
           series={[
-            { id: 'p', name: '5 檔組合', color: '#ffffff', values: eq.main, main: true },
-            { id: '0050', name: '0050', color: 'var(--c-blue)', values: eq.a },
-            { id: 'twr', name: '加權報酬', color: 'var(--c-cyan)', values: eq.b },
-            { id: 'l2', name: '00631L', color: 'var(--c-purple)', values: eq.c },
+            { id: 'p', name: '5 檔組合', color: MONO.main, values: eq.main, main: true },
+            { id: '0050', name: '0050', color: MONO.bench, values: eq.a },
+            { id: 'twr', name: '加權報酬', color: MONO.other, dash: 'dash', values: eq.b },
+            { id: 'l2', name: '00631L', color: MONO.other, dash: 'dot', values: eq.c },
           ]}
-          band={{ lo: eq.a.map((v) => v * 0.92), hi: eq.a.map((v) => v * 1.1), color: 'var(--text-2)', name: '隨機 5–95%' }} />
+          band={{ lo: eq.a.map((v) => v * 0.92), hi: eq.a.map((v) => v * 1.1), color: MONO.band, name: '隨機 5–95%' }} />
         <BarChart labels={['2021', '2022', '2023', '2024', '2025']} format={(v) => `${Math.round(v)}%`} label="年度報酬"
-          series={[{ id: 'p', name: '5 檔組合', color: '#ffffff', values: [22, -8, 31, 18, -4] }, { id: 'b', name: '0050', color: 'var(--c-blue)', values: [21, -21, 29, 48, 10] }]} />
+          series={[{ id: 'p', name: '5 檔組合', color: MONO.main, values: [22, -8, 31, 18, -4] }, { id: 'b', name: '0050', color: MONO.other, values: [21, -21, 29, 48, 10] }]} />
+        <BarSeries label="成交金額（不帶號：灰階、最新一根白色）" dates={days(20)} format={(v) => `${Math.round(v)}`} unit="億" height={120} testid="g-bars"
+          stacks={[{ id: 't', name: '成交金額', color: MONO.other, values: wave(20, 5200, 600, 10) }]} line={{ name: '20 日均線', color: MONO.bench, values: wave(20, 5200, 200, 5), dash: 'dash' }} />
+        <BarSeries label="成交金額（堆疊：上市白 80%、上櫃白 35%）" dates={days(20)} format={(v) => `${Math.round(v)}`} unit="億" height={120} testid="g-stack"
+          stacks={[{ id: 'a', name: '上市', color: 'var(--d-80)', values: wave(20, 4200, 500, 8) }, { id: 'b', name: '上櫃', color: 'var(--d-3)', values: wave(20, 1000, 150, 2, 1) }]} />
+        <BarSeries label="三大法人買賣超（帶號：紅綠）" dates={days(20)} format={(v) => `${Math.round(v)}`} unit="億" height={120} signed words={['淨買超', '淨賣超']} testid="g-signed"
+          stacks={[{ id: 's', name: '合計', color: 'var(--up)', values: wave(20, 0, 120, 0, 2) }]} />
+        <MiniLine values={wave(60, 100, 6, 0.3)} w={300} h={48} color="var(--d-1)" lines={[{ values: wave(60, 99, 3, 0.3), color: 'var(--d-1)' }, { values: wave(60, 97, 2, 0.3, 1), color: 'var(--d-2)', dash: 'dash' }]} testid="g-ma" />
+        <p class="ui-foot ui-muted">均線：20 日線白色細實線、60 日線灰色虛線</p>
       </Section>
 
       <Section title="資料狀態">

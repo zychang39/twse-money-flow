@@ -22,7 +22,6 @@ const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite
 export type StockSeg = 'o' | 'm' | 'c' | 'f' | 'e';
 /** 四環對應的分段：估值放在基本面分段 */
 const RING_SEG: Record<CategoryId, StockSeg> = { chip: 'c', momentum: 'm', fundamental: 'f', valuation: 'f' };
-const RING_COLOR: Record<CategoryId, string> = { chip: 'var(--c-blue)', momentum: 'var(--c-cyan)', fundamental: 'var(--c-indigo)', valuation: 'var(--c-purple)' };
 
 export function OverviewPane({ h, row, onSeg }: { h: StockHistory; row?: StockRow; onSeg: (s: StockSeg) => void }) {
   const f = useMemo(() => {
@@ -58,7 +57,7 @@ export function OverviewPane({ h, row, onSeg }: { h: StockHistory; row?: StockRo
           {CATEGORY_IDS.map((id) => {
             const c = completeness(h.scores, id);
             return (
-              <Ring key={id} value={scoreOf(id)} color={RING_COLOR[id]} label={categoryName(id)} sub={c === null ? '無明細' : `資料 ${Math.round(c * 100)}%`}
+              <Ring key={id} value={scoreOf(id)} dim={c !== null && c < 1} label={categoryName(id)} sub={c === null ? '無明細' : `資料 ${Math.round(c * 100)}%`}
                 onClick={() => { markOnboard('ring_jump'); onSeg(RING_SEG[id]); }} testid={`ring-${id}`} />
             );
           })}
@@ -81,7 +80,7 @@ export function OverviewPane({ h, row, onSeg }: { h: StockHistory; row?: StockRo
             graphic={ok(f.biasAtr) ? <DivergingBar value={f.biasAtr} max={4} tone="plain" label={`20 日乖離 ${fmtNum(f.biasAtr, 2)} 倍 ATR（刻度 ±4）`} /> : null}
             interp={biasI.text} alert={biasI.alert} alertText="20 日乖離超過 3 倍 ATR" />
           <Metric term="volume_ratio" label="量比" value={ok(f.vr) ? <>{fmtNum(f.vr, 2)}<span class="key-unit">倍</span></> : '—'}
-            graphic={ok(f.vr) ? <ProgressBar value={Math.min(f.vr, 4)} max={4} color={vrI.alert ? 'var(--risk)' : 'var(--c-cyan)'} label={`量比 ${fmtNum(f.vr, 2)} 倍（刻度 0～4）`} /> : null}
+            graphic={ok(f.vr) ? <ProgressBar value={Math.min(f.vr, 4)} max={4} color={vrI.alert ? 'var(--risk)' : 'var(--d-1)'} label={`量比 ${fmtNum(f.vr, 2)} 倍（刻度 0～4）`} /> : null}
             interp={vrI.text} alert={vrI.alert} alertText="量比超過 3 倍" />
           <Metric term="insti_share" label="法人 20 日佔量" value={<Signed v={f.t20?.pctVolume} digits={1} unit="%" />}
             graphic={ok(f.t20?.pctVolume) ? <DivergingBar value={f.t20!.pctVolume} max={20} label={`法人 20 日佔量 ${fmtNum(f.t20!.pctVolume as number, 1)}%（刻度 ±20%）`} /> : null}

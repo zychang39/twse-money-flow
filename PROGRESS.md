@@ -74,6 +74,11 @@
 - [x] 清理（#382）；頁面高度前後對照 m7/README.md
 - [x] commit＋單一 PR（#378–382）
 
+### 單色風格修正（2026-10-04，覆蓋 A5）
+- [x] tokens（--d-1～4、--d-band、--d-80、文字白色三階；刪除 --c-*、--ring-1～4、--brand-tint）；colors.test.ts 守門
+- [x] 元件與各頁改單色（Ring／ProgressBar dim、SeriesChart MONO＋dash＋Swatch、BarSeries 灰階、均線白實線／灰虛線、策略圖）
+- [x] 元件展示頁更新（色彩規則、灰階長條、堆疊、均線示意）；截圖與基準並排 docs/screens/restore-2026-10/mono；規格 A5 改寫（#383–385）
+
 ## 設計決定（docs/DECISIONS.md #304 起）
 - #304 只做深色；#305 基準 d6a9362、舊環境光在 Chromium 本來就不顯示（gradient 寫法無效）→ 修正；#306 環境光全站一層 useAmbient；
   #307 導覽列透明→玻璃、大標題收合；#308 齒輪取代頭像；#309 分頁列只有圖示、離底 8px；#310 字級；#311 卡片、brand-fill #0066d6；

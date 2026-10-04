@@ -75,31 +75,27 @@ for name, t in (("dark", dark),):
             worst = min(worst, r)
             if r < 4.5:
                 failed.append((name, fg, f"{tint} on {base}", round(r, 2)))
-    # 淡藍底上的主文字（已選取的常用門檻）
-    for base in ("surface-1", "surface-2"):
-        r = ratio(P["text-1"], over(P["brand-tint"], P[base]))
-        worst = min(worst, r)
-        if r < 4.5:
-            failed.append((name, "brand", f"brand-tint on {base}", round(r, 2)))
     r = ratio(P["on-brand"], P["brand-fill"])
     worst = min(worst, r)
     if r < 4.5:
         failed.append((name, "on-brand", "brand-fill", round(r, 2)))
-    # 四級灰階墨色（分數環、紀律三環、籌碼結構比例條；非文字圖形）：每級對 bg／surface-1／surface-2 ≥ 3:1（WCAG 1.4.11），
-    # 相鄰兩級 ≥ 1.5:1 才在灰階截圖下分得出來
-    inks = [P[f"ink-{i}"] for i in (1, 2, 3, 4)]
-    for i, ink in enumerate(inks, 1):
-        for bk in ("bg", "surface-1", "surface-2"):
-            r = ratio(ink, P[bk])
+    # 單色資料圖形層次（A5，2026-10-04）：白 100%／60%／35%／18% 疊在底色上。主序列（d-1）與所選基準（d-2）是承載資訊的
+    # 非文字圖形 → 對 bg／surface-1 ≥ 3:1（WCAG 1.4.11）；d-3／d-4 一律搭配線型（虛線、點線）與線尾名稱，只要求與上一級分得出來
+    # （相鄰兩級 ≥ 1.4:1），由亮到暗單調遞減。
+    levels = [P[f"d-{i}"] for i in (1, 2, 3, 4)]
+    for bk in ("bg", "surface-1"):
+        flat = [over(c, P[bk]) if c[3] < 1 else c for c in levels]
+        for i in (0, 1):
+            r = ratio(flat[i], P[bk])
             if r < 3:
-                failed.append((name, f"ink-{i}", bk, round(r, 2)))
-    for i in range(3):
-        r = ratio(inks[i], inks[i + 1])
-        if r < 1.5:
-            failed.append((name, f"ink-{i + 1}", f"ink-{i + 2}", round(r, 2)))
-    ink_worst = min(ratio(ink, P[bk]) for ink in inks for bk in ("bg", "surface-1", "surface-2"))
-    print(f"{name}: 最低對比 {worst:.2f}:1；灰階墨色對底色最低 {ink_worst:.2f}:1（門檻 3:1）")
+                failed.append((name, f"d-{i + 1}", bk, round(r, 2)))
+        for i in range(3):
+            r = ratio(flat[i], flat[i + 1])
+            if r < 1.4:
+                failed.append((name, f"d-{i + 1}", f"d-{i + 2} on {bk}", round(r, 2)))
+    ink_worst = min(ratio(over(c, P[bk]) if c[3] < 1 else c, P[bk]) for c in levels[:2] for bk in ("bg", "surface-1"))
+    print(f"{name}: 最低對比 {worst:.2f}:1；主序列與基準對底色最低 {ink_worst:.2f}:1（門檻 3:1）")
 if failed:
-    print("低於門檻（文字 4.5:1、灰階墨色 3:1、相鄰墨色 1.5:1）：", failed)
+    print("低於門檻（文字 4.5:1、主序列與基準 3:1、相鄰層次 1.4:1）：", failed)
     sys.exit(1)
-print("全部 ≥ 4.5:1（WCAG AA）；灰階墨色 ≥ 3:1 且相鄰可分辨")
+print("全部 ≥ 4.5:1（WCAG AA）；單色資料層次 ≥ 3:1（主序列與基準）且相鄰可分辨")

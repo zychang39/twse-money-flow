@@ -105,9 +105,9 @@
 .st-hist svg { display: block; overflow: visible; }
 .st-hist-m line { stroke-width: 1.5; }
 .st-hist-m.mean line { stroke: var(--text-1); }
-.st-hist-m.median line { stroke: var(--c-blue); stroke-dasharray: 3 3; }
+.st-hist-m.median line { stroke: var(--d-2); stroke-dasharray: 3 3; }
 .st-hist-m text { font-size: 11px; fill: var(--text-1); font-variant-numeric: tabular-nums; }
-.st-hist-m.median text { fill: var(--c-blue); }
+.st-hist-m.median text { fill: var(--text-2); }
 .st-hist-foot { margin: var(--s-2) 0 0; }
 .concl.st-concl { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); }
 .st-cum-head { display: flex; align-items: center; justify-content: space-between; }

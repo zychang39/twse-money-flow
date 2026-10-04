@@ -131,7 +131,7 @@ export default function SectorGroup({ id: key }: { id: string }) {
           <Interp>{chart && ok(gLast) && ok(tLast) ? `等權指數 ${PERIODS.find((p) => p[0] === period)![1]}${gLast >= tLast ? '領先' : '落後'}加權指數 ${fmtNum(Math.abs(gLast - tLast), 1)} 點（起點 100）` : needHist && codes.length ? '載入成員歷史中' : null}</Interp>
           {chart ? (
             <SeriesChart dates={chart.dates} axisKey={`g${period}`} height={200} label={`${name}等權指數與加權指數（起點 100）`} testid="group-chart" format={(v) => fmtNum(v, 1)} dateFormat={dfmt}
-              series={[{ id: 'g', name: '族群等權', color: 'var(--c-blue)', values: chart.g, main: true }, { id: 't', name: '加權指數', color: 'var(--c-purple)', values: chart.t }]} />
+              series={[{ id: 'g', name: '族群等權', color: 'var(--d-1)', values: chart.g, main: true }, { id: 't', name: '加權指數', color: 'var(--d-2)', values: chart.t }]} />
           ) : <List><EmptyRow>{codes.length ? '資料累積中' : '還沒有成員：點右上「編輯」加入股票'}</EmptyRow></List>}
           <Seg small options={PERIODS} value={period} onChange={setPeriod} label="走勢期間" />
         </Section>
@@ -207,12 +207,12 @@ function StatsPane({ d, codes, idx, custom }: { d: SectorDetail | null | undefin
           <Section title="名次走勢" testid="group-rank">
             <Interp>數字越小越前面；近 {h.dates.length} 個交易日</Interp>
             <SeriesChart dates={h.dates} axisKey="rank" height={140} label="族群名次走勢" format={(v) => fmtNum(v, 0)} dateFormat={dfmt}
-              series={[{ id: 'r', name: '名次', color: 'var(--c-indigo)', values: h.rank ?? [], main: true }]} />
+              series={[{ id: 'r', name: '名次', color: 'var(--d-1)', values: h.rank ?? [], main: true }]} />
           </Section>
           <Section title="寬度" testid="group-breadth">
             <Interp>成員站上 60 日線的比例（%）</Interp>
             <SeriesChart dates={h.dates} axisKey="breadth" height={140} label="站上 60 日線比例" format={(v) => `${fmtNum(v, 0)}%`} dateFormat={dfmt}
-              series={[{ id: 'b', name: '站上 60 日線', color: 'var(--c-cyan)', values: h.breadth ?? [], main: true }]} />
+              series={[{ id: 'b', name: '站上 60 日線', color: 'var(--d-1)', values: h.breadth ?? [], main: true }]} />
           </Section>
         </>
       ) : custom ? <List><EmptyRow>自訂或編輯過的族群只計算目前的統計（沒有名次與寬度的歷史）</EmptyRow></List> : null}

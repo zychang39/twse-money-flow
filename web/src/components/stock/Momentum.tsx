@@ -106,7 +106,7 @@ export function MomentumPane({ h }: { h: StockHistory }) {
 
       <SummaryCard title="趨勢" href={`${base}/trend`} testid="mom-trend" vt="mom-trend"
         conclusion={tr.concl ?? '資料不足'}
-        graphic={s ? <MiniLine values={s.close} w={300} h={48} lines={[{ values: s.ma20, color: 'var(--c-blue)' }, { values: s.ma60, color: 'var(--c-purple)' }, { values: s.ma240, color: 'var(--c-cyan)' }]} /> : null}>
+        graphic={s ? <MiniLine values={s.close} w={300} h={48} color="var(--d-1)" lines={[{ values: s.ma20, color: 'var(--d-1)' }, { values: s.ma60, color: 'var(--d-2)', dash: 'dash' }, { values: s.ma240, color: 'var(--d-3)', dash: 'dot' }]} /> : null}>
         {g20 && ok(g20.slope) ? <Interp>20 日線近 10 日 {sp(g20.slope, 1)}（10 日前 {pct(g20.slope_prev, 1)}）{sw && sw !== '持平' ? sw : ''}</Interp> : null}
         {t && ok(t.gap.now) ? <Interp>20–60 日線間距 {fmtNum(t.gap.now, 1)}%（10 日前 {ok(t.gap.prev) ? `${fmtNum(t.gap.prev, 1)}%` : '—'}）{gw && gw !== '持平' ? gw : ''}</Interp> : null}
       </SummaryCard>
@@ -127,7 +127,7 @@ export function MomentumPane({ h }: { h: StockHistory }) {
         <span class="sum-head"><span class="sum-title">波動與部位</span></span>
         <span class="sum-concl">ATR14 {ok(m.atr) ? fmtPrice(m.atr) : '—'}<span class="key-unit"> 元</span>・{ok(m.atrPct) ? fmtNum(m.atrPct, 2) : '—'}<span class="key-unit">%</span>{atrI.alert ? <RiskDot term="atr_pct" show /> : null}</span>
         <div class="vol-bars">
-          {ok(m.atrRank) ? <div class="pos-bar"><p class="ui-foot ui-muted pos-label">ATR% 近 1 年百分位 {Math.round(m.atrRank * 100)}</p><ProgressBar value={m.atrRank * 100} color={atrI.alert ? 'var(--risk)' : 'var(--c-cyan)'} label={`ATR% 近 1 年百分位 ${Math.round(m.atrRank * 100)}`} /></div> : null}
+          {ok(m.atrRank) ? <div class="pos-bar"><p class="ui-foot ui-muted pos-label">ATR% 近 1 年百分位 {Math.round(m.atrRank * 100)}</p><ProgressBar value={m.atrRank * 100} color={atrI.alert ? 'var(--risk)' : 'var(--d-1)'} label={`ATR% 近 1 年百分位 ${Math.round(m.atrRank * 100)}`} /></div> : null}
           {ok(biasAtr) ? <div class="pos-bar"><p class="ui-foot ui-muted pos-label">20 日乖離 {sp(biasAtr, 2).replace('%', '')}{'\u00a0'}倍 ATR</p><AtrScale v={biasAtr} /></div> : null}
         </div>
         <Interp alert={atrI.alert}>{atrI.text}</Interp>
@@ -191,7 +191,7 @@ function ReturnsDetail({ h }: { h: StockHistory }) {
         {n >= 2 ? (
           <SeriesChart dates={dates} axisKey="rs" height={180} label="近 250 日 RS 百分位" testid="rs-chart" format={(v) => fmtNum(v, 0)}
             dateFormat={(d) => `${d.slice(0, 4)}/${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`}
-            series={[{ id: 'rs', name: 'RS 百分位', color: 'var(--c-blue)', values: vals, main: true }]} />
+            series={[{ id: 'rs', name: 'RS 百分位', color: 'var(--d-1)', values: vals, main: true }]} />
         ) : <List><EmptyRow>資料累積中：目前只有 {n} 天</EmptyRow></List>}
       </Section>
       <Section title="各期間報酬" testid="sec-returns">
@@ -268,9 +268,9 @@ function TrendDetail({ h }: { h: StockHistory }) {
           dateFormat={(d) => `${d.slice(0, 4)}/${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`}
           series={[
             { id: 'c', name: '收盤', color: 'var(--text-1)', values: s.close, main: true },
-            { id: '20', name: '20 日線', color: 'var(--c-blue)', values: s.ma20 },
-            { id: '60', name: '60 日線', color: 'var(--c-purple)', values: s.ma60 },
-            { id: '240', name: '240 日線', color: 'var(--c-cyan)', values: s.ma240 },
+            { id: '20', name: '20 日線', color: 'var(--d-1)', values: s.ma20, thin: true },
+            { id: '60', name: '60 日線', color: 'var(--d-2)', values: s.ma60, dash: 'dash' },
+            { id: '240', name: '240 日線', color: 'var(--d-3)', values: s.ma240, dash: 'dot' },
           ]} />
         <div class="ui-card">
           <Table testid="ma-table" caption="均線價、乖離與斜率" rowKey={(r) => r.k} rows={rows} cols={[
@@ -288,7 +288,7 @@ function TrendDetail({ h }: { h: StockHistory }) {
         <Interp>{gw ? `和 10 日前（${pct(t.gap.prev)}）相比，${gw === '持平' ? '差不多' : gw}` : null}</Interp>
         <SeriesChart dates={s.dates} axisKey="gap" height={140} zero label="20 日線與 60 日線的距離" testid="gap-chart" format={(v) => sp(v)}
           dateFormat={(d) => `${d.slice(0, 4)}/${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`}
-          series={[{ id: 'g', name: '間距', color: 'var(--c-indigo)', values: s.gap, main: true }]} />
+          series={[{ id: 'g', name: '間距', color: 'var(--d-1)', values: s.gap, main: true }]} />
       </Section>
     </>
   );
