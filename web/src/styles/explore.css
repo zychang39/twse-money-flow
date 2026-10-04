@@ -19,3 +19,4 @@
 .ex-tile-t { grid-row: 1; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); }
 .ex-tile-v { grid-column: 1 / -1; grid-row: 2; margin-top: var(--s-1); font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); font-variant-numeric: tabular-nums; word-break: keep-all; overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) { .ex-tile:active, .ex-index:active { transform: none; } }
+.ex-skel { display: block; width: 70%; height: 1em; }

@@ -14,6 +14,7 @@ import { ETF_KINDS, ETF_KIND_LABEL, type EtfCoverage, type EtfItem, type EtfKind
 import { setListContext } from '../lib/listContext';
 import { fmtNum, md } from '../lib/format';
 import { Term } from '../components/kit';
+import { PageStale } from '../components/DataStatus';
 
 /** 變動分類標籤：新增／加碼／減碼／剔除；舊版資料沒有 kind 時依方向寫加碼／減碼。 */
 export function kindOf(e: Pick<EtfMove, 'kind' | 'net_shares'>): EtfKind {
@@ -176,6 +177,7 @@ export default function Etf() {
       <TopBar back="/explore" />
       <PageTitle title="主動式 ETF"
         sub={m ? <><div data-testid="etf-coverage">{coverageLine(cov)}</div>{warn ? <div data-testid="etf-unverified">{warn}</div> : null}</> : undefined} />
+      <PageStale />
       {market.error ? <ErrorState error={market.error} /> : null}
       {market.loading ? <Loading /> : null}
       {m ? (

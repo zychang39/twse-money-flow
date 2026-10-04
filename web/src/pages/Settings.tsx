@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
 import { applyAppearance } from '../lib/appearance';
-import { Card, List, NavRow, PageTitle, Section, Seg } from '../components/ui';
+import { Card, List, NavRow, PageTitle, Row, Section, Seg } from '../components/ui';
 import { Interp, Term } from '../components/kit';
 import { useUser } from '../data/useUser';
 import { TERMS } from '../lib/glossary';
@@ -30,6 +30,8 @@ export default function Settings() {
     portfolio: await getSetting<PortfolioSettings>('portfolio', DEFAULT_PORTFOLIO),
   }));
   const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS);
+  const [openW, setOpenW] = useState(false);
+  const [openA, setOpenA] = useState(false);
   const style = useInvestStyle();
   const whale = useWhaleTier();
   const user = useUser();
@@ -104,6 +106,8 @@ export default function Settings() {
       </Section>
 
       <Section title="分項權重" info={<p>四個分項分數加總時的權重（只用在「進階」區）；不建議依回測結果反覆調整（過度擬合）。</p>}>
+        <List chev><Row label={openW ? '收合' : '調整權重'} sub={openW ? undefined : CATEGORY_IDS.map((c) => `${scoresConfig.categories[c].label} ${weights[c]}`).join('・')} onClick={() => setOpenW(!openW)} expanded={openW} testid="weights-toggle" /></List>
+        {openW ? (
       <Card>
         {CATEGORY_IDS.map((c) => (
           <label key={c} class="field">
@@ -116,6 +120,7 @@ export default function Settings() {
         ))}
         <button class="btn small" onClick={() => { setWeights(DEFAULT_WEIGHTS); setSetting('weights', DEFAULT_WEIGHTS); }}>恢復預設（等權重）</button>
       </Card>
+        ) : null}
       </Section>
 
       <Section title="資料" testid="set-data">
@@ -124,8 +129,8 @@ export default function Settings() {
           <NavRow title="資料健康" sub="各資料源的更新狀態與相容模式" href="#/me/health" />
           <NavRow title="資料來源" sub="公開資料・授權與標示" href="#/me/data" />
         </List>
-        <p class="ui-foot ui-muted set-l">盤中到價提醒</p>
-        <AlertExport />
+        <List chev><Row label="盤中到價提醒" sub={openA ? undefined : '匯出到其他 App 的價格提醒'} onClick={() => setOpenA(!openA)} expanded={openA} testid="alerts-toggle" /></List>
+        {openA ? <AlertExport /> : null}
       </Section>
 
       <Section title="名詞表" testid="set-glossary">
@@ -139,7 +144,6 @@ export default function Settings() {
         <List chev>
           <NavRow title="計算方法" sub="還原價、指標、分數、回測的定義" href="#/me/methodology" />
         </List>
-        <Interp>僅供研究參考，非投資建議；依規則產生，非推薦。</Interp>
       </Section>
     </div>
   );

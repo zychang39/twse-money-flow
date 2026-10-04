@@ -6,7 +6,7 @@ import { checklistComplete, parseChecklistQuery } from './checklist';
 import { uiConfig } from './config';
 import { compliantSplit, recentViolations, rSummary, weeklyFlow } from './flowStats';
 import {
-  dayRings, displayDay, flowLevel, flowStreak, flowXp, levelFor, levelThreshold, prepareTrade, ritualAnswer, tradeCompliance, xpLedger, xpTable, type FlowInput,
+  dayRings, displayDay, flowLevel, flowStreak, flowXp, levelFor, levelThreshold, prepareTrade, tradeCompliance, xpLedger, xpTable, type FlowInput,
 } from './ritual';
 import { makeCalendar } from './tradingCalendar';
 
@@ -88,11 +88,6 @@ describe('三環（§8.2）', () => {
   it('休市日顯示上一交易日', () => {
     expect(displayDay(cal, '2026-10-10T04:00:00Z')).toEqual({ day: '2026-10-08', isTradingDay: false }); // 10/10（六）→ 10/9 休市 → 10/8
     expect(displayDay(cal, '2026-10-12T04:00:00Z')).toEqual({ day: '2026-10-12', isTradingDay: true });
-  });
-
-  it('休市日的舊文案不寫「還差」（相容層）', () => {
-    const s = ritualAnswer({ rings: [{ done: true }, { done: true }, { done: false }], complete: false }, false, '2026-10-02');
-    expect(s).not.toContain('還差');
   });
 });
 

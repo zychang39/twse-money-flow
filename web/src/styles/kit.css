@@ -231,3 +231,5 @@ button.ring2 { cursor: pointer; }
 .sig-blk { white-space: nowrap; }
 .sc2-mark rect { fill: rgba(10, 132, 255, 0.10); }
 .sc2-mark text { font-size: 11px; fill: var(--text-2); }
+/* 名詞按鈕是行內區塊（按鈕不能拆成兩個行框）：換行時以上緣對齊，列名的基線維持在第一行，數值才與第一行同基線 */
+.ui-row-label .term, .ui-sec-title .term, th .term { vertical-align: top; }

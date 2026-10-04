@@ -32,7 +32,7 @@ async function seedDb(page, seed) {
 }
 const browser = await chromium.launch(process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {});
 const ctx = await browser.newContext({
-  viewport: { width: 402, height: 874 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true,
+  viewport: { width: Number(arg('width', '402')), height: Number(arg('height', '874')) }, deviceScaleFactor: Number(arg('scale', '3')), isMobile: true, hasTouch: true,
   colorScheme: 'dark', serviceWorkers: 'block', timezoneId: 'Asia/Taipei', locale: 'zh-TW',
 });
 await ctx.addInitScript(() => { try { localStorage.setItem('tmf-theme', 'dark'); } catch { /* 私密模式 */ } });

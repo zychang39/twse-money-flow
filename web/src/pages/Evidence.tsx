@@ -31,6 +31,7 @@ import { GRADE_NAME, VERDICT_NAME, gradeByTestMap, gradeCounts, gradeSummary, ve
 import type { StrategiesFile } from '../lib/strategies';
 import '../styles/evidence.css';
 import '../styles/strategy.css';
+import { PageStale } from '../components/DataStatus';
 
 const DOC_URL = 'https://github.com/zychang39/twse-money-flow/blob/main/docs/INDICATOR_EVIDENCE.md';
 
@@ -358,6 +359,7 @@ export default function Evidence() {
     <div class="page">
       <TopBar back="/explore" />
       <PageTitle title="指標效度" sub={meta ? `${c.total} 項指標・資料至 ${md(meta.data_end)}・僅供研究參考，非投資建議` : '僅供研究參考，非投資建議'} />
+      <PageStale />
       {d.loading ? <Loading /> : null}
       {d.error ? <ErrorState error={d.error} /> : null}
       {meta?.error ? <List><EmptyRow>評估暫時無法產生：{meta.error}</EmptyRow></List> : null}

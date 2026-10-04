@@ -1,9 +1,8 @@
-/** 小型視覺元件：sparkline（含基準虛線）、分數環、紀律三環、淨買賣超柱狀圖；圖表共用的日期軸格式與讀值狀態。 */
+/** 小型視覺元件：sparkline（含基準虛線）、分數環、淨買賣超柱狀圖；圖表共用的日期軸格式與讀值狀態。 */
 import { extent, pathD, points, yOf } from '../lib/chartMath';
 import { fillForward } from '../lib/periods';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { dirClass, dirColor, fmtLotsUnit } from '../lib/format';
-import { IconCheck } from './Icons';
 
 /**
  * 圖表日期軸的標籤：日資料顯示 M/D（withYear 時 YYYY/M/D）、月資料顯示 YYYY/M；其他字串（季別、期間名）原樣回傳。
@@ -86,31 +85,6 @@ export function ScoreRing({ value, size = 64, stroke = 4, label, className = '',
       <span class="ring-v" aria-hidden="true">{v === null ? '—' : Math.round(v)}</span>
       {label ? <span class="sr-only">{`${label} ${v === null ? '資料不足' : Math.round(v)}`}</span> : null}
     </span>
-  );
-}
-
-/** 紀律三環：外→內＝看完簡報、檢查表、檢討，弧線用三級灰階墨色（ink-1～3，與圖例圓點同色）。完成時播放一次低調的完成動畫。 */
-export function Rings3({ progress, complete, animate }: { progress: number[]; complete: boolean; animate?: boolean }) {
-  const sizes = [132, 104, 76];
-  return (
-    <div class={`rings3 ${complete && animate ? 'complete' : ''}`} aria-hidden="true">
-      {sizes.map((s, i) => {
-        const off = (132 - s) / 2;
-        const r = (s - 10) / 2;
-        const c = 2 * Math.PI * r;
-        const p = Math.max(0, Math.min(1, progress[i] ?? 0));
-        return (
-          <svg key={s} width={s} height={s} viewBox={`0 0 ${s} ${s}`} style={{ left: `${off / 16}rem`, top: `${off / 16}rem`, width: `${s / 16}rem`, height: `${s / 16}rem` }}>
-            <circle class="track" cx={s / 2} cy={s / 2} r={r} fill="none" stroke-width={10} />
-            {p > 0 ? (
-              <circle class={`arc ink-${i + 1}`} cx={s / 2} cy={s / 2} r={r} fill="none" stroke-width={10} stroke-linecap="round"
-                stroke-dasharray={`${c * p} ${c}`} transform={`rotate(-90 ${s / 2} ${s / 2})`} />
-            ) : null}
-          </svg>
-        );
-      })}
-      {complete ? <span class="done-mark"><IconCheck /></span> : null}
-    </div>
   );
 }
 

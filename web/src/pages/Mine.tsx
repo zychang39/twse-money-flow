@@ -363,6 +363,7 @@ export default function Mine() {
       <PageTitle title="我的股票" sub={user && summary.data ? `${seg === 'watch' ? `自選 ${watch.length} 檔・異動 ${watchSig} 檔` : `持倉 ${holdCodes.length} 檔・警示 ${risky.size} 檔`}・資料至 ${mdShort(summary.data.date)}` : '\u00a0'} />
       <BriefWarn meta={meta.data ?? null} />
       {summary.error ? <ErrorState error={summary.error} /> : null}
+      {summary.loading && !summary.data ? <Loading /> : null}
 
       <div class="mine-seg"><UiSeg options={[['watch', `自選 ${watch.length}`], ['hold', `持股 ${holdCodes.length}`]] as const} value={seg} onChange={setSeg} label="清單" testid="mine-seg" /></div>
       {/* M1-1：與今晚頁相同的比較基準文字，放在自選分段的最上方 */}

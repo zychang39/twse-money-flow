@@ -13,6 +13,7 @@ import { loadMarket } from '../data/api';
 import { envConclusion, envCounts, envInfo } from '../lib/envState';
 import { setListContext } from '../lib/listContext';
 import { md } from '../lib/format';
+import { PageStale } from '../components/DataStatus';
 
 export default function MarketTemp() {
   const market = useAsync(loadMarket, []);
@@ -29,6 +30,7 @@ export default function MarketTemp() {
     <div class="page">
       <TopBar back="/explore" />
       <PageTitle title="市場溫度" sub={m ? `資料至 ${md(m.date)}・${envCounts(env)}${conclusion ? ` → ${conclusion}` : ''}` : undefined} />
+      <PageStale />
       {market.error ? <ErrorState error={market.error} /> : null}
       {market.loading ? <Loading /> : null}
       {m ? (

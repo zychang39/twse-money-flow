@@ -3,9 +3,9 @@
  */
 
 /* 圖表：寬度 100%、左右緣＝卡片內容緣 */
-.st-chart > svg, .st-eq .chart-wrap > svg { display: block; width: 100%; height: auto; }
+.st-chart > svg { display: block; width: 100%; height: auto; }
 .st-read { margin-top: var(--s-2); }
-.ui-card > .st-chart + .ui-list, .ui-card > .st-eq + .ui-list { margin-top: var(--s-2); }
+.ui-card > .st-chart + .ui-list { margin-top: var(--s-2); }
 
 /* 權益曲線圖例：一行可切換的勾選列（不是按鈕） */
 .st-legend { display: flex; flex-wrap: nowrap; gap: var(--s-2); margin-top: var(--s-2); overflow: hidden; }
@@ -32,7 +32,7 @@
 .ui-card > .ui-seg + .ui-list { margin-top: var(--s-2); }
 
 @media (prefers-reduced-motion: reduce) {
-  .st-legend-item, .st-chart, .st-eq { transition: none; animation: none; }
+  .st-legend-item, .st-chart { transition: none; animation: none; }
 }
 
 /* 策略清單：副標是策略的條件（產品原則 9），完整顯示、可換行 */
@@ -112,3 +112,5 @@
 .concl.st-concl { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); }
 .st-cum-head { display: flex; align-items: center; justify-content: space-between; }
 .stl-r { text-align: right; }
+/* 年度表 6 欄：數字用次字級、不換行（375pt 也放得下） */
+.st-ytable .ui-table td { font-size: var(--fs-foot); line-height: var(--lh-foot); white-space: nowrap; }

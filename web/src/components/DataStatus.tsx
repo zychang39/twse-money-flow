@@ -149,3 +149,16 @@ export function StageStatus() {
     </p>
   );
 }
+
+/**
+ * 資料落後（F 節，M7）：頁首下方一行橘色提示，收盤行情落後時標出日期與落後交易日數，點進資料健康頁。
+ * 不落後、休市、尚未更新時不顯示（那些不是錯誤）。
+ */
+export function PageStale({ testid = 'page-stale' }: { testid?: string }) {
+  const meta = useAsync(loadMeta, []);
+  const d = meta.data?.market_date;
+  if (!meta.data || !d) return null;
+  const { phase, lag } = dataPhase(d, makeCalendar(meta.data.calendar));
+  if (phase !== 'stale') return null;
+  return <StaleNote lead="資料可能過期" testid={testid}>收盤行情停在 {md(d)}，落後 {lag} 個交易日</StaleNote>;
+}

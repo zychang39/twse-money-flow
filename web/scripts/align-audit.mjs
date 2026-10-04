@@ -262,7 +262,7 @@ function bottomClear() {
 }
 
 const browser = await chromium.launch(process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {});
-const ctx = await browser.newContext({ viewport: { width: 402, height: 874 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, colorScheme: 'dark', serviceWorkers: 'block', timezoneId: 'Asia/Taipei', locale: 'zh-TW' });
+const ctx = await browser.newContext({ viewport: { width: Number(arg('width', '402')), height: Number(arg('height', '874')) }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, colorScheme: 'dark', serviceWorkers: 'block', timezoneId: 'Asia/Taipei', locale: 'zh-TW' });
 await useCjkFont(ctx);
 const page = await ctx.newPage();
 await page.goto(BASE);

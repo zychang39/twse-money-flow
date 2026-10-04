@@ -67,7 +67,12 @@
 - [x] 名詞寫滿（84 個、固定舉例、RS 定義對齊程式、異動）；ui.tsx autoTerm 自動可點；換頁關閉說明面板
 - [x] 設定頁分區（lib/prefs.ts：預設圖表、價格基準、異動門檻）
 - [x] vitest flowSteps.test.ts、glossary.test.ts；e2e m6-flow.spec.ts（步驟自動判定、新手只記一次、設定、16 頁各隨機 5 個名詞）；截圖 docs/screens/restore-2026-10/m6/{novice,compact}；稽核 0（#370–377）
-### M7 整合審查＋PR — [ ]
+### M7 整合審查＋PR
+- [x] 走查截圖 docs/screens/restore-2026-10/m7/walk、返回位置 e2e（m7-walkthrough）、與基準並排 compare-*.jpg
+- [x] 四種狀態 e2e（m7-states：載入中、載入失敗、資料落後）；PageStale；探索與選股的狀態
+- [x] 稽核 402／440／375 × 示範／真實皆 0；減少動態效果版面不變；對比 AA；資料檔 ≤ 300KB
+- [x] 清理（#382）；頁面高度前後對照 m7/README.md
+- [x] commit＋單一 PR（#378–382）
 
 ## 設計決定（docs/DECISIONS.md #304 起）
 - #304 只做深色；#305 基準 d6a9362、舊環境光在 Chromium 本來就不顯示（gradient 寫法無效）→ 修正；#306 環境光全站一層 useAmbient；

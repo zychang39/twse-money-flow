@@ -106,6 +106,7 @@ test('方法說明由設定產生（含介面呈現規則）', async ({ page }) 
 
 test('設定：顯示（說明層級、分頁列文字）與遊戲化開關', async ({ page }) => {
   await page.goto('#/me/settings');
+  await page.getByTestId('weights-toggle').click();
   await expect(page.getByLabel('籌碼分權重')).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.locator('html')).toHaveAttribute('data-help', 'novice');

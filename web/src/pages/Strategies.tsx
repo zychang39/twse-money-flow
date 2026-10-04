@@ -29,6 +29,7 @@ import { isListed } from '../lib/status';
 import { type ScreenFile, screenItems } from '../lib/screen';
 import { type StrategiesFile, type StrategyItem, GRADE_ORDER, gradeOf, groupName, paramRows } from '../lib/strategies';
 import '../styles/strategy.css';
+import { PageStale } from '../components/DataStatus';
 
 export const loadStrategies = () => loadJson<StrategiesFile>('strategies.json');
 const loadScreen = () => loadJson<ScreenFile>('screen.json').catch(() => null);
@@ -81,6 +82,7 @@ function StrategyList({ data }: { data: StrategiesFile }) {
   return (
     <>
       <PageTitle title="策略庫" sub={`資料至 ${md(data.date)}・依規則產生，非推薦`} />
+      <PageStale />
       <Section title="上架" aside={`${listed.length} 套`} info={<JudgeInfo meta={data.judge_meta} multi={data.multi_test} />} testid="st-sec-listed">
         <Interp><Term id="strategy_grade">分級</Term> {counts.map(([g, n]) => `${GRADE_SHORT[g]} ${n}`).join('・')}；折線＝近 3 年<Term id="portfolio5">5 檔組合</Term><Term id="excess_vs">相對 0050</Term></Interp>
         <div class="ui-list stl-list" data-testid="st-sec-listed-list">
@@ -283,6 +285,7 @@ function Detail({ s, data }: { s: StrategyItem; data: StrategiesFile }) {
   return (
     <>
       <PageTitle title={s.label} sub={`資料至 ${md(data.date)}・依規則產生，非推薦`} aside={<GradeTag s={s} />} />
+      <PageStale />
       {concl ? <p class="concl st-concl" data-testid="st-concl">{concl}</p> : null}
       <p class="st-rule st-rule-head" data-testid="st-rule">{ruleText(s.subtitle)}</p>
       <Seg options={SEGS.map((k) => [k, SEG_NAME[k]] as const)} value={seg} onChange={setSeg} label="策略分段" sticky testid="st-seg" />

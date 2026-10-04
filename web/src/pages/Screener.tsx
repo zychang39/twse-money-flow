@@ -10,10 +10,11 @@ import { Conclusion, DataState, Interp, Term } from '../components/kit';
 import { List, NavRow, PageTitle, Section, Seg } from '../components/ui';
 import { ScreenList } from '../components/ScreenList';
 import { useAsync, useSegParam } from '../hooks';
-import { loadJson } from '../data/api';
+import { isNotFound, loadJson } from '../data/api';
 import { GRADE_ORDER, type ScreenFile, screenItems } from '../lib/screen';
 import '../styles/screener.css';
 import { trackScreener } from '../lib/flowTrack';
+import { PageStale } from '../components/DataStatus';
 
 export { screenItems };
 export type { ScreenFile, ScreenItem, ScreenStrategy } from '../lib/screen';
@@ -23,7 +24,8 @@ const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10
 
 export default function Screener() {
   useEffect(() => trackScreener(), []);
-  const file = useAsync(() => loadJson<ScreenFile>('screen.json').catch(() => null), []);
+  // 找不到檔案（尚未產生）＝無資料；其他錯誤＝載入失敗
+  const file = useAsync(() => loadJson<ScreenFile>('screen.json').catch((e) => { if (isNotFound(e)) return null; throw e; }), []);
   const strategies = (file.data?.strategies ?? []).slice().sort((a, b) => GRADE_ORDER.indexOf(a.grade) - GRADE_ORDER.indexOf(b.grade) || (a.rank ?? 99) - (b.rank ?? 99));
   const ids = ['all', ...strategies.map((s) => s.id)];
   const [pick, setPick] = useSegParam<string>(ids, 'all', 'st');
@@ -39,6 +41,7 @@ export default function Screener() {
     <div class="page">
       <TopBar back="/explore" />
       <PageTitle title="選股" sub={date ? `資料至 ${md(date)}・依規則產生，非推薦` : '依規則產生，非推薦'} />
+      <PageStale />
       <div class="chips scr-chips wrap" role="group" aria-label="策略" data-testid="strategy-chips">
         {ids.map((id) => {
           const s = strategies.find((x) => x.id === id);

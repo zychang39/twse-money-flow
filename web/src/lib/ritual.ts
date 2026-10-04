@@ -1,5 +1,5 @@
 /**
- * 流程與遊戲化（原「紀律」）：每日三環、連續與寬限日、合規交易與違規標籤、經驗值、等級。全部是純函式。
+ * 流程與遊戲化（原「紀律」）：每日步驟（M6；之前的交易日沿用三環規則）、連續與寬限日、合規交易與違規標籤、經驗值、等級。全部是純函式。
  * 原則：只獎勵流程，不獎勵損益、交易次數、開啟次數；沒有任何扣分；不催促。
  *
  * 時間口徑：
@@ -10,11 +10,9 @@
 import type { Activity, ExitReason, Trade } from '../db/db';
 import { uiConfig } from './config';
 import { addDays, todayTpe } from './dates';
-import { md } from './format';
 import { checklistComplete } from './checklist';
 import { tradePnl } from './sizing';
-import { makeCalendar, type TradingCalendar } from './tradingCalendar';
-import { DEFAULT_PORTFOLIO, riskLimitOf } from './settings';
+import type { TradingCalendar } from './tradingCalendar';
 
 type Gcfg = typeof uiConfig.gamification;
 const EPS = 1e-6;
@@ -656,62 +654,4 @@ export function prepareTrade(prev: Trade | undefined, next: Trade, limit: number
   if (hasReview(t) && !t.reviewedAt) t.reviewedAt = (prev && hasReview(prev) ? prev.reviewedAt : undefined) ?? nowIso;
   if (t.status === 'closed' && !t.closedRecordedAt) t.closedRecordedAt = prev?.closedRecordedAt ?? nowIso;
   return t;
-}
-
-// ------------------------------------------------------------------ 相容層（第二階段改版流程頁後移除）
-/** @deprecated 舊頁面用的環狀態（Ritual.tsx）。不適用的環視為完成。 */
-export interface RingState {
-  id: string;
-  label: string;
-  progress: number;
-  done: boolean;
-  status: string;
-  action?: { href: string; label: string };
-}
-
-/** 沒有交易日曆或設定時的輸入（只用週末判斷交易日、預設風險上限）；相容層與尚未改版的頁面用。 */
-export function defaultFlowInput(activities: Activity[], trades: Trade[], cal: TradingCalendar = makeCalendar(null), riskLimit = riskLimitOf(DEFAULT_PORTFOLIO)): FlowInput {
-  return { cal, activities, trades, riskLimit, now: new Date().toISOString() };
-}
-
-/** @deprecated 改用 dayRings。舊簽章：只用週末判斷交易日、預設風險上限。 */
-export function ritualRings(day: string, activities: Activity[], trades: Trade[], _today?: string): { rings: RingState[]; complete: boolean } {
-  const r = dayRings(day, defaultFlowInput(activities, trades));
-  return {
-    rings: r.rings.map((x) => ({ id: x.id, label: x.label, progress: x.status === 'na' ? 1 : x.progress, done: x.status !== 'todo', status: x.text, action: x.action })),
-    complete: r.complete,
-  };
-}
-
-/** @deprecated 第二階段改寫文案。休市日不寫「還差」。 */
-export function ritualAnswer(ritual: { rings: Pick<RingState, 'done'>[]; complete: boolean }, isTradingDay: boolean, lastTradingDate: string | null): string {
-  const done = ritual.rings.filter((r) => r.done).length;
-  const total = ritual.rings.length;
-  if (!isTradingDay) {
-    const when = lastTradingDate ? `上一交易日 ${md(lastTradingDate)} ` : '上一交易日';
-    return `今天休市，不計入連續天數；${when}的紀律：已完成 ${done}／${total}`;
-  }
-  if (ritual.complete) return '今晚的紀律已完成';
-  return `今晚的紀律：還差 ${total - done} 項`;
-}
-
-/** @deprecated 改用 flowStreak。舊規則：只看 ritual_done。 */
-export function streaks(tradingDays: string[], activities: Activity[]): { current: number; best: number } {
-  const done = new Set(activities.filter((a) => a.type === 'ritual_done').map((a) => a.day));
-  const days = [...tradingDays].sort();
-  let best = 0, run = 0;
-  for (const d of days) {
-    run = done.has(d) ? run + 1 : 0;
-    best = Math.max(best, run);
-  }
-  let current = 0;
-  let i = days.length - 1;
-  if (i >= 0 && !done.has(days[i])) i--;
-  for (; i >= 0 && done.has(days[i]); i--) current++;
-  return { current, best };
-}
-
-/** @deprecated 改用 flowXp（需要交易日曆與交易紀錄）。 */
-export function totalXp(activities: Activity[], trades: Trade[] = []): number {
-  return flowXp(defaultFlowInput(activities, trades));
 }

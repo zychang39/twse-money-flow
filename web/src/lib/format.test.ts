@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fmtCount, fmtLots, fmtLotsAbs, fmtLotsUnit, fmtYiUnit, glueNumbers, md, missing, orMissing, pctPlain, pctSigned, ratioPct, ratioText, tText } from './format';
-import { formatUnit } from '../components/KChart';
+import { formatUnit } from './format';
 
 describe('圖表單位格式', () => {
   it('M3：張數一律完整的千分位整數（不縮寫、不帶小數）、帶正負號，0 不帶符號', () => {

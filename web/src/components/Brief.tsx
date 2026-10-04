@@ -171,10 +171,12 @@ export function trendRows(index: IndexData | null): { last: number | null; rows:
 
 /** 燈號數值拆成右欄的短數值與副資訊：pipeline 提供 short／detail 時直接用；舊版以「（」拆開。 */
 export function lightParts(l: MarketLight & { short?: string; detail?: string }): { main: string; detail: string | null } {
-  if (l.short) return { main: l.short, detail: l.detail ?? null };
+  // 年月「2026-08」改寫成「2026/08」：數字中的斜線不會被拆行（連字號會）
+  const ym = (t: string | null) => (t ? t.replace(/(\d{4})-(\d{2})(?!-)/g, '$1/$2') : t);
+  if (l.short) return { main: l.short, detail: ym(l.detail ?? null) };
   const v = l.value || '—';
   const i = v.indexOf('（');
-  return i > 0 ? { main: v.slice(0, i), detail: v.slice(i + 1, v.endsWith('）') ? -1 : undefined) } : { main: v, detail: null };
+  return i > 0 ? { main: v.slice(0, i), detail: ym(v.slice(i + 1, v.endsWith('）') ? -1 : undefined)) } : { main: v, detail: null };
 }
 
 const lightTone = (l: MarketLight) => (l.state === 'red' ? 'risk' : l.state === 'green' ? 'strong' : 'neutral');

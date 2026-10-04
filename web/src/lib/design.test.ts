@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import type { StockRow } from '../data/types';
-import type { Activity, Trade } from '../db/db';
+import type { Trade } from '../db/db';
 import { envInfo, tonightMood, type Light } from './envState';
 import { diffRow, makeSnapshot, sinceLabel } from './changes';
 import { holdingAlerts } from './holdings';
-import { levelFor, ritualRings, stopRespected, streaks } from './ritual';
+import { levelFor, stopRespected } from './ritual';
 import { badges } from './achievements';
 import { impulseFacts } from './impulse';
 import { holdingsSeries } from './portfolioSeries';
@@ -22,7 +22,6 @@ const trade = (o: Partial<Trade>): Trade => ({
   id: 't', code: '2330', name: '台積電', status: 'open', openedAt: '2026-09-01', entry: 100, shares: 1000, stop: 90, target: 130, reasonType: '籌碼',
   checklist: { market: '中性', trend: '', revenue: '', valuation: '', reason: '理由' }, ...o,
 });
-const act = (type: Activity['type'], day: string, at = `${day}T13:00:00Z`, meta?: Activity['meta']): Activity => ({ id: `${type}-${day}-${at}`, type, day, at, meta });
 
 describe('資金環境燈號', () => {
   it('任一風險 → 保守（琥珀）；≥ 3 項有利且無風險 → 積極；其餘中性；無資料', () => {
@@ -79,20 +78,6 @@ describe('持股警示', () => {
 });
 
 describe('流程（遊戲化只獎勵流程）', () => {
-  const day = '2026-09-24';
-  it('三環（相容層）：簡報、進場（沒有新持倉＝不適用）、檢討', () => {
-    const closed = trade({ id: 'c', status: 'closed', openedAt: '2026-09-10', closedAt: '2026-09-18', exit: 95 });
-    let r = ritualRings(day, [], [closed], day);
-    expect(r.rings.map((x) => x.done)).toEqual([false, true, false]);
-    expect(r.rings[2].action?.href).toContain('review=c');
-    r = ritualRings(day, [act('brief_read', day)], [{ ...closed, review: '依計畫出場', reviewedAt: '2026-09-19T12:00:00Z' }], day);
-    expect(r.complete).toBe(true);
-  });
-  it('舊版連續天數（相容層）只看交易日', () => {
-    const tradingDays = ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24'];
-    const acts = ['2026-09-21', '2026-09-22', '2026-09-23'].map((d) => act('ritual_done', d));
-    expect(streaks(tradingDays, acts)).toEqual({ current: 3, best: 3 });
-  });
   it('等級門檻 100 × (2^(n−1) − 1)', () => {
     expect(levelFor(0).level).toBe(1);
     expect(levelFor(100).level).toBe(2);
@@ -220,9 +205,8 @@ describe('共用版面樣式（styles/*.css）', () => {
     expect(tokens.match(/--ink-1:/g)).toHaveLength(1);
     expect(tokens.match(/--ink-4:/g)).toHaveLength(1);
     for (const n of [1, 2, 3, 4]) expect(global).toContain(`.ring.ink-${n} .ring-arc, .rings4 > :nth-child(${n}) .ring .ring-arc { stroke: var(--ink-${n}); }`);
-    expect(global).toContain('.rings3 .arc.ink-2 { stroke: var(--ink-2); }');
     expect(global).toContain('.discipline .legend i.ink-3 { background: var(--ink-3); }');
-    expect(global).not.toMatch(/\.rings3 \.arc \{[^}]*stroke: var\(--text-1\)/);
+    // 紀律三環（.rings3）已在 M6 移除（流程頁改為一個進度環）
     // 籌碼結構比例條：.sb-seg（新名）與 .st-bar > .st-seg（Structure.tsx 改名前）都套四級墨色，不再用透明度
     for (const [tier, ink] of [['retail', 4], ['mid', 3], ['big', 2], ['whale', 1]] as const) {
       expect(tools).toContain(`.sb-seg.${tier}, .st-bar > .st-seg.${tier}, .st-item.${tier} .st-swatch { background: var(--ink-${ink}); }`);

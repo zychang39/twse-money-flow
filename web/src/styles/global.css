@@ -387,17 +387,6 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 .discipline .legend i.ink-1 { background: var(--ink-1); }
 .discipline .legend i.ink-2 { background: var(--ink-2); }
 .discipline .legend i.ink-3 { background: var(--ink-3); }
-.rings3 { position: relative; width: 8.25rem; height: 8.25rem; }
-.rings3 svg { position: absolute; }
-.rings3 .arc { stroke: var(--ink-1); transition: stroke-dasharray var(--dur-slow) var(--ease-spring); }
-.rings3 .arc.ink-2 { stroke: var(--ink-2); }
-.rings3 .arc.ink-3 { stroke: var(--ink-3); }
-.rings3 .track { stroke: var(--surface-2); }
-.rings3.complete { animation: rings-complete 1.4s var(--ease-out) 1; }
-.rings3 .done-mark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-1); opacity: 0; transform: scale(0.8); transition: opacity var(--dur-slow) var(--ease-out), transform var(--dur-slow) var(--ease-spring); }
-.rings3.complete .done-mark { opacity: 1; transform: none; }
-.rings3 .done-mark svg { position: static; width: 1.75rem; height: 1.75rem; }
-@keyframes rings-complete { 0% { transform: scale(1); } 30% { transform: scale(1.04); } 100% { transform: scale(1); } }
 
 /* ---------- 資金環境燈號 ---------- */
 .env-pill { display: inline-flex; align-items: center; gap: var(--s-2); min-height: 2.25rem; padding: 0 var(--s-3) 0 0.625rem; border-radius: var(--r-pill); background: var(--surface-1); font-size: var(--fs-caption); line-height: 1.2; border: 0; color: var(--text-1); cursor: pointer; }

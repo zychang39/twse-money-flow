@@ -23,6 +23,7 @@ import { fmtNum, fmtPrice } from '../lib/format';
 import { navigate, useRoute } from '../router';
 import '../styles/sectors.css';
 import { markOnboard } from '../lib/flowTrack';
+import { PageStale } from '../components/DataStatus';
 
 const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
@@ -123,6 +124,7 @@ export default function SectorGroup({ id: key }: { id: string }) {
           {ok(rank) ? `第 ${rank}／${of} 名${!isCustom && st?.merged ? '（成員不足 5 檔，名次依上層）' : ''}` : isCustom ? '未排名' : st?.merged ? '成員不足，名次依上層' : '—'}・{codes.length} 檔{edited ? '・已編輯' : ''}{idx.data ? `・資料至 ${md(idx.data.date)}` : ''}
         </div>
       </header>
+      <PageStale />
       <DataState phase={phase} reason={phase === 'empty' ? (isCustom ? '找不到這個自訂族群（可能已刪除或在其他裝置建立）' : `找不到族群「${key}」`) : '族群資料讀取失敗'} onRetry={() => location.reload()}>
         <Section title="走勢" testid="group-chart-sec">
           <Conclusion testid="group-concl">3 個月中位數 {ok(med3) ? `${med3 > 0 ? '+' : med3 < 0 ? '−' : ''}${fmtNum(Math.abs(med3), 2)}%` : '—'}{ok(st?.rank_prev) && ok(st?.rank) && !isCustom ? `・20 日前第 ${st!.rank_prev} 名` : ''}</Conclusion>

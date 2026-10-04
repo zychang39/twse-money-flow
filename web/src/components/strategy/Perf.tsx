@@ -241,13 +241,13 @@ function YearTable({ pack, period, bench, slots }: { pack: StrategyPack; period:
   const num = (x: number | null, d = 1) => <Signed v={x} digits={fin(x) && Math.abs(x) >= 1000 ? 0 : d} tone="plain" />;
   return (
     <Section title="年度表" aside="%" testid="st-years">
-      <Card>
+      <Card class="st-ytable">
         <Table
           caption={`年度：筆數、訊號超額（${rel(bench)}）、${slots} 檔組合、${BENCH_LABEL[b]}、差額`}
           testid="year-table"
           cols={[
-            { key: 'y', label: '年份', width: '13%', render: (r) => <span class={r.total ? 'ui-strong' : r.n < 30 ? 'ui-muted' : ''}>{r.year}</span> },
-            { key: 'n', label: '筆數', width: '15%', align: 'r', render: (r) => <span class={r.n < 30 && !r.total ? 'ui-muted' : ''} data-testid={r.total ? 'year-total-n' : undefined}>{r.n.toLocaleString('zh-TW')}</span> },
+            { key: 'y', label: '年份', width: '12%', render: (r) => <span class={r.total ? 'ui-strong' : r.n < 30 ? 'ui-muted' : ''}>{r.year}</span> },
+            { key: 'n', label: '筆數', width: '16%', align: 'r', render: (r) => <span class={r.n < 30 && !r.total ? 'ui-muted' : ''} data-testid={r.total ? 'year-total-n' : undefined}>{r.n.toLocaleString('zh-TW')}</span> },
             { key: 'e', label: `超額`, align: 'r', render: (r) => <span data-testid={r.total ? 'year-total-ex' : undefined}>{num(r.ex, 2)}</span> },
             { key: 'p', label: `${slots} 檔`, align: 'r', render: (r) => <span data-testid={r.total ? 'year-total-port' : `year-port-${r.year}`}>{num(r.port)}</span> },
             { key: 'b', label: BENCH_LABEL[b], align: 'r', render: (r) => num(r.bench) },

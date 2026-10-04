@@ -18,6 +18,7 @@ import { type GroupLayer, type GroupListRow, type GroupSort, LAYER_NAME, SORT_NA
 import { navigate } from '../router';
 import SectorGroup from './SectorGroup';
 import '../styles/sectors.css';
+import { PageStale } from '../components/DataStatus';
 
 const LAYERS = ['official', 'fine', 'theme'] as const;
 const SORTS = ['rank', 'r1m', 'insti'] as const;
@@ -79,6 +80,7 @@ export function SectorsList() {
     <div class="page">
       <TopBar back="/explore" actions={<button class="icon-btn" aria-label="建立自訂族群" onClick={() => setAdding(true)} data-testid="add-group"><IconPlus /></button>} />
       <PageTitle title="族群輪動" sub={idx.data ? `資料至 ${md(idx.data.date)}・名次依成員近 3 個月報酬中位數（成員 ≥ ${idx.data.min_ranked} 檔）` : ' '} />
+      <PageStale />
       <Seg options={LAYERS.map((l) => [l, LAYER_NAME[l]] as const)} value={layer} onChange={setLayer} label="層級" testid="layer-seg" />
       <Section title={LAYER_NAME[layer]} testid="groups-sec" info={
         <>
