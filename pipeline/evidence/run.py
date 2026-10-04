@@ -771,6 +771,25 @@ def run_and_write(ev: EvData, out: Any = None, doc: Any = None) -> dict[str, Any
             write_json(out / "strategy" / f"{sid}.json", pack)
             row_keys = [k for k, v in sig.items() if isinstance(v, list) and k != "exit_rules"]
             write_json_split(out / "strategy" / f"{sid}-signals.json", sig, row_keys)
+        # M4 選股頁：各上架策略的「目前篩出＋觸發日、第 k 日、觸發以來報酬」與今日新觸發（不必載入整個期間檢視檔）
+        screen_rows = []
+        for s in lib["strategies"]:
+            pk = (jd.get("periods") or {}).get(s["id"])
+            if s["id"] not in listed_ids or not pk or "screen" not in pk:
+                continue
+            g = s.get("grade")
+            screen_rows.append(
+                {
+                    "id": s["id"],
+                    "label": s.get("label"),
+                    "subtitle": s.get("subtitle"),
+                    "grade": g.get("id") if isinstance(g, dict) else g,
+                    "limited": bool(s.get("limited")),
+                    "rank": s.get("rank"),
+                    **pk["screen"],
+                }
+            )
+        write_json(out / "screen.json", {"strategies": screen_rows})
         for sid, det in sw["details"].items():
             write_json(out / "evidence" / f"{sid}.json", det)
         rep["strategies_bytes"] = write_json(out / "strategies.json", lib)

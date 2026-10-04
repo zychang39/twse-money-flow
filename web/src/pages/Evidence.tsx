@@ -6,10 +6,11 @@
  */
 import { useMemo, useState } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
-import { Card, EmptyRow, List, PageTitle, Row, Section, Seg, StatGrid, Tag } from '../components/ui';
+import { Card, EmptyRow, List, PageTitle, Row, Section, Seg, Tag } from '../components/ui';
 import { Sheet } from '../components/Sheet';
 import { JudgeInfo } from '../components/StrategyBits';
 import { ErrorState, Loading } from '../components/DataStatus';
+import { Conclusion, Interp } from '../components/kit';
 import { useAsync } from '../hooks';
 import { loadJson } from '../data/api';
 import { LineChart } from '../components/LineChart';
@@ -362,31 +363,22 @@ export default function Evidence() {
       {meta?.error ? <List><EmptyRow>評估暫時無法產生：{meta.error}</EmptyRow></List> : null}
       {d.data ? (
         <>
+          {/* M4：清單在第一個螢幕可見——判定改為一行結論，涵蓋率圖移到清單之後 */}
           <Section title={VERDICT_NAME} info={info} testid="threshold-note">
-            <Card>
-              <StatGrid cols={3} items={[
-                { label: '有效', value: fmtCount(c['有效']) },
-                { label: '環境依賴', value: fmtCount(c['環境依賴']) },
-                { label: '其他', value: fmtCount(c.total - c.usable) },
-              ]} />
-            </Card>
-            {st.data ? (
-              <List chev>
-                <Row label="策略庫" sub={gradeSummary(gc)} href="#/explore/strategies" />
-              </List>
-            ) : null}
+            <Conclusion testid="verdict-concl">有效 {fmtCount(c['有效'])}・環境依賴 {fmtCount(c['環境依賴'])}・其他 {fmtCount(c.total - c.usable)}</Conclusion>
+            {st.data ? <Interp>策略庫：{gradeSummary(gc)}</Interp> : null}
           </Section>
-          {meta?.coverage_weekly?.whale?.length ? (
-            <Section title="千張大戶涵蓋率" info={coverageInfo(meta.coverage_weekly.whale, meta.coverage_backfill ?? null)}>
-              <CoverageChart weeks={meta.coverage_weekly.whale} />
-            </Section>
-          ) : null}
           <Section title="指標" aside={`${shown.length} 項`} info={<p>列的副資訊為等權 {horizon} 日扣成本超額、校正後 t 與樣本；切換基準時改為相對該基準的超額與超額勝率（{BENCH_LONG[bench]}）。點列看依據。</p>}>
             <Seg options={BENCH_KEYS.map((k) => [k, BENCH_LABEL[k]] as const)} value={bench} onChange={setBench} label="比較基準" sticky testid="bench-switch" />
             <Seg options={[['all', `全部 ${c.total}`], ['usable', `可用 ${c.usable}`], ['other', `其他 ${c.total - c.usable}`]] as const} value={filter} onChange={setFilter} label="篩選" small />
             <SortMenu id="evidence" value={sort} onChange={setSort} />
             <List testid="ev-list">{shown.map((r) => <IndicatorRow key={r.id} row={r} horizon={horizon} bench={bench} grade={grades?.get(r.id)} />)}</List>
           </Section>
+          {meta?.coverage_weekly?.whale?.length ? (
+            <Section title="千張大戶涵蓋率" info={coverageInfo(meta.coverage_weekly.whale, meta.coverage_backfill ?? null)}>
+              <CoverageChart weeks={meta.coverage_weekly.whale} />
+            </Section>
+          ) : null}
         </>
       ) : null}
     </div>

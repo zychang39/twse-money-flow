@@ -1,0 +1,32 @@
+/* 族群輪動與族群頁（M4）。數值取自 tokens.css；間距 4 的倍數。 */
+.grp-sorts { margin-top: var(--s-2); }
+.grp-list { margin-top: var(--s-2); padding: 0; }
+.grp-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--s-3); align-items: start;
+  padding: var(--s-3) var(--s-4); min-height: var(--tap); color: inherit; text-decoration: none;
+}
+.grp-list [role='listitem'] + [role='listitem'] .grp-row { box-shadow: inset 0 0.5px 0 var(--line); }
+.grp-row:active { background: var(--surface-row); }
+.grp-l { display: flex; flex-direction: column; min-width: 0; }
+.grp-name { font-size: var(--fs-body); line-height: var(--lh-body); word-break: keep-all; overflow-wrap: anywhere; line-break: strict; }
+.grp-name .ui-tag, .grp-name .tag { margin-left: var(--s-2); }
+.grp-sub { font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); }
+.grp-bar { display: grid; grid-template-columns: auto minmax(0, 6rem); align-items: center; column-gap: var(--s-2); margin-top: var(--s-1); }
+.grp-bar-t { font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); white-space: nowrap; }
+.grp-r { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+.grp-v { font-size: var(--fs-body); line-height: var(--lh-body); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.grp-rank { font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.grp-delta { margin-left: var(--s-1); }
+.grp-form { display: flex; flex-direction: column; gap: var(--s-3); }
+.grp-note { margin: var(--s-2) 0; padding: var(--s-3) var(--s-4); border-radius: var(--r-md); background: var(--surface-2); font-size: var(--fs-sub); line-height: var(--lh-sub); white-space: pre-wrap; }
+.grp-stream { margin-top: var(--s-3); }
+.grp-stream summary { display: flex; align-items: center; justify-content: space-between; min-height: var(--tap); cursor: pointer; list-style: none; }
+.grp-stream summary::-webkit-details-marker { display: none; }
+.grp-stream-name { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); }
+.grp-editor { display: flex; flex-direction: column; gap: var(--s-3); padding-bottom: var(--s-4); }
+.grp-editor-h { margin: var(--s-2) 0 0; }
+.grp-edit-row { display: grid; grid-template-columns: minmax(0, 1fr) 6.5rem auto; align-items: center; column-gap: var(--s-2); padding: var(--s-1) var(--s-4); min-height: var(--tap); }
+.grp-edit-row + .grp-edit-row { box-shadow: inset 0 0.5px 0 var(--line); }
+.grp-edit-name { min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
+.grp-edit-seg { min-height: var(--tap); }
+.grp-edit-empty { padding: var(--s-3) var(--s-4); margin: 0; }

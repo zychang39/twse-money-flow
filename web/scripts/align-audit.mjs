@@ -42,6 +42,16 @@ export const PAGES = [
   { id: 'strategies', hash: '#/explore/strategies' },
   { id: 'strategy-detail', hash: `#/explore/strategies/${STRATEGY}` },
   { id: 'etf', hash: '#/explore/etf' },
+  { id: 'explore', hash: '#/explore' },
+  { id: 'screener', hash: '#/explore/screener' },
+  { id: 'screener-custom', hash: '#/explore/screener/custom' },
+  { id: 'sectors', hash: '#/explore/sectors?layer=official' },
+  { id: 'sector-group', hash: '#/explore/sectors/o-24' },
+  { id: 'market', hash: '#/explore/market' },
+  { id: 'calendar', hash: '#/explore/calendar' },
+  { id: 'disposition', hash: '#/explore/disposition' },
+  { id: 'evidence', hash: '#/explore/evidence' },
+  { id: 'backtest', hash: '#/explore/backtest' },
   { id: 'flow', hash: '#/discipline' },
 ].filter((p) => !ONLY || ONLY.split(',').includes(p.id));
 
@@ -65,7 +75,7 @@ function measure() {
   const scrollY = window.scrollY;
   const page = document.querySelector('.page');
   if (!page) return [{ rule: 'page', msg: '找不到 .page' }];
-  const cardOf = (el) => el.closest('.ui-card, .ui-list, .card, .list, .ui-table, .sheet-body, .sum-card, .stale-note');
+  const cardOf = (el) => el.closest('.ui-card, .ui-list, .card, .list, .ui-table, .sheet-body, .sum-card, .stale-note, .ex-tile, .ex-index');
 
   // ---------- 1. 左緣 ----------
   // 以「行內片段」為單位：每個文字節點的每一行（Range.getClientRects）與圖示（svg）、輸入框。

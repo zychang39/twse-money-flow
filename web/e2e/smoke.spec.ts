@@ -88,8 +88,8 @@ test('我的股票：加入自選後出現清單列，點擊進入個股頁', as
   await expect(page.getByTestId('sec-tech')).toContainText('KD');
 });
 
-test('選股：切換預設組合、新增條件、一鍵回測連結', async ({ page }) => {
-  await page.goto('#/explore/screener');
+test('自訂條件（M4：選股子頁）：切換預設組合、新增條件、一鍵回測連結', async ({ page }) => {
+  await page.goto('#/explore/screener/custom');
   await page.getByRole('button', { name: '近高點放量' }).click();
   await expect(page.getByRole('heading', { name: /結果/ })).toBeVisible();
   await page.getByRole('button', { name: '新增條件' }).click();
@@ -122,14 +122,17 @@ test('設定：顯示（說明層級、分頁列文字）與遊戲化開關', as
 
 test('回測：預設組合顯示統計與可信度；自訂條件在 Web Worker 計算', async ({ page }) => {
   await page.goto('#/explore/backtest');
-  await expect(page.getByRole('rowheader', { name: '勝率' })).toBeVisible(); // M3：指標為列、持有天數為欄（不左右滑動）
+  // M4：持有天數用分段切換、表格「項目｜數值」兩欄（不左右滑動）；衰減曲線在「曲線與排除」分段
+  await expect(page.getByTestId('bt-main').getByRole('cell', { name: '絕對勝率' })).toBeVisible();
   await expect(page.getByText(/可信度(低|中|高)/).first()).toBeVisible();
+  await page.getByTestId('bt-tabs').getByRole('button', { name: '曲線與排除' }).click();
   await expect(page.getByText('訊號衰減曲線')).toBeVisible();
   const c = encodeURIComponent(JSON.stringify([{ field: 'composite', op: '>=', value: 50 }]));
   await page.goto(`#/explore/backtest?c=${c}&name=test`);
   // 只換 hash 時預設組合的報告可能還在畫面上：先等自訂條件的結果（範圍文字只有自訂條件才有）
-  await expect(page.getByText(/訊號 [\d,]+ 筆 · 範圍：成交值前/)).toBeVisible({ timeout: 40_000 });
-  await expect(page.getByRole('rowheader', { name: '勝率' })).toBeVisible();
+  await expect(page.getByText(/訊號 [\d,]+ 筆・成交值前/)).toBeVisible({ timeout: 40_000 });
+  await page.getByTestId('bt-tabs').getByRole('button', { name: '統計' }).click();
+  await expect(page.getByTestId('bt-main').getByRole('cell', { name: '絕對勝率' })).toBeVisible();
 });
 
 test('日誌：冷靜卡 → 新增持倉前檢查表 → 新增持倉 → 平倉 → 統計出現錯誤標籤', async ({ page }) => {
@@ -172,15 +175,13 @@ test('備份：匯出按鈕存在並說明包含流程紀錄', async ({ page }) 
   await expect(page.getByText('流程紀錄', { exact: true })).toBeVisible(); // 2026-10-03：匯出前列出各類資料筆數（含流程紀錄）
 });
 
-test('產業資金輪動：熱力圖可點進產業個股清單', async ({ page }) => {
-  await page.goto('#/explore/sectors');
-  const tile = page.getByRole('button', { name: /半導體業：法人淨買超/ });
-  await expect(tile).toBeVisible();
-  await page.getByRole('button', { name: '20 日' }).click();
-  await tile.click();
+test('族群輪動（M4）：官方產業層級點進族群頁，成員可點進個股頁', async ({ page }) => {
+  await page.goto('#/explore/sectors?layer=official');
+  const row = page.getByRole('link', { name: /半導體業/ }).first();
+  await expect(row).toBeVisible();
+  await row.click();
   await expect(page.locator('h1')).toHaveText('半導體業');
-  // 2026-10：產業內個股改為可點的列（連結）
-  await expect(page.getByRole('link', { name: /台積電/ })).toBeVisible();
+  await expect(page.getByTestId('member-rows').getByRole('link', { name: /台積電/ })).toBeVisible();
 });
 
 test('簡報頁：加入自選後出現在「我的」分段的「自選異動」區塊', async ({ page }) => {

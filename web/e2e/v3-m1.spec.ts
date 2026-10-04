@@ -159,6 +159,7 @@ test.describe('M1-5 個股頁期間', () => {
     await expect(hero.getByTestId('hero-period-change')).toContainText('近 1 年');
     await group.getByRole('button', { name: '3M', exact: true }).click();
     await expect(hero.getByTestId('hero-period-change')).toContainText('近 3 個月');
+    await page.waitForTimeout(700); // 主角數字滾動動畫（400ms）結束
     const price = await hero.getByTestId('stock-price').textContent();
     await group.getByRole('button', { name: '1D', exact: true }).click();
     await expect(hero.locator('.chart-empty')).toContainText(/分鐘資料/);

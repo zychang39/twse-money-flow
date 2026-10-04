@@ -323,10 +323,12 @@ export default function Mine() {
       { id: 'remove', label: '移除', kind: 'remove', onClick: () => removeWatch(code) },
     ] : [];
   }
-  const sub = (code: string, reasons: string[]) => {
+  const sub = (code: string, reasons: { text: string; risk?: boolean }[]) => {
     const a = alertBy.get(code);
-    if (a?.risk) return <span class="risk w6">{a.items[0].label.split(/[ ：]/)[0]}</span>;
-    if (reasons.length) return reasons[0];
+    if (a?.risk) return <span class="tag risk">{a.items[0].label.split(/[ ：]/)[0]}</span>;
+    // M2：風險旗標用橘色小標籤（其餘理由是一般副資訊）
+    if (reasons.length && reasons[0].risk) return <span class="tag risk">{reasons[0].text.replace(/^新風險旗標：/, '')}</span>;
+    if (reasons.length) return reasons[0].text;
     if (seg === 'hold') {
       const shares = open.filter((t) => t.code === code).reduce((s, t) => s + t.shares, 0);
       return `${fmtInt(shares)} 股`;
@@ -427,7 +429,7 @@ export default function Mine() {
             onOpen={() => openStock(r.code)} onPreview={() => setPreview(r.code)} actions={actionsFor(r.code)} />
         )) : null}
         {group !== HOT ? main.map((c) => (
-          <StockListRow key={c.code} code={c.code} row={c.row} hist={hist.get(c.code)} sub={sub(c.code, c.reasons.map((r) => r.text))}
+          <StockListRow key={c.code} code={c.code} row={c.row} hist={hist.get(c.code)} sub={sub(c.code, c.reasons)}
             onOpen={() => openStock(c.code)} onPreview={() => setPreview(c.code)} actions={actionsFor(c.code)} ariaExtra={c.reasons.map((r) => r.text).join('、')} />
         )) : null}
         {group !== HOT && quiet.length ? (

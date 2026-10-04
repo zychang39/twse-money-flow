@@ -282,10 +282,10 @@ export interface SectorsIndex {
   unassigned: string[];
   groups: SectorRow[];
   stock_cols: string[];
-  /** 代號 → [細產業 id[], 官方產業 id, 題材 id[], r1m, r3m, r6m, rs, above60, high60] */
-  stocks: Record<string, [string[], string | null, string[], number | null, number | null, number | null, number | null, number | null, number | null]>;
+  /** 代號 → [細產業 id[], 官方產業 id, 題材 id[], r1m, r3m, r6m, rs, above60, high60, inst20（法人 20 日買超 ÷ 成交金額 %，M4 起）] */
+  stocks: Record<string, [string[], string | null, string[], number | null, number | null, number | null, number | null, number | null, number | null, (number | null)?]>;
 }
-export interface SectorMember { code: string; name: string; close: number | null; chg: number | null; rs: number | null; r1m: number | null; r3m: number | null; stream: string | null; new?: boolean }
+export interface SectorMember { code: string; name: string; close: number | null; chg: number | null; chg_pct?: number | null; rs: number | null; r1m: number | null; r3m: number | null; stream: string | null; new?: boolean; inst20?: number | null }
 export interface SectorDetail {
   id: string; layer: SectorLayer; name: string; path: string[]; parent: string | null; parent_name: string | null;
   basis: string; updated: string; date: string;

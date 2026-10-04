@@ -17,6 +17,7 @@ const Mine = lazy(() => import('./pages/Mine'));
 const Stock = lazy(() => import('./pages/Stock'));
 const Explore = lazy(() => import('./pages/Explore'));
 const Screener = lazy(() => import('./pages/Screener'));
+const ScreenerCustom = lazy(() => import('./pages/ScreenerCustom'));
 const Backtest = lazy(() => import('./pages/Backtest'));
 const Sectors = lazy(() => import('./pages/Sectors'));
 const Etf = lazy(() => import('./pages/Etf'));
@@ -76,7 +77,7 @@ function Page({ parts }: { parts: string[] }) {
     case 'explore':
       switch (b) {
         case undefined: return <Explore />;
-        case 'screener': return <Screener />;
+        case 'screener': return c === 'custom' ? <ScreenerCustom /> : <Screener />;
         case 'backtest': return <Backtest />;
         case 'sectors': return <Sectors industry={c} />;
         case 'etf': return <Etf />;

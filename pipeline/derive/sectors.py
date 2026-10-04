@@ -403,6 +403,8 @@ class SectorResult:
     rs: pd.Series
     similar: dict[str, list[list[Any]]]
     date: str
+    # 代號 → 三大法人近 20 日淨買超金額 ÷ 成交金額（%）；族群頁成員列與自訂族群用
+    inst20: pd.Series | None = None
 
 
 def ranked_parent(groups: dict[str, Group], counts: dict[str, int], g: str) -> str | None:
@@ -486,7 +488,11 @@ def compute(p: Panels, layers: Layers, rs: pd.Series | None = None) -> SectorRes
     rs_now = rs if rs is not None else pd.Series(np.nan, index=p.codes)
     similar = correlated(adj)
     _ = last_close
-    return SectorResult(layers=layers, stats=stats, ret=ret_now, rs=rs_now, similar=similar, date=p.dates[-1])
+    net20, val20 = insti[20]
+    inst20 = (net20 / val20.where(val20 > 0) * 100).replace([np.inf, -np.inf], np.nan)
+    return SectorResult(
+        layers=layers, stats=stats, ret=ret_now, rs=rs_now, similar=similar, date=p.dates[-1], inst20=inst20
+    )
 
 
 def correlated(adj: pd.DataFrame, days: int = CORR_DAYS, top: int = CORR_TOP) -> dict[str, list[list[Any]]]:
@@ -619,6 +625,14 @@ def stock_block(res: SectorResult, code: str, names: dict[str, str]) -> dict[str
     }
 
 
+def chg_pct(p: Panels, c: str) -> float | None:
+    """當日漲跌幅（%）＝漲跌 ÷ 前一日收盤（收盤 − 漲跌）。"""
+    close, chg = p.close[c].iloc[-1], p.change[c].iloc[-1]
+    if pd.isna(close) or pd.isna(chg) or close - chg <= 0:
+        return None
+    return clean(chg / (close - chg) * 100, 2)
+
+
 def write_outputs(p: Panels, res: SectorResult, out: Path) -> dict[str, Any]:
     """sectors.json（三層清單＋統計）與 sectors/{id}.json（等權指數、成員、名次走勢、寬度、上中下游）。"""
     L = res.layers
@@ -626,6 +640,7 @@ def write_outputs(p: Panels, res: SectorResult, out: Path) -> dict[str, Any]:
     names = p.names
     ret = res.ret
     rs = res.rs
+    inst20 = res.inst20 if res.inst20 is not None else pd.Series(dtype=float)
     taiex_dates = p.dates[-(INDEX_DAYS):]
     listed = {g_id: g for g_id, g in L.groups.items() if g.listed and g.members}
     index_rows = []
@@ -654,10 +669,12 @@ def write_outputs(p: Panels, res: SectorResult, out: Path) -> dict[str, Any]:
                     "name": names.get(c, c),
                     "close": clean(p.close[c].iloc[-1], 2),
                     "chg": clean(p.change[c].iloc[-1], 2),
+                    "chg_pct": chg_pct(p, c),
                     "rs": clean(rs.get(c), 1),
                     "r1m": clean(ret.at[c, "1M"], 2),
                     "r3m": clean(ret.at[c, "3M"], 2),
                     "stream": next((s for s, lst in g.streams.items() if c in lst), None),
+                    "inst20": clean(inst20.get(c), 2),
                 }
             )
         h = hist.get(g_id, {})
@@ -698,6 +715,7 @@ def write_outputs(p: Panels, res: SectorResult, out: Path) -> dict[str, Any]:
             clean(rs.get(c), 1),
             None if pd.isna(last) or pd.isna(ma60[c]) else int(last > ma60[c]),
             None if pd.isna(last) else int(last >= hi60[c]),
+            clean(inst20.get(c), 2),
         ]
     summary = {
         "date": res.date,
@@ -705,7 +723,7 @@ def write_outputs(p: Panels, res: SectorResult, out: Path) -> dict[str, Any]:
         "rank_window": RANK_WINDOW,
         "unassigned": L.unassigned,
         "groups": index_rows,
-        "stock_cols": ["fine", "official", "themes", "r1m", "r3m", "r6m", "rs", "above60", "high60"],
+        "stock_cols": ["fine", "official", "themes", "r1m", "r3m", "r6m", "rs", "above60", "high60", "inst20"],
         "stocks": stocks,
     }
     write_json(out / "sectors.json", summary)

@@ -84,7 +84,8 @@ function savedSort(): EtfSortMetric | null {
 }
 
 function MoveList({ title, items, testid }: { title: string; items: EtfItem[]; testid: string }) {
-  if (!items.length) return <Section title={title} aside="無" testid={testid} />;
+  // 無資料的區塊不顯示（M4：不留空卡片）
+  if (!items.length) return null;
   return (
     <Section title={title} aside={`${items.length} 檔`} testid={testid}>
       <Card>

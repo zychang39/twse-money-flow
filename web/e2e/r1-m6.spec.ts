@@ -83,33 +83,23 @@ for (const width of [375, 393]) {
       expect(await sub.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('normal');
     });
 
-    test('U-06：探索頁入口列的副資訊單行（2026-10 改版：副資訊最多一行），不斷在詞中間', async ({ page }) => {
+    test('U-06（M4）：探索頁不捲動就看得到全部 9 個功能格與 3 個指數格；每格的即時數值一行', async ({ page }) => {
       await page.goto('#/explore');
-      await expect(page.locator('.ui-row-sub').first()).toBeVisible();
+      const tiles = page.locator('.ex-tile');
+      await expect(tiles).toHaveCount(9);
+      await expect(page.locator('.ex-index')).toHaveCount(3);
       await page.waitForTimeout(600);
-      const breaks = await page.locator('.ui-row-sub').evaluateAll((els) => els.flatMap((el) => {
-        const text = el.firstChild;
-        if (!text || text.nodeType !== Node.TEXT_NODE) return [];
-        const s = text.textContent!;
-        const out: string[] = [];
-        let prevTop: number | null = null;
-        for (let i = 0; i < s.length; i++) {
-          if (/\s|\u200b/.test(s[i])) continue;
-          const r = document.createRange();
-          r.setStart(text, i);
-          r.setEnd(text, i + 1);
-          const top = Math.round(r.getBoundingClientRect().top);
-          if (prevTop !== null && top > prevTop + 2) {
-            const raw = s.slice(0, i);
-            const before = raw.replace(/[\s\u200b]+$/, '');
-            // 允許：空白（含零寬空格）之後、「・，、：」等標點之後
-            if (before.length === raw.length && !/[・，、：]$/.test(before)) out.push(`${s}：在「${before.slice(-2)}｜${s[i]}」換行`);
-          }
-          prevTop = top;
-        }
-        return out;
+      const info = await tiles.evaluateAll((els) => els.map((el) => {
+        const r = el.getBoundingClientRect();
+        const v = el.querySelector('.ex-tile-v') as HTMLElement;
+        const lh = parseFloat(getComputedStyle(v).lineHeight);
+        return { bottom: r.bottom, lines: Math.round(v.getBoundingClientRect().height / lh), text: v.textContent };
       }));
-      expect(breaks).toEqual([]);
+      const dockTop = await page.locator('.dock').evaluate((el) => el.getBoundingClientRect().top);
+      for (const t of info) {
+        expect(t.bottom, t.text ?? '').toBeLessThanOrEqual(dockTop);
+        expect(t.lines, t.text ?? '').toBe(1);
+      }
     });
   });
 }

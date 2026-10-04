@@ -1,88 +1,122 @@
-/** 產業資金輪動：熱力圖（紅＝法人淨買超／上漲、綠＝淨賣超／下跌，以濃淡表示強度），點選查看產業內個股。 */
-import { useMemo } from 'preact/hooks';
+/**
+ * 族群輪動（M4）：層級「官方產業｜細產業｜題材與自訂」、排序「3 個月名次｜1 個月報酬｜法人買超」；
+ * 每列＝名稱｜成員數｜3 個月中位數｜名次與 20 日名次變化｜站上 60 日線比例條｜新觸發檔數，點列進族群頁。
+ * 右上「＋」建立自訂族群（存在本機 IndexedDB，可備份還原）。細產業約 500 個族群，用虛擬捲動。
+ * 舊網址 #/explore/sectors/{產業名稱} 由 SectorGroup 轉成族群 id。
+ */
+import { useMemo, useState } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
-import { ErrorState, Loading } from '../components/DataStatus';
-import { EmptyRow, List, PageTitle, Row, Section, Seg, Signed } from '../components/ui';
-import { useAsync, useRestoredState } from '../hooks';
-import { useScoredSummary } from '../data/useSummary';
-import { loadMarket } from '../data/api';
-import { setListContext } from '../lib/listContext';
-import { dirColor, fmtNum, missing, orMissing, pctPlain, pctSigned } from '../lib/format';
+import { Conclusion, DataState, Interp, ProgressBar, Term } from '../components/kit';
+import { Button, PageTitle, Section, Seg, Signed, Tag } from '../components/ui';
+import { Sheet } from '../components/Sheet';
+import { VirtualList } from '../components/VirtualList';
+import { IconPlus } from '../components/Icons';
+import { useAsync, useDb, useSegParam } from '../hooks';
+import { loadSectors } from '../data/api';
+import { listGroups, saveGroup, uid } from '../db/db';
+import { type GroupLayer, type GroupListRow, type GroupSort, LAYER_NAME, SORT_NAME, rankDelta, rowFromCustom, rowFromSector, sortGroups } from '../lib/groups';
 import { navigate } from '../router';
+import SectorGroup from './SectorGroup';
+import '../styles/sectors.css';
 
-function heat(v: number | null, scale: number): string {
-  if (v === null || v === undefined) return 'var(--surface-1)';
-  const x = Math.max(-1, Math.min(1, v / scale));
-  const pct = Math.round(18 + 52 * Math.abs(x));
-  return `color-mix(in srgb, ${dirColor(x)} ${pct}%, var(--surface-1))`;
-}
+const LAYERS = ['official', 'fine', 'theme'] as const;
+const SORTS = ['rank', 'r1m', 'insti'] as const;
+type N = number | null;
+const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
 
-function SectorStocks({ industry }: { industry: string }) {
-  const summary = useScoredSummary();
-  const rows = useMemo(() => (summary.data?.rows ?? []).filter((r) => r.industry === industry)
-    .sort((a, b) => ((b.foreign_net_5d ?? 0) + (b.trust_net_5d ?? 0)) * (b.close ?? 0) - ((a.foreign_net_5d ?? 0) + (a.trust_net_5d ?? 0)) * (a.close ?? 0)), [summary.data, industry]);
-  const codes = rows.map((r) => r.code);
+function GroupRow({ r, sort }: { r: GroupListRow; sort: GroupSort }) {
+  const d = rankDelta(r.rank, r.rankPrev);
+  const v: N = sort === 'r1m' ? r.med1m : sort === 'insti' ? r.insti20 : r.med3m;
+  const vLabel = sort === 'r1m' ? '1 個月中位數' : sort === 'insti' ? '法人 20 日' : '3 個月中位數';
   return (
-    <div class="page">
-      <TopBar back="/explore/sectors" />
-      <PageTitle title={industry} sub={`${rows.length} 檔・依外資＋投信近 5 日淨買超金額排序`} />
-      {summary.loading ? <Loading /> : null}
-      <Section title="個股" info={<p>外資＋投信近 5 日淨買超張數 × 收盤價排序；副資訊為近 5 日外資＋投信淨買超張數。</p>}>
-        <List chev>
-          {rows.length ? rows.map((r) => (
-            <Row key={r.code} label={<>{r.name} <span class="ui-muted">{r.code}</span></>}
-              value={<Signed v={(r.foreign_net_5d ?? 0) + (r.trust_net_5d ?? 0)} digits={0} unit="張" />}
-              href={`#/stock/${r.code}`} onClick={() => setListContext({ name: industry, codes })} />
-          )) : <EmptyRow>無</EmptyRow>}
-        </List>
-      </Section>
-    </div>
+    <a class="grp-row" href={`#/explore/sectors/${encodeURIComponent(r.id)}`} data-testid={`grp-${r.id}`}>
+      <span class="grp-l">
+        <span class="grp-name">{r.name}{r.custom ? <Tag>自訂</Tag> : null}</span>
+        <span class="grp-sub">{r.members} 檔{ok(r.newCount) && r.newCount > 0 ? `・新觸發 ${r.newCount}` : ''}{r.merged ? '・成員不足，名次依上層' : ''}</span>
+        {ok(r.above60) ? (
+          <span class="grp-bar">
+            <span class="grp-bar-t">站上 60 日線 {Math.round(r.above60)}%</span>
+            <ProgressBar value={r.above60} label={`站上 60 日線 ${Math.round(r.above60)}%`} />
+          </span>
+        ) : null}
+      </span>
+      <span class="grp-r">
+        <span class="grp-v" aria-label={`${vLabel}`}><Signed v={v} digits={1} unit="%" tone={sort === 'insti' ? 'updown' : 'plain'} /></span>
+        <span class="grp-rank">{ok(r.rank) ? `第 ${r.rank} 名` : r.custom ? '未排名' : '—'}{ok(d) && d !== 0 ? <span class="grp-delta" aria-label={`20 日${d > 0 ? '上升' : '下降'} ${Math.abs(d)} 名`}>{d > 0 ? '▲' : '▼'}{Math.abs(d)}</span> : null}</span>
+      </span>
+    </a>
   );
 }
 
-export default function Sectors({ industry }: { industry?: string }) {
-  const market = useAsync(loadMarket, []);
-  const [period, setPeriod] = useRestoredState<1 | 5 | 20>('sectors.period', 5);
-  const [metric, setMetric] = useRestoredState<'net' | 'ret'>('sectors.metric', 'net');
-  if (industry) return <SectorStocks industry={industry} />;
-  const m = market.data;
-  const values = m ? m.sectors.map((s) => (s[`${metric}_${period}`] as number | null) ?? 0) : [];
-  const scale = Math.max(1e-9, ...values.map((v) => Math.abs(v)));
-  const sorted = m ? [...m.sectors].sort((a, b) => ((b[`net_${period}`] as number) ?? 0) - ((a[`net_${period}`] as number) ?? 0)) : [];
+export function SectorsList() {
+  const idx = useAsync(loadSectors, []);
+  const custom = useDb(listGroups, []) ?? [];
+  const [layer, setLayer] = useSegParam<GroupLayer>(LAYERS, 'fine', 'layer', 'sectors-layer');
+  const [sort, setSort] = useSegParam<GroupSort>(SORTS, 'rank', 'sort', 'sectors-sort');
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState('');
+  const rows = useMemo(() => {
+    const d = idx.data;
+    if (!d) return [];
+    const base = d.groups.filter((g) => g.layer === layer).map(rowFromSector);
+    const mine = layer === 'theme' ? custom.filter((u) => u.kind === 'custom').map((u) => rowFromCustom(u, d)) : [];
+    return [...mine, ...sortGroups(base, sort)];
+  }, [idx.data, layer, sort, custom]);
+  const top = rows.filter((r) => !r.custom && ok(r.rank)).sort((a, b) => (a.rank as number) - (b.rank as number)).slice(0, 3);
+  const create = async () => {
+    const n = name.trim();
+    if (!n) return;
+    const id = `u-${uid()}`;
+    const now = new Date().toISOString();
+    await saveGroup({ id, kind: 'custom', name: n, members: [], createdAt: now, updatedAt: now });
+    setAdding(false);
+    setName('');
+    navigate(`/explore/sectors/${id}?edit=1`);
+  };
+  const phase = idx.loading ? 'loading' : idx.error ? 'error' : rows.length ? 'ok' : 'empty';
   return (
     <div class="page">
-      <TopBar back="/explore" />
-      <PageTitle title="產業資金輪動" sub={sorted[0] ? `近 ${period} 日法人淨買超最多：${sorted[0].industry}` : undefined} />
-      {market.error ? <ErrorState error={market.error} /> : null}
-      {market.loading ? <Loading /> : null}
-      {m ? (
-        <Section title="產業" info={
-          <>
-            <p>法人淨買超金額＝Σ（三大法人淨買超股數 × 收盤價）；漲跌幅為產業內個股還原報酬的中位數。</p>
-            <p>顏色：紅＝淨買超／上漲、綠＝淨賣超／下跌，濃淡為相對強度。點選產業查看個股。</p>
-          </>
-        }>
-          <Seg options={[['1', '1 日'], ['5', '5 日'], ['20', '20 日']] as const} value={String(period) as '1' | '5' | '20'} onChange={(v) => setPeriod(Number(v) as 1 | 5 | 20)} label="期間" />
-          <Seg options={[['net', '法人淨買超'], ['ret', '漲跌幅']] as const} value={metric} onChange={setMetric} label="指標" />
-          <div class="heat" data-audit-skip>
-            {m.sectors.map((s) => {
-              const v = s[`${metric}_${period}`] as number | null;
-              const r = s[`ret_${period}`] as number | null;
-              const n = s[`net_${period}`] as number | null;
-              return (
-                <button key={s.industry} style={{ background: heat(v, scale) }} onClick={() => navigate(`/explore/sectors/${encodeURIComponent(s.industry)}`)}
-                  aria-label={`${s.industry}：法人淨買超 ${orMissing(n, (v) => `${fmtNum(v, 1)} 億`, '沒有資料')}、漲跌幅中位數 ${orMissing(r, pctSigned, '沒有資料')}（${period} 日）`}>
-                  <div class="w6">{s.industry}</div>
-                  <div aria-hidden="true">{metric === 'net'
-                    ? n === null ? missing('沒有資料') : `${n > 0 ? '▲' : n < 0 ? '▼' : ''} ${fmtNum(Math.abs(n), 1)} 億`
-                    : r === null ? missing('沒有資料') : `${r > 0 ? '▲' : r < 0 ? '▼' : ''} ${pctPlain(Math.abs(r))}`}</div>
-                  <div class="muted t1" aria-hidden="true">{s.count} 檔</div>
-                </button>
-              );
-            })}
+      <TopBar back="/explore" actions={<button class="icon-btn" aria-label="建立自訂族群" onClick={() => setAdding(true)} data-testid="add-group"><IconPlus /></button>} />
+      <PageTitle title="族群輪動" sub={idx.data ? `資料至 ${md(idx.data.date)}・名次依成員近 3 個月報酬中位數（成員 ≥ ${idx.data.min_ranked} 檔）` : ' '} />
+      <Seg options={LAYERS.map((l) => [l, LAYER_NAME[l]] as const)} value={layer} onChange={setLayer} label="層級" testid="layer-seg" />
+      <Section title={LAYER_NAME[layer]} testid="groups-sec" info={
+        <>
+          <p>官方產業＝證交所／櫃買中心產業別；細產業＝櫃買中心產業價值鏈的子類（另有人工補充），每檔股票都有細產業；題材＝人工整理的上中下游清單。</p>
+          <p>3 個月中位數＝成員近 63 個交易日還原報酬的中位數；名次在同一層級中由高到低排列，成員少於 5 檔的族群依上一層排名。20 日名次變化＝和 20 個交易日前的名次相比。</p>
+          <p>法人買超＝三大法人近 20 日淨買超金額 ÷ 成交金額。新觸發＝上架策略今日新觸發的成員檔數。</p>
+        </>
+      }>
+        {top.length ? <Conclusion>領先：{top.map((r) => r.name).join('、')}</Conclusion> : null}
+        <Interp>依「<Term id="sector_rank">{SORT_NAME[sort]}</Term>」排序・共 {rows.length} 個族群</Interp>
+        <div class="chips grp-sorts" role="group" aria-label="排序">
+          {SORTS.map((s) => <button key={s} type="button" class="chip" aria-pressed={sort === s} onClick={() => setSort(s)}>{SORT_NAME[s]}</button>)}
+        </div>
+        <DataState phase={phase} reason={phase === 'empty' ? (layer === 'theme' ? '還沒有題材或自訂族群' : '沒有族群資料') : idx.error ? '族群資料讀取失敗' : undefined} onRetry={() => location.reload()}>
+          <div class="ui-list grp-list">
+            <VirtualList items={rows} keyOf={(r) => r.id} estimate={92} label={`${LAYER_NAME[layer]}族群`} testid="group-list"
+              render={(r) => <GroupRow r={r} sort={sort} />} />
           </div>
-        </Section>
-      ) : null}
+        </DataState>
+        {layer === 'theme' && !custom.some((u) => u.kind === 'custom') ? (
+          <Button variant="plain" block onClick={() => setAdding(true)} testid="add-group-row">建立自訂族群</Button>
+        ) : null}
+      </Section>
+      <Sheet open={adding} onClose={() => setAdding(false)} title="建立自訂族群">
+        <form class="grp-form" onSubmit={(e) => { e.preventDefault(); void create(); }}>
+          <label class="field">
+            <span class="ui-foot ui-muted">名稱</span>
+            <input class="input" value={name} maxLength={20} onInput={(e) => setName((e.target as HTMLInputElement).value)} placeholder="例：我的 AI 伺服器" data-testid="group-name" />
+          </label>
+          <p class="ui-foot ui-muted">建立後可加入成員、分段（上游／中游／下游）與備註；資料只存在這台裝置，可在「備份」匯出。</p>
+          <Button variant="fill" block disabled={!name.trim()} onClick={() => void create()} testid="group-create">建立</Button>
+        </form>
+      </Sheet>
     </div>
   );
+}
+
+/** 路由：#/explore/sectors（清單）與 #/explore/sectors/{id}（族群頁） */
+export default function Sectors({ industry }: { industry?: string }) {
+  return industry ? <SectorGroup id={decodeURIComponent(industry)} /> : <SectorsList />;
 }

@@ -9,7 +9,8 @@ import { loadMeta } from '../data/api';
 import { dataPhase, makeCalendar } from '../lib/tradingCalendar';
 import { affectedFor, asofSummary } from '../lib/health';
 import type { AsofKey } from '../lib/asof';
-import { IconClock, IconCloudOff, IconMoonRest, IconRisk, IconSeed } from './Icons';
+import { IconClock, IconCloudOff, IconMoonRest, IconSeed } from './Icons';
+import { StaleNote } from './kit';
 
 function md(iso: string): string {
   const d = new Date(`${iso}T12:00:00Z`);
@@ -46,7 +47,8 @@ export function DataStatus({ date, extra, uses, asof }: { date?: string | null; 
         {failed ? <>・<a class="meta-alert" href="#/me/health">{failed} 個資料源異常</a></> : null}
       </p>
       {asofLine ? <p class="meta-line asof-line" data-testid="asof-line" style={{ marginTop: 0 }}>各資料集：{asofLine}</p> : null}
-      {phase === 'stale' ? <Banner kind="risk" icon={<IconRisk />} title="資料可能過期">最新資料停在 {md(d)}，落後 {lag} 個交易日。可到「資料健康」查看原因。</Banner> : null}
+      {/* 改版前樣式（M2 起全站一致）：橘色標題＋一行說明，點進資料健康頁 */}
+      {phase === 'stale' ? <StaleNote lead="資料可能過期">最新資料停在 {md(d)}，落後 {lag} 個交易日</StaleNote> : null}
     </>
   );
 }

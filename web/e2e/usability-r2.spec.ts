@@ -163,8 +163,8 @@ test.describe('#10 新增持倉前檢查表', () => {
   });
 });
 
-test('#11 選股：刪掉內建組合的條件後改稱「自訂條件」，回測不出現兩個同名標籤', async ({ page }) => {
-  await page.goto('#/explore/screener');
+test('#11 自訂條件：刪掉內建組合的條件後改稱「自訂條件」，回測不出現兩個同名標籤', async ({ page }) => {
+  await page.goto('#/explore/screener/custom');
   const presets = page.getByRole('group', { name: '內建組合' });
   const first = presets.getByRole('button').first();
   const presetName = (await first.locator('.chip-label').textContent())!.trim();

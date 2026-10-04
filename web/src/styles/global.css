@@ -979,3 +979,4 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 .srow-wrap.swiping .srow-actions { visibility: visible; }
 .srow-wrap.swiping .srow { background: var(--bg); }
 .missing-card .btn { flex: none; white-space: nowrap; }
+.chips.wrap { flex-wrap: wrap; overflow: visible; }

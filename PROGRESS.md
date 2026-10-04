@@ -49,7 +49,12 @@
 - [x] 依規格原文補齊（總覽六格含千張大戶、族群卡＋走勢相近、籌碼圖上表下、內容區滑動換股；#343–346、#350）
 - [x] 截圖並排＋稽核＋e2e＋commit（docs/screens/restore-2026-10/m3；#339–350）
 - 規格原文：docs/design/RESTORE_SPEC_2026-10.md（M4–M7 細節以此為準）
-### M4 探索、選股、族群、其他市場頁 — [ ]
+### M4 探索、選股、族群、其他市場頁
+- [x] 探索格（pages/Explore.tsx、styles/explore.css）
+- [x] 選股（screen.json；pages/Screener.tsx；自訂條件 pages/ScreenerCustom.tsx）
+- [x] 族群輪動（pages/Sectors.tsx、components/VirtualList.tsx）、族群頁與編輯（pages/SectorGroup.tsx）、lib/groups.ts、DB v6 groups
+- [x] 主動式 ETF、市場溫度、指標效度、回測、行事曆、處置：長度規則與清單在第一個螢幕
+- [x] 截圖＋稽核＋e2e（e2e/m4-explore.spec.ts）＋commit（#351–358；docs/screens/restore-2026-10/m4）
 ### M5 策略庫與策略詳情 — [ ]
 ### M6 流程、遊戲化、名詞內容、設定 — [ ]
 ### M7 整合審查＋PR — [ ]
