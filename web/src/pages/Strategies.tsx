@@ -82,7 +82,7 @@ function StrategyList({ data }: { data: StrategiesFile }) {
     <>
       <PageTitle title="策略庫" sub={`資料至 ${md(data.date)}・依規則產生，非推薦`} />
       <Section title="上架" aside={`${listed.length} 套`} info={<JudgeInfo meta={data.judge_meta} multi={data.multi_test} />} testid="st-sec-listed">
-        <Interp>{counts.map(([g, n]) => `${GRADE_SHORT[g]} ${n}`).join('・')}；折線＝近 3 年相對 0050</Interp>
+        <Interp><Term id="strategy_grade">分級</Term> {counts.map(([g, n]) => `${GRADE_SHORT[g]} ${n}`).join('・')}；折線＝近 3 年<Term id="portfolio5">5 檔組合</Term><Term id="excess_vs">相對 0050</Term></Interp>
         <div class="ui-list stl-list" data-testid="st-sec-listed-list">
           {listed.length ? listed.map((s) => <ListRow key={s.id} s={s} fresh={fresh(s)} />) : <EmptyRow>無上架策略</EmptyRow>}
         </div>

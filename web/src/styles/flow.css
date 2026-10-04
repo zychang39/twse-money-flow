@@ -49,3 +49,38 @@
 @media (prefers-reduced-motion: reduce) {
   .flow-rings.anim .arc, .flow-mini.anim .arc { animation: none; }
 }
+
+/* ---------- M6 今日流程：進度環、步驟卡 ---------- */
+.flow-hero { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--s-5); align-items: center; }
+.flow-pring { position: relative; display: block; width: 6rem; height: 6rem; }
+.flow-pring svg { display: block; }
+.flow-pring-arc { transition: stroke-dashoffset var(--dur-ring) var(--ease-out); }
+.flow-pring-t { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: var(--fs-title); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.flow-hero-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--s-3); }
+.flow-stat { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+.flow-stat-v { font-size: var(--fs-body); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.flow-hero-stats .flow-stat:last-child .flow-stat-v { white-space: normal; }
+.flow-streak-t { margin: var(--s-2) 0 0; }
+.flow-steps { display: flex; flex-direction: column; gap: var(--s-2); }
+.flow-step {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--s-3); align-items: start;
+  padding: var(--s-3) var(--card-pad); min-height: var(--tap); border-radius: var(--r-card);
+  background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--card-edge); color: inherit; text-decoration: none;
+  transition: box-shadow var(--dur-base) var(--ease-out), opacity var(--dur-base) var(--ease-out);
+}
+.flow-step.next { box-shadow: inset 0 0 0 1.5px var(--brand); }
+.flow-step.na { opacity: 0.72; }
+.flow-step-n { flex: none; width: var(--s-6); height: var(--s-6); margin-right: var(--s-2); overflow: visible; }
+.flow-step-n circle { fill: var(--ring-track); }
+.flow-step-n text { fill: var(--text-1); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.flow-step.done .flow-step-n circle { fill: var(--ring-1); }
+.flow-step-n .ck { fill: none; stroke: var(--on-brand); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 16; animation: flow-check var(--dur-ring) var(--ease-out) both; }
+@keyframes flow-check { from { stroke-dashoffset: 16; } to { stroke-dashoffset: 0; } }
+.flow-step-body { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+.flow-step-t { display: flex; align-items: center; font-size: var(--fs-body); font-weight: var(--fw-semibold); line-height: var(--lh-body); }
+.flow-step-w { font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); }
+.flow-step-go { align-self: center; font-size: var(--fs-foot); color: var(--brand); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) {
+  .flow-pring-arc { transition: none; }
+  .flow-step-n .ck { animation: none; }
+}

@@ -22,6 +22,7 @@ import { setListContext } from '../lib/listContext';
 import { fmtNum, fmtPrice } from '../lib/format';
 import { navigate, useRoute } from '../router';
 import '../styles/sectors.css';
+import { markOnboard } from '../lib/flowTrack';
 
 const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
@@ -54,6 +55,7 @@ function MemberRow({ m, codes, groupName }: { m: SectorMember; codes: string[]; 
 
 export default function SectorGroup({ id: key }: { id: string }) {
   const route = useRoute();
+  useEffect(() => markOnboard('group_page'), []);
   const idx = useAsync(loadSectors, []);
   const id = idx.data ? resolveGroupId(key, idx.data) : null;
   // 舊網址（產業名稱）→ 族群 id

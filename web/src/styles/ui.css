@@ -218,3 +218,6 @@
 /* 和圖表選取同步標亮的列 */
 .ui-table tbody tr.sel td { background: var(--surface-row); }
 .ui-table tbody tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--brand); }
+/* 設定頁：分段控制上方的小標 */
+.set-l { margin: var(--s-3) 0 var(--s-2); }
+.ui-card > .set-l:first-child { margin-top: 0; }

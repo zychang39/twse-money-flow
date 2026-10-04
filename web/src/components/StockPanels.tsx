@@ -14,6 +14,7 @@ import { Button, Card, CardLabel, EmptyRow, List, Num, Row, Section, Seg, Table,
 import { Conclusion, Interp, Term } from './kit';
 import { SeriesChart } from './SeriesChart';
 import { NetBars } from './Viz';
+import { markOnboard } from '../lib/flowTrack';
 
 type N = number | null;
 const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -68,7 +69,7 @@ export function RiskCalcSection({ h, prefs, atr, price: ref }: { h: StockHistory
               { key: 'c', label: '佔本金', align: 'r', width: '4.5rem', render: (s) => (r.shares > 0 ? <Num v={s.lossPct} digits={2} unit="%" /> : '—') },
               { key: 'r', label: 'R', align: 'r', width: '3rem', render: (s) => (s.r === null ? '—' : fmtNum(s.r, 1)) },
             ]} />
-            <Button variant="fill" block href={href} disabled={!href} testid="to-checklist">帶入檢查表</Button>
+            <span onClick={() => { if (href) markOnboard('risk_to_checklist'); }}><Button variant="fill" block href={href} disabled={!href} testid="to-checklist">帶入檢查表</Button></span>
           </Card>
         </>
       )}

@@ -116,21 +116,22 @@ test('清單列：長按（右鍵）叫出快速預覽；左滑露出移除', as
   await expect(page.getByRole('button', { name: /鴻海 2317/ })).toHaveCount(0);
 });
 
-test('流程：看完簡報的市場分段即完成第 1 步（總覽的今日流程 0/1 → 1/1）', async ({ page, request }) => {
-  // 三環依交易日計算：把時間固定在資料日 20:00（台北），簡報環對應的就是這份資料
+test('流程：看完簡報的市場分段即完成第 1 步（總覽的今日流程下一步不再是看大盤）', async ({ page, request }) => {
+  // 步驟依交易日計算：把時間固定在資料日 20:00（台北），第 1 步對應的就是這份資料
   const { date } = await (await request.get('data/summary.json')).json() as { date: string };
   await page.clock.setFixedTime(new Date(`${date}T20:00:00+08:00`));
   await page.goto('#/');
   const row = page.getByTestId('flow-brief-row');
-  await expect(row).toContainText('0/1');
+  await expect(row).toContainText(/0\/\d/);
+  await expect(row).toContainText('下一步：1 看大盤');
   await page.getByTestId('brief-seg').getByRole('button', { name: '市場' }).click();
   await page.mouse.wheel(0, 20000);
   await page.waitForTimeout(1200);
   await page.getByTestId('brief-seg').getByRole('button', { name: '總覽' }).click();
-  await expect(row).toContainText('1/1', { timeout: 5000 });
+  await expect(row).not.toContainText('看大盤', { timeout: 5000 });
   await row.click();
   await expect(page).toHaveURL(/#\/discipline$/);
-  await expect(page.getByTestId('ring-brief')).toContainText('已完成');
+  await expect(page.getByTestId('step-market')).toContainText('已完成');
 });
 
 test('環境光（恢復改版前）：背景純黑，環境光由 y=0 開始、顏色跟隨主標漲跌；導覽列預設透明', async ({ page }) => {

@@ -13,6 +13,7 @@ import { Conclusion, DivergingBar, Metric, ProgressBar, RangeBar, Ring } from '.
 import { Section, Signed } from '../ui';
 import { categoryName, completeness } from '../Scores';
 import { lazyPick } from '../../lazy';
+import { markOnboard } from '../../lib/flowTrack';
 
 const SignalPanel = lazyPick(() => import('../SignalPanel'), 'SignalPanel');
 
@@ -58,7 +59,7 @@ export function OverviewPane({ h, row, onSeg }: { h: StockHistory; row?: StockRo
             const c = completeness(h.scores, id);
             return (
               <Ring key={id} value={scoreOf(id)} color={RING_COLOR[id]} label={categoryName(id)} sub={c === null ? '無明細' : `資料 ${Math.round(c * 100)}%`}
-                onClick={() => onSeg(RING_SEG[id])} testid={`ring-${id}`} />
+                onClick={() => { markOnboard('ring_jump'); onSeg(RING_SEG[id]); }} testid={`ring-${id}`} />
             );
           })}
         </div>

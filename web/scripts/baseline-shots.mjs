@@ -24,6 +24,7 @@ async function seedDb(page, seed) {
     for (const w of s.watchlist ?? []) tx.objectStore('watchlist').put({ origin: 'user', ...w });
     for (const t of s.trades ?? []) tx.objectStore('trades').put(t);
     tx.objectStore('settings').put({ key: 'firstUseAt', value: new Date().toISOString() });
+    for (const st of s.settings ?? []) tx.objectStore('settings').put(st);
     tx.objectStore('settings').put({ key: 'lastBackupAt', value: new Date().toISOString() });
     await new Promise((res) => { tx.oncomplete = res; });
     db.close();

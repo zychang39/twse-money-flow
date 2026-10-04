@@ -10,7 +10,7 @@ import { Card, EmptyRow, List, PageTitle, Row, Section, Seg, Tag } from '../comp
 import { Sheet } from '../components/Sheet';
 import { JudgeInfo } from '../components/StrategyBits';
 import { ErrorState, Loading } from '../components/DataStatus';
-import { Conclusion, Interp } from '../components/kit';
+import { Conclusion, Interp, Term } from '../components/kit';
 import { useAsync } from '../hooks';
 import { loadJson } from '../data/api';
 import { LineChart } from '../components/LineChart';
@@ -369,6 +369,7 @@ export default function Evidence() {
             {st.data ? <Interp>策略庫：{gradeSummary(gc)}</Interp> : null}
           </Section>
           <Section title="指標" aside={`${shown.length} 項`} info={<p>列的副資訊為等權 {horizon} 日扣成本超額、校正後 t 與樣本；切換基準時改為相對該基準的超額與超額勝率（{BENCH_LONG[bench]}）。點列看依據。</p>}>
+            <Interp>副資訊＝<Term id="signal_test">等權超額</Term>・<Term id="adjusted_t">校正後 t</Term>・<Term id="benchmarks">比較基準</Term>可切換</Interp>
             <Seg options={BENCH_KEYS.map((k) => [k, BENCH_LABEL[k]] as const)} value={bench} onChange={setBench} label="比較基準" sticky testid="bench-switch" />
             <Seg options={[['all', `全部 ${c.total}`], ['usable', `可用 ${c.usable}`], ['other', `其他 ${c.total - c.usable}`]] as const} value={filter} onChange={setFilter} label="篩選" small />
             <SortMenu id="evidence" value={sort} onChange={setSort} />

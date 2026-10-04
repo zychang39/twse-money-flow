@@ -11,6 +11,7 @@ import { useSegParam } from '../../hooks';
 import type { BenchKey, StrategyPack } from '../../data/types';
 import { BENCH_LABEL, loadBench, saveBench } from '../../lib/bench';
 import { QUICK_PERIODS, periodLabel, periodNote, yearKeys } from '../../lib/strategyView';
+import { markOnboard } from '../../lib/flowTrack';
 
 export const BENCH_ORDER: BenchKey[] = ['0050', 'ew', 'tr', '00631L'];
 
@@ -25,7 +26,8 @@ export function useStrategyFilter(pack: StrategyPack | null | undefined): { peri
     setB(b);
     requestAnimationFrame(() => requestAnimationFrame(() => { if (Math.abs(window.scrollY - y) > 0) window.scrollTo(0, y); }));
   };
-  return { period: pack && pack.periods[period] ? period : 'all', setPeriod, bench, setBench };
+  const pick = (k: string) => { markOnboard('strategy_period'); setPeriod(k); };
+  return { period: pack && pack.periods[period] ? period : 'all', setPeriod: pick, bench, setBench };
 }
 
 export function FilterBar({ pack, period, setPeriod, bench, setBench }: {

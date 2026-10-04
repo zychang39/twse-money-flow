@@ -44,15 +44,14 @@ import { PAGE_SOURCES, affectedFor } from '../lib/health';
 import { moodOf, useAmbient } from '../lib/ambient';
 import type { StockHistory } from '../data/types';
 import '../styles/stock.css';
+import { markOnboard, trackStock } from '../lib/flowTrack';
+import { CHART_KEY, readPref, writePref } from '../lib/prefs';
 
 const SEGS = [['o', '總覽'], ['m', '動能'], ['c', '籌碼'], ['f', '基本面'], ['e', '事件']] as const;
 const SEG_IDS = SEGS.map((s) => s[0]) as StockSeg[];
-/** 圖表種類（D2）：預設折線、K 線為選項並記住 */
-const CHART_KEY = 'tmf-stock-chart-v2';
-const read = <T extends string>(k: string, allowed: readonly T[], d: T): T => {
-  try { const v = localStorage.getItem(k) as T | null; return v && allowed.includes(v) ? v : d; } catch { return d; }
-};
-const write = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* 無痕模式 */ } };
+/** 圖表種類（D2）：預設折線、K 線為選項並記住（鍵在 lib/prefs，設定頁可改預設） */
+const read = readPref;
+const write = writePref;
 const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
 
 /** 代號・市場・族群路徑（官方產業 › 細產業）；族群可點，進入族群頁。 */
@@ -185,12 +184,14 @@ function StatusTags({ h, today, cal }: { h: StockHistory; today: string; cal: Re
 }
 
 export default function Stock({ code }: { code: string }) {
+  useEffect(() => trackStock(code), [code]);
   const hist = useStockData(code);
   const summary = useScoredSummary();
   const watched = useDb(() => isWatched(code), [code]);
   // 投資風格（設定）只決定預設期間（波段 1Y、長期 5Y）與第一次開啟的分段（長期＝基本面）；各自記住
   const style = useInvestStyle();
   const [period, setPeriod] = usePeriod(`stock-v5-${style}`, STYLE_PERIOD[style], STOCK_CHART_PERIODS);
+  const pickPeriod = (p: typeof period) => { if (p === '1D') markOnboard('period_1d'); setPeriod(p); };
   const [basis, setBasisState] = useState<RangeBasis>(getRangeBasis);
   const pickBasis = (b: RangeBasis) => { setBasisState(b); setRangeBasis(b); };
   const [candle, setCandle] = useState(() => read(CHART_KEY, ['candle', 'line'] as const, 'line') === 'candle');
@@ -229,7 +230,7 @@ export default function Stock({ code }: { code: string }) {
     if (!ctx) return;
     if (pagerRef.current) { pagerRef.current.go(step); return; }
     const next = ctx.codes[ctx.index + step];
-    if (next) navigate(`/stock/${next}${segQuery}`, true, step > 0 ? 'push' : 'pop');
+    if (next) { markOnboard('swipe'); navigate(`/stock/${next}${segQuery}`, true, step > 0 ? 'push' : 'pop'); }
   }
   useEffect(() => {
     if (!ctx) return;
@@ -301,13 +302,13 @@ export default function Stock({ code }: { code: string }) {
         } />
       {ctx ? (
         <StockPager apiRef={pagerRef} codes={ctx.codes} index={ctx.index}
-          onCommit={(step) => navigate(`/stock/${ctx.codes[ctx.index + step]}${segQuery}`, true, 'none')}
+          onCommit={(step) => { markOnboard('swipe'); navigate(`/stock/${ctx.codes[ctx.index + step]}${segQuery}`, true, 'none'); }}
           renderPane={(c) => (
-            <StockHero code={c} fallbackName={nameOf(c)} fallbackIndustry={industryOf(c)} status={statusOf(c)} period={period} onPeriod={setPeriod} basis={basis} candle={candle} swipe />
+            <StockHero code={c} fallbackName={nameOf(c)} fallbackIndustry={industryOf(c)} status={statusOf(c)} period={period} onPeriod={pickPeriod} basis={basis} candle={candle} swipe />
           )} />
       ) : (
         <StockHero code={code} fallbackName={row?.name as string | undefined} fallbackIndustry={row?.industry as string | undefined}
-          status={tradeStatusNote(row, h?.d[h.d.length - 1])} period={period} onPeriod={setPeriod} basis={basis} candle={candle} />
+          status={tradeStatusNote(row, h?.d[h.d.length - 1])} period={period} onPeriod={pickPeriod} basis={basis} candle={candle} />
       )}
       {hist.error ? (isNotFound(hist.error) ? <NotFound code={code} /> : <ErrorState error={hist.error} title="這檔股票的資料暫時無法取得" />) : null}
 

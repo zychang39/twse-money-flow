@@ -28,6 +28,8 @@ export interface FlowInput {
   /** 現在時間（ISO）：判斷期限、逾期檢討 */
   now: string;
   cfg?: Gcfg;
+  /** 自選股檔數（步驟 3「看自選異動」：沒有自選股＝不適用）；未提供＝視為有自選 */
+  watchCount?: number;
 }
 
 // ------------------------------------------------------------------ 日期工具
@@ -199,6 +201,10 @@ interface FlowIndex {
   legacy: LegacyInfo | null;
   legacyDone: Set<string>;
   start: string | null;
+  /** 每個流程日的行為（M6 步驟用） */
+  acts: Map<string, Activity[]>;
+  /** 第一次出現步驟行為（看大盤／看持倉／看自選異動）的流程日：之前的交易日沿用三環規則（既有連續與經驗值不變） */
+  stepsSince: string | null;
 }
 const indexCache = new WeakMap<FlowInput, FlowIndex>();
 
@@ -230,7 +236,14 @@ function buildIndex(input: FlowInput): FlowIndex {
     ...input.activities.filter((a) => a.type !== 'legacy_xp').map((a) => ritualDayOf(a.day, cal)),
     ...input.trades.map((t) => ritualDayOf(t.openedAt.slice(0, 10), cal)),
   ].sort();
-  const idx: FlowIndex = { brief, opened, closed, legacy, legacyDone, start: days[0] ?? null };
+  const acts = new Map<string, Activity[]>();
+  let stepsSince: string | null = null;
+  for (const a of input.activities) {
+    const d = ritualDayOf(a.day, cal);
+    acts.set(d, [...(acts.get(d) ?? []), a]);
+    if ((STEP_ACTS as string[]).includes(a.type) && (stepsSince === null || d < stepsSince)) stepsSince = d;
+  }
+  const idx: FlowIndex = { brief, opened, closed, legacy, legacyDone, start: days[0] ?? null, acts, stepsSince };
   indexCache.set(input, idx);
   return idx;
 }
@@ -307,6 +320,103 @@ export function dayRings(day: string, input: FlowInput): DayRings {
   return { day, rings, done, applicable, complete: done === applicable, score: `${done}/${applicable}` };
 }
 
+// ------------------------------------------------------------------ 每日步驟（M6，2026-10）
+/** 步驟行為：出現後（含當日）改用步驟規則判定完成 */
+export const STEP_ACTS: Activity['type'][] = ['market_viewed', 'holdings_viewed', 'movers_viewed'];
+export type StepId = 'market' | 'holdings' | 'movers' | 'screener' | 'entry' | 'review';
+export type StepStatus = 'done' | 'todo' | 'na';
+/** 當日完成要看的步驟（4 看新觸發是選做） */
+export const REQUIRED_STEPS: StepId[] = ['market', 'holdings', 'movers', 'entry', 'review'];
+export const STEP_DEF: Record<StepId, { n: number; title: string; what: string; href: string; optional?: boolean }> = {
+  market: { n: 1, title: '看大盤', what: '簡報的市場分段：指數、環境燈號、寬度', href: '#/?seg=market' },
+  holdings: { n: 2, title: '看持倉', what: '持股清單：損益、停損距離、警示', href: '#/mine?seg=hold' },
+  movers: { n: 3, title: '看自選異動', what: '自選異動清單的每一檔都打開看過', href: '#/mine?seg=watch' },
+  screener: { n: 4, title: '看新觸發', what: '選股頁的今日新觸發（選做）', href: '#/explore/screener', optional: true },
+  entry: { n: 5, title: '進場前檢查', what: '每筆新持倉：檢查表、停損價、計畫風險 ≤ 上限', href: '#/discipline/checklist' },
+  review: { n: 6, title: '平倉後檢討', what: '平倉後 3 個交易日內寫下檢討', href: '#/discipline/journal' },
+};
+
+export interface Step {
+  id: StepId; n: number; title: string; what: string; href: string; optional: boolean;
+  status: StepStatus;
+  /** 不適用的原因、或進度（例：「已開 2／3 檔」） */
+  note?: string;
+  /** 完成的時間（毫秒）；經驗值的時間點 */
+  at?: number;
+  action?: { href: string; label: string };
+}
+export interface DaySteps {
+  day: string;
+  steps: Step[];
+  done: number;
+  applicable: number;
+  complete: boolean;
+  /** 「3/5」（必要步驟中適用者） */
+  score: string;
+  /** 步驟行為出現之前的交易日：完成沿用三環規則 */
+  legacy: boolean;
+}
+
+function step(id: StepId, status: StepStatus, note?: string, at?: number, action?: Step['action']): Step {
+  const d = STEP_DEF[id];
+  return { id, n: d.n, title: d.title, what: d.what, href: d.href, optional: !!d.optional, status, ...(note ? { note } : {}), ...(at !== undefined ? { at } : {}), ...(action ? { action } : {}) };
+}
+
+/** 交易日 day 的六個步驟。day 應為交易日（休市日請先用 ritualDayOf 換成上一交易日）。 */
+export function daySteps(day: string, input: FlowInput): DaySteps {
+  const idx = buildIndex(input);
+  const cfg = input.cfg ?? uiConfig.gamification;
+  const deadline = dayDeadline(day, input.cal, cfg);
+  const acts = (idx.acts.get(day) ?? []).filter((a) => msOf(a.at, Infinity) < deadline);
+  const first = (type: Activity['type']) => acts.filter((a) => a.type === type).reduce<number | undefined>((m, a) => Math.min(m ?? Infinity, msOf(a.at, Infinity)), undefined);
+  const rings = dayRings(day, input);
+  const ringOf = (id: RingId) => rings.rings.find((r) => r.id === id) as Ring;
+  // 1 看大盤：簡報的市場分段看過（舊紀錄：簡報讀完）
+  const mAt = [first('market_viewed'), idx.brief.get(day)].filter((x): x is number => x !== undefined && x < deadline);
+  const market = mAt.length ? step('market', 'done', undefined, Math.min(...mAt)) : step('market', 'todo');
+  // 2 看持倉：當日有持倉才適用
+  const held = input.trades.some((t) => ritualDayOf(t.openedAt.slice(0, 10), input.cal) <= day && (t.status === 'open' || (closeDayOf(t, input.cal) ?? '') >= day));
+  const hAt = first('holdings_viewed');
+  const holdings = !held ? step('holdings', 'na', '沒有持倉') : hAt !== undefined ? step('holdings', 'done', undefined, hAt) : step('holdings', 'todo');
+  // 3 看自選異動：清單上（最後一次開清單時）的每一檔都開過；沒有異動＝開過清單即可；沒有自選＝不適用
+  let movers: Step;
+  if (input.watchCount === 0) movers = step('movers', 'na', '沒有自選股');
+  else {
+    const views = acts.filter((a) => a.type === 'movers_viewed').sort((a, b) => msOf(a.at, 0) - msOf(b.at, 0));
+    const last = views[views.length - 1];
+    if (!last) movers = step('movers', 'todo');
+    else {
+      const codes = String(last.meta?.codes ?? '').split(',').filter(Boolean);
+      const opened = new Map<string, number>();
+      for (const a of acts) if (a.type === 'stock_viewed' && a.meta?.code) opened.set(String(a.meta.code), Math.min(opened.get(String(a.meta.code)) ?? Infinity, msOf(a.at, Infinity)));
+      const seen = codes.filter((c) => opened.has(c));
+      const at = Math.max(msOf(views[0].at, 0), ...seen.map((c) => opened.get(c) as number));
+      movers = seen.length === codes.length ? step('movers', 'done', codes.length ? `${codes.length} 檔都看過` : '今日沒有異動', at)
+        : step('movers', 'todo', `已開 ${seen.length}／${codes.length} 檔`, undefined, { href: `#/stock/${codes.find((c) => !opened.has(c))}`, label: '下一檔異動' });
+    }
+  }
+  // 4 看新觸發（選做）
+  const sAt = first('screener_viewed');
+  const screener = sAt !== undefined ? step('screener', 'done', undefined, sAt) : step('screener', 'todo', '選做');
+  // 5、6 沿用三環的進場與檢討
+  const e = ringOf('entry'), r = ringOf('review');
+  const entry = step('entry', e.status, e.status === 'na' ? '沒有新持倉' : e.detail, undefined, e.action);
+  const review = step('review', r.status, r.status === 'na' ? '沒有待檢討的平倉' : r.detail, undefined, r.action);
+  const steps = [market, holdings, movers, screener, entry, review];
+  const req = steps.filter((x) => REQUIRED_STEPS.includes(x.id) && x.status !== 'na');
+  const done = req.filter((x) => x.status === 'done').length;
+  const legacy = idx.stepsSince === null || day < idx.stepsSince;
+  const complete = legacy ? rings.complete : done === req.length;
+  return { day, steps, done, applicable: req.length, complete, score: `${done}/${req.length}`, legacy };
+}
+
+/** 步驟 1–3 適用者全部完成的時間（經驗值用）；未完成＝null */
+export function steps123At(s: DaySteps): number | null {
+  const xs = s.steps.filter((x) => (x.id === 'market' || x.id === 'holdings' || x.id === 'movers') && x.status !== 'na');
+  if (!xs.length || xs.some((x) => x.status !== 'done')) return null;
+  return Math.max(...xs.map((x) => x.at ?? 0));
+}
+
 /** 流程頁要顯示的交易日：今天是交易日＝今天；休市日＝上一交易日（並標日期） */
 export function displayDay(cal: TradingCalendar, now: string): { day: string; isTradingDay: boolean } {
   const today = tpeDate(now);
@@ -349,7 +459,7 @@ export function flowStreak(input: FlowInput): StreakInfo {
   if (idx.start && idx.start <= ref) {
     let d = input.cal.onOrAfter(idx.start);
     for (let i = 0; i < 20000 && d <= ref; i++, d = nextTradingDay(d, input.cal)) {
-      const r = dayRings(d, input);
+      const r = daySteps(d, input);
       const complete = r.complete || idx.legacyDone.has(d);
       let state: DotState;
       if (complete) { run++; state = 'done'; }
@@ -382,10 +492,13 @@ export function completionRate(days: DayDot[]): { done: number; total: number; r
 }
 
 // ------------------------------------------------------------------ 經驗值（§8.5）
-export type XpKind = 'legacy' | 'brief' | 'entry' | 'review' | 'plan_exit' | 'weekly_review' | 'backup' | 'backtest_own';
+export type XpKind = 'legacy' | 'brief' | 'screener' | 'term' | 'onboard' | 'entry' | 'review' | 'plan_exit' | 'weekly_review' | 'backup' | 'backtest_own';
 export const XP_LABEL: Record<XpKind, string> = {
   legacy: '既有經驗值',
-  brief: '簡報環完成',
+  brief: '步驟 1–3 完成',
+  screener: '看新觸發（步驟 4）',
+  term: '首次讀完一個名詞',
+  onboard: '新手導覽任務',
   entry: '符合條件的新持倉',
   review: '平倉後 3 個交易日內完成檢討',
   plan_exit: '依計畫出場',
@@ -399,17 +512,20 @@ export interface XpEntry { kind: XpKind; xp: number; at: number; day: string; re
 export function xpTable(cfg: Gcfg = uiConfig.gamification): { kind: XpKind; label: string; xp: number; limit: string }[] {
   return [
     { kind: 'brief', label: XP_LABEL.brief, xp: cfg.xp.brief, limit: '每交易日 1 次' },
+    { kind: 'screener', label: XP_LABEL.screener, xp: cfg.xp.screener, limit: '每交易日 1 次' },
     { kind: 'entry', label: XP_LABEL.entry, xp: cfg.xp.entry, limit: `每交易日最多 ${cfg.caps.entry_per_day} 筆` },
     { kind: 'review', label: XP_LABEL.review, xp: cfg.xp.review, limit: `每筆；每日最多 ${cfg.caps.review_per_day} 筆` },
     { kind: 'plan_exit', label: XP_LABEL.plan_exit, xp: cfg.xp.plan_exit, limit: `每筆；每日最多 ${cfg.caps.plan_exit_per_day} 筆` },
     { kind: 'weekly_review', label: XP_LABEL.weekly_review, xp: cfg.xp.weekly_review, limit: '每週 1 次' },
     { kind: 'backup', label: XP_LABEL.backup, xp: cfg.xp.backup, limit: '每日曆月 1 次' },
     { kind: 'backtest_own', label: XP_LABEL.backtest_own, xp: cfg.xp.backtest_own, limit: '每週 1 次' },
+    { kind: 'term', label: XP_LABEL.term, xp: cfg.xp.term, limit: `每個名詞 1 次；每日最多 ${cfg.caps.term_per_day} 個` },
+    { kind: 'onboard', label: XP_LABEL.onboard, xp: cfg.xp.onboard, limit: '每項 1 次' },
   ];
 }
 
 /**
- * 經驗值明細。只有上表 7 項計分，其他行為一律 0；上限依時間順序套用（含遷移前的行為，避免同一天、同一月重複計）。
+ * 經驗值明細。只有上表各項計分，其他行為一律 0；上限依時間順序套用（含遷移前的行為，避免同一天、同一月重複計）。
  * 有既有經驗值紀錄時：遷移時間（含）之前的行為不重算，只計那筆既有經驗值。
  */
 export function xpLedger(input: FlowInput): XpEntry[] {
@@ -417,8 +533,37 @@ export function xpLedger(input: FlowInput): XpEntry[] {
   const { cal } = input;
   const idx = buildIndex(input);
   const out: XpEntry[] = [];
-  // 簡報環
-  for (const [day, at] of idx.brief) if (cal.isTradingDay(day) && at < dayDeadline(day, cal, cfg)) out.push({ kind: 'brief', xp: cfg.xp.brief, at, day });
+  // 步驟 1–3（步驟行為出現前的交易日：簡報環）
+  for (const [day, at] of idx.brief) {
+    if (!cal.isTradingDay(day) || at >= dayDeadline(day, cal, cfg)) continue;
+    if (idx.stepsSince === null || day < idx.stepsSince) out.push({ kind: 'brief', xp: cfg.xp.brief, at, day });
+  }
+  if (idx.stepsSince !== null) {
+    for (const day of idx.acts.keys()) {
+      if (day < idx.stepsSince || !cal.isTradingDay(day)) continue;
+      const st = daySteps(day, input);
+      const at = steps123At(st);
+      if (at !== null) out.push({ kind: 'brief', xp: cfg.xp.brief, at, day });
+      const sc = st.steps.find((x) => x.id === 'screener');
+      if (sc?.status === 'done' && sc.at !== undefined) out.push({ kind: 'screener', xp: cfg.xp.screener, at: sc.at, day });
+    }
+  }
+  // 新手導覽（每項一次）、名詞（每個一次、每日最多 term_per_day 個）
+  const onboardSeen = new Set<string>();
+  const termSeen = new Set<string>();
+  const termItems: { at: number; day: string; ref: string }[] = [];
+  for (const a of [...input.activities].sort((x, y) => msOf(x.at, 0) - msOf(y.at, 0))) {
+    const at = msOf(a.at, NaN);
+    if (!Number.isFinite(at)) continue;
+    if (a.type === 'onboard' && a.meta?.task && !onboardSeen.has(String(a.meta.task))) {
+      onboardSeen.add(String(a.meta.task));
+      out.push({ kind: 'onboard', xp: cfg.xp.onboard, at, day: tpeDate(a.at), ref: String(a.meta.task) });
+    }
+    if (a.type === 'term_read' && a.meta?.id && !termSeen.has(String(a.meta.id))) {
+      termSeen.add(String(a.meta.id));
+      termItems.push({ at, day: tpeDate(a.at), ref: String(a.meta.id) });
+    }
+  }
   // 進場：每筆符合條件的新持倉，每交易日最多 2 筆
   const capped = (items: { at: number; day: string; ref: string }[], kind: XpKind, xp: number, cap: number) => {
     const n = new Map<string, number>();
@@ -440,6 +585,7 @@ export function xpLedger(input: FlowInput): XpEntry[] {
   capped(input.trades.filter((t) => planExit(t, cfg))
     .map((t) => ({ at: msOf(t.closedRecordedAt, tpeNoonMs((t.closedAt ?? t.openedAt).slice(0, 10))), day: closeDayOf(t, cal) ?? t.openedAt, ref: t.id })),
   'plan_exit', cfg.xp.plan_exit, cfg.caps.plan_exit_per_day);
+  capped(termItems, 'term', cfg.xp.term, cfg.caps.term_per_day);
   // 週檢討（每週）、備份（每日曆月）、回測自己的條件（每週）
   const once = (type: Activity['type'], kind: XpKind, xp: number, key: (day: string) => string) => {
     const seen = new Set<string>();

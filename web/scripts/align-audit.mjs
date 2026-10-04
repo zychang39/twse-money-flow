@@ -57,6 +57,7 @@ export const PAGES = [
   { id: 'evidence', hash: '#/explore/evidence' },
   { id: 'backtest', hash: '#/explore/backtest' },
   { id: 'flow', hash: '#/discipline' },
+  { id: 'settings', hash: '#/me/settings' },
 ].filter((p) => !ONLY || ONLY.split(',').includes(p.id));
 
 /** 在頁面內執行的量測（不能引用外部變數）。 */
@@ -79,7 +80,7 @@ function measure() {
   const scrollY = window.scrollY;
   const page = document.querySelector('.page');
   if (!page) return [{ rule: 'page', msg: '找不到 .page' }];
-  const cardOf = (el) => el.closest('.ui-card, .ui-list, .card, .list, .ui-table, .sheet-body, .sum-card, .stale-note, .ex-tile, .ex-index');
+  const cardOf = (el) => el.closest('.ui-card, .ui-list, .card, .list, .ui-table, .sheet-body, .sum-card, .stale-note, .ex-tile, .ex-index, .flow-step');
 
   // ---------- 1. 左緣 ----------
   // 以「行內片段」為單位：每個文字節點的每一行（Range.getClientRects）與圖示（svg）、輸入框。

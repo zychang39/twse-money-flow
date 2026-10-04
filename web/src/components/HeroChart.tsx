@@ -26,6 +26,7 @@ import { RANGE_BASIS_NAME, RANGE_HOLD_MS, type RangeBasis, countDatesBetween, ra
 import { makeCalendar } from '../lib/tradingCalendar';
 import { loadMeta } from '../data/api';
 import { useAsync } from '../hooks';
+import { markOnboard } from '../lib/flowTrack';
 
 const N = 160;
 /** 走勢圖下緣留給起訖日期標籤的高度（px；M1-9） */
@@ -296,6 +297,7 @@ export function HeroChart({
     clearFade();
     setScrub(null);
     setSel({ a, b, live: true, fading: false });
+    markOnboard('range');
   };
   /** 放開：保留結果 2 秒再淡出（減少動態效果時直接消失） */
   const releaseRange = () => {

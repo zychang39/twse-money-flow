@@ -24,14 +24,32 @@ for (const t of TERMS) {
   for (const a of t.aliases ?? []) if (!byKey.has(String(a))) byKey.set(String(a), t);
 }
 
+/** 自動連結允許的兩字別名（其餘兩字以下的別名太泛用，例：中性、有效、風險、連續，不自動連結） */
+const AUTO_SHORT = new Set(['融資', '融券', '當沖', '量比', '乖離', '均線', '借券', '外資', '投信', '法人', '大戶', '停損', '回撤', '勝率', '題材', '寬度', 'RS', 'PE', 'PB', 'ATR', 'XP']);
+
+/**
+ * 畫面文字（區塊標題、列名稱、摘要格標籤、表頭）若正好是某個名詞的名稱或別名，回傳名詞 id（自動變成可點的名詞）。
+ * 只比對整段文字；兩字以下的別名只有 AUTO_SHORT 會連結。
+ */
+export function autoTermId(label: string): string | null {
+  const k = label.replace(/\s+/g, ' ').trim();
+  if (!k || k.length > 16) return null;
+  const t = byKey.get(k);
+  if (!t) return null;
+  if (k.length <= 2 && !AUTO_SHORT.has(k) && t.name !== k) return null;
+  return t.id;
+}
+
 /** 以 id、名稱或別名找名詞。 */
 export function findTerm(key: string): Term | undefined {
   return byKey.get(key) ?? byKey.get(key.replace(/\s+/g, ' ').trim());
 }
 
-/** 舉例模板：{名稱} 由 ctx 帶入；缺任何一個值時回傳 null（不顯示半套句子）。 */
+/** 舉例模板：{名稱} 由 ctx 帶入；缺任何一個值時回傳 null（不顯示半套句子）。沒有 {名稱} 的固定舉例（「例：…」）一律顯示。 */
 export function fillExample(tpl: string | undefined, ctx: Record<string, string | number | null | undefined> | undefined): string | null {
-  if (!tpl || !ctx) return null;
+  if (!tpl) return null;
+  if (!/\{\w+\}/.test(tpl)) return tpl;
+  if (!ctx) return null;
   let missing = false;
   const out = tpl.replace(/\{(\w+)\}/g, (_, k: string) => {
     const v = ctx[k];

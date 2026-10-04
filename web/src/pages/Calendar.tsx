@@ -5,6 +5,7 @@ import { Button, EmptyRow, List, PageTitle, Row, Section, Seg, Tag } from '../co
 import { useAsync, useDb, useRestoredState } from '../hooks';
 import { loadJson } from '../data/api';
 import { listTrades, listWatch } from '../db/db';
+import { Term } from '../components/kit';
 
 const CAL_INFO = (
   <>
@@ -55,6 +56,7 @@ export default function CalendarPage() {
       ))}
       {cal.data && !events.length ? (
         <Section title="事件" info={CAL_INFO}>
+          <p class="interp"><Term id="exright">除權息</Term>・營收公布・法說會；只列自選與持股</p>
           <List>
             <EmptyRow>自選與持股近期無事件</EmptyRow>
           </List>

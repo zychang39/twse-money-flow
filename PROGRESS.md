@@ -61,7 +61,12 @@
 - [x] 篩選列 components/strategy/Filter.tsx（?p= ?b=、年份底部選單、樣本不足）；lib/strategyView.ts（純函式＋vitest）
 - [x] 績效 components/strategy/Perf.tsx；事件研究 components/strategy/Event.tsx；規則（Strategies.tsx Rules）
 - [x] e2e/m5-strategies.spec.ts（真實資料裁切 fixtures：strategy/rev_confirm*.json、screen.json、strategies-m5.json）＋截圖＋commit（#359–369；docs/screens/restore-2026-10/m5）
-### M6 流程、遊戲化、名詞內容、設定 — [ ]
+### M6 流程、遊戲化、名詞內容、設定
+- [x] 每日 6 步驟 lib/ritual.ts daySteps（既有資料以 stepsSince 切換、不變）；經驗值新項目；lib/onboarding.ts；lib/flowTrack.ts（各頁接上）
+- [x] 流程頁 pages/Discipline.tsx（進度環、新手導覽、步驟卡、每週、名詞圖鑑、工具）；簡報「今日流程」列改用步驟
+- [x] 名詞寫滿（84 個、固定舉例、RS 定義對齊程式、異動）；ui.tsx autoTerm 自動可點；換頁關閉說明面板
+- [x] 設定頁分區（lib/prefs.ts：預設圖表、價格基準、異動門檻）
+- [x] vitest flowSteps.test.ts、glossary.test.ts；e2e m6-flow.spec.ts（步驟自動判定、新手只記一次、設定、16 頁各隨機 5 個名詞）；截圖 docs/screens/restore-2026-10/m6/{novice,compact}；稽核 0（#370–377）
 ### M7 整合審查＋PR — [ ]
 
 ## 設計決定（docs/DECISIONS.md #304 起）

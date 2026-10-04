@@ -28,6 +28,7 @@ import { fmtPrice } from '../lib/format';
 import { gradeId, newTriggers, type StrategiesLite } from '../lib/briefTriggers';
 import { moodOf } from '../lib/ambient';
 import { navigate } from '../router';
+import { trackMarket } from '../lib/flowTrack';
 
 type BriefSeg = 'overview' | 'market' | 'money' | 'mine';
 const SEGS = [['overview', '總覽'], ['market', '市場'], ['money', '資金'], ['mine', '我的']] as const;
@@ -99,21 +100,20 @@ export default function Tonight() {
     let timer = 0;
     const io = new IntersectionObserver(([e]) => {
       clearTimeout(timer);
-      if (e.isIntersecting) timer = window.setTimeout(() => logActivityOnce('brief_read', day), 600);
+      if (e.isIntersecting) timer = window.setTimeout(() => { void logActivityOnce('brief_read', day); trackMarket(); }, 600);
     }, { threshold: 0.5 });
     io.observe(el);
     return () => { io.disconnect(); clearTimeout(timer); };
   }, [day, seg, market.data]);
 
   const openStock = (code: string, name: string, codes: string[]) => { setListContext({ name, codes }); navigate(`/stock/${code}`); };
-  const nextStep = flow ? flow.rings.rings.find((r) => r.status === 'todo') : null;
-  const STEP_NAME: Record<string, string> = { brief: '看大盤', entry: '進場前檢查', review: '平倉後檢討' };
+  const nextStep = flow ? flow.steps.steps.find((r) => r.status === 'todo' && !r.optional) : null;
 
   const overviewRows = (
     <>
       <Row label="今日流程" testid="flow-brief-row" href="#/discipline"
-        value={flow ? <Num v={`${flow.rings.done}/${flow.rings.applicable}`} /> : undefined}
-        sub={flow ? (flow.rings.complete ? '今日已完成' : nextStep ? `下一步：${STEP_NAME[nextStep.id] ?? nextStep.id}` : undefined) : undefined} />
+        value={flow ? <Num v={flow.steps.score} /> : undefined}
+        sub={flow ? (flow.steps.complete ? '今日已完成' : nextStep ? `下一步：${nextStep.n} ${nextStep.title}` : undefined) : undefined} />
       <Row label="新觸發" testid="new-triggers" href="#/explore/screener?view=new"
         value={trig ? <Num v={trig.stocks} unit="檔" /> : '—'} sub={trig?.date ? `${md(trig.date)}・${trig.strategies} 個策略` : undefined} />
       <Row label="自選異動" testid="watch-changes-row" onClick={() => setSeg('mine')}

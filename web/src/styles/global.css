@@ -278,7 +278,7 @@ label.field, div.field { display: block; margin: var(--s-3) 0; }
 label.field > span, div.field > label { display: block; font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); margin-bottom: var(--s-1); }
 .sort-select { width: auto; min-height: 2.25rem; padding: 0 var(--s-2); font-size: var(--fs-caption); color: var(--brand); background: var(--surface-1); flex: none; }
 .check { display: flex; align-items: center; gap: var(--s-3); min-height: var(--tap); cursor: pointer; }
-.check input { width: 1.25rem; height: 1.25rem; accent-color: var(--brand-fill); }
+.check input { width: 1.25rem; height: 1.25rem; margin: 0; accent-color: var(--brand-fill); }
 .switch-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); min-height: var(--tap); }
 .switch { position: relative; width: 3.125rem; height: 1.875rem; flex: none; }
 /* M3：開關外觀 50×30，點擊範圍以 ::before 上下擴大到 44px */

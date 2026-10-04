@@ -12,6 +12,8 @@ import { subscribe } from './db/db';
 import { BackupReminder } from './components/BackupReminder';
 import { applyAppearance } from './lib/appearance';
 import { getUpdater, subscribeUpdate, updateState, type UpdateState } from './lib/swUpdate';
+import { onTermRead } from './components/kit';
+import { trackTerm } from './lib/flowTrack';
 
 const Mine = lazy(() => import('./pages/Mine'));
 const Stock = lazy(() => import('./pages/Stock'));
@@ -138,6 +140,7 @@ export { applyAppearance };
 
 export function App() {
   const route = useRoute();
+  useEffect(() => onTermRead(trackTerm), []);
   useEffect(() => {
     applyAppearance();
     return subscribe(() => { applyAppearance(); });

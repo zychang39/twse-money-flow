@@ -13,6 +13,7 @@ import { loadMarket } from '../data/api';
 import { ETF_KINDS, ETF_KIND_LABEL, type EtfCoverage, type EtfItem, type EtfKind, type EtfMove, type EtfSortMetric, type EtfValidation } from '../data/types';
 import { setListContext } from '../lib/listContext';
 import { fmtNum, md } from '../lib/format';
+import { Term } from '../components/kit';
 
 /** 變動分類標籤：新增／加碼／減碼／剔除；舊版資料沒有 kind 時依方向寫加碼／減碼。 */
 export function kindOf(e: Pick<EtfMove, 'kind' | 'net_shares'>): EtfKind {
@@ -186,6 +187,7 @@ export default function Etf() {
           <MoveList title="加碼" items={add} testid="etf-add" />
           <MoveList title="減碼" items={reduce} testid="etf-reduce" />
           <Section title="清單" aside={`${list.length} 檔・依 20 日均成交值`} testid="etf-list">
+            <p class="interp"><Term id="active_etf">主動式 ETF</Term> 每日公布持股；加碼與減碼以股數變化計</p>
             <List chev>
               {list.length ? list.map((e) => (
                 <Row key={e.code} href={`#/stock/${e.code}`}

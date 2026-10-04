@@ -88,7 +88,10 @@ export interface Trade {
  * - v5 新增 weekly_review（週報頁按下完成）、legacy_xp（遷移時的「既有經驗值」，id 固定 'legacy-xp'，meta: { xp, level }）。
  * - ritual_done、checklist_done、review_done 是舊版紀錄：保留，不再計經驗值；ritual_done 只用來保留遷移前的連續天數。
  */
-export type ActivityType = 'brief_read' | 'checklist_done' | 'review_done' | 'ritual_done' | 'backup' | 'backtest_own' | 'weekly_review' | 'legacy_xp';
+export type ActivityType = 'brief_read' | 'checklist_done' | 'review_done' | 'ritual_done' | 'backup' | 'backtest_own' | 'weekly_review' | 'legacy_xp'
+  // M6 每日步驟與新手導覽（2026-10）：看大盤、看持倉、看自選異動（meta.codes＝當時的異動代號，逗號分隔）、開個股（meta.code）、
+  // 看選股、讀名詞（meta.id；每個名詞只記一次）、新手任務（meta.task；每項只記一次）
+  | 'market_viewed' | 'holdings_viewed' | 'movers_viewed' | 'stock_viewed' | 'screener_viewed' | 'term_read' | 'onboard';
 export interface Activity {
   id: string;
   type: ActivityType;
@@ -327,6 +330,15 @@ export async function logActivity(type: ActivityType, day: string, meta?: Activi
   await (await getDb()).put('activity', a);
   notify();
   return a;
+}
+/** 同類型、同一個鍵只記一次（day＝null 表示不分日期；例：同一天同一檔個股、同一個名詞、同一項新手任務）。 */
+export async function logActivityKey(type: ActivityType, day: string, key: string, meta: Activity['meta'], perDay = true): Promise<boolean> {
+  const db = await getDb();
+  const pool = perDay ? await db.getAllFromIndex('activity', 'day', day) : await db.getAll('activity');
+  const k = (a: Activity) => String(a.meta?.code ?? a.meta?.id ?? a.meta?.task ?? a.meta?.codes ?? '');
+  if (pool.some((a) => a.type === type && k(a) === key)) return false;
+  await logActivity(type, day, meta);
+  return true;
 }
 /** 同一天同類型只記一次（例如「看完今晚簡報」）。 */
 export async function logActivityOnce(type: ActivityType, day: string, meta?: Activity['meta']): Promise<boolean> {

@@ -4,7 +4,7 @@
  * 資料：screen.json（各上架策略的目前篩出與今日新觸發；pipeline evidence/periods.screen_now）。依規則產生，非推薦。
  * 自己組條件的篩選在子頁 #/explore/screener/custom。
  */
-import { useMemo } from 'preact/hooks';
+import { useEffect, useMemo } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
 import { Conclusion, DataState, Interp, Term } from '../components/kit';
 import { List, NavRow, PageTitle, Section, Seg } from '../components/ui';
@@ -13,6 +13,7 @@ import { useAsync, useSegParam } from '../hooks';
 import { loadJson } from '../data/api';
 import { GRADE_ORDER, type ScreenFile, screenItems } from '../lib/screen';
 import '../styles/screener.css';
+import { trackScreener } from '../lib/flowTrack';
 
 export { screenItems };
 export type { ScreenFile, ScreenItem, ScreenStrategy } from '../lib/screen';
@@ -21,6 +22,7 @@ const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite
 const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
 
 export default function Screener() {
+  useEffect(() => trackScreener(), []);
   const file = useAsync(() => loadJson<ScreenFile>('screen.json').catch(() => null), []);
   const strategies = (file.data?.strategies ?? []).slice().sort((a, b) => GRADE_ORDER.indexOf(a.grade) - GRADE_ORDER.indexOf(b.grade) || (a.rank ?? 99) - (b.rank ?? 99));
   const ids = ['all', ...strategies.map((s) => s.id)];

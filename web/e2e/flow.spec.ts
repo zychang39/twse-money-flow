@@ -4,25 +4,31 @@ import { seed } from './helpers';
 const CK = { market: '中性', trend: '多頭（年線、季線之上）', revenue: '成長', valuation: '合理', reason: '投信連買' };
 
 test.describe('流程頁（§8）', () => {
-  test('標題「流程」、三環與右側三列狀態、連續、等級卡、入口列表', async ({ page }) => {
+  test('今日流程：已完成 n/m、進度環（連續、等級、經驗值）、新手導覽、每日 6 步、每週、名詞圖鑑、工具列表', async ({ page }) => {
     await page.goto('#/discipline');
-    await expect(page.getByRole('heading', { level: 1, name: '流程' })).toBeVisible();
-    for (const id of ['brief', 'entry', 'review']) await expect(page.getByTestId(`ring-${id}`)).toBeVisible();
-    await expect(page.getByTestId('ring-entry')).toContainText('不適用');
+    await expect(page.getByRole('heading', { level: 1, name: '今日流程' })).toBeVisible();
+    await expect(page.locator('.ui-head-sub')).toContainText(/已完成 \d+\/\d+/);
+    await expect(page.getByTestId('flow-ring')).toBeVisible();
+    for (const id of ['market', 'holdings', 'movers', 'screener', 'entry', 'review']) await expect(page.getByTestId(`step-${id}`)).toBeVisible();
+    await expect(page.getByTestId('step-entry')).toContainText('今日不適用');
+    await expect(page.getByTestId('step-screener')).toContainText('選做');
     await expect(page.getByTestId('flow-streak')).toContainText(/連續 \d+ 日・最佳 \d+ 日・本月寬限剩 \d/);
     await expect(page.getByTestId('flow-xp')).toContainText(/\d+ \/ \d+/);
+    await expect(page.getByTestId('flow-onboard')).toBeVisible();
+    await expect(page.getByTestId('step-weekly')).toBeVisible();
+    await expect(page.getByTestId('flow-glossary')).toContainText(/已讀 \d+／\d+/);
     for (const name of ['日誌', '新增持倉前檢查表', '個人統計', '成就', '週報', '訊號追蹤']) {
       await expect(page.getByTestId('flow-entries').getByRole('link', { name: new RegExp(name) })).toBeVisible();
     }
     await expect(page.getByText(/紀律等級|XP|今晚的紀律/)).toHaveCount(0);
   });
 
-  test('無停損的新持倉：進場環未完成，個人統計記「無停損」', async ({ page, request }) => {
+  test('無停損的新持倉：第 5 步待辦，個人統計記「無停損」', async ({ page, request }) => {
     const { date } = await (await request.get('data/summary.json')).json() as { date: string };
     await page.clock.setFixedTime(new Date(`${date}T20:00:00+08:00`));
     await seed(page, { trades: [{ id: 'ns', code: '2330', name: '台積電', status: 'open', openedAt: date, entry: 100, shares: 1000, stop: 0, target: 120, reasonType: '籌碼', checklist: CK }] });
     await page.goto('#/discipline');
-    await expect(page.getByTestId('ring-entry')).toContainText('未完成');
+    await expect(page.getByTestId('step-entry')).toContainText('待辦');
     await page.goto('#/discipline/stats');
     const v = page.getByTestId('stats-violations');
     await expect(v.getByText('無停損')).toBeVisible();

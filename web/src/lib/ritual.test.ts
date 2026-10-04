@@ -179,7 +179,7 @@ describe('經驗值（§8.5）與等級（§8.6）', () => {
     expect(xpLedger(input({ trades: [other] })).some((e) => e.kind === 'plan_exit')).toBe(false);
     expect(xpLedger(input({ trades: [blown] })).some((e) => e.kind === 'plan_exit')).toBe(false);
     expect(xpLedger(input({ trades: [late] })).some((e) => e.kind === 'review')).toBe(false);
-    expect(xpTable().map((r) => r.xp)).toEqual([10, 20, 30, 20, 30, 10, 10]);
+    expect(xpTable().map((r) => r.xp)).toEqual([10, 5, 20, 30, 20, 30, 10, 10, 2, 10]);
   });
 
   it('等級：100 × (2^(n−1) − 1)，上限 10，不下降', () => {

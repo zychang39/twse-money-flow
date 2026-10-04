@@ -7,6 +7,7 @@ import { uiConfig } from './config';
 import { fmtLotsUnit } from './format';
 import { eventsFor, factorBetween } from './corpActions';
 import { watchLine, watchLineText } from './stockFacts';
+import { moverTh } from './prefs';
 
 export interface SnapRow { c: number | null; s: number | null; f: string[]; fs: number | null; ts: number | null; mb: number | null }
 export interface Snapshot { at: string; date: string; rows: Record<string, SnapRow> }
@@ -38,7 +39,7 @@ function streakText(who: string, s: number): string {
 }
 
 /** 單檔變化。prev 為上次查看的快照；沒有快照時用日變化。 */
-export function diffRow(r: StockRow, prev: SnapRow | undefined, th: Th = uiConfig.significance, snapDate?: string): Change {
+export function diffRow(r: StockRow, prev: SnapRow | undefined, th: Th = moverTh(), snapDate?: string): Change {
   const reasons: Reason[] = [];
   // 價格。D-01：快照存的是當時的原始收盤；之後有分割、除權息時先換算到目前的價格基準，避免假的「自上次跌 X%」
   const prevC = prev?.c && snapDate ? prev.c * factorBetween(eventsFor(r), snapDate) : prev?.c;
@@ -84,7 +85,7 @@ export function instReasonText(inst: number, vol: number): string {
   return `外資＋投信 ${fmtLotsUnit(inst).replace(' ', '\u00a0')}・量\u00a0${Math.round((Math.abs(inst) / vol) * 100)}%`;
 }
 
-export function diffAll(rows: StockRow[], snap: Snapshot | null, th: Th = uiConfig.significance): Change[] {
+export function diffAll(rows: StockRow[], snap: Snapshot | null, th: Th = moverTh()): Change[] {
   return rows.map((r) => diffRow(r, snap?.rows[r.code], th, snap?.date)).sort((a, b) => Number(b.significant) - Number(a.significant) || b.score - a.score);
 }
 

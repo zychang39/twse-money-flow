@@ -48,6 +48,8 @@ export function HelpHost() {
   const [s, setS] = useState<HelpState | null>(null);
   const [adv, setAdv] = useState(false);
   useEffect(() => { helpSet = (v) => { setAdv(false); setS(v); }; return () => { helpSet = null; }; }, []);
+  // 換頁時關閉說明面板（面板掛在 body，不會跟著頁面卸載）
+  useEffect(() => { const close = () => setS(null); window.addEventListener('hashchange', close); return () => window.removeEventListener('hashchange', close); }, []);
   const t = s?.term;
   const ex = t ? fillExample(t.example, s?.ctx) : null;
   return (

@@ -37,7 +37,10 @@ gamification:
   recent_trades: 20            # 違規標籤次數統計的近 N 筆交易
   stop_respected_tolerance_pct: 2   # 舊交易（沒有出場原因）判斷「依計畫停損」：出場價在停損價 ±2% 內
   xp:
-    brief: 10           # 簡報環完成（每交易日）
+    brief: 10           # 每日步驟 1–3（看大盤、看持倉、看自選異動）適用者全部完成（每交易日；舊資料＝簡報環完成）
+    screener: 5         # 每日步驟 4 看新觸發（選做；每交易日一次）
+    term: 2             # 首次讀完一個名詞（每個名詞一次）
+    onboard: 10         # 新手導覽任務（每項一次）
     entry: 20           # 每筆符合條件的新持倉（檢查表、停損、計畫風險 ≤ 上限）
     review: 30          # 平倉後 3 個交易日內完成檢討（每筆）
     plan_exit: 20       # 依計畫出場（停損、時間停損、規則出場，且虧損 ≤ 計畫風險 × 1.2；每筆）
@@ -48,6 +51,7 @@ gamification:
     entry_per_day: 2
     review_per_day: 3
     plan_exit_per_day: 3
+    term_per_day: 5     # 名詞每日最多計 5 個（10 經驗值）
   level_base: 100       # 升到等級 n 所需累計經驗值 = base × (2^(n−1) − 1)
   level_max: 10
   badges:

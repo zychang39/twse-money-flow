@@ -13,6 +13,15 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { Sheet } from './Sheet';
 import { IconChevron, IconInfo } from './Icons';
 import { numberFormat } from '../lib/format';
+import { autoTermId } from '../lib/glossary';
+import { Term } from './kit';
+
+/** 文字正好是名詞時變成可點的名詞（C 節：畫面上每個專有名詞都可點） */
+export function autoTerm(k: Kids): Kids {
+  if (typeof k !== 'string') return k;
+  const id = autoTermId(k);
+  return id ? <Term id={id}>{k}</Term> : k;
+}
 
 type Kids = ComponentChildren;
 
@@ -47,7 +56,7 @@ export function Section({ title, info, infoTitle, aside, id, children, testid }:
   return (
     <section class="ui-sec" id={id} data-testid={testid} aria-label={typeof title === 'string' ? title : undefined}>
       <div class="ui-sec-head">
-        <h2 class="ui-sec-title">{title}</h2>
+        <h2 class="ui-sec-title">{autoTerm(title)}</h2>
         {info ? <Info title={infoTitle ?? (typeof title === 'string' ? title : '說明')}>{info}</Info> : null}
         {aside ? <span class="ui-sec-aside ui-foot ui-muted">{aside}</span> : null}
       </div>
@@ -112,7 +121,7 @@ export function Row({ label, sub, subWide, value, value2, tag, extra, icon, href
     <>
       {icon ? <span class="ui-row-icon" aria-hidden="true">{icon}</span> : null}
       <span class="ui-row-main">
-        <span class={`ui-row-label ${strong ? 'ui-strong' : ''}`} data-a="bl">{label}</span>
+        <span class={`ui-row-label ${strong ? 'ui-strong' : ''}`} data-a="bl">{href || onClick ? label : autoTerm(label)}</span>
         {sub && !subWide ? <span class="ui-row-sub ui-foot ui-muted">{sub}</span> : null}
       </span>
       <span class="ui-row-value" data-a="v">
@@ -297,7 +306,7 @@ export function Table<R>({ cols, rows, rowKey, onRow, caption, testid, sticky = 
       {caption ? <caption class="sr-only">{caption}</caption> : null}
       <colgroup>{cols.map((c) => <col key={c.key} style={c.width ? { width: c.width } : undefined} />)}</colgroup>
       <thead>
-        <tr>{cols.map((c, i) => <th key={c.key} scope="col" class={(c.align ?? (i === 0 ? 'l' : 'r')) === 'r' ? 'r' : 'l'}>{c.label}</th>)}</tr>
+        <tr>{cols.map((c, i) => <th key={c.key} scope="col" class={(c.align ?? (i === 0 ? 'l' : 'r')) === 'r' ? 'r' : 'l'}>{autoTerm(c.label)}</th>)}</tr>
       </thead>
       <tbody>
         {rows.map((r, ri) => (
@@ -322,7 +331,7 @@ export function StatGrid({ items, cols = 2, testid }: { items: Stat[]; cols?: 2 
     <div class={`ui-stats c${cols}`} data-testid={testid}>
       {items.map((s, i) => (
         <div key={i} class="ui-stat" data-testid={s.testid}>
-          <span class="ui-stat-l ui-foot ui-muted">{s.label}</span>
+          <span class="ui-stat-l ui-foot ui-muted">{autoTerm(s.label)}</span>
           <span class="ui-stat-v" data-a="bl">{s.value}</span>
         </div>
       ))}

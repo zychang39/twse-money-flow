@@ -40,6 +40,8 @@ import { baseline, commit, commitHero, heroSeen } from '../lib/seen';
 import { setListContext } from '../lib/listContext';
 import { fmtInt, fmtNum, pctSigned } from '../lib/format';
 import { navigate, useRoute } from '../router';
+import { trackHoldings, trackMovers } from '../lib/flowTrack';
+import { Term } from '../components/kit';
 
 type Seg = 'watch' | 'hold';
 /** 系統清單的群組 id（不會與使用者群組名稱衝突） */
@@ -259,6 +261,13 @@ export default function Mine() {
   // 頁首結論以「全部自選（不含同時持有的）」為準，與今晚頁同一個函式、同一個快照（M1-1）；不受群組篩選影響
   const watchSum = useMemo(() => watchSummary(watchRowsOf(watch, user?.trades ?? [], byCode), snap ?? null), [byCode, watch, user, snap]);
   const watchSig = snap === undefined ? 0 : watchSum.significant.length;
+  // 流程步驟 2「看持倉」與 3「看自選異動」：記下開過持股清單、開過異動清單（當時清單上的代號）
+  const moverKey = watchSum.significant.map((c) => c.code).join(',');
+  useEffect(() => {
+    if (!user || !byCode || snap === undefined) return;
+    if (seg === 'hold') trackHoldings();
+    else if (watch.length) trackMovers(moverKey ? moverKey.split(',') : []);
+  }, [seg, !!user, !!byCode, snap === undefined, moverKey, watch.length]);
   const changes = useMemo(() => (snap === undefined ? [] : diffAll(rows, snap)), [rows, snap]);
   const ordered = seg === 'hold'
     ? [...changes].sort((a, b) => Number(risky.has(b.code)) - Number(risky.has(a.code)) || Number(b.significant) - Number(a.significant) || b.score - a.score)
@@ -358,7 +367,7 @@ export default function Mine() {
       <div class="mine-seg"><UiSeg options={[['watch', `自選 ${watch.length}`], ['hold', `持股 ${holdCodes.length}`]] as const} value={seg} onChange={setSeg} label="清單" testid="mine-seg" /></div>
       {/* M1-1：與今晚頁相同的比較基準文字，放在自選分段的最上方 */}
       {seg === 'watch' && user && watch.length && snap !== undefined ? (
-        <p class="interp" data-testid="watch-basis">{watchSum.basis}：{watchSig ? `${watchSig} 檔有顯著變化` : '沒有顯著變化'}</p>
+        <p class="interp" data-testid="watch-basis">{watchSum.basis}：{watchSig ? <>{watchSig} 檔有<Term id="significant_change">顯著變化</Term></> : <>沒有<Term id="significant_change">顯著變化</Term></>}</p>
       ) : null}
 
       {seg === 'hold' && !user ? <div style={{ marginTop: 'var(--s-5)' }}><Loading hero /></div> : null}
