@@ -41,7 +41,7 @@ if (SEED) { await page.goto(BASE); await seedDb(page, JSON.parse(readFileSync(SE
 for (const [id, hash] of PAGES) {
   await page.goto(BASE + hash);
   await page.waitForTimeout(2500);
-  await page.screenshot({ path: `${OUT}/${id}.png` });
+  if (arg('fmt', 'png') === 'jpg') await page.screenshot({ path: `${OUT}/${id}.jpg`, quality: 80, type: 'jpeg' }); else await page.screenshot({ path: `${OUT}/${id}.png` });
   if (FULL) await page.screenshot({ path: `${OUT}/${id}-full.jpg`, fullPage: true, quality: 70, type: 'jpeg' });
 }
 await browser.close();

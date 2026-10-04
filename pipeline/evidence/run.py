@@ -764,9 +764,14 @@ def run_and_write(ev: EvData, out: Any = None, doc: Any = None) -> dict[str, Any
         from pipeline.derive.export import write_json_split
 
         listed_ids = {s["id"] for s in lib["strategies"] if s.get("enabled")}
+        from pipeline.evidence.periods import spark_rel
+
+        by_id = {s["id"]: s for s in lib["strategies"]}
         for sid, pack in (jd.get("periods") or {}).items():
             if sid not in listed_ids:
                 continue
+            # M5 策略庫列表：近 3 年相對 0050 的迷你折線
+            by_id[sid]["spark"] = spark_rel(pack)
             sig = pack.pop("_signals", {})
             write_json(out / "strategy" / f"{sid}.json", pack)
             row_keys = [k for k, v in sig.items() if isinstance(v, list) and k != "exit_rules"]

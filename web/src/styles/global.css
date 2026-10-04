@@ -910,7 +910,7 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 
 /* M5：價格基準標示（主角數字旁）與換股手勢區域 */
 .hero-row { display: flex; align-items: baseline; gap: var(--s-2); }
-.basis-tag { flex: none; font-size: var(--fs-micro); line-height: var(--lh-micro); font-weight: var(--fw-medium); color: var(--text-2); border: 1px solid var(--line); border-radius: var(--r-pill); padding: 0.125rem var(--s-2); transform: translateY(-0.35em); }
+.basis-tag { flex: none; font-size: var(--fs-micro); line-height: var(--lh-micro); font-weight: var(--fw-medium); color: var(--text-2); border: 1px solid var(--line); border-radius: var(--r-pill); padding: 0 var(--s-2); transform: translateY(-0.35em); }
 .swipe-zone { touch-action: pan-y; cursor: grab; -webkit-user-select: none; user-select: none; }
 .swipe-caption { display: inline-flex; }
 .pager-arrow { min-width: var(--tap); min-height: var(--tap); display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-section); }

@@ -96,6 +96,8 @@ export interface StrategyItem {
   event?: { horizon: number; yearly: { year: string; excess: number | null; n: number }[] };
   sample?: { includes_delisted: boolean; universe_text: string; delisted_stocks: number; delisted_events: number };
   leverage?: LeverageRisk;
+  /** M5 策略庫列表：近 3 年 5 檔組合相對 0050 的累積超額（%），每 4 週一點 */
+  spark?: { from: string; to: string; v: number[] } | null;
 }
 
 /** 2026-10-03 分級：valid 有效／sig_only 訊號顯著・未勝 0050／watch 觀察中／invalid 無效。 */

@@ -48,8 +48,8 @@ const PAGES: { name: string; hash: string; prepare?: (page: Page) => Promise<voi
   { name: '處置', hash: '#/explore/disposition' },
   { name: '指標效度表', hash: '#/explore/evidence', prepare: async (p) => { await p.getByTestId('ev-row-rs90').click(); await expect(p.getByRole('table', { name: /各持有天數/ })).toBeVisible(); } },
   { name: '策略庫', hash: '#/explore/strategies', prepare: async (p) => { await expect(p.getByText('近一年高點').first()).toBeVisible(); } },
-  { name: '策略頁', hash: '#/explore/strategies/near_high', prepare: async (p) => { await expect(p.getByRole('heading', { name: '健康度' })).toBeVisible(); await expect(p.getByRole('heading', { name: '出場規則' })).toBeVisible(); } },
-  { name: '策略頁（三方同買：樣本與成本、新觸發）', hash: '#/explore/strategies/three_buyers', prepare: async (p) => { await expect(p.getByTestId('st-sample')).toBeVisible(); await expect(p.getByTestId('st-today')).toBeVisible(); } },
+  { name: '策略頁', hash: '#/explore/strategies/near_high?seg=p', prepare: async (p) => { await expect(p.getByTestId('st-seg')).toBeVisible(); await expect(p.getByTestId('st-pane-p')).toBeVisible(); } },
+  { name: '策略頁（三方同買：規則）', hash: '#/explore/strategies/three_buyers?seg=r', prepare: async (p) => { await expect(p.getByTestId('st-rules')).toBeVisible(); } },
   { name: '指標效度表（排序選單開啟、0050 基準）', hash: '#/explore/evidence', prepare: async (p) => { await p.getByTestId('bench-switch').getByRole('button', { name: '0050' }).click(); await p.getByRole('button', { name: '排序', exact: true }).click(); await expect(p.getByRole('menu', { name: '排序方式' })).toBeVisible(); } },
   { name: '槓桿計算', hash: leverageHash(), prepare: async (p) => { await expect(p.getByText('波動目標法')).toBeVisible(); } },
   // 2026-10 改版：個股頁四個分段各檢查一次；每日明細推到子頁

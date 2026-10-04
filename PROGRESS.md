@@ -55,7 +55,12 @@
 - [x] 族群輪動（pages/Sectors.tsx、components/VirtualList.tsx）、族群頁與編輯（pages/SectorGroup.tsx）、lib/groups.ts、DB v6 groups
 - [x] 主動式 ETF、市場溫度、指標效度、回測、行事曆、處置：長度規則與清單在第一個螢幕
 - [x] 截圖＋稽核＋e2e（e2e/m4-explore.spec.ts）＋commit（#351–358；docs/screens/restore-2026-10/m4）
-### M5 策略庫與策略詳情 — [ ]
+### M5 策略庫與策略詳情
+- [x] 列表（分級、兩基準超額與 t、近 3 年迷你折線 spark、新觸發）；pipeline periods.spark_rel
+- [x] 詳情：結論行、規則句名詞可點、分段 ?seg=t|p|e|r；標的共用 components/ScreenList.tsx（lib/screen.ts）
+- [x] 篩選列 components/strategy/Filter.tsx（?p= ?b=、年份底部選單、樣本不足）；lib/strategyView.ts（純函式＋vitest）
+- [x] 績效 components/strategy/Perf.tsx；事件研究 components/strategy/Event.tsx；規則（Strategies.tsx Rules）
+- [x] e2e/m5-strategies.spec.ts（真實資料裁切 fixtures：strategy/rev_confirm*.json、screen.json、strategies-m5.json）＋截圖＋commit（#359–369；docs/screens/restore-2026-10/m5）
 ### M6 流程、遊戲化、名詞內容、設定 — [ ]
 ### M7 整合審查＋PR — [ ]
 

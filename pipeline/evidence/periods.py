@@ -383,6 +383,19 @@ def rolling3y(d: pd.DataFrame, months: int = 36) -> dict[str, Any]:
     return out
 
 
+def spark_rel(pack: dict[str, Any], key: str = "last:3", step: int = 4) -> dict[str, Any] | None:
+    """策略庫列表的迷你折線：近 3 年 5 檔組合相對 0050 的累積超額（%）＝組合權益 ÷ 0050 權益 − 1，每 4 週取一點（含最後一點）。"""
+    w = ((pack.get("periods") or {}).get(key) or {}).get("weekly") or {}
+    dates, port, ref = w.get("dates") or [], w.get("port") or [], w.get("0050") or []
+    pts = [(d, p / r) for d, p, r in zip(dates, port, ref, strict=False) if p is not None and r]
+    if len(pts) < 2:
+        return None
+    idx = list(range(0, len(pts), step))
+    if idx[-1] != len(pts) - 1:
+        idx.append(len(pts) - 1)
+    return {"from": pts[0][0], "to": pts[-1][0], "v": [round((pts[i][1] - 1) * 100, 2) for i in idx]}
+
+
 def screen_now(ctx: dict[str, Any], mask: np.ndarray, h: int) -> dict[str, Any]:
     """目前篩出＋觸發日（最近一次首次觸發）、第 k 日、觸發以來報酬（觸發次一交易日開盤起算）；今日新觸發＝觸發日為最後一天者。
     篩出＝最後一天仍符合條件，或最近一次首次觸發還在 h 日持有期內（事件型條件——例：月營收創新高——只在公布日成立，

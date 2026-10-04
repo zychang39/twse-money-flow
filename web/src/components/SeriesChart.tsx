@@ -22,6 +22,8 @@ export interface Series {
   thin?: boolean;
   /** 不出現在圖例（例：隨機中位數，跟著帶狀區） */
   noLegend?: boolean;
+  /** 不標線尾（例：逐年疊圖的較早年份；突顯時才標） */
+  noEnd?: boolean;
 }
 
 export interface Band { lo: (number | null)[]; hi: (number | null)[]; color: string; name: string }
@@ -33,7 +35,7 @@ const LONG_PRESS = 500;
 
 export function SeriesChart({
   dates, series, band, log = false, axisKey, height = 220, format, tickFormat, dateFormat = (d) => d, defaultHidden = [],
-  stripes, readoutExtra, label, testid, zero = false,
+  stripes, readoutExtra, label, testid, zero = false, axisExtra, focus: focusProp, mark, onPick,
 }: {
   dates: string[];
   series: Series[];
@@ -54,11 +56,20 @@ export function SeriesChart({
   testid?: string;
   /** Y 軸包含 0（例：超額報酬） */
   zero?: boolean;
+  /** 另外納入軸範圍的數值（例：其他基準的區間帶，切換基準時軸不變） */
+  axisExtra?: number[];
+  /** 受控的突顯序列（例：年份膠囊）；undefined＝由圖例與點線決定 */
+  focus?: string | null;
+  /** 標出一段區間（例：穩定度圖上的所選期間） */
+  mark?: { from: number; to: number; label: string };
+  /** 放開讀值時回報最後讀到的位置（例：圖下列出當週持股） */
+  onPick?: (i: number) => void;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(360);
   const [hidden, setHidden] = useState<Set<string>>(() => new Set(defaultHidden));
-  const [focus, setFocus] = useState<string | null>(null);
+  const [focusS, setFocus] = useState<string | null>(null);
+  const focus = focusProp !== undefined ? focusProp : focusS;
   const [scrub, setScrub] = useState<number | null>(null);
   const press = useRef<{ timer: number; id: string } | null>(null);
 
@@ -77,6 +88,7 @@ export function SeriesChart({
     for (const s of series) for (const v of s.values) if (v !== null && Number.isFinite(v)) all.push(v);
     if (band) for (const arr of [band.lo, band.hi]) for (const v of arr) if (v !== null && Number.isFinite(v)) all.push(v);
     if (zero) all.push(0);
+    for (const v of axisExtra ?? []) if (Number.isFinite(v) && (!log || v > 0)) all.push(v);
     return log ? logAxis(all) : linearAxis(all);
   }, [axisKey, log]);
   const [ax, setAx] = useState<Axis>(target);
@@ -115,7 +127,7 @@ export function SeriesChart({
 
   const visible = series.filter((s) => !hidden.has(s.id));
   // 線尾標籤：名稱＋期末值；避免重疊
-  const ends = visible.map((s) => { const i = lastIdx(s.values); return i < 0 ? null : { s, i, y: y(s.values[i] as number) }; }).filter((e): e is NonNullable<typeof e> => !!e);
+  const ends = visible.filter((s) => !s.noEnd || s.id === focus).map((s) => { const i = lastIdx(s.values); return i < 0 ? null : { s, i, y: y(s.values[i] as number) }; }).filter((e): e is NonNullable<typeof e> => !!e);
   const endYs = spreadLabels(ends.map((e) => e.y), 16, PAD_TOP + 6, height - PAD_BOTTOM);
 
   const idxAt = (clientX: number) => {
@@ -147,10 +159,11 @@ export function SeriesChart({
   const onUp = (e: PointerEvent) => {
     const d = down.current;
     down.current = null;
-    if (d && !d.moved) {
+    if (d && !d.moved && focusProp === undefined) {
       const id = nearestSeries(e.clientX, e.clientY);
       setFocus(id && id !== focus ? id : null);
     }
+    if (d && onPick) { const i = idxAt(e.clientX); if (i !== null) onPick(i); }
     if (e.pointerType !== 'mouse') setScrub(null);
   };
 
@@ -169,9 +182,15 @@ export function SeriesChart({
           {stripes?.map((st, k) => (
             <g key={k} class="sc2-stripe">
               {k % 2 === 0 ? <rect x={x(st.from)} y={PAD_TOP} width={Math.max(0, x(st.to) - x(st.from))} height={height - PAD_TOP - PAD_BOTTOM} /> : null}
-              <text x={(x(st.from) + x(st.to)) / 2} y={height - 6} text-anchor="middle">{st.label}</text>
+              {x(st.to) - x(st.from) >= 14 ? <text x={(x(st.from) + x(st.to)) / 2} y={height - 6} text-anchor="middle">{x(st.to) - x(st.from) < 34 && /^\d{4}$/.test(st.label) ? `’${st.label.slice(2)}` : st.label}</text> : null}
             </g>
           ))}
+          {mark ? (
+            <g class="sc2-mark" data-testid="sc2-mark">
+              <rect x={x(mark.from)} y={PAD_TOP} width={Math.max(2, x(mark.to) - x(mark.from))} height={height - PAD_TOP - PAD_BOTTOM} />
+              <text x={Math.min(plotW - 4, Math.max(4, (x(mark.from) + x(mark.to)) / 2))} y={PAD_TOP + 12} text-anchor="middle">{mark.label}</text>
+            </g>
+          ) : null}
           <g class="sc2-grid" data-testid="sc2-ticks">
             {ax.ticks.map((t) => (
               <g key={t}>

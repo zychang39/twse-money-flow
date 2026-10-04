@@ -229,3 +229,5 @@ button.ring2 { cursor: pointer; }
 /* 策略訊號列的兩個資訊塊（M3）：各自不斷行 */
 .sig-blks { display: flex; flex-wrap: wrap; column-gap: var(--s-3); }
 .sig-blk { white-space: nowrap; }
+.sc2-mark rect { fill: rgba(10, 132, 255, 0.10); }
+.sc2-mark text { font-size: 11px; fill: var(--text-2); }

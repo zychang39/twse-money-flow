@@ -41,6 +41,10 @@ export const PAGES = [
   { id: 'stock-tpex', hash: '#/stock/6488', seg: '動能' },
   { id: 'strategies', hash: '#/explore/strategies' },
   { id: 'strategy-detail', hash: `#/explore/strategies/${STRATEGY}` },
+  { id: 'strategy-perf', hash: `#/explore/strategies/${STRATEGY}?seg=p` },
+  { id: 'strategy-perf-year', hash: `#/explore/strategies/${STRATEGY}?seg=p&pv=year&p=from:2022` },
+  { id: 'strategy-event', hash: `#/explore/strategies/${STRATEGY}?seg=e` },
+  { id: 'strategy-rules', hash: `#/explore/strategies/${STRATEGY}?seg=r` },
   { id: 'etf', hash: '#/explore/etf' },
   { id: 'explore', hash: '#/explore' },
   { id: 'screener', hash: '#/explore/screener' },
@@ -187,13 +191,17 @@ function measure() {
   const HEAD = '，。、；：）・,.;:)%';
   const UNIT = /[0-9%張億元萬日週月年倍檔筆次點]/;
   const tw = document.createTreeWalker(page, NodeFilter.SHOW_TEXT);
-  let prevTop = null; let prevBottom = null; let prevChar = ''; let prevBlock = null;
+  let prevTop = null; let prevBottom = null; let prevChar = ''; let prevBlock = null; let prevLine = null;
   for (let n = tw.nextNode(); n; n = tw.nextNode()) {
     const p = n.parentElement;
     if (!p || p.closest('svg, .laxis, .sr-only, [data-audit-skip], .sheet, .dock, .chart-wrap') || !visible(p)) continue;
     const block = p.closest('p, li, td, th, h1, h2, h3, .ui-row-label, .ui-row-sub, .ui-v, .ui-stat-v, .ui-stat-l, div, span');
     const blockRoot = p.closest('button, .ui-sec-head, .nb-dates span, p, li, td, th, h1, h2, h3, .ui-row-label, .ui-row-sub, .ui-row-main, .ui-row-value, .ui-row-subwide, .ui-row-tag, .ui-row-extra, .ui-stat, .ui-head, .ui-empty, .ui-warn');
-    if (blockRoot !== prevBlock) { prevTop = null; prevBottom = null; prevChar = ''; prevBlock = blockRoot; }
+    // 同一個儲存格裡上下疊放的區塊（例：數值＋下方的次數字 .cell-sub）是不同的行，不算拆行
+    let lineBox = p;
+    while (lineBox && lineBox !== page && getComputedStyle(lineBox).display.startsWith('inline')) lineBox = lineBox.parentElement;
+    const key = blockRoot ?? lineBox;
+    if (key !== prevBlock || lineBox !== prevLine) { prevTop = null; prevBottom = null; prevChar = ''; prevBlock = key; prevLine = lineBox; }
     const text = n.textContent;
     const rg = document.createRange();
     for (let i = 0; i < text.length; i++) {

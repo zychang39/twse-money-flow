@@ -79,61 +79,47 @@ async function useFixtures(page: Page, today?: Record<string, unknown>) {
 test.describe('策略庫（2026-10-03）', () => {
   test.use({ viewport: { width: 402, height: 874 }, serviceWorkers: 'block' });
 
-  test('清單：上架一張卡、每列一個分級標籤；無效預設收合', async ({ page }) => {
+  test('清單：每列一個分級標籤；無效預設收合', async ({ page }) => {
     await useFixtures(page);
     await page.goto('./#/explore/strategies');
     const listed = page.getByTestId('st-sec-listed-list');
-    await expect(listed.locator('.ui-row')).toHaveCount(6); // 5 套＋合成波段
+    await expect(listed.locator('.stl-row')).toHaveCount(6); // 5 套＋合成波段
     await expect(listed.getByTestId('grade-tag').first()).toHaveText('有效');
     await expect(listed.getByTestId('grade-tag').nth(1)).toHaveText('訊號顯著・未勝 0050');
-    for (const row of await listed.locator('.ui-row').all()) await expect(row.getByTestId('grade-tag')).toHaveCount(1);
-    const off = page.getByTestId('st-sec-off-list');
-    await expect(off.getByTestId('grade-tag')).toHaveCount(0);
+    for (const row of await listed.locator('.stl-row').all()) await expect(row.getByTestId('grade-tag')).toHaveCount(1);
+    await expect(page.getByTestId('st-sec-off-list')).toHaveCount(0);
     await page.getByTestId('st-fold').click();
+    const off = page.getByTestId('st-sec-off-list');
     await expect(off.getByTestId('grade-tag')).toHaveCount(8);
     await expect(off.getByTestId('grade-tag').first()).toHaveText('無效');
   });
 
-  test('策略頁：版面順序、判定卡兩格、單一 t 名稱、健康度一列、沒有舊字樣', async ({ page }) => {
+  test('策略頁（沒有期間檢視檔）：結論、四個分段、判定卡兩欄、單一 t 名稱、沒有舊字樣', async ({ page }) => {
     await useFixtures(page);
-    await page.goto('./#/explore/strategies/near_high');
-    await expect(page.getByTestId('st-today')).toBeVisible();
-    const titles = (await page.locator('.ui-sec-title').allTextContents()).map((s) => s.trim());
-    expect(titles).toEqual(['規則', '判定', '健康度', '事件研究', '組合回測', '出場規則', '樣本與成本', '新觸發']);
+    await page.route('**/data/strategy/**', (r) => r.fulfill({ status: 404, body: '' }));
+    await page.goto('./#/explore/strategies/near_high?seg=p');
+    await expect(page.getByTestId('st-concl')).toHaveText('0050 +1.24%・t 1.30｜等權 +1.68%・t 4.00｜6,743 筆');
     await expect(page.getByTestId('grade-tag')).toHaveCount(1);
-    const grid = page.getByTestId('st-judge-grid');
-    await expect(grid).toContainText('(a) 機會成本・0050');
-    await expect(grid).toContainText('(b) 訊號檢定・等權');
-    await expect(page.getByTestId('judge-opp')).toContainText('+1.24');
-    await expect(page.getByTestId('judge-sig')).toContainText('+1.68');
+    await expect(page.getByTestId('no-pack')).toBeVisible();
+    await expect(page.getByTestId('judge-table')).toContainText('機會成本・0050');
+    await expect(page.getByTestId('judge-table')).toContainText('訊號檢定・等權');
+    await expect(page.getByTestId('judge-opp-excess_vs')).toHaveText('+1.24%');
+    await expect(page.getByTestId('judge-sig-excess_vs')).toHaveText('+1.68%');
     await expect(page.getByTestId('st-health')).toContainText('近 60 日');
-    await expect(page.getByTestId('st-health')).toContainText('(442 筆)｜長期');
-    await expect(page.getByTestId('st-yearly')).toContainText('差額');
-    await expect(page.getByTestId('st-random')).toContainText('中位數');
+    await page.getByTestId('st-seg').getByRole('button', { name: '事件研究' }).click();
     await expect(page.getByTestId('st-exits')).toContainText('樣本外');
+    await page.getByTestId('st-seg').getByRole('button', { name: '規則' }).click();
     await expect(page.getByTestId('st-delisted')).toContainText('是');
-    await expect(page.getByTestId('today-empty')).toHaveText('9/29 無新觸發');
+    await page.getByTestId('st-seg').getByRole('button', { name: '標的' }).click();
+    await expect(page.getByTestId('today-empty')).toBeVisible();
     const body = await page.locator('.page').innerText();
     for (const old of ['alpha 耗盡', '峰值日固定出場', '今天沒有新觸發', 'METHODOLOGY', '日曆時間法 t']) expect(body).not.toContain(old);
-    // t 只叫「校正後 t」
-    expect(body.match(/(?<!校正後 )\bt\b(?= ?[0-9−-])/g) ?? []).toEqual([]);
-  });
-
-  test('基準預設 0050，可切回等權並記住', async ({ page }) => {
-    await useFixtures(page);
-    await page.goto('./#/explore/strategies/near_high');
-    const bar = page.getByTestId('bench-switch');
-    await expect(bar.getByRole('button', { name: '0050' })).toHaveAttribute('aria-pressed', 'true');
-    await bar.getByRole('button', { name: '等權' }).click();
-    await expect(bar.getByRole('button', { name: '等權' })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByTestId('st-event')).toContainText('累積超額・相對等權');
-    await page.reload();
-    await expect(page.getByTestId('bench-switch').getByRole('button', { name: '等權' })).toHaveAttribute('aria-pressed', 'true');
+    expect(body.match(/(?<!校正後 )\bt\b(?= ?[0-9−-])/g)?.length ?? 0).toBeLessThanOrEqual(2); // 只有頁首結論的「・t 1.30」「・t 4.00」
   });
 
   test('波段策略：上線門檻在 bottom sheet', async ({ page }) => {
     await useFixtures(page);
-    await page.goto('./#/explore/strategies/swing_demo');
+    await page.goto('./#/explore/strategies/swing_demo?seg=r');
     await expect(page.getByRole('heading', { name: '合成波段' })).toBeVisible();
     await page.getByTestId('st-gates').click();
     await expect(page.getByRole('dialog', { name: '上線門檻' })).toBeVisible();
