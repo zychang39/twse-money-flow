@@ -28,7 +28,8 @@ jobs:
     # CI 在 main 失敗（或被取消）時不部署；push 事件本身不再觸發部署
     if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # build-web 隨資料累積已接近 30 分鐘（2026-10-04 實測 29 分），30 分上限會在 build 前被取消
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:

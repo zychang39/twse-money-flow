@@ -95,11 +95,15 @@ function onHashChange(): void {
     else if (dir !== 'none') window.scrollTo(0, 0);
     pauseScrollSave(false);
   };
-  const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+  type VT = { ready?: Promise<unknown>; finished?: Promise<unknown>; updateCallbackDone?: Promise<unknown> };
+  const doc = document as Document & { startViewTransition?: (cb: () => void) => VT | undefined };
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   if (doc.startViewTransition && !reduce && !tabSwitch && dir !== 'none') {
     document.documentElement.dataset.nav = dir;
-    doc.startViewTransition(apply);
+    const vt = doc.startViewTransition(apply);
+    // 快速連續切換時前一個轉場會被略過（"Transition was skipped"），apply 仍會執行；吞掉這個預期中的拒絕，
+    // 不讓它變成未處理的錯誤
+    for (const p of [vt?.ready, vt?.finished, vt?.updateCallbackDone]) p?.catch(() => undefined);
   } else apply();
 }
 
