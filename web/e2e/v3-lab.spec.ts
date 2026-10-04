@@ -83,8 +83,10 @@ test.describe('v3 實驗室互動', () => {
   });
 
   test('累積超額曲線：拖曳讀值、峰值日有文字標示（2026-10-03 無 alpha 耗盡）', async ({ page }) => {
+    // M5 起策略頁改用期間檢視的通用圖表；拖曳讀值的累積超額曲線留在指標效度表的詳情
     await useFixtures(page);
-    await page.goto('./#/explore/strategies/near_high');
+    await page.goto('./#/explore/evidence');
+    await page.getByTestId('ev-row-high52').click();
     const svg = page.locator('svg.ac-svg').first();
     await svg.scrollIntoViewIfNeeded();
     await expect(svg).toBeVisible();
@@ -108,8 +110,5 @@ test.describe('v3 實驗室互動', () => {
     const k2 = await kOf();
     await page.keyboard.press('ArrowLeft');
     await expect(read).toContainText(`第 ${k2 - 1} 日`);
-    // 切到 0050 基準：曲線同步
-    await page.getByTestId('bench-switch').getByRole('button', { name: '0050' }).click();
-    await expect(page.getByTestId('st-event')).toContainText('累積超額・相對0050');
   });
 });

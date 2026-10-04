@@ -489,6 +489,36 @@ def cmd_demo_data(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_sectors_refresh(args: argparse.Namespace) -> int:
+    """細產業快照：櫃買中心產業價值鏈 → config/sectors/tpex_chain.csv（禮貌爬取；--cache 可重用已抓的頁面）。"""
+    from datetime import date as _date
+
+    from pipeline.core.http import PoliteClient
+    from pipeline.sources import tpex_chain
+
+    rows = tpex_chain.fetch_all(PoliteClient.from_config(), args.cache)
+    if len(rows) < 3000:
+        log.error("產業價值鏈筆數過少（%d），不覆蓋快照", len(rows))
+        return 1
+    out = Path(args.out)
+    out.write_text(tpex_chain.to_csv(rows, args.date or _date.today().isoformat()), encoding="utf-8")
+    log.info("產業價值鏈：%d 筆、%d 檔 → %s", len(rows), len({r.code for r in rows}), out)
+    return 0
+
+
+def cmd_validate_web(args: argparse.Namespace) -> int:
+    """前端資料驗證（檔案大小、細產業與分鐘資料涵蓋、題材成員、日期連續、成交金額合計、策略筆數一致）。"""
+    import json as _json
+
+    from pipeline.derive.validate_web import validate
+
+    res = validate(Path(args.out))
+    print(_json.dumps({k: v for k, v in res.items() if k != "errors"}, ensure_ascii=False))
+    for e in res["errors"]:
+        log.error(e)
+    return 1 if res["errors"] else 0
+
+
 def cmd_smoke(args: argparse.Namespace) -> int:
     from pipeline.smoke import run_smoke, to_markdown
 
@@ -597,6 +627,14 @@ def build_parser() -> argparse.ArgumentParser:
     demo.add_argument("--out", default="web/public/data")
     demo.set_defaults(func=cmd_demo_data)
 
+    vw = sub.add_parser("validate-web", help="前端資料驗證（大小、涵蓋、日期、合計、策略筆數）")
+    vw.add_argument("--out", default="web/public/data")
+    vw.set_defaults(func=cmd_validate_web)
+    sr = sub.add_parser("sectors-refresh", help="細產業快照：櫃買中心產業價值鏈 → config/sectors/tpex_chain.csv")
+    sr.add_argument("--out", default="config/sectors/tpex_chain.csv")
+    sr.add_argument("--cache", default=None, help="頁面快取目錄（有檔案時不重抓）")
+    sr.add_argument("--date", default=None, help="抓取日期（預設今天）")
+    sr.set_defaults(func=cmd_sectors_refresh)
     smoke = sub.add_parser("smoke", help="資料源冒煙測試：抓取＋解析，檢查每個來源的必要欄位（不寫資料）")
     smoke.add_argument("--date", default="", help="交易日 YYYY-MM-DD 或 YYYYMMDD（預設今天）")
     smoke.add_argument("--source", default="", help="逗號分隔的來源 id（預設全部）")

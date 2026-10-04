@@ -2,7 +2,9 @@ import { useState } from 'preact/hooks';
 import { fmtCount, fmtNum, missing, orMissing, pctPlain, pctSigned } from '../lib/format';
 import type { Stats } from '../lib/backtest';
 import { uiConfig } from '../lib/config';
-import { Card, Section } from './ui';
+import { Card, List, Num, Row, Section, Seg, Signed, Table } from './ui';
+import { Conclusion, Interp } from './kit';
+import { useSegParam } from '../hooks';
 import '../styles/evidence.css';
 
 /** 回測可信度：依樣本數（門檻見 config/ui.yml）。 */
@@ -63,7 +65,7 @@ export function CoverageNote({ r }: { r: BacktestResult }) {
   const narrow = c.fields.filter((f) => f.stocks < c.universe * 0.5);
   const top = c.by_code.slice(0, 8);
   return (
-    <div class="card" data-testid="bt-coverage">
+    <div class="bt-coverage" data-testid="bt-coverage">
       {c.limited ? (
         <div class="banner risk" role="note" data-testid="bt-limited" style={{ display: 'block' }}>
           <b>樣本範圍受限</b>：{narrow.map((f) => `「${f.label ?? f.field}」只有 ${fmtCount(f.stocks)} 檔有資料（${f.first_date ? `自 ${ymd(f.first_date)} 起` : missing('沒有起始日')}）`).join('；')}，
@@ -71,15 +73,18 @@ export function CoverageNote({ r }: { r: BacktestResult }) {
           只有部分股票有資料時（例如只回補關注清單），這些股票通常是事後挑選的，結果可能高估，不能推論到全市場。
         </div>
       ) : null}
-      <dl class="bt-cov">
-        <div><dt>訊號期間</dt><dd>{range(r.first_signal, r.last_signal)}</dd></div>
-        <div><dt>條件資料起始日</dt><dd>{ymd(c.start, '條件欄位沒有資料')}（此日之前不產生訊號；{c.price_start ? `價格資料自 ${ymd(c.price_start)} 起` : `價格資料起始日：${missing('沒有價格資料')}`}）</dd></div>
-        <div><dt>納入股票</dt><dd>{fmtCount(c.stocks_in_sample)} 檔（全市場 {fmtCount(c.universe)} 檔）</dd></div>
-      </dl>
-      <table class="table small" style={{ marginTop: 'var(--s-2)' }}>
-        <thead><tr><th>條件欄位</th><th>有資料的股票</th><th>起始日</th></tr></thead>
-        <tbody>{c.fields.map((f) => <tr key={f.field}><td>{f.label ?? f.field}</td><td>{fmtCount(f.stocks)}</td><td>{ymd(f.first_date, '沒有資料')}</td></tr>)}</tbody>
-      </table>
+      <List testid="bt-cov">
+        <Row label="訊號期間" value={range(r.first_signal, r.last_signal)} />
+        <Row label="條件資料起始日" sub={`此日之前不產生訊號；${c.price_start ? `價格資料自 ${ymd(c.price_start)} 起` : '沒有價格資料'}`} value={ymd(c.start, '條件欄位沒有資料')} />
+        <Row label="納入股票" sub={`全市場 ${fmtCount(c.universe)} 檔`} value={<Num v={c.stocks_in_sample} unit="檔" />} />
+      </List>
+      <div class="ui-card">
+        <Table caption="條件欄位的資料涵蓋" rowKey={(f) => f.field} rows={c.fields} cols={[
+          { key: 'f', label: '條件欄位', render: (f) => f.label ?? f.field },
+          { key: 'n', label: '有資料', align: 'r', render: (f) => fmtCount(f.stocks) },
+          { key: 'd', label: '起始日', align: 'r', render: (f) => ymd(f.first_date, '沒有資料') },
+        ]} />
+      </div>
       {top.length ? (
         <details style={{ marginTop: 'var(--s-2)' }}>
           <summary class="caption bt-summary">訊號來自哪些股票：{top.map(([code, n]) => `${r.names?.[code] ?? code} ${fmtCount(n)}`).join('・')}{c.by_code.length > top.length ? '…' : ''}</summary>
@@ -161,82 +166,91 @@ function DecayChart({ decay }: { decay: (number | null)[] }) {
   );
 }
 
+/**
+ * 回測報告（M4：套用全站規範與長度規則）：分段「統計｜曲線與排除｜逐筆」（?tab=），
+ * 統計＝各持有天數的表（指標為列、持有天數為欄）＋出場規則比較；逐筆先列 20 筆、可再展開。
+ */
 export function BacktestReport({ r }: { r: BacktestResult }) {
   const [view, setView] = useState('all');
+  const [tab, setTab] = useSegParam<'stats' | 'curve' | 'trades'>(['stats', 'curve', 'trades'] as const, 'stats', 'tab');
+  const [shown, setShown] = useState(20);
+  const [hh, setH] = useState(String(r.detail_horizon));
   const hs = Object.keys(r.horizons).sort((a, b) => Number(a) - Number(b));
   const ex = r.excluded;
   const oosCut = r.horizons[hs[0]]?.oos_cut;
+  const s0 = r.horizons[String(r.detail_horizon)]?.all as Stats | undefined;
+  const c0 = confidence(s0?.n);
+  const statRows: [string, (s: Stats | undefined) => string][] = [
+    ['樣本', (s) => fmtCount(s?.n ?? 0)],
+    ['可信度', (s) => (s?.low_reference && confidence(s?.n).level !== 'low' ? '參考性低' : confidence(s?.n).label.replace('可信度', ''))],
+    ['絕對勝率', (s) => winText(s?.win_rate)],
+    ['平均', (s) => sp(s?.avg)],
+    ['中位數', (s) => sp(s?.median)],
+    ['平均 MAE', (s) => sp(s?.avg_mae)],
+    ['最差 MAE', (s) => sp(s?.worst_mae)],
+    ['超額', (s) => sp(s?.avg_excess, s?.n ? '沒有指數資料' : '沒有樣本')],
+  ];
   return (
     <>
       <SignalDefinition r={r} />
       <CoverageNote r={r} />
-      <div class="card">
-        <div class="caption muted">
-          {r.coverage ? `訊號期間 ${range(r.first_signal, r.last_signal)}` : `期間 ${range(r.period?.start, r.period?.end)}`}{r.signals !== undefined ? ` · 訊號 ${fmtCount(r.signals)} 筆` : ''}{r.universe ? ` · 範圍：成交值前 ${fmtCount(r.universe)} 檔` : ''}
-        </div>
-        {(() => {
-          const s = r.horizons[String(r.detail_horizon)]?.all as Stats | undefined;
-          const c = confidence(s?.n);
-          return (
-            <p class="body" style={{ marginTop: 'var(--s-2)' }}>
-              持有 {r.detail_horizon} 日：樣本 <b>{fmtCount(s?.n ?? 0)}</b> 筆・<span class={c.level === 'low' ? 'risk w6' : 'w6'}>{c.label}</span>
-              {s?.win_rate !== undefined ? `・絕對勝率 ${pctPlain(s.win_rate)}` : ''}
-            </p>
-          );
-        })()}
-        <div class="chips" role="group" aria-label="統計範圍" style={{ marginTop: 'var(--s-2)' }}>
-          {VIEWS.map(([id, label]) => <button key={id} class="chip" aria-pressed={view === id} onClick={() => setView(id)}>{label}</button>)}
-        </div>
-        {/* M3：不左右滑動——指標為列、持有天數為欄（最多 4 欄） */}
-        <table class="ev-table bt-main" style={{ marginTop: 'var(--s-2)' }} aria-label="各持有天數的回測統計">
-          <thead><tr><th scope="col">項目</th>{hs.map((h) => <th key={h} scope="col">{h} 日</th>)}</tr></thead>
-          <tbody>
-            {([
-              ['樣本', (s: Stats | undefined) => fmtCount(s?.n ?? 0)],
-              ['可信度', (s: Stats | undefined) => (s?.low_reference && confidence(s?.n).level !== 'low' ? '參考性低' : confidence(s?.n).label.replace('可信度', ''))],
-              ['絕對勝率', (s: Stats | undefined) => winText(s?.win_rate)],
-              ['平均', (s: Stats | undefined) => sp(s?.avg)],
-              ['中位數', (s: Stats | undefined) => sp(s?.median)],
-              ['平均 MAE', (s: Stats | undefined) => sp(s?.avg_mae)],
-              ['最差 MAE', (s: Stats | undefined) => sp(s?.worst_mae)],
-              ['超額', (s: Stats | undefined) => sp(s?.avg_excess, s?.n ? '沒有指數資料' : '沒有樣本')],
-            ] as [string, (s: Stats | undefined) => string][]).map(([label, f]) => (
-              <tr key={label}><th scope="row">{label}</th>{hs.map((h) => <td key={h}>{f(r.horizons[h][view] as Stats | undefined)}</td>)}</tr>
-            ))}
-          </tbody>
-        </table>
-        {view === 'in_sample' || view === 'out_of_sample' ? <p class="tiny muted">樣本內／外分界：{typeof oosCut === 'string' && oosCut ? ymd(oosCut) : missing('沒有樣本')}（依訊號日期的期間前 2/3、後 1/3）。</p> : null}
-        <p class="caption muted">報酬已扣手續費、證交稅與滑價（買賣各 0.1%）；出場日跌停鎖死順延到下一個可成交日；超額報酬相對加權報酬指數；MAE 為持有期間最大不利波動；絕對勝率＝報酬 &gt; 0 的比例。可信度依樣本數：&lt; {uiConfig.backtest_confidence.low_below} 筆為低、≥ {uiConfig.backtest_confidence.high_from} 筆為高。</p>
+      <div class="sk-seg">
+        <Seg options={[['stats', '統計'], ['curve', '曲線與排除'], ['trades', '逐筆']] as const} value={tab} onChange={setTab} label="回測分段" sticky testid="bt-tabs" />
       </div>
-      <Section title="出場規則比較" info={<p>持有 {r.detail_horizon} 日。停損：盤中觸及即以停損價出場（跳空低開以開盤價）；跌破均線：收盤跌破，隔日開盤出場；三種都以持有 {r.detail_horizon} 日為上限。絕對勝率＝報酬 &gt; 0 的比例。</p>}>
-        <Card><ExitCompare r={r} h={String(r.detail_horizon)} /></Card>
-      </Section>
-      <Section title="訊號衰減曲線" info={<p>進場後第 1–{r.decay.length} 個交易日收盤的平均報酬（扣成本）。</p>}>
-        <Card><DecayChart decay={r.decay} /></Card>
-      </Section>
-      <Section title="排除的樣本">
-        <Card><p class="ui-foot">開盤即漲停 {fmtCount(ex.limit_up ?? 0)} 筆・停牌 {fmtCount(ex.suspended ?? 0)} 筆・處置期間 {fmtCount(ex.disposition ?? 0)} 筆・尚無後續資料 {fmtCount(ex.no_future ?? 0)} 筆・出場日跌停鎖死順延 {fmtCount(ex.locked_exit ?? 0)} 筆</p></Card>
-      </Section>
-      <Section title="逐筆明細" aside={`持有 ${r.detail_horizon} 日・最近 ${fmtCount(r.trades.length)} 筆`} info={<p>限制：回補起點以前已下市的股票不在資料內；歷史資料以公開資料重建，可能與實際成交有差異；過去績效不代表未來。</p>}>
-      {/* M3：5 欄以內（訊號日與 MAE 寫在股票名稱下方），不左右滑動 */}
-      <div class="card flush">
-        <table class="ev-table bt-trades" aria-label="逐筆明細">
-          <thead><tr><th scope="col">股票</th><th scope="col">進場</th><th scope="col">出場</th><th scope="col">報酬</th><th scope="col">超額</th></tr></thead>
-          <tbody>
-            {r.trades.slice(0, 200).map((t) => (
-              <tr key={`${t.code}-${t.signal}`}>
-                <th scope="row" class="ev-wrap">
-                  <a class="bt-name" href={`#/stock/${t.code}`}>{r.names?.[t.code] ?? t.code}</a>{t.delisted ? <span class="badge">下市</span> : null}
-                  <span class="bt-sub">{t.signal.slice(5).replace('-', '/')}・MAE {pctSigned(t.mae)}</span>
-                </th>
-                <td>{fmtNum(t.entry)}</td><td>{fmtNum(t.exit)}</td>
-                <td class={t.net > 0 ? 'up' : t.net < 0 ? 'down' : ''}>{pctSigned(t.net)}</td><td>{orMissing(t.excess, pctSigned, '沒有指數資料')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      </Section>
+      {tab === 'stats' ? (
+        <>
+          <Section title={`持有 ${r.detail_horizon} 日`} testid="bt-summary">
+            <Conclusion>樣本 {fmtCount(s0?.n ?? 0)} 筆・{c0.label}{s0?.win_rate !== undefined ? `・絕對勝率 ${pctPlain(s0.win_rate)}` : ''}</Conclusion>
+            <Interp>{r.coverage ? `訊號期間 ${range(r.first_signal, r.last_signal)}` : `期間 ${range(r.period?.start, r.period?.end)}`}{r.signals !== undefined ? `・訊號 ${fmtCount(r.signals)} 筆` : ''}{r.universe ? `・成交值前 ${fmtCount(r.universe)} 檔` : ''}</Interp>
+            <div class="chips wrap" role="group" aria-label="統計範圍">
+              {VIEWS.map(([id, label]) => <button key={id} type="button" class="chip" aria-pressed={view === id} onClick={() => setView(id)}>{label}</button>)}
+            </div>
+            {/* 375pt 不左右滑動：持有天數用分段切換，表格只有「項目｜數值」兩欄 */}
+            <Seg small options={hs.map((h) => [h, `${h} 日`] as const)} value={hh} onChange={setH} label="持有天數" testid="bt-horizon" />
+            <div class="ui-card">
+              <Table testid="bt-main" caption={`持有 ${hh} 日的回測統計`} rowKey={(x) => x[0]} rows={statRows} cols={[
+                { key: 'k', label: '項目', render: (x) => x[0] },
+                { key: 'v', label: `${hh} 日`, align: 'r', render: (x) => x[1](r.horizons[hh]?.[view] as Stats | undefined) },
+              ]} />
+            </div>
+            {view === 'in_sample' || view === 'out_of_sample' ? <p class="ui-foot ui-muted">樣本內／外分界：{typeof oosCut === 'string' && oosCut ? ymd(oosCut) : missing('沒有樣本')}（依訊號日期的期間前 2/3、後 1/3）。</p> : null}
+            <p class="ui-foot ui-muted bt-note">報酬已扣手續費、證交稅與滑價（買賣各 0.1%）；出場日跌停鎖死順延到下一個可成交日；超額報酬相對加權報酬指數；MAE 為持有期間最大不利波動；絕對勝率＝報酬 &gt; 0 的比例。可信度依樣本數：&lt; {uiConfig.backtest_confidence.low_below} 筆為低、≥ {uiConfig.backtest_confidence.high_from} 筆為高。</p>
+          </Section>
+          <Section title="出場規則比較" info={<p>持有 {r.detail_horizon} 日。停損：盤中觸及即以停損價出場（跳空低開以開盤價）；跌破均線：收盤跌破，隔日開盤出場；三種都以持有 {r.detail_horizon} 日為上限。絕對勝率＝報酬 &gt; 0 的比例。</p>}>
+            <ExitCompare r={r} h={String(r.detail_horizon)} />
+          </Section>
+        </>
+      ) : null}
+      {tab === 'curve' ? (
+        <>
+          <Section title="訊號衰減曲線" info={<p>進場後第 1–{r.decay.length} 個交易日收盤的平均報酬（扣成本）。</p>}>
+            <Card><DecayChart decay={r.decay} /></Card>
+          </Section>
+          <Section title="排除的樣本">
+            <List>
+              <Row label="開盤即漲停" value={<Num v={ex.limit_up ?? 0} unit="筆" />} />
+              <Row label="停牌" value={<Num v={ex.suspended ?? 0} unit="筆" />} />
+              <Row label="處置期間" value={<Num v={ex.disposition ?? 0} unit="筆" />} />
+              <Row label="尚無後續資料" value={<Num v={ex.no_future ?? 0} unit="筆" />} />
+              <Row label="出場日跌停鎖死順延" value={<Num v={ex.locked_exit ?? 0} unit="筆" />} />
+            </List>
+          </Section>
+        </>
+      ) : null}
+      {tab === 'trades' ? (
+        <Section title="逐筆明細" aside={`持有 ${r.detail_horizon} 日・最近 ${fmtCount(r.trades.length)} 筆`} info={<p>限制：回補起點以前已下市的股票不在資料內；歷史資料以公開資料重建，可能與實際成交有差異；過去績效不代表未來。</p>}>
+          <div class="ui-card">
+            <Table testid="bt-trades" caption="逐筆明細" rowKey={(t) => `${t.code}-${t.signal}`} rows={r.trades.slice(0, shown)} sticky={shown >= 10 && r.trades.length >= 10} cols={[
+              { key: 's', label: '股票', render: (t) => <><a class="bt-name" href={`#/stock/${t.code}`}>{r.names?.[t.code] ?? t.code}</a>{t.delisted ? <span class="badge">下市</span> : null}<span class="cell-sub">{t.signal.slice(5).replace('-', '/')}・MAE {pctSigned(t.mae)}</span></> },
+              { key: 'e', label: '進場', align: 'r', render: (t) => fmtNum(t.entry) },
+              { key: 'x', label: '出場', align: 'r', render: (t) => fmtNum(t.exit) },
+              { key: 'n', label: '報酬', align: 'r', render: (t) => <Signed v={t.net} digits={2} unit="%" /> },
+              { key: 'v', label: '超額', align: 'r', render: (t) => <Signed v={t.excess} digits={2} unit="%" tone="plain" fallback="—" /> },
+            ]} />
+            {r.trades.length > shown ? <button type="button" class="text-btn block" onClick={() => setShown(shown + 40)} data-testid="bt-more">再顯示 {Math.min(40, r.trades.length - shown)} 筆（共 {fmtCount(r.trades.length)} 筆）</button> : null}
+          </div>
+        </Section>
+      ) : null}
     </>
   );
 }

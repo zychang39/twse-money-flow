@@ -9,6 +9,7 @@
 
 const PREFIX = 'nav:';
 const RESTORE_TIMEOUT = 4000;
+const RESTORE_MAX = 10000;
 
 export interface EntryState {
   key: string;
@@ -145,6 +146,9 @@ export function restoreScroll(y: number, timeout = RESTORE_TIMEOUT): () => void 
   let done = false;
   let raf = 0;
   const t0 = performance.now();
+  // 逾時從「最後一次高度變化」起算（資料還在載入、清單還在長高時繼續等），最長 10 秒
+  let grew = t0;
+  const expired = () => { const now = performance.now(); return now - grew > timeout || now - t0 > RESTORE_MAX; };
   const stop = () => {
     if (done) return;
     done = true;
@@ -159,15 +163,15 @@ export function restoreScroll(y: number, timeout = RESTORE_TIMEOUT): () => void 
     if (max >= y - 1) {
       window.scrollTo(0, y);
       // 捲到之後再確認一次（圖表或字型晚一步撐開高度時可能被夾住）
-      if (Math.abs(window.scrollY - y) <= 1 || performance.now() - t0 > timeout) { stop(); return; }
-    } else if (performance.now() - t0 > timeout) {
+      if (Math.abs(window.scrollY - y) <= 1 || expired()) { stop(); return; }
+    } else if (expired()) {
       window.scrollTo(0, Math.max(0, max));
       stop();
       return;
     }
     raf = requestAnimationFrame(attempt);
   };
-  const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => attempt());
+  const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => { grew = performance.now(); attempt(); });
   ro?.observe(document.body);
   for (const ev of ['wheel', 'touchstart', 'keydown'] as const) window.addEventListener(ev, stop, { passive: true, once: true });
   cancelRestore = stop;

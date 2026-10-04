@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { addWatch, addWatchMany, clearSampleWatch, getSetting, listActivity, listRecentSearches, listTrades, listWatch, pushRecentSearch, resetDbConnection, saveTrade, setSetting, DB_VERSION, RECENT_MAX } from './db';
+import { addWatch, addWatchMany, clearSampleWatch, deleteGroup, getSetting, listActivity, listGroups, listRecentSearches, listTrades, listWatch, pushRecentSearch, resetDbConnection, saveGroup, saveTrade, setSetting, DB_VERSION, RECENT_MAX } from './db';
 import { flowLevel, flowXp } from '../lib/ritual';
 import { makeCalendar } from '../lib/tradingCalendar';
 import { EXPORT_MIGRATIONS, exportAll, importAll, migrateBackup, previewImport, type BackupFile } from './backup';
@@ -39,11 +39,27 @@ describe('IndexedDB 與備份', () => {
     const backup = await exportAll();
     expect(backup.schemaVersion).toBe(DB_VERSION);
     const json = JSON.parse(JSON.stringify(backup));
-    await importAll({ ...json, stores: { watchlist: [], settings: [], screens: [], trades: [], activity: [], strategies: [], tracked: [] } }, 'replace');
+    await importAll({ ...json, stores: { watchlist: [], settings: [], screens: [], trades: [], activity: [], strategies: [], tracked: [], groups: [] } }, 'replace');
     expect(await listWatch()).toEqual([]);
     const counts = await importAll(json, 'replace');
     expect(counts.trades).toBe(1);
     expect((await listTrades())[0].code).toBe('2317');
+  });
+
+  it('自訂族群（v6）：備份往返；v5 備份匯入時補上空的 groups', async () => {
+    const now = '2026-10-03T00:00:00.000Z';
+    await saveGroup({ id: 'u-1', kind: 'custom', name: '我的載板', members: ['3037', '8046'], streams: { 上游: ['3037'] }, notes: { '': '自己的筆記' }, createdAt: now, updatedAt: now });
+    await saveGroup({ id: 'edit:f-L000-L610', kind: 'edit', base: 'f-L000-L610', name: '', members: ['3189'], removed: ['8046'], createdAt: now, updatedAt: now });
+    const json = JSON.parse(JSON.stringify(await exportAll()));
+    expect(json.stores.groups).toHaveLength(2);
+    await deleteGroup('u-1');
+    expect((await listGroups()).map((g) => g.id)).toEqual(['edit:f-L000-L610']);
+    await importAll(json, 'replace');
+    expect((await listGroups()).find((g) => g.id === 'u-1')?.notes?.['']).toBe('自己的筆記');
+    const v5 = { ...json, schemaVersion: 5, stores: { ...json.stores } };
+    delete v5.stores.groups;
+    await importAll(v5, 'replace');
+    expect(await listGroups()).toEqual([]);
   });
 
   it('壞檔匯入（E-04）：先完整驗證，任何錯誤都不改動現有資料', async () => {
@@ -80,7 +96,7 @@ describe('IndexedDB 與備份', () => {
 
   it('previewImport 回傳筆數、不寫入', async () => {
     const { counts } = previewImport({ app: 'twse-money-flow', schemaVersion: 1, stores: { watchlist: [{ code: '2330' }], settings: [], screens: [], trades: [] } });
-    expect(counts).toEqual({ watchlist: 1, settings: 0, screens: 0, trades: 0, activity: 0, strategies: 0, tracked: 0 });
+    expect(counts).toEqual({ watchlist: 1, settings: 0, screens: 0, trades: 0, activity: 0, strategies: 0, tracked: 0, groups: 0 });
     expect(await listWatch()).toEqual([]);
   });
 

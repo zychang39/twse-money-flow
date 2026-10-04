@@ -185,3 +185,12 @@ export function fmtCount(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return '—';
   return numberFormat(0).format(Math.round(v));
 }
+
+/** 帶單位的數值（張：千分位整數；%、倍：1 位小數） */
+export function formatUnit(v: number, unit: string | undefined, signed = false): string {
+  if (!Number.isFinite(v)) return '—';
+  if (unit === '張') return fmtLotsUnit(v, signed);
+  if (unit === '%') return `${v.toFixed(1)}%`;
+  if (unit === '倍') return `${v.toFixed(1)} 倍`;
+  return v.toLocaleString('zh-TW', { maximumFractionDigits: 2 });
+}

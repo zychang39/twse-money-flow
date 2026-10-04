@@ -64,6 +64,9 @@ jobs:
           done
       - name: 衍生資料守門（欄位缺漏、日期倒退、筆數驟降 → 不部署、保留前一版）
         run: python -m pipeline guard --out web/public/data --previous prev
+      - name: 前端資料驗證（檔案 ≤ 300KB、細產業與分鐘資料涵蓋、日期連續、合計一致；只記錄，不擋部署）
+        continue-on-error: true
+        run: python -m pipeline validate-web --out web/public/data
       - uses: actions/upload-artifact@v4
         with:
           name: web-data

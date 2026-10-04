@@ -1,36 +1,39 @@
 /*
- * 設計 tokens（唯一來源，2026-10 改版）：色彩、字級、間距、圓角、動畫。元件只引用這裡的變數，不寫死數值。
+ * 設計 tokens（唯一來源；2026-10 恢復環境光改版）：色彩、字級、間距、圓角、動畫。元件只引用這裡的變數，不寫死數值。
  *
- * 基準裝置：iPhone 18 Pro 402×874 pt（Safari 直向）；次要 440×956；最小 375 寬。
+ * 基準裝置：iPhone 18 Pro 402×874 pt（Safari 直向）；次要 440×956；最小 375 寬。只做深色（DECISIONS #304）。
  * 格線：只有兩條左緣——頁邊 x=16（--gutter）與卡片內容 x=32（--gutter + --card-pad）；右緣對稱。
  * 間距一律 4 的倍數（主要用 8 的倍數）；列高 ≥ 44；觸控目標 ≥ 44×44。
  *
- * 色彩預算：灰階為主；--up／--down 只代表價格與買賣超（紅漲綠跌，同時帶 ▲▼ 或 +−）；
- * --risk（橘）只代表風險／警示；--brand（藍）只給可互動元素；流程三環有自己的三個藍紫色（--ring-1～3）。
+ * 色彩：紅 --up／綠 --down 用於所有帶正負號的漲跌與增減（同時帶 ▲▼ 或 +−）；橘 --risk 只代表風險與提醒；
+ * 藍 --brand 只給可互動元素；資料強調色 --c-blue／--c-cyan／--c-indigo／--c-purple 畫資料線；灰色只用於未啟用與軌道。
  */
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 
-  /* ---------- 字體與字級（px／行高；rem 跟隨系統文字大小；每頁最多 4 種字級） ---------- */
+  /* ---------- 字體與字級（px／行高；rem 跟隨系統文字大小） ---------- */
   --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang TC', 'Noto Sans TC', sans-serif;
-  --fs-large: 2.125rem;    --lh-large: 2.5625rem;   /* LargeTitle 34/41 bold（每頁一個） */
-  --fs-title2: 1.375rem;   --lh-title2: 1.75rem;    /* Title2 22/28 bold */
-  --fs-headline: 1.0625rem; --lh-headline: 1.375rem; /* Headline 17/22 semibold */
-  --fs-body: 1.0625rem;    --lh-body: 1.375rem;     /* Body 17/22 */
-  --fs-sub: 0.9375rem;     --lh-sub: 1.25rem;       /* Subheadline 15/20 */
-  --fs-foot: 0.8125rem;    --lh-foot: 1.125rem;     /* Footnote 13/18 */
-  --fs-cap: 0.75rem;       --lh-cap: 1rem;          /* Caption 12/16（最小字級） */
+  --fs-hero: 3.5rem;       --lh-hero: 3.75rem;      /* 主數字 56/60 bold（每頁一個） */
+  --fs-large: 2.125rem;    --lh-large: 2.5625rem;   /* 頁面大標題 34/41 bold（捲動後收合成置中小標題） */
+  --fs-key: 1.75rem;       --lh-key: 2.125rem;      /* 重點數值 28/34 semibold */
+  --fs-concl: 1.25rem;     --lh-concl: 1.5625rem;   /* 區塊結論 20/25 semibold */
+  --fs-body: 1.0625rem;    --lh-body: 1.375rem;     /* 列標題與列數值 17/22 */
+  --fs-sub: 0.9375rem;     --lh-sub: 1.25rem;       /* 密集表格 15/20 */
+  --fs-foot: 0.8125rem;    --lh-foot: 1.125rem;     /* 標籤、副資訊、解讀行 13/18（最小字級） */
   --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600; --fw-bold: 700;
+  --unit-scale: 0.6;       /* 單位＝數字字級的 60%、次文字色 */
+  --track-hero: -0.02em;
 
-  /* 舊名稱 → 新字級（既有元件沿用；不再有 52pt 主角數字與 11pt 微字） */
-  --fs-hero: var(--fs-title2);      --lh-hero: var(--lh-title2);   /* 主角數字（指數、股價）＝Title2；LargeTitle 只給頁面標題 */
+  /* 舊名稱 → 新字級（既有元件沿用） */
+  --fs-title2: var(--fs-key);       --lh-title2: var(--lh-key);
+  --fs-headline: var(--fs-body);    --lh-headline: var(--lh-body);
+  --fs-cap: var(--fs-foot);         --lh-cap: var(--lh-foot);
   --fs-title: var(--fs-large);      --lh-title: var(--lh-large);
-  --fs-section: var(--fs-headline); --lh-section: var(--lh-headline);
+  --fs-section: var(--fs-concl);    --lh-section: var(--lh-concl);
   --fs-caption: var(--fs-foot);     --lh-caption: var(--lh-foot);
-  --fs-micro: var(--fs-cap);        --lh-micro: var(--lh-cap);
+  --fs-micro: var(--fs-foot);       --lh-micro: var(--lh-foot);
   --fs-table-date: var(--fs-sub);   --lh-table-date: var(--lh-sub);
-  --fs-table-sub: var(--fs-cap);    --lh-table-sub: var(--lh-cap);
-  --track-hero: -0.01em;
+  --fs-table-sub: var(--fs-foot);   --lh-table-sub: var(--lh-foot);
 
   /* ---------- 4pt 間距 ---------- */
   --s-1: 0.25rem; --s-2: 0.5rem; --s-3: 0.75rem; --s-4: 1rem; --s-5: 1.25rem; --s-6: 1.5rem;
@@ -42,28 +45,31 @@
   --row-gap: 0.75rem;      /* 列內欄距 12 */
   --tap: 2.75rem;          /* 44 最小點擊區域 */
   --row-min: 2.75rem;      /* 列高下限 44 */
-  --tag-w: 4rem;           /* 標籤欄固定寬 64（「風險」「有利」「觸發」「觀察中」單行） */
+  --tag-w: 4rem;           /* 標籤欄固定寬 64 */
   --tag-h: 1.5rem;         /* 標籤高 24 */
   --seg-h: 2.25rem;        /* 分段控制每格 36（外框內距 4 → 整列 44） */
-  --ring-sm: 1.5rem;       /* 簡報頁流程列的小環 24 */
-  --ring-lg: 7.5rem;       /* 流程頁三環直徑 120 */
-  --icon: 1.5rem;          /* 列圖示 24 */
-  --info: 1.25rem;         /* ⓘ 圖示 20（點擊區域 44） */
+  --ring-sm: 1.5rem;
+  --ring-lg: 7.5rem;
+  --icon: 1.5rem;
+  --info: 1.25rem;
 
   /* ---------- 圓角 ---------- */
-  --r-xs: 0.25rem; --r-sm: 0.5rem; --r-md: 0.75rem; --r-card: 0.75rem; --r-sheet: 1.5rem; --r-pill: 999px;
+  --r-xs: 0.375rem; --r-sm: 0.625rem; --r-md: 0.875rem; --r-card: 1.375rem; --r-sheet: 1.5rem; --r-pill: 999px;
 
-  /* ---------- 動畫 ---------- */
+  /* ---------- 動畫（只用 transform／opacity；單一動畫 ≤ 600ms；不循環） ---------- */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: var(--ease-out);
+  --ease-spring: var(--ease-out);
   --dur-press: 120ms;
   --dur-fast: 180ms;
-  --dur-base: 240ms;
-  --dur-slow: 240ms;
-  --dur-draw: 600ms;
-  --dur-roll: 600ms;
-  --dur-ring: 600ms;       /* 流程環填滿一次 0.6 秒 ease-out */
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --ease-spring: var(--ease-out);
+  --dur-base: 250ms;       /* 選中塊滑動、切換 */
+  --dur-slow: 250ms;
+  --dur-sheet: 300ms;      /* 說明面板由下滑入 */
+  --dur-roll: 400ms;       /* 主數字滾動 */
+  --dur-grow: 400ms;       /* 環、進度條、橫條由 0 長到目標 */
+  --dur-ring: 400ms;
+  --dur-draw: 600ms;       /* 折線描繪 */
+  --stagger: 40ms;         /* 卡片依序淡入 */
 
   /* ---------- 版面 ---------- */
   --safe-top: env(safe-area-inset-top, 0px);
@@ -71,70 +77,80 @@
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --navbar-h: 2.75rem;          /* 頂部導覽列 44 */
-  --tabbar-h: 4rem;             /* 分頁列展開 64（圖示 24＋標籤 16＋上下 12） */
-  --tabbar-h-compact: 3rem;     /* 收合 48（只有圖示） */
+  --tabbar-h: 4rem;             /* 浮動分頁列 64 */
+  --tabbar-h-compact: 3rem;
   --tab-pad: 0.25rem;
-  --dock-pad: var(--safe-bottom);
+  --dock-pad: max(var(--safe-bottom), var(--s-2));
   --dock-h: calc(var(--tabbar-h) + var(--dock-pad));
-  /* 頁面底部留白＝分頁列高＋safe-area＋16 */
-  --dock-clear: calc(var(--tabbar-h) + var(--safe-bottom) + var(--s-4));
-  /* sticky 分段控制列的高度（上下 4＋44） */
+  /* 頁面底部留白＝分頁列高＋safe-area＋16（最後一列能完整捲出） */
+  --dock-clear: calc(var(--tabbar-h) + var(--dock-pad) + var(--s-4));
   --bench-h: calc(var(--tap) + 2 * var(--s-1));
   --content-max: 40rem;
+  --ambient-h: 36rem;           /* 環境光由 y=0 往下淡出（涵蓋主數字與主圖） */
 
-  /* ---------- 淺色（AA 對比：文字色對 bg／卡片 ≥ 4.5:1） ---------- */
-  --bg: #f2f2f7;
-  --surface-1: #ffffff;        /* 卡片 */
-  --surface-2: #e9e9ee;        /* 次層（軌道、選取格、輸入框） */
-  --surface-3: #ffffff;        /* 分段控制的選取格 */
-  --surface-row: rgba(120, 120, 128, 0.08);
-  --line: rgba(60, 60, 67, 0.29);      /* 分隔線 */
-  --text-1: #000000;
-  --text-2: rgba(60, 60, 67, 0.78);
-  --text-3: rgba(60, 60, 67, 0.30);    /* 只用於裝飾（前收虛線、軌道），不用於文字 */
-  --ink-1: #1c1c1e;
-  --ink-2: #48484a;
-  --ink-3: #636366;
-  --ink-4: #848488;
-  --up: #c4271c;
-  --down: #12763a;
-  --up-tint: rgba(255, 59, 48, 0.10);
-  --down-tint: rgba(52, 199, 89, 0.12);
-  --risk: #a35200;             /* 文字用橘（AA） */
-  --risk-fill: #ff9500;        /* 點、條等非文字元素 */
-  --risk-tint: rgba(255, 149, 0, 0.14);
-  --brand: #0062d6;
-  --brand-fill: #0066d6;   /* 白字填色按鈕（白字 5.4:1）；連結文字用 --brand */
+  /* ---------- 色彩（深色） ---------- */
+  --bg: #000000;
+  --surface-1: #1c1c1e;        /* 卡片 */
+  --surface-2: #2c2c2e;        /* 次層（軌道、輸入框） */
+  --surface-3: #3a3a3c;        /* 分段控制選中塊 */
+  --surface-row: rgba(255, 255, 255, 0.04);
+  --card-edge: rgba(255, 255, 255, 0.06);
+  --line: rgba(84, 84, 88, 0.65);
+  --text-1: #ffffff;
+  --text-2: rgba(235, 235, 245, 0.6);
+  --text-3: rgba(235, 235, 245, 0.3);   /* 只用於裝飾（虛線、軌道），不用於文字 */
+  --track: rgba(235, 235, 245, 0.12);   /* 進度條、環的軌道 */
+  --ink-1: #ffffff;
+  --ink-2: #c7c7cc;
+  --ink-3: #98989d;
+  --ink-4: #78787d;
+  --up: #ff453a;
+  --down: #30d158;
+  --up-tint: rgba(255, 69, 58, 0.1);
+  --down-tint: rgba(48, 209, 88, 0.14);
+  --risk: #ff9f0a;
+  --risk-fill: #ff9f0a;
+  --risk-tint: rgba(255, 159, 10, 0.16);
+  --brand: #0a84ff;
+  --brand-fill: #0066d6;      /* 白字填色（選中的區間膠囊、主要按鈕）：白字 5.4:1；改版前同色 */
   --on-brand: #ffffff;
-  --brand-tint: rgba(0, 122, 255, 0.10);
-  --ring-1: #007aff;           /* 簡報環 */
-  --ring-2: #2fa7d9;           /* 進場環 */
-  --ring-3: #5856d6;           /* 檢討環 */
-  --ring-track: rgba(120, 120, 128, 0.16);
-  --glass: rgba(249, 249, 249, 0.78);
-  --glass-strong: rgba(249, 249, 249, 0.94);
-  --glass-hi: rgba(255, 255, 255, 0.95);
-  --tab-bg: rgba(249, 249, 249, 0.78);
-  --tab-bg-solid: rgba(249, 249, 249, 0.97);
-  --tab-edge: rgba(0, 0, 0, 0.10);
-  --tab-hi: rgba(255, 255, 255, 0.9);
-  --tab-shadow: 0 8px 24px rgba(0, 0, 0, 0.10);
-  --tab-sel: rgba(0, 0, 0, 0.06);
-  --tab-sel-hi: rgba(255, 255, 255, 0.6);
-  --tab-sel-lens: rgba(0, 0, 0, 0.1);
-  --tab-icon: rgba(60, 60, 67, 0.78);
-  --tab-icon-on: #0062d6;
-  --scrim: rgba(0, 0, 0, 0.28);
+  --brand-tint: rgba(10, 132, 255, 0.16);
+  --c-blue: #0a84ff;
+  --c-cyan: #64d2ff;
+  --c-indigo: #5e5ce6;
+  --c-purple: #bf5af2;
+  --ring-1: var(--c-blue);
+  --ring-2: var(--c-cyan);
+  --ring-3: var(--c-indigo);
+  --ring-4: var(--c-purple);
+  --ring-track: var(--track);
+  --glass: rgba(22, 22, 24, 0.66);
+  --glass-strong: rgba(22, 22, 24, 0.9);
+  --glass-hi: rgba(255, 255, 255, 0.10);
+  --tab-bg: rgba(30, 30, 32, 0.62);
+  --tab-bg-solid: rgba(22, 22, 24, 0.97);
+  --tab-edge: rgba(255, 255, 255, 0.10);
+  --tab-hi: rgba(255, 255, 255, 0.08);
+  --tab-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --tab-sel: rgba(255, 255, 255, 0.12);
+  --tab-sel-hi: rgba(255, 255, 255, 0.16);
+  --tab-sel-lens: rgba(255, 255, 255, 0.2);
+  --tab-icon: rgba(235, 235, 245, 0.6);
+  --tab-icon-on: #ffffff;
+  --scrim: rgba(0, 0, 0, 0.55);
   --shadow-card: none;
-  --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.12);
-  --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.12);
-  --line-glow-opacity: 0;
-  --glow-up: rgba(255, 59, 48, 0);
-  --glow-down: rgba(52, 199, 89, 0);
-  --glow-risk: rgba(255, 149, 0, 0);
-  --glow-neutral: rgba(120, 120, 128, 0);
-  --status-bar: #f2f2f7;
-  --chart-bar: rgba(60, 60, 67, 0.30);   /* 長條圖非當日柱（灰） */
+  --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.6);
+  /* 改版前（d6a9362）的發光強度：線的柔光與環境光 */
+  --line-glow-opacity: 0.55;
+  --glow-up: rgba(255, 84, 62, 0.24);
+  --glow-down: rgba(38, 196, 120, 0.2);
+  --glow-risk: rgba(255, 170, 40, 0.22);
+  --glow-neutral: rgba(120, 146, 186, 0.16);
+  --status-bar: #000000;
+  --chart-bar: rgba(235, 235, 245, 0.3);
+  --skeleton: rgba(235, 235, 245, 0.08);
+  --skeleton-hi: rgba(235, 235, 245, 0.16);
 
   /* 舊元件相容別名 */
   --label: var(--text-1);
@@ -150,119 +166,7 @@
   --flat: var(--text-2);
 }
 
-/* ---------- 深色（預設；跟隨系統或手動指定） ---------- */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #000000;
-    --surface-1: #1c1c1e;
-    --surface-2: #2c2c2e;
-    --surface-3: #3a3a3c;
-    --surface-row: rgba(255, 255, 255, 0.04);
-    --line: rgba(84, 84, 88, 0.65);
-    --text-1: #ffffff;
-    --text-2: rgba(235, 235, 245, 0.6);
-    --text-3: rgba(235, 235, 245, 0.3);
-    --ink-1: #ffffff;
-    --ink-2: #c7c7cc;
-    --ink-3: #98989d;
-    --ink-4: #78787d;
-    --up: #ff453a;
-    --down: #30d158;
-    --up-tint: rgba(255, 69, 58, 0.10);
-    --down-tint: rgba(48, 209, 88, 0.14);
-    --risk: #ff9f0a;
-    --risk-fill: #ff9f0a;
-    --risk-tint: rgba(255, 159, 10, 0.16);
-    --brand: #0a84ff;
-    --brand-fill: #0066d6;
-    --on-brand: #ffffff;
-    --brand-tint: rgba(10, 132, 255, 0.10);
-    --ring-1: #0a84ff;
-    --ring-2: #64d2ff;
-    --ring-3: #5e5ce6;
-    --ring-track: rgba(235, 235, 245, 0.12);
-    --glass: rgba(22, 22, 24, 0.72);
-    --glass-strong: rgba(22, 22, 24, 0.92);
-    --glass-hi: rgba(255, 255, 255, 0.10);
-    --tab-bg: rgba(22, 22, 24, 0.72);
-    --tab-bg-solid: rgba(22, 22, 24, 0.97);
-    --tab-edge: rgba(255, 255, 255, 0.10);
-    --tab-hi: rgba(255, 255, 255, 0.08);
-    --tab-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-    --tab-sel: rgba(255, 255, 255, 0.12);
-    --tab-sel-hi: rgba(255, 255, 255, 0.16);
-    --tab-sel-lens: rgba(255, 255, 255, 0.2);
-    --tab-icon: rgba(235, 235, 245, 0.6);
-    --tab-icon-on: #0a84ff;
-    --scrim: rgba(0, 0, 0, 0.55);
-    --shadow-card: none;
-    --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.45);
-    --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.6);
-    --status-bar: #000000;
-    --chart-bar: rgba(235, 235, 245, 0.3);
-  }
-}
-:root[data-theme='dark'] {
-  --bg: #000000;
-  --surface-1: #1c1c1e;
-  --surface-2: #2c2c2e;
-  --surface-3: #3a3a3c;
-  --surface-row: rgba(255, 255, 255, 0.04);
-  --line: rgba(84, 84, 88, 0.65);
-  --text-1: #ffffff;
-  --text-2: rgba(235, 235, 245, 0.6);
-  --text-3: rgba(235, 235, 245, 0.3);
-  --ink-1: #ffffff;
-  --ink-2: #c7c7cc;
-  --ink-3: #98989d;
-  --ink-4: #78787d;
-  --up: #ff453a;
-  --down: #30d158;
-  --up-tint: rgba(255, 69, 58, 0.10);
-  --down-tint: rgba(48, 209, 88, 0.14);
-  --risk: #ff9f0a;
-  --risk-fill: #ff9f0a;
-  --risk-tint: rgba(255, 159, 10, 0.16);
-  --brand: #0a84ff;
-  --brand-fill: #0066d6;
-  --on-brand: #ffffff;
-  --brand-tint: rgba(10, 132, 255, 0.10);
-  --ring-1: #0a84ff;
-  --ring-2: #64d2ff;
-  --ring-3: #5e5ce6;
-  --ring-track: rgba(235, 235, 245, 0.12);
-  --glass: rgba(22, 22, 24, 0.72);
-  --glass-strong: rgba(22, 22, 24, 0.92);
-  --glass-hi: rgba(255, 255, 255, 0.10);
-  --tab-bg: rgba(22, 22, 24, 0.72);
-  --tab-bg-solid: rgba(22, 22, 24, 0.97);
-  --tab-edge: rgba(255, 255, 255, 0.10);
-  --tab-hi: rgba(255, 255, 255, 0.08);
-  --tab-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --tab-sel: rgba(255, 255, 255, 0.12);
-  --tab-sel-hi: rgba(255, 255, 255, 0.16);
-  --tab-sel-lens: rgba(255, 255, 255, 0.2);
-  --tab-icon: rgba(235, 235, 245, 0.6);
-  --tab-icon-on: #0a84ff;
-  --scrim: rgba(0, 0, 0, 0.55);
-  --shadow-card: none;
-  --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.45);
-  --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.6);
-  --status-bar: #000000;
-  --chart-bar: rgba(235, 235, 245, 0.3);
-}
-
-/*
- * 加入主畫面（standalone）：視窗延伸到螢幕底緣，底下沒有 Safari 網址列。
- * 有實體 Home 鍵的機型 safe-area 為 0，才用 8px 下限避免分頁列貼齊螢幕邊緣。
- */
-@media (display-mode: standalone) {
-  :root { --dock-pad: max(var(--safe-bottom), var(--s-2)); }
-}
-:root.standalone { --dock-pad: max(var(--safe-bottom), var(--s-2)); }
-
 /* 提高對比：分隔線與次要文字加深 */
 @media (prefers-contrast: more) {
-  :root { --line: rgba(60, 60, 67, 0.5); --text-2: rgba(20, 20, 28, 0.86); }
-  :root[data-theme='dark'] { --line: rgba(235, 235, 245, 0.45); --text-2: rgba(235, 235, 245, 0.86); }
+  :root { --line: rgba(235, 235, 245, 0.45); --text-2: rgba(235, 235, 245, 0.86); }
 }

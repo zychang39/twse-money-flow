@@ -9,10 +9,19 @@
  *   data-a="v"＝列的右側數值（同卡片右緣一致）、data-a="bl"＝同列需同基線的元素。
  */
 import type { ComponentChildren, JSX } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Sheet } from './Sheet';
 import { IconChevron, IconInfo } from './Icons';
 import { numberFormat } from '../lib/format';
+import { autoTermId } from '../lib/glossary';
+import { Term } from './kit';
+
+/** 文字正好是名詞時變成可點的名詞（C 節：畫面上每個專有名詞都可點） */
+export function autoTerm(k: Kids): Kids {
+  if (typeof k !== 'string') return k;
+  const id = autoTermId(k);
+  return id ? <Term id={id}>{k}</Term> : k;
+}
 
 type Kids = ComponentChildren;
 
@@ -47,7 +56,7 @@ export function Section({ title, info, infoTitle, aside, id, children, testid }:
   return (
     <section class="ui-sec" id={id} data-testid={testid} aria-label={typeof title === 'string' ? title : undefined}>
       <div class="ui-sec-head">
-        <h2 class="ui-sec-title">{title}</h2>
+        <h2 class="ui-sec-title">{autoTerm(title)}</h2>
         {info ? <Info title={infoTitle ?? (typeof title === 'string' ? title : '說明')}>{info}</Info> : null}
         {aside ? <span class="ui-sec-aside ui-foot ui-muted">{aside}</span> : null}
       </div>
@@ -112,7 +121,7 @@ export function Row({ label, sub, subWide, value, value2, tag, extra, icon, href
     <>
       {icon ? <span class="ui-row-icon" aria-hidden="true">{icon}</span> : null}
       <span class="ui-row-main">
-        <span class={`ui-row-label ${strong ? 'ui-strong' : ''}`} data-a="bl">{label}</span>
+        <span class={`ui-row-label ${strong ? 'ui-strong' : ''}`} data-a="bl">{href || onClick ? label : autoTerm(label)}</span>
         {sub && !subWide ? <span class="ui-row-sub ui-foot ui-muted">{sub}</span> : null}
       </span>
       <span class="ui-row-value" data-a="v">
@@ -162,8 +171,10 @@ export function Num({ v, digits = 0, unit, fallback = '—' }: { v: number | str
  * - tone='updown'（預設）：紅漲綠跌；'plain'：中性色（例：超額報酬、百分位變化，不是價格或買賣超）。
  * - 三角形大小、與數字的間距、垂直位置全站一致（.sv-a）。
  */
-export function Signed({ v, digits = 2, unit, kind = 'sign', tone = 'updown', fallback = '—', label }: {
+export function Signed({ v, digits = 2, unit, kind = 'sign', tone = 'updown', fallback = '—', label, pct }: {
   v: number | null | undefined;
+  /** 價格漲跌的百分比：顯示成「▲ 12.5 (1.34%)」（半形括號，A7） */
+  pct?: number | null;
   digits?: number;
   unit?: string;
   kind?: 'arrow' | 'sign';
@@ -176,16 +187,17 @@ export function Signed({ v, digits = 2, unit, kind = 'sign', tone = 'updown', fa
   const r = Number(numberFormat(digits).format(Math.abs(v)).replace(/,/g, ''));
   const d = r === 0 ? 'flat' : v > 0 ? 'up' : 'down';
   const abs = numberFormat(digits).format(Math.abs(v));
-  const word = d === 'up' ? (kind === 'arrow' ? '上漲' : '增加') : d === 'down' ? (kind === 'arrow' ? '下跌' : '減少') : '持平';
+  // 朗讀（A10）：aria-label，不用隱藏文字節點；負值朗讀為「負 x」
+  const word = kind === 'arrow' ? (d === 'up' ? '上漲' : d === 'down' ? '下跌' : '持平') : (d === 'up' ? '正' : d === 'down' ? '負' : '');
   const cls = `sv ${tone === 'updown' ? d : 'plain'}`;
   return (
-    <span class={cls}>
-      <span class="sr-only">{`${label ?? ''}${word} ${abs}${unit ?? ''}`}</span>
+    <span class={cls} role="img" aria-label={`${label ?? ''}${word} ${abs}${unit ?? ''}${pct !== undefined && pct !== null && Number.isFinite(pct) ? `，${numberFormat(2).format(Math.abs(pct))}%` : ''}`.trim()}>
       <span aria-hidden="true" class="sv-in">
         {kind === 'arrow'
-          ? <><span class="sv-a">{d === 'up' ? '▲' : d === 'down' ? '▼' : ''}</span>{abs}</>
+          ? <>{d !== 'flat' ? <span class="sv-a">{d === 'up' ? '▲' : '▼'}</span> : null}{abs}</>
           : <>{d === 'up' ? '+' : d === 'down' ? MINUS : ''}{abs}</>}
         {unit ? <Unit u={unit} /> : null}
+        {pct !== undefined ? ` (${pct === null || !Number.isFinite(pct) ? '—' : `${numberFormat(2).format(Math.abs(pct))}%`})` : null}
       </span>
     </span>
   );
@@ -224,7 +236,7 @@ export function Info({ title, children, label, testid }: { title: string; childr
 
 export type SegOption<T extends string> = readonly [T, string];
 
-/** 分段控制：每格等寬、單行；sticky 時黏在導覽列下方。 */
+/** 分段控制：每格等寬、單行；選中塊滑動（250ms）；sticky 時黏在導覽列下方。 */
 export function Seg<T extends string>({ options, value, onChange, label, sticky = false, testid, small = false }: {
   options: readonly SegOption<T>[];
   value: T;
@@ -234,14 +246,34 @@ export function Seg<T extends string>({ options, value, onChange, label, sticky 
   testid?: string;
   small?: boolean;
 }) {
+  const idx = Math.max(0, options.findIndex(([v]) => v === value));
   const el = (
-    <div class={`ui-seg ${small ? 'small' : ''}`} role="group" aria-label={label} data-testid={testid} style={{ '--n': options.length } as JSX.CSSProperties}>
+    <div class={`ui-seg ${small ? 'small' : ''}`} role="group" aria-label={label} data-testid={testid} style={{ '--n': options.length, '--i': idx } as JSX.CSSProperties}>
+      <span class="ui-seg-ind" aria-hidden="true" />
       {options.map(([v, l]) => (
         <button type="button" key={v} aria-pressed={v === value} onClick={() => onChange(v)}>{l}</button>
       ))}
     </div>
   );
-  return sticky ? <div class="ui-seg-sticky">{el}</div> : el;
+  return sticky ? <StickySeg>{el}</StickySeg> : el;
+}
+
+/** 黏在導覽列下方的分段列：真的黏住（捲到導覽列下）才出現玻璃底，平常透明（頁面不出現橫帶）。 */
+function StickySeg({ children }: { children: Kids }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => {
+      const top = parseFloat(getComputedStyle(el).top) || 0;
+      setStuck(el.getBoundingClientRect().top <= top + 0.5 && window.scrollY > 0);
+    };
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    return () => window.removeEventListener('scroll', check);
+  }, []);
+  return <div ref={ref} class={`ui-seg-sticky ${stuck ? 'stuck' : ''}`}>{children}</div>;
 }
 
 // ---------------------------------------------------------------- 表格
@@ -257,11 +289,13 @@ export interface Col<R> {
 }
 
 /** 表格：表頭與儲存格同一對齊；欄寬固定（table-layout: fixed）；數字欄用 tabular-nums 靠右。 */
-export function Table<R>({ cols, rows, rowKey, onRow, caption, testid, sticky = false }: {
+export function Table<R>({ cols, rows, rowKey, onRow, caption, testid, sticky = false, selectedKey }: {
   cols: Col<R>[];
   rows: R[];
   rowKey: (r: R, i: number) => string;
   onRow?: (r: R) => void;
+  /** 標亮的列（例：和上方圖表的選取同步） */
+  selectedKey?: string | null;
   caption?: string;
   testid?: string;
   /** 表頭黏在導覽列下方（長表） */
@@ -272,11 +306,12 @@ export function Table<R>({ cols, rows, rowKey, onRow, caption, testid, sticky = 
       {caption ? <caption class="sr-only">{caption}</caption> : null}
       <colgroup>{cols.map((c) => <col key={c.key} style={c.width ? { width: c.width } : undefined} />)}</colgroup>
       <thead>
-        <tr>{cols.map((c, i) => <th key={c.key} scope="col" class={(c.align ?? (i === 0 ? 'l' : 'r')) === 'r' ? 'r' : 'l'}>{c.label}</th>)}</tr>
+        <tr>{cols.map((c, i) => <th key={c.key} scope="col" class={(c.align ?? (i === 0 ? 'l' : 'r')) === 'r' ? 'r' : 'l'}>{autoTerm(c.label)}</th>)}</tr>
       </thead>
       <tbody>
         {rows.map((r, ri) => (
-          <tr key={rowKey(r, ri)} class={onRow ? 'ui-tap' : undefined} onClick={onRow ? () => onRow(r) : undefined}
+          <tr key={rowKey(r, ri)} class={`${onRow ? 'ui-tap' : ''} ${selectedKey !== undefined && selectedKey !== null && rowKey(r, ri) === selectedKey ? 'sel' : ''}`.trim() || undefined}
+            aria-selected={selectedKey !== undefined ? rowKey(r, ri) === selectedKey : undefined} onClick={onRow ? () => onRow(r) : undefined}
             tabIndex={onRow ? 0 : undefined} onKeyDown={onRow ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRow(r); } } : undefined}>
             {cols.map((c, i) => <td key={c.key} class={(c.align ?? (i === 0 ? 'l' : 'r')) === 'r' ? 'r' : 'l'}>{c.render(r, ri)}</td>)}
           </tr>
@@ -296,7 +331,7 @@ export function StatGrid({ items, cols = 2, testid }: { items: Stat[]; cols?: 2 
     <div class={`ui-stats c${cols}`} data-testid={testid}>
       {items.map((s, i) => (
         <div key={i} class="ui-stat" data-testid={s.testid}>
-          <span class="ui-stat-l ui-foot ui-muted">{s.label}</span>
+          <span class="ui-stat-l ui-foot ui-muted">{autoTerm(s.label)}</span>
           <span class="ui-stat-v" data-a="bl">{s.value}</span>
         </div>
       ))}

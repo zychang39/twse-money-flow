@@ -11,7 +11,7 @@ import type { Strategy, TrackedSignal } from '../lib/tracking';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
 
 export const DB_NAME = 'twse-money-flow';
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 /** 自選的來源：自己加入、歡迎卡的範例（可一鍵清除）、從系統清單「熱門動能」複製或挑選。 */
 export type WatchOrigin = 'user' | 'sample' | 'hot';
@@ -88,7 +88,10 @@ export interface Trade {
  * - v5 新增 weekly_review（週報頁按下完成）、legacy_xp（遷移時的「既有經驗值」，id 固定 'legacy-xp'，meta: { xp, level }）。
  * - ritual_done、checklist_done、review_done 是舊版紀錄：保留，不再計經驗值；ritual_done 只用來保留遷移前的連續天數。
  */
-export type ActivityType = 'brief_read' | 'checklist_done' | 'review_done' | 'ritual_done' | 'backup' | 'backtest_own' | 'weekly_review' | 'legacy_xp';
+export type ActivityType = 'brief_read' | 'checklist_done' | 'review_done' | 'ritual_done' | 'backup' | 'backtest_own' | 'weekly_review' | 'legacy_xp'
+  // M6 每日步驟與新手導覽（2026-10）：看大盤、看持倉、看自選異動（meta.codes＝當時的異動代號，逗號分隔）、開個股（meta.code）、
+  // 看選股、讀名詞（meta.id；每個名詞只記一次）、新手任務（meta.task；每項只記一次）
+  | 'market_viewed' | 'holdings_viewed' | 'movers_viewed' | 'stock_viewed' | 'screener_viewed' | 'term_read' | 'onboard';
 export interface Activity {
   id: string;
   type: ActivityType;
@@ -102,6 +105,25 @@ export interface Setting {
   value: unknown;
 }
 
+/**
+ * v6（M4 族群）：使用者的族群資料。
+ * - kind='custom'：自訂族群（id 以 u- 開頭），members＝全部成員。
+ * - kind='edit'：對內建族群的編輯（id＝edit:{族群 id}），members＝加入的成員、removed＝移除的成員。
+ * streams＝分段（上游／中游／下游或自訂名稱）→ 代號；notes＝分段備註（'' 為整個族群的備註）。
+ */
+export interface UserGroup {
+  id: string;
+  kind: 'custom' | 'edit';
+  base?: string;
+  name: string;
+  members: string[];
+  removed?: string[];
+  streams?: Record<string, string[]>;
+  notes?: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface Schema extends DBSchema {
   watchlist: { key: string; value: WatchItem; indexes: { group: string; origin: string } };
   settings: { key: string; value: Setting };
@@ -110,10 +132,11 @@ interface Schema extends DBSchema {
   activity: { key: string; value: Activity; indexes: { type: string; day: string } };
   strategies: { key: string; value: Strategy };
   tracked: { key: string; value: TrackedSignal; indexes: { strategyId: string } };
+  groups: { key: string; value: UserGroup };
 }
 
-export type StoreName = 'watchlist' | 'settings' | 'screens' | 'trades' | 'activity' | 'strategies' | 'tracked';
-export const STORES: StoreName[] = ['watchlist', 'settings', 'screens', 'trades', 'activity', 'strategies', 'tracked'];
+export type StoreName = 'watchlist' | 'settings' | 'screens' | 'trades' | 'activity' | 'strategies' | 'tracked' | 'groups';
+export const STORES: StoreName[] = ['watchlist', 'settings', 'screens', 'trades', 'activity', 'strategies', 'tracked', 'groups'];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type UpgradeTx = IDBPTransaction<Schema, any, 'versionchange'>;
@@ -159,6 +182,10 @@ export const MIGRATIONS: Record<number, Migration> = {
     const out = migrateV5({ trades, activity, portfolio }, new Date().toISOString());
     for (const t of out.trades) await tx.objectStore('trades').put(t);
     for (const a of out.addedActivity) await tx.objectStore('activity').put(a);
+  },
+  // v6：自訂族群與內建族群的編輯（M4）
+  6: (db) => {
+    db.createObjectStore('groups', { keyPath: 'id' });
   },
 };
 
@@ -304,6 +331,15 @@ export async function logActivity(type: ActivityType, day: string, meta?: Activi
   notify();
   return a;
 }
+/** 同類型、同一個鍵只記一次（day＝null 表示不分日期；例：同一天同一檔個股、同一個名詞、同一項新手任務）。 */
+export async function logActivityKey(type: ActivityType, day: string, key: string, meta: Activity['meta'], perDay = true): Promise<boolean> {
+  const db = await getDb();
+  const pool = perDay ? await db.getAllFromIndex('activity', 'day', day) : await db.getAll('activity');
+  const k = (a: Activity) => String(a.meta?.code ?? a.meta?.id ?? a.meta?.task ?? a.meta?.codes ?? '');
+  if (pool.some((a) => a.type === type && k(a) === key)) return false;
+  await logActivity(type, day, meta);
+  return true;
+}
 /** 同一天同類型只記一次（例如「看完今晚簡報」）。 */
 export async function logActivityOnce(type: ActivityType, day: string, meta?: Activity['meta']): Promise<boolean> {
   const db = await getDb();
@@ -341,6 +377,22 @@ export async function putTracked(rows: TrackedSignal[]): Promise<void> {
   const tx = db.transaction('tracked', 'readwrite');
   for (const r of rows) await tx.store.put(r);
   await tx.done;
+}
+
+// ------------------------------------------------------------------ 族群（v6）
+export async function listGroups(): Promise<UserGroup[]> {
+  return (await getDb()).getAll('groups');
+}
+export async function getGroup(id: string): Promise<UserGroup | undefined> {
+  return (await getDb()).get('groups', id);
+}
+export async function saveGroup(g: UserGroup): Promise<void> {
+  await (await getDb()).put('groups', { ...g, updatedAt: new Date().toISOString() });
+  notify();
+}
+export async function deleteGroup(id: string): Promise<void> {
+  await (await getDb()).delete('groups', id);
+  notify();
 }
 
 // ------------------------------------------------------------------ 變更通知（讓畫面重新讀取）

@@ -1,4 +1,4 @@
-"""WCAG AA 對比檢查：直接讀 src/styles/tokens.css 的淺色與深色 tokens，檢查所有文字色 × 背景（含環境光最亮處、漲跌膠囊底色、表格選取列、圖表提示框、已選取的門檻）≥ 4.5:1。
+"""WCAG AA 對比檢查：直接讀 src/styles/tokens.css 的 tokens（只做深色，一個 :root 區塊），檢查所有文字色 × 背景（含環境光最亮處、漲跌膠囊底色、表格選取列、圖表提示框、已選取的門檻）≥ 4.5:1。
 
 用法：python3 scripts/contrast.py（有任何一組低於 4.5 時以非 0 結束）
 """
@@ -14,8 +14,7 @@ def block(selector_regex):
     return dict(re.findall(r"--([\w-]+):\s*([^;]+);", m.group(1)))
 
 
-light = block(r"\n:root")
-dark = {**light, **block(r":root\[data-theme='dark'\]")}
+dark = block(r"\n:root")
 
 
 def parse(c):
@@ -45,11 +44,14 @@ def ratio(a, b):
 
 
 failed = []
-for name, t in (("light", light), ("dark", dark)):
+for name, t in (("dark", dark),):
     P = {k: parse(v) for k, v in t.items() if v.strip().startswith(("#", "rgb"))}
     bgs = {"bg": P["bg"], "surface-1": P["surface-1"], "surface-2": P["surface-2"]}
-    for g in ("up", "down", "risk", "neutral"):
-        bgs[f"glow-{g}"] = over(P[f"glow-{g}"], P["bg"])
+    # 環境光：最亮處在 y=0（狀態列底下，只有導覽列圖示，非文字）；第一行文字（大標題）約在 y=56 以下，
+    # 漸層在 --ambient-h（576px）內線性淡出 → 文字處最強約 90%。環境光只跟隨漲跌（up／down／neutral）。
+    for g in ("up", "down", "neutral"):
+        c = P[f"glow-{g}"]
+        bgs[f"glow-{g}"] = over((c[0], c[1], c[2], c[3] * 0.9), P["bg"])
     # 第三輪：表格選取列（surface-row 疊在卡片上）、圖表提示框（glass-strong 疊在背景上）
     bgs["surface-row on surface-1"] = over(P["surface-row"], P["surface-1"])
     bgs["glass-strong on bg"] = over(P["glass-strong"], P["bg"])

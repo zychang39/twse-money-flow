@@ -322,6 +322,7 @@ def compare_split(
         res["peak"] = {str(int(peak)): rule_fixed(p, int(peak))}
     dates = np.asarray(mk.dates)
     rules: list[dict[str, Any]] = []
+    frames: dict[str, pd.DataFrame] = {}
     for rule, cells in res.items():
         best, best_v, best_mae, tested = None, None, None, []
         ins_by: dict[str, dict[str, Any]] = {}
@@ -340,6 +341,7 @@ def compare_split(
             continue
         v = cells[best]
         dd = _split_dates(v, dates)
+        frames[RULE_LABELS[rule].format(p=best)] = v
         rules.append(
             {
                 "rule": rule,
@@ -384,4 +386,6 @@ def compare_split(
         "rules": rules,
         "chosen": chosen,
         "note": note,
+        # M1.5：各規則（選定參數）的逐筆結果；judge.evaluate_one 取出寫進 strategy/{id}.json，不寫進 strategies.json
+        "_frames": {k: v[v["status"] == "ok"] for k, v in frames.items()},
     }

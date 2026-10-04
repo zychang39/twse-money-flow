@@ -35,9 +35,15 @@ for (const width of [375, 393]) {
       await page.goto('#/stock/2330');
       await revealAllSections(page);
       expect(await smallTargets(page)).toEqual([]);
-      // ::before 擴大的範圍真的可以點到：點在分段按鈕視覺範圍上方 3px 仍命中該按鈕
+      // ::before 擴大的範圍真的可以點到：點在分段按鈕視覺範圍上方 3px 仍命中該按鈕（M3：風險試算在「動能 → 波動與部位」詳情頁）
+      await page.goto('#/stock/2330/m/risk');
+      expect(await smallTargets(page)).toEqual([]);
       const seg = page.getByTestId('risk-calc').getByRole('button', { name: '3 倍 ATR' });
-      await seg.scrollIntoViewIfNeeded();
+      // 捲到畫面中間（scrollIntoViewIfNeeded 可能停在透明導覽列底下）；先等換頁的捲動位置還原結束
+      await expect(seg).toBeVisible();
+      await page.waitForTimeout(500);
+      await seg.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await page.waitForTimeout(100);
       const b = (await seg.boundingBox())!;
       expect(b.height).toBeLessThan(44);
       await page.mouse.click(b.x + b.width / 2, b.y - 3);
@@ -54,9 +60,14 @@ for (const width of [375, 393]) {
       await gotoStockSeg(page, '#/stock/2330', '籌碼');
       await expect(page.getByTestId('insti-table')).toBeVisible();
       const heads = await page.locator('.ui-table th').evaluateAll((ths) => ths.map((th) => {
-        const range = document.createRange();
-        range.selectNodeContents(th);
-        const tops = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+        // 只量文字本身的行（名詞按鈕上下擴大的點擊區不算一行）
+        const tops = new Set<number>();
+        const tw = document.createTreeWalker(th, NodeFilter.SHOW_TEXT);
+        for (let n = tw.nextNode(); n; n = tw.nextNode()) {
+          const range = document.createRange();
+          range.selectNodeContents(n);
+          for (const r of range.getClientRects()) if (r.width > 0) tops.add(Math.round(r.top));
+        }
         return { text: (th.textContent ?? '').trim(), lines: tops.size, clipped: th.scrollWidth > th.clientWidth + 1 };
       }).filter((x) => x.text));
       expect(heads.length).toBeGreaterThan(8);
@@ -72,33 +83,23 @@ for (const width of [375, 393]) {
       expect(await sub.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('normal');
     });
 
-    test('U-06：探索頁入口列的副資訊單行（2026-10 改版：副資訊最多一行），不斷在詞中間', async ({ page }) => {
+    test('U-06（M4）：探索頁不捲動就看得到全部 9 個功能格與 3 個指數格；每格的即時數值一行', async ({ page }) => {
       await page.goto('#/explore');
-      await expect(page.locator('.ui-row-sub').first()).toBeVisible();
+      const tiles = page.locator('.ex-tile');
+      await expect(tiles).toHaveCount(9);
+      await expect(page.locator('.ex-index')).toHaveCount(3);
       await page.waitForTimeout(600);
-      const breaks = await page.locator('.ui-row-sub').evaluateAll((els) => els.flatMap((el) => {
-        const text = el.firstChild;
-        if (!text || text.nodeType !== Node.TEXT_NODE) return [];
-        const s = text.textContent!;
-        const out: string[] = [];
-        let prevTop: number | null = null;
-        for (let i = 0; i < s.length; i++) {
-          if (/\s|\u200b/.test(s[i])) continue;
-          const r = document.createRange();
-          r.setStart(text, i);
-          r.setEnd(text, i + 1);
-          const top = Math.round(r.getBoundingClientRect().top);
-          if (prevTop !== null && top > prevTop + 2) {
-            const raw = s.slice(0, i);
-            const before = raw.replace(/[\s\u200b]+$/, '');
-            // 允許：空白（含零寬空格）之後、「・，、：」等標點之後
-            if (before.length === raw.length && !/[・，、：]$/.test(before)) out.push(`${s}：在「${before.slice(-2)}｜${s[i]}」換行`);
-          }
-          prevTop = top;
-        }
-        return out;
+      const info = await tiles.evaluateAll((els) => els.map((el) => {
+        const r = el.getBoundingClientRect();
+        const v = el.querySelector('.ex-tile-v') as HTMLElement;
+        const lh = parseFloat(getComputedStyle(v).lineHeight);
+        return { bottom: r.bottom, lines: Math.round(v.getBoundingClientRect().height / lh), text: v.textContent };
       }));
-      expect(breaks).toEqual([]);
+      const dockTop = await page.locator('.dock').evaluate((el) => el.getBoundingClientRect().top);
+      for (const t of info) {
+        expect(t.bottom, t.text ?? '').toBeLessThanOrEqual(dockTop);
+        expect(t.lines, t.text ?? '').toBe(1);
+      }
     });
   });
 }

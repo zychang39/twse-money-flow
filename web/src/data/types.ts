@@ -135,6 +135,12 @@ export interface StockHistory {
   dy: (number | null)[];
   metrics: Record<string, unknown>;
   scores?: ScoreDetail;
+  /** M1.2：官方產業 › 細產業 › 題材 */
+  sectors?: StockSectors | null;
+  /** M1.2：走勢相近（近 60 日日報酬相關係數最高的 10 檔）[代號, 名稱, 相關係數] */
+  similar?: [string, string, number][];
+  /** M1.3：均線斜率、間距、排列、ATR、52 週、對 0050／細產業 */
+  trend?: StockTrend | null;
   [key: string]: unknown;
 }
 
@@ -216,6 +222,8 @@ export interface MarketData {
   taiex: { close: number | null; change: number | null; ma240: number | null };
   /** 市場寬度（M2，2026-10-03）：漲跌家數（官方漲跌）；站上 20／60／240 日線比例（普通股、還原價，分母 n_maN）；創 60 日新高／新低家數 */
   breadth: { up: number; down: number; flat: number; n?: number; /** 2026-10 改版：52 週（250 日）收盤新高／新低家數與差 */ high52?: number | null; low52?: number | null; net52?: number | null; n52?: number; above_ma20_pct?: number | null; above_ma60_pct?: number | null; above_ma240_pct?: number | null; n_ma20?: number; n_ma60?: number; n_ma240?: number; high60?: number | null; low60?: number | null };
+  /** M2：最近 120 個交易日的站上 60 日線比例（%）與 52 週新高 − 新低家數 */
+  breadth_hist?: { dates: string[]; above_ma60: (number | null)[]; net52: (number | null)[] };
   /** 三大法人買賣超金額（上市＋上櫃）；est＝當日取不到官方金額、以張數×收盤估算 */
   flows: { date: string; foreign: number | null; trust: number | null; dealer: number | null; est?: boolean }[];
   flows_source?: string;
@@ -245,8 +253,99 @@ export interface IntradayData {
   days?: { date: string; prev_close: number | null; points: { t: string; v: number }[] }[];
 }
 /** 個股 5 分 K（Yahoo Finance，非官方）：bars＝[時間 HH:MM, 開, 高, 低, 收, 量（股）] */
-export interface StockIntraday { code: string; date: string; source: string; days: { date: string; prev_close: number | null; bars: [string, number | null, number | null, number | null, number | null, number | null][] }[] }
-export interface StockIntradayIndex { date: string; source: string; codes: string[] }
+/** 個股 5 分 K（每檔一個小檔；M1.1：每一檔有個股頁的股票都有，當日無成交 no_trade、資料源缺漏 missing）。 */
+export interface StockIntraday { code: string; date: string; source: string; days: { date: string; prev_close: number | null; bars: [string, number | null, number | null, number | null, number | null, number | null][]; no_trade?: boolean; missing?: boolean }[] }
+export interface StockIntradayIndex { date: string; source: string; codes: string[]; no_trade?: string[]; missing?: string[]; kbar_dates?: string[] }
+
+// ---------------------------------------------------------------- M1.2 族群三層
+export type SectorLayer = 'official' | 'fine' | 'theme' | 'chain';
+export interface SectorStats {
+  members: number;
+  live: number;
+  med: Record<'1M' | '3M' | '6M' | '12M', number | null>;
+  rank: number | null;
+  of: number | null;
+  rank_prev: number | null;
+  /** 成員不足 5 檔：名次以這個上層計算 */
+  merged: string | null;
+  above60: number | null;
+  high60: number;
+  insti5: number | null;
+  insti20: number | null;
+  new: number | null;
+}
+export interface SectorRow extends SectorStats { id: string; layer: SectorLayer; name: string; path: string[]; parent: string | null; streams: boolean }
+export interface SectorsIndex {
+  date: string;
+  min_ranked: number;
+  rank_window: string;
+  unassigned: string[];
+  groups: SectorRow[];
+  stock_cols: string[];
+  /** 代號 → [細產業 id[], 官方產業 id, 題材 id[], r1m, r3m, r6m, rs, above60, high60, inst20（法人 20 日買超 ÷ 成交金額 %，M4 起）] */
+  stocks: Record<string, [string[], string | null, string[], number | null, number | null, number | null, number | null, number | null, number | null, (number | null)?]>;
+}
+export interface SectorMember { code: string; name: string; close: number | null; chg: number | null; chg_pct?: number | null; rs: number | null; r1m: number | null; r3m: number | null; stream: string | null; new?: boolean; inst20?: number | null }
+export interface SectorDetail {
+  id: string; layer: SectorLayer; name: string; path: string[]; parent: string | null; parent_name: string | null;
+  basis: string; updated: string; date: string;
+  stats: SectorStats;
+  members: SectorMember[];
+  streams: Record<string, string[]>;
+  index: { dates: string[]; values: (number | null)[] };
+  history: { dates: string[]; rank?: (number | null)[]; breadth?: (number | null)[]; median3m?: (number | null)[] };
+}
+export interface StockSectorItem {
+  id: string; name: string; path: string[]; layer: SectorLayer; stream: string | null;
+  rank: number | null; of: number | null; rank_prev: number | null; merged: string | null; merged_name: string | null;
+  med3m: number | null; members: number | null; pos: number | null; pos_of: number;
+}
+export interface StockSectors { date: string; official: StockSectorItem | null; fine: StockSectorItem[]; themes: StockSectorItem[] }
+
+// ---------------------------------------------------------------- M1.3 個股衍生指標
+export interface TrendMa { v: number | null; bias: number | null; slope: number | null; slope_prev: number | null }
+export interface StockTrend {
+  date: string;
+  close: number | null;
+  ma: Record<'20' | '60' | '240', TrendMa>;
+  gap: { now: number | null; prev: number | null };
+  align: { state: 'bull' | 'bear' | 'mixed' | null; days: number };
+  atr: { v: number | null; pct: number | null; rank: number | null };
+  bias_atr: number | null;
+  y52?: { hi: number | null; hi_date: string; lo: number | null; lo_date: string; from_hi: number | null; from_lo: number | null; at_high: boolean; days: number };
+  d60?: { hi: number | null; lo: number | null };
+  new_high60_20d: number;
+  vs?: Record<'1M' | '3M' | '6M' | '12M', { ret: number | null; bench: number | null; fine: number | null; vs_bench: number | null; vs_fine: number | null }>;
+  series: { dates: string[]; close: (number | null)[]; ma20: (number | null)[]; ma60: (number | null)[]; ma240: (number | null)[]; gap: (number | null)[] };
+}
+
+// ---------------------------------------------------------------- M1.5 策略期間檢視（strategy/{id}.json）
+export type BenchKey = 'ew' | '0050' | 'tr' | '00631L';
+export interface CardBench { excess: number | null; t: number | null; win: number | null; median: number | null; n: number }
+export type PeriodCard = { n: number } & Record<BenchKey, CardBench>;
+export interface PerfBrief { cagr: number | null; sharpe: number | null; mdd: number | null; total: number | null }
+export interface Quant { p5: number | null; p50: number | null; p95: number | null }
+export interface PeriodView {
+  from: string; to: string; days: number;
+  card: PeriodCard;
+  multi: Record<string, PeriodCard>;
+  port: PerfBrief;
+  bench: Partial<Record<'tr' | '0050' | '00631L', PerfBrief>>;
+  random: { cagr?: Quant; sharpe?: Quant; mdd?: Quant; runs?: number; band?: { p5: number[]; p50: number[]; p95: number[] }; dates?: string[] };
+  weekly?: { dates: string[]; port: number[]; tr?: (number | null)[]; '0050'?: (number | null)[]; '00631L'?: (number | null)[]; held?: string[][]; drawdown?: number[] };
+  curve?: Partial<Record<BenchKey, { mean: (number | null)[]; lo: (number | null)[]; hi: (number | null)[] }>>;
+}
+export interface YearRow { year: string; n: number; excess: Record<BenchKey, number | null>; port: number | null; bench: Partial<Record<'tr' | '0050' | '00631L', number | null>> }
+export interface StrategyPack {
+  start: string; end: string; horizon: number; slots: number;
+  periods: Record<string, PeriodView>;
+  years: YearRow[];
+  signals: { n: number; signal?: string[]; entry?: (string | null)[]; code?: string[]; name?: string[] } & Record<string, unknown>;
+  monthly: { month?: string[]; n?: number[] } & Partial<Record<BenchKey, (number | null)[]>>;
+  rolling3y: { month?: string[] } & Partial<Record<BenchKey, { mean: (number | null)[]; lo: (number | null)[]; hi: (number | null)[] }>>;
+  screen: { date: string; cols: string[]; rows: [string, string, number, number | null][]; new: string[] };
+  exits?: Record<string, { date: string[]; code: string[]; net: (number | null)[]; exc_0050: (number | null)[] }>;
+}
 export const TAIEX = '發行量加權股價指數';
 export const TAIEX_TR = '發行量加權股價報酬指數';
 export const TPEX = '櫃買指數';

@@ -9,7 +9,8 @@ import { loadMeta } from '../data/api';
 import { dataPhase, makeCalendar } from '../lib/tradingCalendar';
 import { affectedFor, asofSummary } from '../lib/health';
 import type { AsofKey } from '../lib/asof';
-import { IconClock, IconCloudOff, IconMoonRest, IconRisk, IconSeed } from './Icons';
+import { IconClock, IconCloudOff, IconMoonRest, IconSeed } from './Icons';
+import { StaleNote } from './kit';
 
 function md(iso: string): string {
   const d = new Date(`${iso}T12:00:00Z`);
@@ -46,7 +47,8 @@ export function DataStatus({ date, extra, uses, asof }: { date?: string | null; 
         {failed ? <>・<a class="meta-alert" href="#/me/health">{failed} 個資料源異常</a></> : null}
       </p>
       {asofLine ? <p class="meta-line asof-line" data-testid="asof-line" style={{ marginTop: 0 }}>各資料集：{asofLine}</p> : null}
-      {phase === 'stale' ? <Banner kind="risk" icon={<IconRisk />} title="資料可能過期">最新資料停在 {md(d)}，落後 {lag} 個交易日。可到「資料健康」查看原因。</Banner> : null}
+      {/* 改版前樣式（M2 起全站一致）：橘色標題＋一行說明，點進資料健康頁 */}
+      {phase === 'stale' ? <StaleNote lead="資料可能過期">最新資料停在 {md(d)}，落後 {lag} 個交易日</StaleNote> : null}
     </>
   );
 }
@@ -146,4 +148,17 @@ export function StageStatus() {
       ))}
     </p>
   );
+}
+
+/**
+ * 資料落後（F 節，M7）：頁首下方一行橘色提示，收盤行情落後時標出日期與落後交易日數，點進資料健康頁。
+ * 不落後、休市、尚未更新時不顯示（那些不是錯誤）。
+ */
+export function PageStale({ testid = 'page-stale' }: { testid?: string }) {
+  const meta = useAsync(loadMeta, []);
+  const d = meta.data?.market_date;
+  if (!meta.data || !d) return null;
+  const { phase, lag } = dataPhase(d, makeCalendar(meta.data.calendar));
+  if (phase !== 'stale') return null;
+  return <StaleNote lead="資料可能過期" testid={testid}>收盤行情停在 {md(d)}，落後 {lag} 個交易日</StaleNote>;
 }

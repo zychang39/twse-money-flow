@@ -25,11 +25,18 @@ export function fmtRatioPct(v: number | null | undefined, sign = true): string {
   return `${s}${Math.abs(v).toFixed(1)}%`;
 }
 
+/** 括號裡的短資訊（例：「（2026/08）」）不拆行，避免「）」落到行首。 */
+function keepParen(t: string) {
+  return t.split(/(（[^（）]{1,12}）)/).map((p, i) => (i % 2 ? <span key={i} class="ui-num">{p}</span> : p));
+}
+
 /** 燈號列的副資訊：detail（外資期貨另加近 250 日百分位）。 */
 export function lightSub(l: MarketLight): string {
   const pct = l.pct250 !== null && l.pct250 !== undefined ? `近 250 日百分位 ${l.pct250.toFixed(0)}` : '';
   // 副資訊只有一行：ISO 日期縮成「10/2」
-  const detail = (l.detail ?? l.value).replace(/\b\d{4}-(\d{2})-(\d{2})\b/g, (_m, mm: string, dd: string) => `${Number(mm)}/${Number(dd)}`);
+  const detail = (l.detail ?? l.value).replace(/\b\d{4}-(\d{2})-(\d{2})\b/g, (_m, mm: string, dd: string) => `${Number(mm)}/${Number(dd)}`)
+    // 年月「2026-08」→「2026/08」（數字中的斜線不會被拆行）
+    .replace(/\b(\d{4})-(\d{2})\b/g, '$1/$2');
   return [detail, pct].filter(Boolean).join('・');
 }
 
@@ -38,7 +45,7 @@ export function LightsList({ lights, testid }: { lights: MarketLight[]; testid?:
   return (
     <List tags testid={testid}>
       {lights.map((l) => (
-        <Row key={l.id} label={l.label} sub={lightSub(l)} value={<Num v={l.short ?? l.value} />}
+        <Row key={l.id} label={l.label} sub={keepParen(lightSub(l))} value={<Num v={l.short ?? l.value} />}
           tag={<Tag tone={l.state === 'red' ? 'risk' : 'neutral'}>{LIGHT_LABEL[l.state]}</Tag>} testid={`light-${l.id}`} />
       ))}
     </List>

@@ -6,6 +6,7 @@ import { getSetting, listActivity, listScreens, listTrades, listWatch, logActivi
 import { loadSummary } from '../data/api';
 import { downloadJson, exportAll, importAll, markBackedUp, previewImport } from '../db/backup';
 import { todayTpe } from '../lib/dates';
+import { markOnboard } from '../lib/flowTrack';
 
 export default function Backup() {
   const info = useDb(async () => ({
@@ -24,6 +25,7 @@ export default function Backup() {
     await markBackedUp();
     const day = await loadSummary().then((x) => x.date).catch(() => todayTpe());
     await logActivity('backup', day);
+    markOnboard('backup');
     setMsg('已匯出備份檔');
   }
 

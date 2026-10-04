@@ -4,6 +4,7 @@ import { type InvestStyle, getStyle } from './lib/style';
 import { loadStock, peekStock } from './data/api';
 import type { StockHistory } from './data/types';
 import { subscribe } from './db/db';
+import { navigate, useRoute } from './router';
 
 export interface AsyncState<T> {
   data: T | null;
@@ -110,4 +111,26 @@ export function useInvestStyle(): InvestStyle {
     return () => window.removeEventListener('style-change', on);
   }, []);
   return s;
+}
+
+/**
+ * 分段（E 節）：存在網址查詢字串（?seg=…），重新整理後停在同一分段；切換分段用 replace（不新增歷史紀錄、不捲回頂端），
+ * 返回上一頁時回到原本的分段與捲動位置。remember＝同時記在 localStorage，下次進同一頁預設這個分段。
+ */
+export function useSegParam<T extends string>(options: readonly T[], def: T, key = 'seg', remember?: string): [T, (v: T) => void] {
+  const route = useRoute();
+  const stored = (() => {
+    if (!remember) return null;
+    try { return localStorage.getItem(`tmf-seg:${remember}`) as T | null; } catch { return null; }
+  })();
+  const q = route.query.get(key) as T | null;
+  const v: T = q && options.includes(q) ? q : stored && options.includes(stored) ? stored : def;
+  const set = (next: T) => {
+    if (remember) { try { localStorage.setItem(`tmf-seg:${remember}`, next); } catch { /* 私密模式 */ } }
+    const qs = new URLSearchParams(route.query);
+    if (next === def && !remember) qs.delete(key); else qs.set(key, next);
+    const s = qs.toString();
+    navigate(`${route.path}${s ? `?${s}` : ''}`, true, 'none');
+  };
+  return [v, set];
 }

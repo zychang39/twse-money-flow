@@ -34,8 +34,8 @@ test('S1 回測頁：欄位只涵蓋少數股票時標示「樣本範圍受限�
   await expect(banner).toHaveClass(/risk/);
 });
 
-test('S2 選股：「今日新觸發」切換；條件含千張大戶時顯示資料基準日；可設為追蹤策略', async ({ page }) => {
-  await page.goto('#/explore/screener');
+test('S2 自訂條件（M4：選股的子頁）：「今日新觸發」切換；條件含千張大戶時顯示資料基準日；可設為追蹤策略', async ({ page }) => {
+  await page.goto('#/explore/screener/custom');
   await page.getByRole('group', { name: '內建組合' }).getByRole('button', { name: '三方同買' }).click();
   await expect(page.getByTestId('weekly-note')).toHaveText(/^大戶資料：\d+\/\d+ 持股・\d+\/\d+ 公布/);
   // 2026-10-03：頁首標題為「選股」，組合名稱與檔數在頁首副資訊

@@ -35,8 +35,9 @@ async function pickBasis(page: Page, name: '還原價' | '原始價') {
 
 const pct = async (page: Page) => {
   const t = (await page.getByTestId('hero-period-change').textContent()) ?? '';
-  const m = t.match(/([+−])([\d.]+)%/);
-  return { text: t, value: m ? Number(m[2]) : NaN, down: m?.[1] === '−' };
+  // M3：「▼ 1,234 (61.20%) 近 1 年」（▲▼＋半形括號百分比）
+  const m = t.match(/([▲▼])?\s*[\d,.]+\s*\(([\d.]+)%\)/);
+  return { text: t, value: m ? Number(m[2]) : NaN, down: m?.[1] === '▼' };
 };
 
 test.describe('M5-1 還原／原始切換', () => {
@@ -141,11 +142,12 @@ test.describe('M5-2 手勢：手機', () => {
     await touchDrag(page, { x: b.x + b.width * 0.9, y }, { x: b.x + b.width * 0.1, y });
     await page.waitForTimeout(600);
     await expect(page).toHaveURL(/#\/stock\/2317$/);
-    let cross = false;
+    // M3：預設折線（HeroChart）長按再拖曳＝查價，主角數字下方換成該日日期（D4）
+    let cross = '';
     await touchDrag(page, { x: b.x + b.width * 0.8, y }, { x: b.x + b.width * 0.3, y }, 600, async () => {
-      cross = await page.getByTestId('crosshair-tip').isVisible();
+      cross = (await page.locator('.pager-pane:not([inert]) [data-testid="hero-change"]').first().textContent()) ?? '';
     });
-    expect(cross).toBe(true);
+    expect(cross).toMatch(/\d{4}\/\d+\/\d+/);
     // 兩指：區間報酬
     const cdp = await page.context().newCDPSession(page);
     const p1 = { x: b.x + b.width * 0.2, y }, p2 = { x: b.x + b.width * 0.7, y };

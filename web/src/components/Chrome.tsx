@@ -1,13 +1,12 @@
-/** App 外框：頂列（含頭像選單）、底部導覽（5 個圖示分頁，搜尋在第 4 格）、環境光。 */
+/** App 外框：導覽列（透明→玻璃、大標題收合、齒輪）、底部浮動分頁列（5 個圖示分頁，搜尋在第 4 格）、環境光。 */
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { Sheet } from './Sheet';
 import {
-  IconBack, IconDiscipline, IconDoc, IconExplore, IconExport, IconLayers, IconMine, IconPerson, IconPulse, IconSearch, IconSliders, IconTonight,
+  IconBack, IconDiscipline, IconDoc, IconExplore, IconExport, IconGear, IconLayers, IconMine, IconPulse, IconSearch, IconSliders, IconTonight,
 } from './Icons';
 import { TAB_DEFS, tabIndexOf } from '../lib/tabs';
 import { goBack, navigate } from '../router';
-import { THEME_OPTIONS, type ThemePref, getThemePref, setThemePref } from '../lib/theme';
+import { useAmbient, useAmbientMood } from '../lib/ambient';
 
 const TAB_ICONS = [IconTonight, IconMine, IconExplore, IconSearch, IconDiscipline];
 const SEARCH_TAB = 3;
@@ -180,10 +179,10 @@ export function primeKeyboard(): void {
 }
 
 const MENU = [
-  { path: '/me/settings', label: '設定', desc: '投資風格、環境光、遊戲化、分數權重、交易成本、外觀、提醒匯出', icon: IconSliders },
+  { path: '/me/settings', label: '設定', desc: '顯示、風險、門檻、資料、名詞表', icon: IconSliders },
   { path: '/me/backup', label: '備份', desc: '匯出／匯入所有本機資料（單一 JSON）', icon: IconExport },
-  { path: '/me/health', label: '資料健康', desc: '各資料源狀態、推估事件與最近執行紀錄', icon: IconPulse },
-  { path: '/me/data', label: '資料狀態', desc: '每個資料集的最新日、應有日、涵蓋率與回補進度', icon: IconLayers },
+  { path: '/me/health', label: '資料健康', desc: '每個資料集的最新日期、更新時間、來源與落後原因', icon: IconPulse },
+  { path: '/me/data', label: '資料狀態', desc: '每個資料集的應有日、涵蓋率與回補進度', icon: IconLayers },
   { path: '/me/methodology', label: '方法說明', desc: '所有指標與分數的計算方式', icon: IconDoc },
 ];
 
@@ -203,57 +202,81 @@ export function MenuList({ onPick }: { onPick?: () => void }) {
   );
 }
 
-/** 深淺色三段式（頭像選單第一列、設定頁共用）。 */
-export function ThemeSwitch() {
-  const [pref, setPref] = useState<ThemePref>(getThemePref);
-  useEffect(() => {
-    const on = () => setPref(getThemePref());
-    window.addEventListener('theme-change', on);
-    return () => window.removeEventListener('theme-change', on);
-  }, []);
+/** 右上角齒輪（全站）：推入完整設定頁。 */
+export function GearButton() {
   return (
-    <div class="segmented theme-switch" role="group" aria-label="深淺色">
-      {THEME_OPTIONS.map(([v, l]) => (
-        <button key={v} aria-pressed={pref === v} onClick={() => { setThemePref(v); setPref(v); }}>{l}</button>
-      ))}
-    </div>
-  );
-}
-
-/** 右上角頭像：第一列深淺色，其下為設定、備份、資料健康、資料狀態、方法說明。 */
-export function AvatarButton() {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button class="avatar-btn" aria-label="帳戶選單：深淺色、設定、備份、資料健康、資料狀態、方法說明" aria-haspopup="dialog" onClick={() => setOpen(true)}>
-        <span><IconPerson /></span>
-      </button>
-      <Sheet open={open} onClose={() => setOpen(false)} title="我的">
-        <ThemeSwitch />
-        <MenuList onPick={() => setOpen(false)} />
-        <p class="caption muted" style={{ marginTop: 'var(--s-6)' }}>所有使用者資料只存在這台裝置，不會上傳。</p>
-      </Sheet>
-    </>
+    <a class="icon-btn gear-btn" href="#/me/settings" aria-label="設定" data-testid="gear">
+      <IconGear />
+    </a>
   );
 }
 
 /**
- * 頂列：左側為返回或日期說明，右側為動作與頭像。
- * back 為返回路徑；caption 為左側小字（例如「9月24日（四）盤後簡報」）。
+ * 捲動狀態（導覽列）：scrolled＝頁面離開頂端（導覽列出現玻璃材質）；collapsed＝大標題已捲到導覽列底下（顯示置中小標題）。
  */
-export function TopBar({ back, caption, actions, avatar = true }: { back?: string; caption?: ComponentChildren; actions?: ComponentChildren; avatar?: boolean }) {
+function useNavScroll(path: string): { scrolled: boolean; title: string } {
+  const [state, setState] = useState({ scrolled: false, title: '' });
+  useEffect(() => {
+    let raf = 0;
+    const check = () => {
+      raf = 0;
+      const y = window.scrollY;
+      const h1 = document.querySelector<HTMLElement>('.page .ui-large, .page [data-nav-title]');
+      const navBottom = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sat')) || 0) + 44;
+      let title = '';
+      if (h1) {
+        const r = h1.getBoundingClientRect();
+        if (r.bottom <= navBottom + 4) title = h1.dataset.navTitle || h1.textContent || '';
+      }
+      const scrolled = y > 4;
+      setState((s) => (s.scrolled === scrolled && s.title === title ? s : { scrolled, title }));
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(check); };
+    check();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); cancelAnimationFrame(raf); };
+  }, [path]);
+  return state;
+}
+
+/**
+ * 導覽列（全站）：預設完全透明（環境光從 y=0 透出）；捲動後才出現玻璃材質，大標題收合成置中小標題。
+ * 左：返回（子頁）；中：收合後的標題（或 center 指定的內容，例：個股頁的自選分頁器）；右：動作＋齒輪。
+ */
+export function TopBar({ back, caption, center, actions, avatar = true, gear }: {
+  back?: string;
+  /** 舊參數：中間的小字（捲動前顯示；捲動後換成收合標題） */
+  caption?: ComponentChildren;
+  /** 中間固定內容（例：自選分頁器）；有指定時不顯示收合標題 */
+  center?: ComponentChildren;
+  actions?: ComponentChildren;
+  /** 舊參數名稱：是否顯示右上角齒輪 */
+  avatar?: boolean;
+  gear?: boolean;
+}) {
+  const path = typeof location !== 'undefined' ? location.hash : '';
+  const { scrolled, title } = useNavScroll(path);
+  const showGear = gear ?? avatar;
   return (
-    <div class="topbar">
+    <div class={`topbar ${scrolled ? 'scrolled' : ''}`} data-testid="topbar">
       {back ? (
         <a class="icon-btn" href={`#${back}`} aria-label="返回"
           onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); goBack(back); }}>
           <IconBack />
         </a>
       ) : <span />}
-      <div class="grow caption">{caption}</div>
+      <div class="topbar-center">
+        {center ?? (
+          <>
+            <span class={`topbar-title ${title ? 'on' : ''}`} aria-hidden={!title}>{title}</span>
+            {caption ? <span class={`topbar-caption caption ${title ? '' : 'on'}`}>{caption}</span> : null}
+          </>
+        )}
+      </div>
       <span class="topbar-actions">
         {actions}
-        {avatar ? <AvatarButton /> : null}
+        {showGear ? <GearButton /> : null}
       </span>
     </div>
   );
@@ -283,13 +306,24 @@ export function Block({ question, answer, children, id }: { question: ComponentC
   );
 }
 
-/** 環境光（B 方向）：頁首的靜態漸層，狀態切換時以透明度交叉淡入。 */
+/**
+ * 環境光：從螢幕最頂端（y=0，狀態列與動態島底下）開始，顏色跟隨該頁主標的當日漲跌（漲紅、跌綠、平中性），
+ * 由上往下淡出到黑，涵蓋主數字與主圖區。強度與範圍沿用改版前（d6a9362）的 radial-gradient。
+ * 全站只有一層（app.tsx 的 AmbientLayer）；頁面以 useAmbient(mood) 指定顏色，離開頁面回到中性。
+ */
 export type Mood = 'up' | 'down' | 'risk' | 'neutral' | 'flat';
-export function Ambient({ mood }: { mood: Mood }) {
+export { useAmbient } from '../lib/ambient';
+export function AmbientLayer() {
+  const mood = useAmbientMood();
   const m = mood === 'flat' ? 'neutral' : mood;
   return (
-    <div class="ambient" aria-hidden="true" data-mood={m}>
+    <div class="ambient" aria-hidden="true" data-mood={m} data-testid="ambient">
       {(['up', 'down', 'risk', 'neutral'] as const).map((k) => <i key={k} class={`${k} ${k === m ? 'on' : ''}`} />)}
     </div>
   );
+}
+/** 舊介面相容：頁面內直接放 <Ambient mood=… />＝設定全站環境光的顏色（不另外繪製）。 */
+export function Ambient({ mood }: { mood: Mood }) {
+  useAmbient(mood);
+  return null;
 }

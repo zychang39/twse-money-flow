@@ -14,7 +14,7 @@ async function addWatch(page: Page, codes: string[]) {
 
 test('主角數字：hover／拖曳時數字與日期即時變動，離開後恢復最新值；鍵盤左右鍵也可查看', async ({ page }) => {
   await page.goto('#/stock/2330');
-  // 2026-10 改版：個股頁主角價格（Title2）在 StockChart；hover＝十字線讀值
+  // M3（恢復環境光）：個股頁預設發光折線（HeroChart）；hover／長按＝主角數字與日期跟著變（D4）
   const hero = page.getByTestId('stock-price').first();
   const chart = page.getByRole('img', { name: /走勢/ }).first();
   await expect(chart).toBeVisible();
@@ -22,7 +22,7 @@ test('主角數字：hover／拖曳時數字與日期即時變動，離開後恢
   const latest = await hero.textContent();
   const box = (await chart.boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.2, box.y + box.height / 2);
-  await expect(page.getByTestId('crosshair-tip')).toContainText(/\d{4}\/\d{1,2}\/\d{1,2}/);
+  await expect(page.getByTestId('hero-change').first()).toContainText(/\d{4}\/\d{1,2}\/\d{1,2}/);
   const scrubbed = await hero.textContent();
   expect(scrubbed).not.toBe(latest);
   await page.mouse.move(box.x + box.width * 0.2, box.y - 200);
@@ -35,12 +35,12 @@ test('主角數字：hover／拖曳時數字與日期即時變動，離開後恢
   await expect(hero).toHaveText(latest!);
 });
 
-test('期間選擇器：選中者為實心格，選擇會被記住；所選區間漲跌一行（「1Y +12.34%」）', async ({ page }) => {
+test('期間選擇器：選中者為實心膠囊，選擇會被記住；所選區間漲跌一行（「▲ 123 (12.34%) 近 1 年」）', async ({ page }) => {
   await page.goto('#/stock/2330');
   const btn = page.getByRole('group', { name: '股價走勢期間' }).getByRole('button', { name: /^1Y/ });
   await btn.click();
   await expect(btn).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('hero-period-change').first()).toContainText(/^1Y\s*[^\d]*[+−]?[\d.]+%|^1Y/);
+  await expect(page.getByTestId('hero-period-change').first()).toContainText(/[\d.]+%\)\s*近 1 年/);
   await page.reload();
   await expect(page.getByRole('group', { name: '股價走勢期間' }).getByRole('button', { name: /^1Y/ })).toHaveAttribute('aria-pressed', 'true');
 });
@@ -70,15 +70,18 @@ test('個股頁：同一清單左右切換（按鈕與拖曳手勢）', async ({
   await expect(page.getByTestId('list-position')).toHaveText(/自選\S* 1\/3/);
 });
 
-test('底部面板：頭像選單可開啟、Esc 關閉；拖曳把手往下可關閉', async ({ page }) => {
+test('右上角齒輪推入設定頁；說明面板可開啟、Esc 關閉；拖曳把手往下可關閉', async ({ page }) => {
   await page.goto('#/');
-  await page.getByRole('button', { name: /帳戶選單/ }).click();
-  const dialog = page.getByRole('dialog', { name: '我的' });
+  await page.getByTestId('gear').first().click();
+  await expect(page).toHaveURL(/#\/me\/settings/);
+  await expect(page.getByRole('heading', { name: '設定' })).toBeVisible();
+  await page.goto('#/me/glossary');
+  await page.getByTestId('term-atr14').click();
+  const dialog = page.getByRole('dialog', { name: 'ATR14' });
   await expect(dialog).toBeVisible();
-  for (const name of ['設定', '備份', '資料健康', '方法說明']) await expect(dialog.getByRole('link', { name: new RegExp(name) })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
-  await page.getByRole('button', { name: /帳戶選單/ }).click();
+  await page.getByTestId('term-atr14').click();
   await page.waitForTimeout(700); // 等面板滑入完成
   const grabber = page.locator('.sheet-head').first();
   const b = (await grabber.boundingBox())!;
@@ -86,7 +89,7 @@ test('底部面板：頭像選單可開啟、Esc 關閉；拖曳把手往下可�
   await page.mouse.down();
   await page.mouse.move(b.x + b.width / 2, b.y + 380, { steps: 8 });
   await page.mouse.up();
-  await expect(page.getByRole('dialog', { name: '我的' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'ATR14' })).toHaveCount(0);
 });
 
 test('清單列：長按（右鍵）叫出快速預覽；左滑露出移除', async ({ page }) => {
@@ -113,25 +116,32 @@ test('清單列：長按（右鍵）叫出快速預覽；左滑露出移除', as
   await expect(page.getByRole('button', { name: /鴻海 2317/ })).toHaveCount(0);
 });
 
-test('流程：捲到簡報底部即完成簡報環（簡報頁底部一列 0/1 → 1/1）', async ({ page, request }) => {
-  // 三環依交易日計算：把時間固定在資料日 20:00（台北），簡報環對應的就是這份資料
+test('流程：看完簡報的市場分段即完成第 1 步（總覽的今日流程下一步不再是看大盤）', async ({ page, request }) => {
+  // 步驟依交易日計算：把時間固定在資料日 20:00（台北），第 1 步對應的就是這份資料
   const { date } = await (await request.get('data/summary.json')).json() as { date: string };
   await page.clock.setFixedTime(new Date(`${date}T20:00:00+08:00`));
   await page.goto('#/');
   const row = page.getByTestId('flow-brief-row');
-  await expect(row).toContainText('0/1');
-  await row.scrollIntoViewIfNeeded();
+  await expect(row).toContainText(/0\/\d/);
+  await expect(row).toContainText('下一步：1 看大盤');
+  await page.getByTestId('brief-seg').getByRole('button', { name: '市場' }).click();
   await page.mouse.wheel(0, 20000);
-  await expect(row).toContainText('1/1', { timeout: 5000 });
+  await page.waitForTimeout(1200);
+  await page.getByTestId('brief-seg').getByRole('button', { name: '總覽' }).click();
+  await expect(row).not.toContainText('看大盤', { timeout: 5000 });
   await row.click();
   await expect(page).toHaveURL(/#\/discipline$/);
-  await expect(page.getByTestId('ring-brief')).toContainText('已完成');
+  await expect(page.getByTestId('step-market')).toContainText('已完成');
 });
 
-test('環境光停用（2026-10 改版）：深色背景純黑、內容卡片不透明，沒有頁首漸層', async ({ page }) => {
-  await page.goto('#/');
-  await expect(page.getByRole('heading', { name: '盤後簡報' })).toBeVisible();
+test('環境光（恢復改版前）：背景純黑，環境光由 y=0 開始、顏色跟隨主標漲跌；導覽列預設透明', async ({ page }) => {
+  await page.goto('#/dev');
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(0, 0, 0)');
-  const visibleGlow = await page.evaluate(() => [...document.querySelectorAll('.ambient')].some((e) => getComputedStyle(e).display !== 'none'));
-  expect(visibleGlow).toBe(false);
+  const amb = page.getByTestId('ambient');
+  await expect(amb).toHaveAttribute('data-mood', 'up');
+  const st = await amb.evaluate((el) => ({ top: el.getBoundingClientRect().top, bg: getComputedStyle(el.querySelector('i.on')!).backgroundImage }));
+  expect(st.top).toBe(0);
+  expect(st.bg).toContain('radial-gradient');
+  const nav = await page.getByTestId('topbar').evaluate((el) => getComputedStyle(el, '::before').opacity);
+  expect(nav).toBe('0');
 });

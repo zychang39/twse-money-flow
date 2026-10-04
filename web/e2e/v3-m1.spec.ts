@@ -56,7 +56,7 @@ test.describe('M1-1 圖表資料不足', () => {
     });
     await page.goto('#/stock/2330');
     const chart = page.locator('.chart-wrap').first();
-    await expect(chart.locator('svg rect').first()).toBeVisible();
+    await expect(chart.locator('svg circle').first()).toBeVisible();
     await expect(page.getByTestId('hero-coverage').first()).toContainText('資料累積中：目前只有 1 個交易日');
   });
 });
@@ -125,29 +125,16 @@ test.describe('M1-2 返回保持捲動位置與狀態', () => {
   });
 });
 
-test.describe('M1-4 深淺色', () => {
-  test('預設深色、不跟隨系統；頭像選單第一列三段式；設定存在 localStorage 並同步 theme-color', async ({ page }) => {
+test.describe('M1-4 只做深色（2026-10 恢復環境光改版）', () => {
+  test('系統為淺色時仍是深色；舊的 tmf-theme 設定值一律視為深色；theme-color 為黑', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'light' });
     await page.goto('#/');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    expect(await page.locator('meta[name="theme-color"]').evaluateAll((ms) => ms.map((m) => (m as HTMLMetaElement).content))).toEqual(['#000000', '#000000']);
-    await page.getByRole('button', { name: /帳戶選單/ }).click();
-    const sheet = page.getByRole('dialog');
-    const sw = sheet.getByRole('group', { name: '深淺色' });
-    expect(await sw.getByRole('button').allTextContents()).toEqual(['深色', '淺色', '跟隨系統']);
-    // 第一列：在設定等選單項目之前
-    const order = await sheet.evaluate((el) => {
-      const a = el.querySelector('.theme-switch')!;
-      const b = el.querySelector('.menu-list')!;
-      return !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-    });
-    expect(order).toBe(true);
-    await sw.getByRole('button', { name: '淺色' }).click();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    expect(await page.evaluate(() => localStorage.getItem('tmf-theme'))).toBe('light');
-    expect(await page.locator('meta[name="theme-color"]').first().getAttribute('content')).toBe('#f4f4f6');
-    await sw.getByRole('button', { name: '跟隨系統' }).click();
-    await expect(page.locator('html')).not.toHaveAttribute('data-theme', /./);
+    expect(await page.locator('meta[name="theme-color"]').evaluateAll((ms) => ms.map((m) => (m as HTMLMetaElement).content))).toEqual(['#000000']);
+    await page.evaluate(() => localStorage.setItem('tmf-theme', 'light'));
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.getByRole('group', { name: '深淺色' })).toHaveCount(0);
   });
 
   test('第一次繪製前就套用（inline script，DOMContentLoaded 時已有 data-theme）', async ({ page }) => {
@@ -157,24 +144,25 @@ test.describe('M1-4 深淺色', () => {
       });
     });
     await page.goto('#/');
-    await page.evaluate(() => localStorage.setItem('tmf-theme', 'light'));
-    await page.reload();
-    expect(await page.evaluate(() => (window as unknown as { __themeAtDcl: string | null }).__themeAtDcl)).toBe('light');
+    expect(await page.evaluate(() => (window as unknown as { __themeAtDcl: string | null }).__themeAtDcl)).toBe('dark');
   });
 });
 
 test.describe('M1-5 個股頁期間', () => {
-  test('沒有分 K 檔時沒有 1D／1W、沒有 10Y；預設 1Y；主角數字下方有「當日漲跌＋資料日」與「所選期間」兩行', async ({ page }) => {
+  test('D3：期間 1D～ALL 一律顯示（沒有 10Y）；沒有分 K 檔時 1D 說明原因、主角數字仍是收盤價；預設 1Y；主角數字下方兩行', async ({ page }) => {
     await page.goto('#/stock/2330');
     const group = page.getByRole('group', { name: '股價走勢期間' }).first();
-    await expect(group.getByRole('button', { name: /^1D/ })).toHaveCount(0);
-    await expect(group.getByRole('button', { name: /^1Y/ })).toHaveAttribute('aria-pressed', 'true');
-    await expect(group.getByRole('button', { name: /^1W/ })).toHaveCount(0);
-    await expect(group.getByRole('button', { name: /^10Y/ })).toHaveCount(0);
-    const hero = page.locator('.sc').first();
-    await expect(hero.getByTestId('hero-change-date').first()).toHaveText(/^\d{4}\/\d{1,2}\/\d{1,2}$/);
-    await expect(hero.getByTestId('hero-period-change')).toContainText(/^1Y/);
-    await group.getByRole('button', { name: /^3M/ }).click();
-    await expect(hero.getByTestId('hero-period-change')).toContainText(/^3M/);
+    await expect(group.getByRole('button')).toHaveText(['1D', '1W', '1M', '3M', 'YTD', '1Y', '5Y', 'ALL']);
+    await expect(group.getByRole('button', { name: '1Y', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    const hero = page.getByTestId('stock-hero').first();
+    await expect(hero.getByTestId('hero-change-date').first()).toHaveText(/^\d{1,2}\/\d{1,2}$/);
+    await expect(hero.getByTestId('hero-period-change')).toContainText('近 1 年');
+    await group.getByRole('button', { name: '3M', exact: true }).click();
+    await expect(hero.getByTestId('hero-period-change')).toContainText('近 3 個月');
+    await page.waitForTimeout(700); // 主角數字滾動動畫（400ms）結束
+    const price = await hero.getByTestId('stock-price').textContent();
+    await group.getByRole('button', { name: '1D', exact: true }).click();
+    await expect(hero.locator('.chart-empty')).toContainText(/分鐘資料/);
+    await expect(hero.getByTestId('stock-price')).toHaveText(price!);
   });
 });

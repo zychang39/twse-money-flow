@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 from pipeline.core import config
-from pipeline.derive.export import clean, write_json
+from pipeline.derive.export import clean, write_json, write_json_split
 from pipeline.derive.extras import TAIEX_TR, build_prices, field_lookup, index_series, preset_signals
 
 WEEKLY_FIELDS = ("whale_pct", "whale_change", "whale400_pct")
@@ -52,9 +52,10 @@ def screen_days(ds: Any, p: Any, mp: Any, sc: dict[str, pd.DataFrame], out: Path
         prev = [_r(arrays[f][-2, i], 3) for f in fields]  # type: ignore[index]
         last = [_r(arrays[f][-1, i], 3) for f in fields]  # type: ignore[index]
         rows.append([p.codes[i], prev, last])
-    write_json(
+    write_json_split(
         out / "screen_days.json",
         {"dates": [p.dates[-2], p.dates[-1]], "fields": fields, "rows": rows, "weekly": weekly_asof(ds)},
+        ["rows"],
     )
     return {"screen_days_rows": len(rows)}
 

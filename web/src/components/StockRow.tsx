@@ -7,18 +7,21 @@ import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import type { StockHistory, StockRow } from '../data/types';
 import { adjClose } from '../lib/history';
-import { direction, fmtPrice } from '../lib/format';
+import { direction, fmtPrice, glueNumbers } from '../lib/format';
 import { tradeStatusLabel } from '../lib/tradeStatus';
 import { ChangePill } from './Change';
 import { Sparkline } from './Viz';
 
-/** RS 百分位（0–100）：清單列右側的小字，取代原本的綜合分小環。 */
+/** 副資訊文字：數字黏住單位；括號前允許換行、括號內第一個詞黏住後面（不出現行尾「（佔」） */
+const rowText = (t: string) => glueNumbers(t).replace(/（(\S+) /g, '\u200b（$1\u00a0');
+
+/** RS 百分位（0–100）：清單列右側的數字＋小進度條。 */
 function RsCell({ v }: { v: unknown }) {
   const n = typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : null;
   return (
-    <span class="srow-rs caption" aria-label={n === null ? 'RS 百分位無資料' : `RS 百分位 ${n}`}>
-      <span class="muted" aria-hidden="true">RS</span>
-      <span class="num" aria-hidden="true">{n === null ? '—' : n}</span>
+    <span class="srow-rs caption" role="img" aria-label={n === null ? 'RS 百分位無資料' : `RS 百分位 ${n}`}>
+      <span class="num" aria-hidden="true"><span class="muted">RS </span>{n === null ? '—' : n}</span>
+      <span class="srow-rs-bar" aria-hidden="true"><i style={{ transform: `scaleX(${n === null ? 0 : n / 100})` }} /></span>
     </span>
   );
 }
@@ -95,7 +98,7 @@ export function StockListRow({ code, row, hist, sub, onOpen, onPreview, actions 
   const spark = hist ? adjClose(hist).slice(-21) : null;
   const label = row ? `${row.name} ${code}，收盤 ${fmtPrice(row.close)}${ariaExtra ? `，${ariaExtra}` : ''}` : `${code}（無資料）`;
   return (
-    <div class="srow-wrap">
+    <div class={`srow-wrap ${dx !== 0 || dragging ? 'swiping' : ''}`}>
       {actions.length ? (
         <div class="srow-actions" aria-hidden={!open}>
           {actions.map((a) => (
@@ -103,16 +106,14 @@ export function StockListRow({ code, row, hist, sub, onOpen, onPreview, actions 
           ))}
         </div>
       ) : null}
-      <button class={`srow ${dragging ? 'dragging' : ''}`} style={{ transform: dx ? `translateX(${dx}px)` : undefined }}
+      <button class={`srow srow-l ${dragging ? 'dragging' : ''}`} style={{ transform: dx ? `translateX(${dx}px)` : undefined }}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
         onClick={click} onContextMenu={(e) => { e.preventDefault(); onPreview?.(); }}
         aria-haspopup={onPreview ? 'dialog' : undefined} aria-description={label}>
-        <span style={{ minWidth: 0 }}>
-          <span class="name body ellipsis" style={{ display: 'block' }}>{row?.name ?? code}</span>
-          <span class="sub">{code}{sub ? <>・{sub}</> : null}</span>
-        </span>
-        <Sparkline values={spark} dir={d} />
-        <span class="price">
+        <span class="name body srow-n">{row?.name ?? code}</span>
+        <span class="sub srow-s">{code}{sub ? <>・{typeof sub === 'string' ? rowText(sub) : sub}</> : null}</span>
+        <span class="srow-k"><Sparkline values={spark} dir={d} /></span>
+        <span class="price srow-p">
           <span class="body" style={{ display: 'block' }}>{row ? fmtPrice(row.close) : '—'}</span>
           <ChangePill change={row?.change} pct={row?.change_pct} status={tradeStatusLabel(row)} />
         </span>
@@ -127,8 +128,8 @@ export function StockMiniRow({ row, text, onOpen, risk }: { row: StockRow; text:
   return (
     <button class="srow" style={{ gridTemplateColumns: 'minmax(0,1fr) 5.5rem 2rem' }} onClick={onOpen}>
       <span style={{ minWidth: 0 }}>
-        <span class="name body ellipsis" style={{ display: 'block' }}>{row.name} <span class="caption muted">{row.code}</span></span>
-        <span class={`sub ${risk ? 'risk w6' : ''}`}>{text}</span>
+        <span class="name body" style={{ display: 'block' }}>{row.name} <span class="caption muted">{row.code}</span></span>
+        <span class={`sub ${risk ? 'risk w6' : ''}`}>{typeof text === 'string' ? rowText(text) : text}</span>
       </span>
       <span class="price"><span class="body" style={{ display: 'block' }}>{fmtPrice(row.close)}</span><ChangePill change={row.change} pct={row.change_pct} status={tradeStatusLabel(row)} /></span>
       <RsCell v={row.rs_percentile} />

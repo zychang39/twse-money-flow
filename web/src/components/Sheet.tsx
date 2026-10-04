@@ -1,5 +1,5 @@
 /**
- * 可拖曳的底部面板：半頁／全頁兩段高度（仿 iOS detents）。
+ * 可拖曳的底部面板（仿 iOS detents）：預設高度依內容（half＝依內容，最高到全高），可上拉到全高、下拉關閉。
  * - 拖曳頂部把手區切換高度，往下拖超過門檻或快速下滑即關閉；點背景、按 Esc 也會關閉。
  * - 只用 transform 位移，spring 緩動；減少動態效果時無動畫。
  */
@@ -26,6 +26,7 @@ export function Sheet({ open, onClose, title, children, detent = 'half', actions
   const [pos, setPos] = useState<Detent>(detent);
   const [drag, setDrag] = useState<number | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(0);
   const start = useRef<{ y: number; t: number; base: number } | null>(null);
   const lastFocus = useRef<HTMLElement | null>(null);
 
@@ -56,6 +57,26 @@ export function Sheet({ open, onClose, title, children, detent = 'half', actions
     };
   }, [mounted, open]);
 
+  // 依內容的高度：內容改變（例：展開「進階」）時重新計算
+  useLayoutEffect(() => {
+    const el = sheetRef.current;
+    if (!mounted || !el) return;
+    const measure = () => {
+      const head = el.querySelector<HTMLElement>('.sheet-head');
+      const inner = el.querySelector<HTMLElement>('.sheet-inner');
+      const body = el.querySelector<HTMLElement>('.sheet-body');
+      const pad = body ? parseFloat(getComputedStyle(body).paddingBottom) || 0 : 0;
+      const need = (head?.offsetHeight ?? 0) + (inner?.offsetHeight ?? 0) + pad;
+      setFit(Math.max(0, el.getBoundingClientRect().height - need));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    const inner = el.querySelector('.sheet-inner');
+    if (inner) ro.observe(inner);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [mounted]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -66,7 +87,8 @@ export function Sheet({ open, onClose, title, children, detent = 'half', actions
   if (!mounted) return null;
 
   const height = () => sheetRef.current?.getBoundingClientRect().height ?? window.innerHeight;
-  const halfOffset = () => height() * 0.42;
+  /** 依內容的高度：面板總高減去（把手區＋內容）高度；內容超過全高時為 0（＝全高） */
+  const halfOffset = () => fit;
   const baseOffset = () => (pos === 'full' ? 0 : halfOffset());
 
   function onDown(e: PointerEvent) {
@@ -100,7 +122,7 @@ export function Sheet({ open, onClose, title, children, detent = 'half', actions
     else setPos(at < halfOffset() / 2 ? 'full' : 'half');
   }
 
-  const offset = !shown ? '100%' : drag !== null ? `${Math.max(drag, -24)}px` : pos === 'full' ? '0px' : '42%';
+  const offset = !shown ? '100%' : drag !== null ? `${Math.max(drag, -24)}px` : pos === 'full' ? '0px' : `${fit}px`;
   // 2026-10 改版：導覽列是 sticky＋backdrop-filter（會成為 fixed 子元素的定位容器），面板一律掛到 body
   return createPortal((
     <>
@@ -117,7 +139,7 @@ export function Sheet({ open, onClose, title, children, detent = 'half', actions
             </div>
           </div>
         </div>
-        <div class="sheet-body">{children}</div>
+        <div class="sheet-body"><div class="sheet-inner">{children}</div></div>
       </div>
     </>), document.body
   );

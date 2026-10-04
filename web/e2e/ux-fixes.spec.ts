@@ -26,13 +26,13 @@ const box = async (page: Page, sel: string) => (await page.locator(sel).first().
 
 // ---------------------------------------------------------------- 1. 底部導覽
 test.describe('1. 底部導覽列', () => {
-  test('瀏覽器模式：5 個分頁在同一條膠囊內、搜尋在第 4 格，貼齊視窗底緣（safe-area 為 0，不另加 margin）', async ({ page }) => {
+  test('瀏覽器模式：5 個分頁在同一條浮動膠囊內、搜尋在第 4 格，離視窗底緣 8px（safe-area 為 0 時的下限）', async ({ page }) => {
     await page.goto('#/');
     const tab = await box(page, '.tabbar');
     const links = page.locator('.tabbar a');
     await expect(links).toHaveCount(5);
     await expect(links.nth(3)).toHaveAttribute('aria-label', '搜尋代號或名稱'); // 第 4 格：右手拇指最順手
-    expect(Math.round(tab.y + tab.height)).toBe(H);
+    expect(Math.round(tab.y + tab.height)).toBe(H - 8);
     await expect(page.locator('.search-btn, .search-float')).toHaveCount(0); // 舊的圓形按鈕與漂浮膠囊已移除
   });
 
@@ -91,7 +91,7 @@ test.describe('2. 搜尋頁', () => {
     const input = page.getByRole('searchbox', { name: '搜尋代號或名稱' });
     await expect(input).toBeFocused();
     const field = await box(page, '.search-field');
-    expect(field.y + field.height).toBeGreaterThan(H - 80);
+    expect(field.y + field.height).toBeGreaterThan(H - 96);
     const shadow = await page.locator('.search-field').evaluate((el) => getComputedStyle(el).boxShadow);
     expect(shadow).toContain('inset');
     // 搜尋是底部導覽的第 4 格：鍵盤收起時導覽列顯示在搜尋框下方、搜尋分頁為目前分頁
@@ -262,8 +262,9 @@ test.describe('4. 資料源異常的呈現', () => {
     await expect(page.locator('.meta-line').first()).toBeVisible();
     await expect(page.locator('a.meta-alert')).toHaveCount(0); // 今晚頁沒用到集保
     await page.goto('#/stock/2330');
-    // 2026-10 改版：個股頁只在異常時顯示一行橘色警示（.ui-warn）
-    const alert = page.getByText(/1 個資料源異常/);
+    // M3：個股頁只在異常時顯示資料落後提示（改版前樣式：橘色標題＋說明，可點進資料健康頁）
+    await expect(page.getByTestId('stock-stale')).toContainText(/1 個資料源異常/);
+    const alert = page.getByTestId('stock-stale').locator('.stale-lead');
     await expect(alert).toBeVisible();
     const [color, risk, brand] = await alert.evaluate((el) => {
       const probe = (v: string) => { const d = document.createElement('span'); d.style.color = `var(${v})`; document.body.appendChild(d); const c = getComputedStyle(d).color; d.remove(); return c; };

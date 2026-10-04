@@ -8,6 +8,7 @@ import { Card, EmptyRow, List, Num, PageTitle, Row, Section, Table } from '../co
 import { useAsync } from '../hooks';
 import { loadJson } from '../data/api';
 import { navigate } from '../router';
+import { PageStale } from '../components/DataStatus';
 
 interface Data {
   date: string;
@@ -66,6 +67,7 @@ export default function Disposition() {
         title="處置與注意"
         sub={data ? `資料至 ${md(data.date)}・處置中 ${data.disposition.length} 檔・近 10 日注意 ${noticed10} 檔` : '交易所公告'}
       />
+      <PageStale />
       {d.error ? <ErrorState error={d.error} /> : null}
       {d.loading ? <Loading /> : null}
       {data ? (

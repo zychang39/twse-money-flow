@@ -1,19 +1,24 @@
-/** 市場溫度（2026-10 改版）：資金指標、市場溫度、期貨與選擇權、市場寬度、三大法人、法人買超金額前 10。 */
+/**
+ * 市場溫度（M4：長度規則）：黏性分段「指標｜期貨｜寬度｜法人」（?seg=）。
+ * 指標＝資金指標＋市場溫度；期貨＝期貨與選擇權；寬度＝市場寬度；法人＝三大法人＋外資＋投信買超金額前 10。
+ */
 import { useMemo } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
 import { ErrorState, Loading } from '../components/DataStatus';
 import { BreadthList, FlowsCard, FuturesCard, LightsBasis, LightsList, ValidationNote } from '../components/Market';
-import { EmptyRow, List, PageTitle, Row, Section, Signed } from '../components/ui';
-import { useAsync } from '../hooks';
+import { EmptyRow, List, PageTitle, Row, Section, Seg, Signed } from '../components/ui';
+import { useAsync, useSegParam } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { loadMarket } from '../data/api';
 import { envConclusion, envCounts, envInfo } from '../lib/envState';
 import { setListContext } from '../lib/listContext';
 import { md } from '../lib/format';
+import { PageStale } from '../components/DataStatus';
 
 export default function MarketTemp() {
   const market = useAsync(loadMarket, []);
   const summary = useScoredSummary();
+  const [seg, setSeg] = useSegParam(['env', 'fut', 'breadth', 'flows'] as const, 'env', 'seg', 'market-temp');
   const m = market.data;
   const env = envInfo(m?.env?.lights);
   const conclusion = envConclusion(env, m?.env?.validation);
@@ -25,9 +30,15 @@ export default function MarketTemp() {
     <div class="page">
       <TopBar back="/explore" />
       <PageTitle title="市場溫度" sub={m ? `資料至 ${md(m.date)}・${envCounts(env)}${conclusion ? ` → ${conclusion}` : ''}` : undefined} />
+      <PageStale />
       {market.error ? <ErrorState error={market.error} /> : null}
       {market.loading ? <Loading /> : null}
       {m ? (
+        <div class="sk-seg">
+          <Seg options={[['env', '指標'], ['fut', '期貨'], ['breadth', '寬度'], ['flows', '法人']] as const} value={seg} onChange={setSeg} label="市場溫度分段" sticky testid="market-seg" />
+        </div>
+      ) : null}
+      {m && seg === 'env' ? (
         <>
           <Section title="資金指標" testid="env-lights" info={
             <>
@@ -50,7 +61,9 @@ export default function MarketTemp() {
               <LightsList lights={m.temperature.lights} />
             </Section>
           ) : null}
-
+        </>
+      ) : null}
+      {m && seg === 'fut' ? (
           <Section title="期貨與選擇權" info={
             <>
               <p>外資台指期淨未平倉：大台約當口數＝大台＋小台 ÷ 4＋微台 ÷ 20；正＝淨多、負＝淨空。</p>
@@ -61,7 +74,8 @@ export default function MarketTemp() {
           }>
             <FuturesCard market={m} />
           </Section>
-
+      ) : null}
+      {m && seg === 'breadth' ? (
           <Section title="市場寬度" info={
             <>
               <p>普通股（不含 ETF、ETN）。漲跌家數用官方漲跌（相對參考價）。</p>
@@ -71,7 +85,9 @@ export default function MarketTemp() {
           }>
             <BreadthList breadth={m.breadth} />
           </Section>
-
+      ) : null}
+      {m && seg === 'flows' ? (
+        <>
           <Section title="三大法人" info={
             <>
               <p>{m.flows_source ?? '三大法人買賣超金額（億元）'}</p>

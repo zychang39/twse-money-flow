@@ -171,3 +171,4 @@
 .ev-table.ev-static thead th, .has-bench .ev-table.ev-static thead th { position: static; top: auto; }
 .eq-note { margin-top: var(--s-2); }
 .eq-pill:disabled { opacity: 0.6; cursor: default; }
+.bt-coverage > * + * { margin-top: var(--s-3); } .bt-coverage { margin-top: var(--s-4); }

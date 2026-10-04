@@ -31,7 +31,7 @@ test('兩指：兩條垂直標線＋上方兩個日期、漲跌、報酬率、�
   await expect(tip).toBeVisible();
   await expect(page.locator('[data-testid="range-marks"] line')).toHaveCount(2);
   await expect(tip).toContainText(/\d+\/\d+ – [\d/]+・\d+ 個交易日/);
-  await expect(tip).toContainText(/[▲▼][\d,.]+.*[+−]?[\d.]+%/);
+  await expect(tip).toContainText(/[▲▼]\s?[\d,.]+.*[+−]?[\d.]+%/);
   const dateBefore = await page.getByTestId('hero-change-date').first().textContent();
   const first = await tip.textContent();
   const days1 = Number(first!.match(/(\d+) 個交易日/)![1]);
@@ -52,7 +52,7 @@ test('兩指：兩條垂直標線＋上方兩個日期、漲跌、報酬率、�
   await cdp.detach();
 });
 
-test('單指長按是十字線查價（沒有區間；2026-10 改版：長按 0.3 秒）', async ({ page }) => {
+test('單指長按是查價（沒有區間；M3：折線長按 0.2 秒，主角數字與日期跟著變）', async ({ page }) => {
   await page.goto('#/stock/2330');
   const b = await chartBox(page);
   const cdp = await page.context().newCDPSession(page);
@@ -61,8 +61,7 @@ test('單指長按是十字線查價（沒有區間；2026-10 改版：長按 0.
   await page.waitForTimeout(450);
   await touch(cdp, 'touchMove', [{ ...p, x: p.x + 3 }]);
   await page.waitForTimeout(80);
-  await expect(page.getByTestId('crosshair-tip')).toContainText(/\d{4}\/\d+\/\d+/);
-  await expect(page.getByTestId('crosshair-tip')).toContainText(/收 [\d,.]+/);
+  await expect(page.getByTestId('hero-change').first()).toContainText(/\d{4}\/\d+\/\d+/);
   await expect(page.getByTestId('range-tip')).toHaveCount(0);
   await touch(cdp, 'touchEnd', []);
   await cdp.detach();

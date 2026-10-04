@@ -760,6 +760,41 @@ def run_and_write(ev: EvData, out: Any = None, doc: Any = None) -> dict[str, Any
     rep = report.write(res, out, doc)
     if out is not None:
         rep["verdict_changes"] = notify_verdict_changes(res["rows"])
+        # M1.5：期間檢視（逐筆訊號、月度超額、各期間判定與組合、隨機分位帶、篩出與新觸發）
+        from pipeline.derive.export import write_json_split
+
+        listed_ids = {s["id"] for s in lib["strategies"] if s.get("enabled")}
+        from pipeline.evidence.periods import spark_rel
+
+        by_id = {s["id"]: s for s in lib["strategies"]}
+        for sid, pack in (jd.get("periods") or {}).items():
+            if sid not in listed_ids:
+                continue
+            # M5 策略庫列表：近 3 年相對 0050 的迷你折線
+            by_id[sid]["spark"] = spark_rel(pack)
+            sig = pack.pop("_signals", {})
+            write_json(out / "strategy" / f"{sid}.json", pack)
+            row_keys = [k for k, v in sig.items() if isinstance(v, list) and k != "exit_rules"]
+            write_json_split(out / "strategy" / f"{sid}-signals.json", sig, row_keys)
+        # M4 選股頁：各上架策略的「目前篩出＋觸發日、第 k 日、觸發以來報酬」與今日新觸發（不必載入整個期間檢視檔）
+        screen_rows = []
+        for s in lib["strategies"]:
+            pk = (jd.get("periods") or {}).get(s["id"])
+            if s["id"] not in listed_ids or not pk or "screen" not in pk:
+                continue
+            g = s.get("grade")
+            screen_rows.append(
+                {
+                    "id": s["id"],
+                    "label": s.get("label"),
+                    "subtitle": s.get("subtitle"),
+                    "grade": g.get("id") if isinstance(g, dict) else g,
+                    "limited": bool(s.get("limited")),
+                    "rank": s.get("rank"),
+                    **pk["screen"],
+                }
+            )
+        write_json(out / "screen.json", {"strategies": screen_rows})
         for sid, det in sw["details"].items():
             write_json(out / "evidence" / f"{sid}.json", det)
         rep["strategies_bytes"] = write_json(out / "strategies.json", lib)

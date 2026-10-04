@@ -6,8 +6,8 @@
  * - 1D／1W：個股 5 分 K（原始價、量為股 → 換成張）；1D＝最近一個交易日、1W＝最近 5 個交易日；虛線＝前收（1W 為第一天的前收）。
  * - 區間漲跌＝最後收盤 ÷ 基準 − 1；日 K 的基準＝區間第一根（區間開始前最後一個交易日）收盤，與 HeroChart 相同。
  */
-import type { LongHistory, StockHistory, StockIntraday } from '../data/types';
-import { LONG_PERIODS, WEEKLY_PERIODS, periodStart, weekKey, weeklyIndices, type Period } from './periods';
+import type { LongHistory, StockHistory, StockIntraday, StockIntradayIndex } from '../data/types';
+import { LONG_PERIODS, WEEKLY_PERIODS, periodStart, weekKey, weeklyIndices, type Period, type Window } from './periods';
 import type { RangeBasis } from './rangeReturn';
 
 type N = number | null;
@@ -26,7 +26,7 @@ export interface Bar {
   prev: N;
 }
 
-export type ChartKind = 'daily' | 'weekly' | 'close' | 'intraday';
+export type ChartKind = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'close' | 'intraday';
 
 export interface ChartSeries {
   kind: ChartKind;
@@ -46,6 +46,8 @@ export interface ChartSeries {
   truncated: boolean;
   /** 視窗實際涵蓋的交易日數與起日（週 K、週線取樣前） */
   span?: { days: number; since: string };
+  /** 月 K：這一天（含）以前沒有開高低，K 棒以收盤價合成 */
+  synthUntil?: string | null;
 }
 
 export const STOCK_CHART_PERIODS: Period[] = ['1D', '1W', '1M', '3M', 'YTD', '1Y', '5Y', 'ALL'];
@@ -69,8 +71,8 @@ export function maOver(values: N[], n: number): N[] {
   return out;
 }
 
-/** 週 K：同一 ISO 週合成一根。均線取每週最後一天。 */
-export function weeklyAggregate(bars: Bar[], ma20: N[], ma60: N[]): { bars: Bar[]; ma20: N[]; ma60: N[] } {
+/** 依 key 合成 K 棒（週、月、季）：開＝首根開、高低＝區間極值、收＝末根收、量＝合計；均線取每段最後一天。 */
+export function aggregateBars(bars: Bar[], ma20: N[], ma60: N[], keyOf: (t: string) => string): { bars: Bar[]; ma20: N[]; ma60: N[] } {
   const out: Bar[] = [];
   const m20: N[] = [];
   const m60: N[] = [];
@@ -78,7 +80,7 @@ export function weeklyAggregate(bars: Bar[], ma20: N[], ma60: N[]): { bars: Bar[
   let key = '';
   for (let i = 0; i < bars.length; i++) {
     const b = bars[i];
-    const k = weekKey(b.t.slice(0, 10));
+    const k = keyOf(b.t.slice(0, 10));
     if (!cur || k !== key) {
       if (cur) out.push(cur);
       cur = { ...b };
@@ -96,9 +98,14 @@ export function weeklyAggregate(bars: Bar[], ma20: N[], ma60: N[]): { bars: Bar[
     m60[m60.length - 1] = ma60[i] ?? null;
   }
   if (cur) out.push(cur);
-  // 週 K 的 prev＝前一週收盤
+  // 合成 K 的 prev＝前一根收盤
   for (let i = 0; i < out.length; i++) out[i].prev = i > 0 ? out[i - 1].c : out[i].prev;
   return { bars: out, ma20: m20, ma60: m60 };
+}
+
+/** 週 K：同一 ISO 週合成一根。均線取每週最後一天。 */
+export function weeklyAggregate(bars: Bar[], ma20: N[], ma60: N[]): { bars: Bar[]; ma20: N[]; ma60: N[] } {
+  return aggregateBars(bars, ma20, ma60, weekKey);
 }
 
 /** 日 K（或週 K、長歷史收盤）視窗。 */
@@ -215,7 +222,7 @@ export function adjDiffers(h: Pick<StockHistory, 'd' | 'af'>, period: Period): b
 }
 
 /** 個股檔最後兩個有收盤的交易日：「當日漲跌」一律用日資料（週 K、週線取樣的相鄰兩點相隔一週）。 */
-export function dailyChange(h: Pick<StockHistory, 'd' | 'c' | 'af'>, basis: RangeBasis): { abs: number; pct: number | null; date: string } | null {
+export function dailyChange(h: Pick<StockHistory, 'd' | 'c' | 'af'>, basis: RangeBasis): { abs: number; pct: number | null; date: string; close: number } | null {
   let i = h.c.length - 1;
   while (i >= 0 && !ok(h.c[i])) i--;
   let j = i - 1;
@@ -223,5 +230,99 @@ export function dailyChange(h: Pick<StockHistory, 'd' | 'c' | 'af'>, basis: Rang
   if (i < 0 || j < 0) return null;
   const f = (k: number) => (basis === 'adj' ? h.af[k] ?? 1 : 1);
   const a = (h.c[i] as number) * f(i), b = (h.c[j] as number) * f(j);
-  return { abs: a - b, pct: b ? ((a - b) / b) * 100 : null, date: h.d[i] };
+  return { abs: a - b, pct: b ? ((a - b) / b) * 100 : null, date: h.d[i], close: a };
+}
+
+/** 一張圖最多幾根 K 棒：實體至少 3px（D2）＋ 1px 間隔，370pt 寬約 80 根。 */
+export const MAX_K_BARS = 80;
+const monthKey = (iso: string) => iso.slice(0, 7);
+const quarterKey = (iso: string) => `${iso.slice(0, 4)}Q${Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1}`;
+
+/**
+ * K 線模式的視窗（D2）：1M／3M 日 K、YTD／1Y 週 K、5Y／ALL 月 K（超過 MAX_K_BARS 根改季 K）。
+ * 5Y／ALL 早於個股檔的部分用長歷史檔的收盤合成（開＝高＝低＝收），synthUntil 標出合成到哪一天。
+ */
+export function kSeries(h: Pick<StockHistory, 'd' | 'o' | 'h' | 'l' | 'c' | 'v' | 'af'>, period: Period, basis: RangeBasis, long?: LongHistory | null): ChartSeries | null {
+  if (period === '1M' || period === '3M') {
+    return dailySeries(h, period, basis, null);
+  }
+  if (period === 'YTD' || period === '1Y') {
+    const s = dailySeries(h, period, basis, null);
+    if (!s || s.kind !== 'daily') return s;
+    const w = weeklyAggregate(s.bars, s.ma20, s.ma60);
+    return { ...s, kind: 'weekly', bars: w.bars, ma20: w.ma20, ma60: w.ma60 };
+  }
+  // 5Y／ALL：長歷史（只有收盤）＋個股檔（開高低收量）接起來
+  const f = (a: (number | null)[], i: number) => (basis === 'adj' ? a[i] ?? 1 : 1);
+  const daily: Bar[] = [];
+  const first = h.d[0];
+  let synthUntil: string | null = null;
+  if (long && long.d.length && long.d[0] < first) {
+    for (let i = 0; i < long.d.length && long.d[i] < first; i++) {
+      const c = long.c[i];
+      if (!ok(c)) continue;
+      const v = c * f(long.af, i);
+      daily.push({ t: long.d[i], o: v, h: v, l: v, c: v, v: null, prev: null });
+      synthUntil = long.d[i];
+    }
+  }
+  for (let i = 0; i < h.d.length; i++) {
+    const c = h.c[i];
+    if (!ok(c)) continue;
+    const k = f(h.af, i);
+    const sc = (a: N[]) => (ok(a[i]) ? (a[i] as number) * k : null);
+    daily.push({ t: h.d[i], o: sc(h.o), h: sc(h.h), l: sc(h.l), c: c * k, v: ok(h.v[i]) ? h.v[i] : null, prev: null });
+  }
+  if (daily.length < 2) return null;
+  const closes = daily.map((b) => b.c);
+  const ma20 = maOver(closes, 20);
+  const ma60 = maOver(closes, 60);
+  const { start, truncated } = periodStart(daily.map((b) => b.t), period);
+  const win = daily.slice(start);
+  const base = win[0].c;
+  let agg = aggregateBars(win, ma20.slice(start), ma60.slice(start), monthKey);
+  let kind: ChartKind = 'monthly';
+  if (agg.bars.length > MAX_K_BARS) {
+    agg = aggregateBars(win, ma20.slice(start), ma60.slice(start), quarterKey);
+    kind = 'quarterly';
+  }
+  return {
+    kind, bars: agg.bars, base, baseLine: false, ma20: agg.ma20, ma60: agg.ma60, ohlc: true, hasVolume: agg.bars.some((b) => ok(b.v)),
+    dayStarts: [], truncated, span: { days: win.length, since: win[0].t }, synthUntil: synthUntil && synthUntil >= win[0].t ? synthUntil : null,
+  };
+}
+
+/**
+ * 折線模式（HeroChart）的視窗：點＝每根收盤；daily＝個股檔的完整日收盤（同一價格基準）給「當日漲跌」，
+ * 盤中（1D／1W）是原始價，daily 也用原始價；base＝盤中的前收（虛線與期間漲跌起點），日資料不設（以第一點為起點）。
+ */
+export function seriesWindow(s: ChartSeries, h: Pick<StockHistory, 'd' | 'c' | 'af'>, basis: RangeBasis): Window | null {
+  if (!s.bars.length) return null;
+  const adj = basis === 'adj' && s.kind !== 'intraday';
+  const dd: string[] = [];
+  const dv: number[] = [];
+  for (let i = 0; i < h.d.length; i++) {
+    const c = h.c[i];
+    if (!ok(c)) continue;
+    dd.push(h.d[i]);
+    dv.push(adj ? c * (h.af[i] ?? 1) : c);
+  }
+  return {
+    dates: s.bars.map((b) => b.t),
+    values: s.bars.map((b) => b.c),
+    truncated: s.truncated,
+    span: s.span,
+    daily: dd.length ? { dates: dd, values: dv } : undefined,
+    base: s.baseLine ? s.base : undefined,
+  };
+}
+
+const mdOf = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
+/** 1D／1W 沒有分 K 的原因（F 節：說明原因、不留白）：讀取失敗／累積中／當日沒有成交／來源未提供／尚未涵蓋。 */
+export function intradayReason(code: string, idx: StockIntradayIndex | null | undefined, failed: boolean): string {
+  if (failed) return '分鐘資料讀取失敗';
+  if (!idx) return '分鐘資料累積中';
+  if (idx.no_trade?.includes(code)) return `${mdOf(idx.date)} 沒有成交，沒有分鐘走勢`;
+  if (idx.missing?.includes(code)) return `${mdOf(idx.date)} 分鐘資料來源未提供這一檔`;
+  return '這一檔尚未涵蓋分鐘資料';
 }

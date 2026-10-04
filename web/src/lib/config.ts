@@ -68,8 +68,8 @@ export interface UiConfig {
     min_group_sample: number;
     recent_trades: number;
     stop_respected_tolerance_pct: number;
-    xp: Record<'brief' | 'entry' | 'review' | 'plan_exit' | 'weekly_review' | 'backup' | 'backtest_own', number>;
-    caps: { entry_per_day: number; review_per_day: number; plan_exit_per_day: number };
+    xp: Record<'brief' | 'screener' | 'term' | 'onboard' | 'entry' | 'review' | 'plan_exit' | 'weekly_review' | 'backup' | 'backtest_own', number>;
+    caps: { entry_per_day: number; review_per_day: number; plan_exit_per_day: number; term_per_day: number };
     level_base: number;
     level_max: number;
     badges: BadgeConfig[];

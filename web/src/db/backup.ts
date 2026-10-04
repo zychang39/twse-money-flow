@@ -32,6 +32,8 @@ export const EXPORT_MIGRATIONS: Record<number, ExportMigration> = {
     const out = migrateV5({ trades: (d.stores.trades ?? []) as Trade[], activity, portfolio }, cutoff);
     return { ...d, stores: { ...d.stores, trades: out.trades, activity: [...activity, ...out.addedActivity] } };
   },
+  // v6：自訂族群與內建族群的編輯（M4）；舊備份沒有
+  6: (d) => ({ ...d, stores: { ...d.stores, groups: d.stores.groups ?? [] } }),
 };
 
 export async function exportAll(): Promise<BackupFile> {
@@ -42,9 +44,9 @@ export async function exportAll(): Promise<BackupFile> {
 }
 
 /** 各 store 的主鍵（與 db.ts 的 keyPath 相同） */
-const KEY_PATH: Record<StoreName, string> = { watchlist: 'code', settings: 'key', screens: 'id', trades: 'id', activity: 'id', strategies: 'id', tracked: 'key' };
+const KEY_PATH: Record<StoreName, string> = { watchlist: 'code', settings: 'key', screens: 'id', trades: 'id', activity: 'id', strategies: 'id', tracked: 'key', groups: 'id' };
 /** 從哪個版本起一定有這個 store（v2 才有 activity） */
-const SINCE: Record<StoreName, number> = { watchlist: 0, settings: 0, screens: 0, trades: 0, activity: 2, strategies: 4, tracked: 4 };
+const SINCE: Record<StoreName, number> = { watchlist: 0, settings: 0, screens: 0, trades: 0, activity: 2, strategies: 4, tracked: 4, groups: 6 };
 
 /**
  * E-04：寫入任何資料之前先完整驗證。schemaVersion 必須是整數；該版本應有的 store 都要是陣列；

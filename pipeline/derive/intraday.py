@@ -132,39 +132,79 @@ def _bars(part: pd.DataFrame) -> list[list[Any]]:
     ]
 
 
-def kbar_files(store: Any, dates: list[str], close: pd.DataFrame, codes: set[str], out: Path) -> dict[str, Any]:
-    """dates：交易日（舊→新）；close：原始收盤寬表（index=date, columns=code），算各日前收；codes：有個股頁的代號。"""
+def kbar_files(
+    store: Any, dates: list[str], close: pd.DataFrame, codes: set[str], out: Path, volume: pd.DataFrame | None = None
+) -> dict[str, Any]:
+    """dates：交易日（舊→新）；close／volume：原始收盤與成交股數寬表（index=date, columns=code）；codes：有個股頁的代號。
+
+    每一檔有個股頁的股票都輸出 intraday/{code}.json（1D／1W 一律可切換）：
+    - 最近交易日當日無成交（成交股數 0 或沒有收盤）→ 該日 `no_trade: true`、bars 為空（前端畫前收水平線並註明「當日無成交」）。
+    - 有成交但資料源沒有 K 棒 → `missing: true`（資料健康頁列出；前端註明資料源缺漏）。
+    """
     have = [d for d in dates[-(DAYS + 5) :] if store.exists("yahoo_kbar", date.fromisoformat(d))]
     have = have[-DAYS:]
-    if not have:
-        return {"kbar_codes": 0}
     frames = []
     for d in have:
         df = store.read("yahoo_kbar", date.fromisoformat(d))
         if df is not None and not df.empty:
             frames.append(df.assign(code=df["code"].astype(str), time=df["time"].astype(str), date=d))
-    if not frames:
+    allk = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=["code", "time", "date"])
+    latest = dates[-1] if dates else None
+    if latest is None:
         return {"kbar_codes": 0}
-    allk = pd.concat(frames, ignore_index=True)
-    latest = have[-1]
-    covered = sorted(set(allk.loc[allk["date"] == latest, "code"]) & codes)
+    window = have if have else [latest]
+    if latest not in window:
+        window = [*window, latest][-DAYS:]
     pos = {d: i for i, d in enumerate(dates)}
-    by_code = {c: g for c, g in allk[allk["code"].isin(covered)].groupby("code")}
-    written = []
-    for code in covered:
-        g = by_code[code]
+    by_code = {c: g for c, g in allk[allk["code"].isin(codes)].groupby("code")} if len(allk) else {}
+    covered, no_trade, missing = [], [], []
+    for code in sorted(codes):
+        g = by_code.get(code)
         col = close[code] if code in close.columns else None
+        vol = volume[code] if volume is not None and code in volume.columns else None
         days = []
-        for d, part in g.groupby("date", sort=True):
-            i = pos.get(str(d))
+        for d in window:
+            i = pos.get(d)
             prev = None
             if col is not None and i:
                 before = col.iloc[:i].dropna()
                 prev = clean(float(before.iloc[-1]), 2) if len(before) else None
-            days.append({"date": str(d), "prev_close": prev, "bars": _bars(part)})
+            part = g[g["date"] == d] if g is not None else None
+            if part is not None and len(part):
+                days.append({"date": d, "prev_close": prev, "bars": _bars(part)})
+                continue
+            traded = True
+            if col is not None and i is not None:
+                v = vol.iloc[i] if vol is not None else None
+                traded = pd.notna(col.iloc[i]) and (v is None or (pd.notna(v) and float(v) > 0))
+            if not traded:
+                days.append({"date": d, "prev_close": prev, "bars": [], "no_trade": True})
+            elif d == latest or d in have:
+                days.append({"date": d, "prev_close": prev, "bars": [], "missing": True})
+        last_day = days[-1] if days else {}
+        if last_day.get("bars"):
+            covered.append(code)
+        elif last_day.get("no_trade"):
+            no_trade.append(code)
+        else:
+            missing.append(code)
         write_json(
             out / "intraday" / f"{code}.json", {"code": code, "date": latest, "source": KBAR_SOURCE, "days": days}
         )
-        written.append(code)
-    write_json(out / "intraday" / "index.json", {"date": latest, "source": KBAR_SOURCE, "codes": written})
-    return {"kbar_codes": len(written), "kbar_date": latest}
+    write_json(
+        out / "intraday" / "index.json",
+        {
+            "date": latest,
+            "source": KBAR_SOURCE,
+            "codes": covered,
+            "no_trade": no_trade,
+            "missing": missing,
+            "kbar_dates": have,
+        },
+    )
+    return {
+        "kbar_codes": len(covered),
+        "kbar_no_trade": len(no_trade),
+        "kbar_missing": len(missing),
+        "kbar_date": latest,
+    }

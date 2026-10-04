@@ -14,7 +14,7 @@ from pipeline.core import config
 from pipeline.core.normalize import is_common_stock, is_etf
 from pipeline.derive import backtest as bt
 from pipeline.derive import envhist
-from pipeline.derive.export import clean, text, write_json
+from pipeline.derive.export import clean, text, write_json, write_json_split
 
 log = logging.getLogger(__name__)
 
@@ -216,7 +216,7 @@ def custom_panel(
         },
     )
     blocked = np.argwhere(px.blocked[sl][:, ci])
-    write_json(
+    write_json_split(
         base / "prices.json",
         {
             "open": _round(px.open[sl][:, ci], 3),
@@ -226,6 +226,7 @@ def custom_panel(
             "tradable": [[1 if v else 0 for v in row] for row in px.tradable[sl][:, ci]],
             "blocked": blocked.tolist(),
         },
+        ["open", "high", "low", "close", "tradable"],
     )
     lookup = field_lookup(mp, sc)
     count = 0
@@ -233,7 +234,7 @@ def custom_panel(
         arr = lookup(field)
         if arr is None:
             continue
-        write_json(base / "f" / f"{field}.json", _round(arr[sl][:, ci], 2))
+        write_json_split(base / "f" / f"{field}.json", _round(arr[sl][:, ci], 2))
         count += 1
     return {"custom_universe": len(codes), "custom_days": len(dates), "custom_fields": count}
 
@@ -598,6 +599,28 @@ def market_breadth(p: Any, chg: pd.Series) -> dict[str, Any]:
     return out
 
 
+def breadth_history(p: Any, days: int = 120) -> dict[str, Any]:
+    """M2 簡報市場分段的迷你折線：最近 days 個交易日的站上 60 日線比例（%）與 52 週新高 − 新低家數（同 market_breadth 口徑）。"""
+    stocks = [c for c in p.codes if is_common_stock(c)]
+    adj = p.adj_close[stocks]
+    ma60 = adj.rolling(60, min_periods=1).mean()  # 與 market_breadth 同一口徑（最近 60 列的平均，略過缺值）
+    ok = adj.notna() & ma60.notna()
+    ok.iloc[:59] = False
+    above = ((adj > ma60) & ok).sum(axis=1) / ok.sum(axis=1).replace(0, np.nan) * 100
+    cnt = adj.notna().rolling(250, min_periods=1).sum()
+    elig = adj.notna() & (cnt >= 240)
+    hi = ((adj >= adj.rolling(250, min_periods=1).max()) & elig).sum(axis=1)
+    lo = ((adj <= adj.rolling(250, min_periods=1).min()) & elig).sum(axis=1)
+    net = (hi - lo).astype(float)
+    net.iloc[: min(len(net), 249)] = np.nan  # 前 249 日沒有完整 52 週視窗
+    tail = slice(max(0, len(p.dates) - days), len(p.dates))
+    return {
+        "dates": list(p.dates[tail]),
+        "above_ma60": [clean(v, 1) for v in above.iloc[tail]],
+        "net52": [None if pd.isna(v) else int(v) for v in net.iloc[tail]],
+    }
+
+
 def breadth_52w(adj: pd.DataFrame, window: int = 250, min_obs: int = 240) -> dict[str, Any]:
     """52 週新高／新低家數（2026-10 改版；METHODOLOGY「市場寬度」）。
 
@@ -691,6 +714,7 @@ def market_file(ds: Any, p: Any, mp: Any, out: Path) -> dict[str, Any]:
             "ma240": clean(taiex.rolling(240, min_periods=240).mean().iloc[-1], 2),
         },
         "breadth": market_breadth(p, chg),
+        "breadth_hist": breadth_history(p),
         "flows": flows,
         "flows_source": FLOWS_SOURCE,
         "turnover": turnover_series(p),
@@ -771,7 +795,7 @@ def kbar_files(ds: Any, p: Any, out: Path) -> dict[str, Any]:
     from pipeline.derive import intraday
 
     active = {c for c in p.codes if pd.notna(p.close[c].iloc[-20:]).any()}
-    return intraday.kbar_files(ds.store, list(p.dates), p.close, active, out)
+    return intraday.kbar_files(ds.store, list(p.dates), p.close, active, out, p.volume)
 
 
 def build_extras(ds: Any, p: Any, mp: Any, sc: Any, fv: Any, out: Path) -> dict[str, Any]:
