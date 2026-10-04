@@ -55,10 +55,14 @@ test.describe('1. 底部導覽列', () => {
       await expect(page.locator('.dock')).not.toHaveClass(/compact/, { timeout: 2000 }); // 停止捲動後導覽列恢復
       await page.waitForTimeout(450); // 高度轉場結束
       await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-      const pad = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.app')!).paddingBottom));
-      const dock = await box(page, '.dock');
+      // 第二次捲動若改變了位置會再觸發精簡型態：等導覽列恢復且高度轉場結束後再量（CI 曾量到縮小中的 72）
+      await expect(page.locator('.dock')).not.toHaveClass(/compact/, { timeout: 2000 });
       // 2026-10 改版：底部 padding＝分頁列高＋env(safe-area-inset-bottom)＋16（dock 高度＝分頁列＋safe-area）
-      expect(Math.round(pad)).toBe(Math.round(dock.height) + 16);
+      await expect.poll(async () => {
+        const pad = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.app')!).paddingBottom));
+        const dock = await box(page, '.dock');
+        return Math.round(pad) - Math.round(dock.height);
+      }, { timeout: 3000 }).toBe(16);
       const footer = await box(page, '.footer');
       const tab = await box(page, '.tabbar');
       expect(footer.y + footer.height).toBeLessThanOrEqual(tab.y + 0.5);

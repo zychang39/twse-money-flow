@@ -14,6 +14,22 @@ async function fixtures(page: Page) {
   for (const [u, f] of Object.entries(map)) await page.route(`**/data/${u}`, (r) => r.fulfill({ contentType: 'application/json', body: fx(f) }));
 }
 const scrollY = (page: Page) => page.evaluate(() => Math.round(window.scrollY));
+/** 記錄接下來 11 秒每個畫格的捲動位置與可捲高度（只留有變化的畫格） */
+const recordFrames = (page: Page) => page.evaluate(() => {
+  const w = window as unknown as { __frames: unknown[] };
+  w.__frames = [];
+  const t0 = performance.now();
+  let prev = '';
+  const f = () => {
+    const row = [Math.round(window.scrollY), document.documentElement.scrollHeight - window.innerHeight, location.hash.slice(0, 24)];
+    const k = JSON.stringify(row);
+    if (k !== prev) w.__frames.push([Math.round(performance.now() - t0), ...row]);
+    prev = k;
+    if (performance.now() - t0 < 11000) requestAnimationFrame(f);
+  };
+  requestAnimationFrame(f);
+});
+const frames = (page: Page) => page.evaluate(() => (window as unknown as { __frames: unknown[] }).__frames);
 async function scrollTo(page: Page, y: number) {
   await page.evaluate((v) => window.scrollTo(0, v), y);
   await page.waitForTimeout(300);
@@ -57,11 +73,18 @@ test('選股篩出 → 個股 → 返回：仍是篩出；策略績效（2024 �
   const y = await scrollY(page);
   await held.click();
   await expect(page).toHaveURL(/#\/stock\//);
+  await recordFrames(page);
   await page.goBack();
   await expect(page).toHaveURL(/seg=p/);
   await expect(page).toHaveURL(/p=year(%3A|:)2024/);
   await expect(page.getByTestId('bench-switch').getByRole('button', { name: '等權' })).toHaveAttribute('aria-pressed', 'true');
-  await expect.poll(() => scrollY(page)).toBeGreaterThan(y - 120);
+  try {
+    await expect.poll(() => scrollY(page), { timeout: 10000 }).toBeGreaterThan(y - 120);
+  } catch (e) {
+    // CI 偶發（本機重現不到）：印出返回後每個畫格的捲動位置與可捲高度，方便判斷是被夾住還是被移動
+    console.warn(`返回前 y=${y}；[ms, scrollY, maxScroll, hash]：`, JSON.stringify(await frames(page)));
+    throw e;
+  }
 });
 
 test('一天的流程：簡報市場 → 我的股票持股與異動 → 選股 → 流程頁顯示已完成的步驟；設定與備份可進出', async ({ page, request }) => {

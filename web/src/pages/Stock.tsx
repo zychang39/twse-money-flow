@@ -7,7 +7,7 @@
  * 1D／1W：個股 5 分 K。當日無成交（no_trade）、來源缺資料（missing）、尚未涵蓋（不在分 K 清單）各自說明原因，不留白（F 節）。
  */
 import type { ComponentChildren } from 'preact';
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
 import { Banner, ErrorState, Loading } from '../components/DataStatus';
 import { HeroChart } from '../components/HeroChart';
@@ -184,7 +184,8 @@ function StatusTags({ h, today, cal }: { h: StockHistory; today: string; cal: Re
 }
 
 export default function Stock({ code }: { code: string }) {
-  useEffect(() => trackStock(code), [code]);
+  // 同選股頁：用版面效果，很快離開也會記到
+  useLayoutEffect(() => trackStock(code), [code]);
   const hist = useStockData(code);
   const summary = useScoredSummary();
   const watched = useDb(() => isWatched(code), [code]);
