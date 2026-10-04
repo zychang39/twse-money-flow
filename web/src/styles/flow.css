@@ -1,12 +1,12 @@
 /*
  * 流程頁（components/Ritual.tsx、pages/Discipline.tsx）。數值全部取自 tokens.css。
- * 進度環與完成色用 --ring-1，軌道 --ring-track；動效只有環前進與步驟打勾一次（--dur-ring）；prefers-reduced-motion 時全部關閉。
+ * 單色：進度環、逐日小點與完成色用白色 --d-1，軌道深灰 --ring-track；動效只有環前進與步驟打勾一次（--dur-ring）；prefers-reduced-motion 時全部關閉。
  */
 /* ---------- 連續與逐日小點 ---------- */
 .flow-dots { margin-top: var(--s-3); }
 .flow-dots svg { display: block; width: 100%; height: var(--s-4); }
-.flow-dots .d-done { fill: var(--ring-1); }
-.flow-dots .d-grace { fill: none; stroke: var(--ring-1); stroke-width: 1.5; }
+.flow-dots .d-done { fill: var(--d-1); }
+.flow-dots .d-grace { fill: none; stroke: var(--d-1); stroke-width: 1.5; }
 .flow-dots .d-missed { fill: var(--text-2); opacity: 0.45; }
 .flow-dots .d-open { fill: none; stroke: var(--text-2); stroke-width: 1.5; }
 .flow-dots .d-na { fill: var(--ring-track); }
@@ -14,7 +14,7 @@
 
 /* ---------- 等級卡 ---------- */
 .flow-bar { height: var(--s-2); margin-top: var(--s-2); border-radius: var(--r-pill); background: var(--ring-track); overflow: hidden; }
-.flow-bar > i { display: block; height: 100%; width: 100%; background: var(--ring-1); border-radius: var(--r-pill); transform-origin: left; }
+.flow-bar > i { display: block; height: 100%; width: 100%; background: var(--d-1); border-radius: var(--r-pill); transform-origin: left; }
 
 /* ---------- 成就 ---------- */
 .flow-badge-ico { color: var(--text-2); }
@@ -47,8 +47,8 @@
 .flow-step-n { flex: none; width: var(--s-6); height: var(--s-6); margin-right: var(--s-2); overflow: visible; }
 .flow-step-n circle { fill: var(--ring-track); }
 .flow-step-n text { fill: var(--text-1); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.flow-step.done .flow-step-n circle { fill: var(--ring-1); }
-.flow-step-n .ck { fill: none; stroke: var(--on-brand); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 16; animation: flow-check var(--dur-ring) var(--ease-out) both; }
+.flow-step.done .flow-step-n circle { fill: var(--d-1); }
+.flow-step-n .ck { fill: none; stroke: var(--on-data); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 16; animation: flow-check var(--dur-ring) var(--ease-out) both; }
 @keyframes flow-check { from { stroke-dashoffset: 16; } to { stroke-dashoffset: 0; } }
 .flow-step-body { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
 .flow-step-t { display: flex; align-items: center; font-size: var(--fs-body); font-weight: var(--fw-semibold); line-height: var(--lh-body); }

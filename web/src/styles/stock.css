@@ -21,10 +21,11 @@
 .sc-axis { font-size: var(--fs-cap); fill: var(--text-2); font-variant-numeric: tabular-nums; }
 .sc-base { stroke: var(--text-2); stroke-width: 1; stroke-dasharray: 2 4; }
 .sc-line-path { fill: none; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
-.sc-ma20 { fill: none; stroke: var(--c-blue); stroke-width: 1.25; }
-.sc-ma60 { fill: none; stroke: var(--c-purple); stroke-width: 1.25; }
-/* D2：成交量依當根漲跌著色（淡）；查價中的那一根不透明 */
-.sc-vol { fill: var(--text-3); opacity: 0.55; }
+/* 單色：20 日線白色細實線、60 日線灰色虛線 */
+.sc-ma20 { fill: none; stroke: var(--d-1); stroke-width: 1; }
+.sc-ma60 { fill: none; stroke: var(--d-2); stroke-width: 1; stroke-dasharray: 4 3; }
+/* D2：成交量依當根漲跌紅綠、50% 不透明；查價中的那一根不透明 */
+.sc-vol { fill: var(--text-3); opacity: 0.5; }
 .sc-vol.up { fill: var(--up); }
 .sc-vol.down { fill: var(--down); }
 .sc-vol.cur { opacity: 1; }
@@ -45,8 +46,8 @@
 }
 .sc-fade { opacity: 0; }
 .sc-legend { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-2); white-space: nowrap; }
-.sc-key { display: inline-block; width: var(--s-4); height: 0; border-top: 2px solid var(--c-blue); }
-.sc-key.ma60 { border-top-color: var(--c-purple); }
+.sc-key { display: inline-block; width: var(--s-4); height: 0; border-top: 1px solid var(--d-1); }
+.sc-key.ma60 { border-top: 1px dashed var(--d-2); }
 .sc-key.base { border-top: 1px dashed var(--text-2); opacity: 1; }
 .sc-foot { margin-top: var(--s-2); }
 @media (prefers-reduced-motion: reduce) { .sc-tip { transition: none; } }

@@ -8,7 +8,7 @@ import type { IndexData, IntradayData, MarketData, MarketLight, Meta, TurnoverCe
 import { TAIEX } from '../data/types';
 import { Card, List, Num, Row, Section, Seg, Signed, Table, Tag } from './ui';
 import { Conclusion, Interp, LevelAxis, MiniLine, StaleNote, SummaryCard, Term } from './kit';
-import { BarSeries } from './SeriesChart';
+import { BarSeries, Swatch } from './SeriesChart';
 import { HeroChart } from './HeroChart';
 import { ASOF_LABEL, type AsofKey } from '../lib/asof';
 import { expectedDate, tpeNow } from '../lib/dataStatus';
@@ -244,9 +244,9 @@ export function MarketPane({ market, index }: { market: MarketData | null; index
         <Conclusion>{rows.every((r) => r.dev === null) ? '資料累積中' : above.length === 3 ? '站上 20／60／240 日線' : above.length ? `站上 ${above.join('／')} 日線` : '跌破 20／60／240 日線'}</Conclusion>
         <Card>
           <LevelAxis label="加權指數與均線" format={(x) => fmtNum(x, 0)} testid="trend-axis" levels={[
-            { name: '240 日', v: rows[2].ma, color: 'var(--c-purple)' },
-            { name: '60 日', v: rows[1].ma, color: 'var(--c-indigo)' },
-            { name: '20 日', v: rows[0].ma, color: 'var(--c-blue)' },
+            { name: '240 日', v: rows[2].ma, color: 'var(--d-3)' },
+            { name: '60 日', v: rows[1].ma, color: 'var(--d-2)' },
+            { name: '20 日', v: rows[0].ma, color: 'var(--d-1)' },
             { name: '現值', v: last, color: 'var(--text-1)', main: true },
           ]} />
           <Table testid="trend-table" rowKey={(r) => String(r.n)} cols={[
@@ -262,7 +262,7 @@ export function MarketPane({ market, index }: { market: MarketData | null; index
         <Conclusion><Term id="breadth">站上 60 日線</Term> <Num v={b?.above_ma60_pct ?? null} digits={1} unit="%" /></Conclusion>
         <Card>
           <div class="breadth-line">
-            <MiniLine values={recent?.v} w={320} h={56} base={50} color="var(--c-cyan)" testid="breadth-mini" />
+            <MiniLine values={recent?.v} w={320} h={56} base={50} color="var(--d-1)" testid="breadth-mini" />
           </div>
           <Interp>{recent && recent.v.length ? `近 60 日介於 ${fmtNum(Math.min(...recent.v.filter((x): x is number => x !== null)), 0)}%～${fmtNum(Math.max(...recent.v.filter((x): x is number => x !== null)), 0)}%（虛線 50%）` : '資料累積中'}</Interp>
           <List>
@@ -359,16 +359,16 @@ function TurnoverSection({ turnover }: { turnover: TurnoverDay[] | undefined }) 
         <Seg options={[['20', '20 日'], ['60', '60 日']] as const} value={win} onChange={setWin} label="成交金額區間" small testid="turnover-win" />
         <BarSeries testid="turnover-bars" label={`近 ${recent.length} 日成交金額（上市＋上櫃，億元）`} dates={recent.map((t) => t.date)} height={160}
           stacks={[
-            { id: 'twse', name: '上市', color: 'var(--c-blue)', values: recent.map((t) => t.twse.value) },
-            { id: 'tpex', name: '上櫃', color: 'var(--c-cyan)', values: recent.map((t) => t.tpex.value) },
+            { id: 'twse', name: '上市', color: 'var(--d-80)', values: recent.map((t) => t.twse.value) },
+            { id: 'tpex', name: '上櫃', color: 'var(--d-3)', values: recent.map((t) => t.tpex.value) },
           ]}
-          line={{ name: '20 日均線', color: 'var(--c-purple)', values: ma }}
+          line={{ name: '20 日均線', color: 'var(--d-2)', values: ma, dash: 'dash' }}
           format={(v) => fmtNum(v, 0)}
           readout={(i) => (
             <>
               <span class="sc2-r-item">合計 {yi(recent[i].total.value ?? 0)}</span>
-              <span class="sc2-r-item"><i style={{ background: 'var(--c-blue)' }} />上市 {yi(recent[i].twse.value ?? 0)}</span>
-              <span class="sc2-r-item"><i style={{ background: 'var(--c-cyan)' }} />上櫃 {yi(recent[i].tpex.value ?? 0)}</span>
+              <span class="sc2-r-item"><Swatch color="var(--d-80)" kind="bar" />上市 {yi(recent[i].twse.value ?? 0)}</span>
+              <span class="sc2-r-item"><Swatch color="var(--d-3)" kind="bar" />上櫃 {yi(recent[i].tpex.value ?? 0)}</span>
               <span class="sc2-r-item">倍數 {fmtNum(ratio(recent[i].total) ?? 0, 2)}</span>
             </>
           )} />

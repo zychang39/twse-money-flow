@@ -84,7 +84,7 @@ export function AlphaCurve({ line, label, n }: { line: CurveLine; label: string;
             </g>
           );
         })() : null}
-        {k !== null ? <line x1={sx(k - 1)} x2={sx(k - 1)} y1={padT} y2={H - padB} stroke="var(--brand)" stroke-width="1" /> : null}
+        {k !== null ? <line x1={sx(k - 1)} x2={sx(k - 1)} y1={padT} y2={H - padB} stroke="var(--text-2)" stroke-width="1" /> : null}
         {xTicks.map((d) => (
           <text key={d} x={sx(d - 1)} y={H - 4} font-size="12" text-anchor={d === 1 ? 'start' : d === K ? 'end' : 'middle'} fill="var(--text-2)">{d}</text>
         ))}

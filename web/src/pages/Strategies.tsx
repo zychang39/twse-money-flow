@@ -58,7 +58,7 @@ function ListRow({ s, fresh }: { s: StrategyItem; fresh: number | null }) {
       <span class="stl-r">
         {sp && sp.length >= 2 ? (
           <span class="stl-spark" aria-label={`近 3 年相對 0050 ${fin(last) ? `${last > 0 ? '+' : last < 0 ? '−' : ''}${Math.abs(last).toFixed(0)}%` : ''}`} role="img">
-            <MiniLine values={sp} base={0} w={64} h={24} color={fin(last) && last >= 0 ? 'var(--up)' : 'var(--down)'} />
+            <MiniLine values={sp} base={0} w={64} h={24} color="var(--d-1)" />
           </span>
         ) : null}
         {fresh !== null ? <span class={`stl-new ui-foot ${fresh ? '' : 'ui-muted'}`}>新觸發 {fresh}</span> : null}

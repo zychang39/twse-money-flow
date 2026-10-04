@@ -6,7 +6,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Card, CardLabel, EmptyRow, List, Num, Row, Section, Seg, Signed, Table } from '../ui';
 import { Conclusion, Interp, Term } from '../kit';
-import { SeriesChart, type Series } from '../SeriesChart';
+import { MONO, SeriesChart, type Series } from '../SeriesChart';
 import { useAsync, useSegParam } from '../../hooks';
 import { useScoredSummary } from '../../data/useSummary';
 import { loadJson } from '../../data/api';
@@ -15,14 +15,15 @@ import { BENCH_LABEL } from '../../lib/bench';
 import type { StrategiesFile, StrategyItem } from '../../lib/strategies';
 import { type Signals, excessOf, extremes, histogram, periodLabel, signalIdx } from '../../lib/strategyView';
 import { setListContext } from '../../lib/listContext';
-import { SERIES_COLOR, rel } from './Perf';
+import { rel } from './Perf';
 import { EDGE_TEXT } from '../../lib/curve';
 
 const fin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const sgn = (v: number, d = 2) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(d)}%`;
 const md = (iso: string) => `${iso.slice(2, 4)}/${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
 const BENCHES: BenchKey[] = ['ew', '0050', 'tr', '00631L'];
-const RECENT = ['var(--c-blue)', 'var(--c-cyan)', 'var(--c-purple)'];
+/** 最近三年由舊到新：深灰點線、淺灰虛線、白色實線；更早的年份最淡的細線 */
+const RECENT: Pick<Series, 'color' | 'dash'>[] = [{ color: MONO.other, dash: 'dot' }, { color: MONO.bench, dash: 'dash' }, { color: MONO.main }];
 
 function Curves({ pack, period, bench }: { pack: StrategyPack; period: string; bench: BenchKey }) {
   const [ev, setEv] = useSegParam<'all' | 'year'>(['all', 'year'] as const, 'all', 'ev');
@@ -55,8 +56,8 @@ function Curves({ pack, period, bench }: { pack: StrategyPack; period: string; b
         line ? (
           <SeriesChart
             dates={dates}
-            series={[{ id: bench, name: BENCH_LABEL[bench], color: SERIES_COLOR[bench], values: line.mean, main: true }]}
-            band={{ lo: line.lo, hi: line.hi, color: SERIES_COLOR[bench], name: '95% 區間' }}
+            series={[{ id: bench, name: BENCH_LABEL[bench], color: MONO.main, values: line.mean, main: true }]}
+            band={{ lo: line.lo, hi: line.hi, color: MONO.band, name: '95% 區間' }}
             axisExtra={extraAll}
             zero
             axisKey={`ev:${period}`}
@@ -77,7 +78,7 @@ function Curves({ pack, period, bench }: { pack: StrategyPack; period: string; b
             dates={dates}
             series={years.map((y): Series => {
               const k = recent.indexOf(y);
-              return { id: y, name: y, color: k >= 0 ? RECENT[k] : 'var(--text-3)', values: pack.periods[`year:${y}`]?.curve?.[bench]?.mean ?? [], thin: k < 0, noLegend: true, noEnd: k < 0 };
+              return { id: y, name: y, ...(k >= 0 ? RECENT[k + 3 - recent.length] : { color: MONO.faint }), values: pack.periods[`year:${y}`]?.curve?.[bench]?.mean ?? [], thin: k < 0, noLegend: true, noEnd: k < 0 };
             })}
             focus={focusYear}
             axisExtra={extraYears}
@@ -150,8 +151,7 @@ function Histo({ vals, bench }: { vals: number[]; bench: BenchKey }) {
     <div ref={ref} class="st-hist" data-testid="st-hist">
       <svg width={w} height={H} viewBox={`0 0 ${w} ${H}`} role="img" aria-label={`40 日超額分布（${rel(bench)}）：${h.n} 筆，平均 ${fin(h.mean) ? sgn(h.mean) : '無資料'}，中位數 ${fin(h.median) ? sgn(h.median) : '無資料'}`}>
         {h.counts.map((c, i) => {
-          const mid = h.lo + (i + 0.5) * h.width;
-          return <rect key={i} x={i * bw + 0.5} y={y(c)} width={Math.max(1, bw - 1)} height={H - bottom - y(c)} rx={1.5} fill={mid >= 0 ? 'var(--up)' : 'var(--down)'} opacity={0.75} />;
+          return <rect key={i} x={i * bw + 0.5} y={y(c)} width={Math.max(1, bw - 1)} height={H - bottom - y(c)} rx={1.5} fill={MONO.other} />;
         })}
         {fin(0) && 0 >= h.lo && 0 <= h.lo + h.width * k ? <line class="sc2-zero" x1={x(0)} x2={x(0)} y1={top} y2={H - bottom} /> : null}
         {marks.map((m, j) => {

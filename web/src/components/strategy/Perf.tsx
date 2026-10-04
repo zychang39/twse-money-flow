@@ -6,7 +6,7 @@
 import { useMemo, useState } from 'preact/hooks';
 import { Card, List, Num, Row, Section, Seg, Signed, Table, StatGrid, Tag } from '../ui';
 import { Conclusion, DivergingBar, Interp, RangeBar, Term } from '../kit';
-import { BarChart, SeriesChart, type Series } from '../SeriesChart';
+import { BarChart, MONO, SeriesChart, type Series } from '../SeriesChart';
 import { useSegParam } from '../../hooks';
 import { navigate, useRoute } from '../../router';
 import { useScoredSummary } from '../../data/useSummary';
@@ -23,7 +23,16 @@ const times = (v: number) => (v >= 10 ? `${v.toFixed(0)} 倍` : `${v.toFixed(2)}
 export const rel = (b: BenchKey) => (b === '0050' || b === '00631L' ? `相對 ${BENCH_LABEL[b]}` : `相對${BENCH_LABEL[b]}`);
 const sgn = (v: number, d = 1) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(d)}%`;
 
-export const SERIES_COLOR = { port: 'var(--text-1)', '0050': 'var(--c-blue)', tr: 'var(--c-cyan)', '00631L': 'var(--c-purple)', ew: 'var(--c-indigo)' } as const;
+/**
+ * 單色序列樣式（2026-10-04）：5 檔組合＝白色加粗帶柔光；所選基準＝淺灰實線；其餘基準＝深灰，用虛線、點線區分。
+ * 靠線尾名稱、點線突顯、長按單獨顯示辨識，不靠顏色。
+ */
+export const PORT_COLOR = MONO.main;
+const OTHER_DASH: Record<PortBenchKey, 'dash' | 'dot'> = { '0050': 'dash', tr: 'dot', '00631L': 'dash' };
+type PortBenchKey = 'tr' | '0050' | '00631L';
+export function benchStyle(k: PortBenchKey, selected: PortBenchKey): Pick<Series, 'color' | 'dash'> {
+  return k === selected ? { color: MONO.bench } : { color: MONO.other, dash: OTHER_DASH[k] };
+}
 
 /** 校正後 t＋門檻刻度條（0～5；門檻以刻度標出） */
 function TCell({ t, thr, label }: { t: number | null | undefined; thr: number; label: string }) {
@@ -31,7 +40,7 @@ function TCell({ t, thr, label }: { t: number | null | undefined; thr: number; l
     <span class="st-tcell">
       <span class="ui-num">{fin(t) ? t.toFixed(2) : '—'}</span>
       <RangeBar low={-1} high={5} label={`${label} 校正後 t ${fin(t) ? t.toFixed(2) : '無資料'}，門檻 ${thr.toFixed(1)}`}
-        markers={[{ v: thr, kind: 'tick', color: 'var(--text-2)' }, ...(fin(t) ? [{ v: Math.max(-1, Math.min(5, t)), color: t >= thr ? 'var(--brand)' : 'var(--text-2)' }] : [])]} />
+        markers={[{ v: thr, kind: 'tick', color: 'var(--text-2)' }, ...(fin(t) ? [{ v: Math.max(-1, Math.min(5, t)), color: t >= thr ? MONO.main : MONO.other }] : [])]} />
     </span>
   );
 }
@@ -78,7 +87,7 @@ export function JudgeCard({ s, opp, sig, period }: { s: StrategyItem; opp: CardB
   );
 }
 
-function Cumulative({ pack, period, slots }: { pack: StrategyPack; period: string; slots: number }) {
+function Cumulative({ pack, period, slots, bench }: { pack: StrategyPack; period: string; slots: number; bench: BenchKey }) {
   const v = pack.periods[period];
   const w = v.weekly;
   const [log, setLog] = useState(true);
@@ -93,12 +102,13 @@ function Cumulative({ pack, period, slots }: { pack: StrategyPack; period: strin
   }, [pack]);
   if (!w || w.dates.length < 2) return <Interp>這個期間沒有週權益序列</Interp>;
   const band = v.random.band;
+  const sel = portBench(bench);
   const series: Series[] = [
-    { id: 'port', name: `${slots} 檔`, color: SERIES_COLOR.port, values: w.port, main: true },
-    { id: '0050', name: '0050', color: SERIES_COLOR['0050'], values: w['0050'] ?? [] },
-    { id: 'tr', name: '加權報酬', color: SERIES_COLOR.tr, values: w.tr ?? [] },
-    { id: '00631L', name: '00631L', color: SERIES_COLOR['00631L'], values: w['00631L'] ?? [] },
-    ...(band ? [{ id: 'rnd', name: '隨機中位數', color: 'var(--text-2)', values: band.p50, thin: true, noLegend: true }] : []),
+    { id: 'port', name: `${slots} 檔`, color: PORT_COLOR, values: w.port, main: true },
+    { id: '0050', name: '0050', ...benchStyle('0050', sel), values: w['0050'] ?? [] },
+    { id: 'tr', name: '加權報酬', ...benchStyle('tr', sel), values: w.tr ?? [] },
+    { id: '00631L', name: '00631L', ...benchStyle('00631L', sel), values: w['00631L'] ?? [] },
+    ...(band ? [{ id: 'rnd', name: '隨機中位數', color: MONO.faint, values: band.p50, thin: true, noLegend: true }] : []),
   ];
   const name = (c: string) => (summary.data?.byCode.get(c)?.name as string | undefined) ?? c;
   const holdAt = (i: number) => heldBy.get(w.dates[i]) ?? [];
@@ -114,7 +124,7 @@ function Cumulative({ pack, period, slots }: { pack: StrategyPack; period: strin
       <SeriesChart
         dates={w.dates}
         series={series}
-        band={band ? { lo: band.p5, hi: band.p95, color: 'var(--text-2)', name: '隨機 5–95%' } : undefined}
+        band={band ? { lo: band.p5, hi: band.p95, color: MONO.band, name: '隨機 5–95%' } : undefined}
         log={log}
         axisKey={`${period}:${log}`}
         height={240}
@@ -131,7 +141,7 @@ function Cumulative({ pack, period, slots }: { pack: StrategyPack; period: strin
       {w.drawdown ? (
         <SeriesChart
           dates={w.dates}
-          series={[{ id: 'dd', name: '回撤', color: 'var(--risk)', values: w.drawdown }]}
+          series={[{ id: 'dd', name: '回撤', color: MONO.bench, values: w.drawdown }]}
           axisKey={`${period}:dd`}
           height={96}
           zero
@@ -167,8 +177,8 @@ function Yearly({ pack, period, bench, slots, onYear }: { pack: StrategyPack; pe
       <BarChart
         labels={rows.map((r) => r.year)}
         series={[
-          { id: 'port', name: `${slots} 檔`, color: SERIES_COLOR.port, values: rows.map((r) => r.port) },
-          { id: b, name: bl, color: SERIES_COLOR[b], values: rows.map((r) => r.bench[b] ?? null) },
+          { id: 'port', name: `${slots} 檔`, color: MONO.main, values: rows.map((r) => r.port) },
+          { id: b, name: bl, color: MONO.other, values: rows.map((r) => r.bench[b] ?? null) },
         ]}
         format={(x) => `${x.toFixed(0)}%`}
         label={`逐年報酬：${slots} 檔組合與 ${bl}（點一年＝只看該年）`}
@@ -208,7 +218,7 @@ function StatsSection({ pack, period, bench, slots }: { pack: StrategyPack; peri
                   band={r && fin(r.p5) && fin(r.p95) ? [r.p5, r.p95] : undefined}
                   markers={[
                     ...(r && fin(r.p50) ? [{ v: r.p50, kind: 'tick' as const, color: 'var(--text-2)' }] : []),
-                    ...(fin(q) ? [{ v: q, color: SERIES_COLOR[b] }] : []),
+                    ...(fin(q) ? [{ v: q, color: MONO.other }] : []),
                     ...(fin(p) ? [{ v: p, color: 'var(--text-1)' }] : []),
                   ]}
                   label={`${it.name}：${slots} 檔 ${fin(p) ? it.f(p) : '無資料'}、${BENCH_LABEL[b]} ${fin(q) ? it.f(q) : '無資料'}、隨機 5–95% ${r && fin(r.p5) && fin(r.p95) ? `${it.f(r.p5)}～${it.f(r.p95)}` : '無資料'}`} />
@@ -217,8 +227,8 @@ function StatsSection({ pack, period, bench, slots }: { pack: StrategyPack; peri
           );
         })}
         <p class="ui-foot ui-muted st-srow-legend" data-audit-skip="">
-          <span><i class="st-dot" style={{ background: 'var(--text-1)' }} />{slots} 檔</span>
-          <span><i class="st-dot" style={{ background: SERIES_COLOR[b] }} />{BENCH_LABEL[b]}</span>
+          <span><i class="st-dot" style={{ background: MONO.main }} />{slots} 檔</span>
+          <span><i class="st-dot" style={{ background: MONO.other }} />{BENCH_LABEL[b]}</span>
           <span><i class="st-bandkey" /><Term id="random_band">隨機 5–95%</Term>・刻度＝中位數</span>
         </p>
       </Card>
@@ -284,8 +294,8 @@ function Rolling({ pack, period, bench }: { pack: StrategyPack; period: string; 
       <Conclusion>{fin(last) ? `最近 3 年月均超額 ${sgn(last, 2)}` : '滾動 3 年'}</Conclusion>
       <SeriesChart
         dates={months}
-        series={[{ id: bench, name: BENCH_LABEL[bench], color: SERIES_COLOR[bench], values: line.mean }]}
-        band={{ lo: line.lo, hi: line.hi, color: SERIES_COLOR[bench], name: '95% 區間' }}
+        series={[{ id: bench, name: BENCH_LABEL[bench], color: MONO.main, values: line.mean, main: true }]}
+        band={{ lo: line.lo, hi: line.hi, color: MONO.band, name: '95% 區間' }}
         axisExtra={extra}
         zero
         axisKey="rolling"
@@ -321,7 +331,7 @@ export function PerfPane({ s, pack, period, bench }: { s: StrategyItem; pack: St
       <JudgeCard s={s} opp={cards.opp} sig={cards.sig} period={period} />
       <Section title={`${slots} 檔組合`} aside={`${periodLabel(period)}・${v.from.slice(0, 4)}–${v.to.slice(0, 4)}`} testid="st-portfolio">
         <Seg options={[['cum', '累積'], ['year', '逐年']] as const} value={pv} onChange={setPv} label="累積或逐年" small testid="perf-view" />
-        {pv === 'cum' ? <Cumulative pack={pack} period={period} slots={slots} />
+        {pv === 'cum' ? <Cumulative pack={pack} period={period} slots={slots} bench={bench} />
           : <Yearly pack={pack} period={period} bench={bench} slots={slots} onYear={onYear} />}
       </Section>
       <StatsSection pack={pack} period={period} bench={bench} slots={slots} />

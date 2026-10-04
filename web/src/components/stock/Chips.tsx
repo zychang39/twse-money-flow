@@ -146,7 +146,7 @@ export function ChipsPane({ h, asof }: { h: StockHistory; asof: (d: string | nul
         {win.length >= 2 ? (
           <>
             <SeriesChart dates={win.map((r) => r.date)} axisKey={`mb${n}`} height={120} label={`近 ${win.length} 日融資餘額（張）`} testid="margin-chart" format={(v) => fmtNum(v, 0)} dateFormat={dfmt}
-              series={[{ id: 'mb', name: '融資餘額', color: 'var(--c-blue)', values: win.map((r) => r.marginBal), main: true }]} />
+              series={[{ id: 'mb', name: '融資餘額', color: 'var(--d-1)', values: win.map((r) => r.marginBal), main: true }]} />
             <div class="ui-card">
               <Table testid="credit-daily" caption={`近 ${win.length} 日信用與借券當沖（張）`} rowKey={(r) => r.date} rows={credRowsShown} sticky={credRowsShown.length >= 10}
                 selectedKey={pick} onRow={(r) => setPick(pick === r.date ? null : r.date)} cols={[
@@ -171,11 +171,11 @@ export function ChipsPane({ h, asof }: { h: StockHistory; asof: (d: string | nul
         <div class="mom-cards">
           <SummaryCard title="外資持股比" href={`#/stock/${h.code}/c/qfii`} testid="sec-qfii"
             conclusion={<>{ok(fh.pct) ? fmtNum(fh.pct, 2) : '—'}<span class="key-unit">%</span></>}
-            graphic={qfii.length >= 2 ? <MiniLine values={qfii.slice(-120)} w={300} h={36} color="var(--c-cyan)" /> : null}
+            graphic={qfii.length >= 2 ? <MiniLine values={qfii.slice(-120)} w={300} h={36} color="var(--d-1)" /> : null}
             interp={ok(fh.change20) ? `20 日 ${sgn(fh.change20, 2)} 個百分點・資料日 ${md(fh.date)}` : null} />
           <SummaryCard title="股權分散" href={`#/stock/${h.code}/holders`} testid="sec-holders"
             conclusion={hf && ok(whaleTier?.pct) ? <>千張大戶 {fmtNum(whaleTier!.pct as number, 2)}<span class="key-unit">%</span></> : '資料累積中'}
-            graphic={whale.length >= 2 ? <MiniLine values={whale.slice(-120)} w={300} h={36} color="var(--c-indigo)" /> : null}
+            graphic={whale.length >= 2 ? <MiniLine values={whale.slice(-120)} w={300} h={36} color="var(--d-1)" /> : null}
             interp={hf ? `${whI.text ?? ''}・資料日 ${md(hf.date)}` : null} />
           <SummaryCard title="主動式 ETF" href={`#/stock/${h.code}/c/etf`} testid="sec-active-etf"
             conclusion={etf ? <>{etf.count}<span class="key-unit"> 檔持有</span></> : '沒有持有'}
@@ -220,7 +220,7 @@ export function ChipDetail({ h, card }: { h: StockHistory; card: ChipCard }) {
       <Conclusion>{ok(fh.pct) ? `${fmtNum(fh.pct, 2)}%` : '—'}{ok(fh.change20) ? `・20 日 ${sgn(fh.change20, 2)} 個百分點` : ''}</Conclusion>
       {n >= 2 ? (
         <SeriesChart dates={h.d.slice(-n)} axisKey="qfii" height={180} label="近 250 日外資持股比" testid="qfii-chart" format={(v) => `${fmtNum(v, 2)}%`} dateFormat={dfmt}
-          series={[{ id: 'q', name: '外資持股比', color: 'var(--c-cyan)', values: q.slice(-n), main: true }]} />
+          series={[{ id: 'q', name: '外資持股比', color: 'var(--d-1)', values: q.slice(-n), main: true }]} />
       ) : <List><EmptyRow>資料累積中</EmptyRow></List>}
     </Section>
   );

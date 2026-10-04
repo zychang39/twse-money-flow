@@ -90,7 +90,7 @@ function ProgressRing({ done, total, label }: { done: number; total: number; lab
     <span class="flow-pring" role="img" aria-label={label} data-testid="flow-ring">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--ring-track)" stroke-width={stroke} />
-        <circle class="flow-pring-arc" cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--ring-1)" stroke-width={stroke} stroke-linecap="round"
+        <circle class="flow-pring-arc" cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--d-1)" stroke-width={stroke} stroke-linecap="round"
           stroke-dasharray={`${c} ${c}`} style={{ strokeDashoffset: on ? c * (1 - v) : c }} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
       </svg>
       <span class="flow-pring-t" data-audit-skip="">{done}<span class="ui-muted">/{total}</span></span>

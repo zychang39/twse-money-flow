@@ -143,7 +143,7 @@ export function FundamentalPanel({ h, asof }: { h: StockHistory; asof: (d: strin
         {pe.filter((v) => v !== null).length >= 2 ? (
           <SeriesChart dates={h.d.slice(-n750)} axisKey="pe" height={140} label="近 3 年本益比" testid="pe-chart" format={(v) => fmtNum(v, 1)}
             dateFormat={(d) => `${d.slice(2, 4)}/${Number(d.slice(5, 7))}`}
-            series={[{ id: 'pe', name: '本益比', color: 'var(--c-purple)', values: pe, main: true }]} />
+            series={[{ id: 'pe', name: '本益比', color: 'var(--d-1)', values: pe, main: true }]} />
         ) : null}
         <List>
           <Row label={<Term id="pe">本益比</Term>} sub={`3 年百分位 ${ok(val.pePct3y) ? Math.round(val.pePct3y) : '—'}`} value={<Num v={val.pe} digits={2} unit="倍" fallback="虧損或未公布" />} />
