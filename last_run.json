@@ -1,14 +1,14 @@
 {
  "task": "holders_backfill",
- "at": "2026-10-04T14:27:24+08:00",
- "requests": 528,
+ "at": "2026-10-04T15:08:11+08:00",
+ "requests": 520,
  "ok": 1,
  "failed": [],
  "pending": [],
- "remaining": 44727,
+ "remaining": 44214,
  "progressed": true,
  "by_source": {
-  "tdcc_full": 44727
+  "tdcc_full": 44214
  },
  "chained": true
 }
