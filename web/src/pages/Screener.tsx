@@ -4,7 +4,7 @@
  * 資料：screen.json（各上架策略的目前篩出與今日新觸發；pipeline evidence/periods.screen_now）。依規則產生，非推薦。
  * 自己組條件的篩選在子頁 #/explore/screener/custom。
  */
-import { useEffect, useMemo } from 'preact/hooks';
+import { useLayoutEffect, useMemo } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
 import { Conclusion, DataState, Interp, Term } from '../components/kit';
 import { List, NavRow, PageTitle, Section, Seg } from '../components/ui';
@@ -23,7 +23,8 @@ const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite
 const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
 
 export default function Screener() {
-  useEffect(() => trackScreener(), []);
+  // 版面效果：掛載就記（一般 useEffect 在畫完之後才跑，很快離開時會被略過，流程頁就漏記這一步）
+  useLayoutEffect(() => trackScreener(), []);
   // 找不到檔案（尚未產生）＝無資料；其他錯誤＝載入失敗
   const file = useAsync(() => loadJson<ScreenFile>('screen.json').catch((e) => { if (isNotFound(e)) return null; throw e; }), []);
   const strategies = (file.data?.strategies ?? []).slice().sort((a, b) => GRADE_ORDER.indexOf(a.grade) - GRADE_ORDER.indexOf(b.grade) || (a.rank ?? 99) - (b.rank ?? 99));
