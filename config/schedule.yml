@@ -29,3 +29,29 @@ stages:
     ready: [twse_margin, tpex_margin]
     note: 信用、借券、當沖與其他晚間資料
     digest: false
+
+# 資料新鮮度（2026-10-06；METHODOLOGY §12.1）：前端 lib/freshness.ts 與 pipeline/freshness.py 共用這一張表，全站只用這一套。
+# time＝交易日當天（Asia/Taipei）的「預期公布時間」，已含保守餘裕；sources＝判斷有沒有拿到的來源（config/sources.yml）。
+# 對每個資料集 X：D(X)＝最近一個「預期公布時間已過」的交易日；資料日 ≥ D(X) 為最新，否則落後（以交易日計）。
+# 預期時間未到 → 「尚未公布」；預期時間已過但沒有資料 → 「尚未更新」。
+freshness:
+  datasets:
+    quotes:       { label: 收盤行情,   time: "15:00", sources: [twse_quotes, tpex_quotes] }
+    index:        { label: 指數,       time: "15:00", sources: [twse_index, tpex_index] }
+    intraday:     { label: 分鐘 K,     time: "15:00", sources: [twse_intraday_index] }
+    insti:        { label: 三大法人,   time: "16:00", sources: [twse_insti, tpex_insti] }
+    insti_amount: { label: 法人買賣金額, time: "16:00", sources: [twse_insti_amount, tpex_insti_amount] }
+    taifex:       { label: 期貨法人,   time: "16:00", sources: [taifex_insti] }
+    valuation:    { label: 本益比、淨值比, time: "16:00", sources: [twse_valuation, tpex_valuation] }
+    qfii:         { label: 外資持股比, time: "17:00", sources: [twse_qfii, tpex_qfii] }
+    credit:       { label: 融資融券,   time: "22:00", sources: [twse_margin, tpex_margin] }
+    margin_total: { label: 融資總計,   time: "22:00", sources: [twse_margin, tpex_margin] }
+    sbl:          { label: 借券,       time: "22:00", sources: [twse_sbl, tpex_sbl] }
+    daytrade:     { label: 當沖,       time: "22:00", sources: [twse_daytrade, tpex_daytrade] }
+  # 頁首「資料至 …」與橫幅只看這幾個資料集（其餘在資料健康頁）
+  banner: [quotes, insti, credit, taifex]
+  # 補抓排程（data.yml；台北時間）：每次只抓「依規則應已公布但還沒拿到」的資料集；有缺漏時 1 小時後再試，最多 3 次
+  catchup:
+    times: ["15:15", "16:30", "22:30"]
+    retry_minutes: 60
+    max_retries: 3

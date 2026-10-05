@@ -969,3 +969,52 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 .srow-wrap.swiping .srow { background: var(--bg); }
 .missing-card .btn { flex: none; white-space: nowrap; }
 .chips.wrap { flex-wrap: wrap; overflow: visible; }
+
+/* ---------- 個股籌碼分頁「法人」區塊（2026-10-06：InstiFlow＋InstiBars）----------
+ * 只有紅綠表示買賣，其他一律系統灰階；相鄰卡片／分段控制之間固定 --s-3（禁止負 margin 或 transform 讓容器互疊）。 */
+.if-controls { margin-top: var(--s-3); }
+.ib { margin-top: var(--s-3); }
+/* 固定資訊列：高度固定，選取與否都不推動版面 */
+.ib-info { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); min-height: var(--lh-foot); margin-bottom: var(--s-1);
+  font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ib-info .ib-k { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ib-info .ib-k b { color: var(--text-1); font-weight: var(--fw-semibold); }
+.ib-info .ib-max { flex: none; }
+.ib-info .ib-pend { color: var(--text-2); }
+.ib-plot { position: relative; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; outline: none; }
+.ib-plot:focus-visible { box-shadow: 0 0 0 2px var(--brand); border-radius: var(--r-xs); }
+.ib-plot svg { display: block; overflow: visible; }
+.ib-grid line { stroke: var(--line); stroke-width: 0.5; }
+.ib-grid text, .ib-dates text { font-size: 11px; fill: var(--text-2); font-variant-numeric: tabular-nums; }
+.ib-in { animation: ib-fade-in 220ms var(--ease-out) both; }
+.ib-out { animation: ib-fade-out 220ms var(--ease-out) both; }
+@keyframes ib-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ib-fade-out { from { opacity: 1; } to { opacity: 0; } }
+.ib-zero { stroke: var(--text-3); stroke-width: 1; }
+.ib-bar { transition: opacity var(--dur-base) var(--ease-out); }
+.ib-bar.up { fill: var(--up); }
+.ib-bar.down { fill: var(--down); }
+.ib-pending { fill: var(--text-3); transition: opacity var(--dur-base) var(--ease-out); }
+.ib-pending.on { fill: var(--text-2); }
+.ib-bar.dim, .ib-pending.dim { opacity: 0.3; }
+@media (prefers-reduced-motion: reduce) { .ib-in, .ib-out { animation: none; } .ib-out { display: none; } .ib-bar, .ib-pending { transition: none; } }
+.if-legend { margin-top: var(--s-1); font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); }
+.if-meta { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); margin: var(--s-3) 0 var(--s-1);
+  font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); }
+.if-meta .if-unit { flex: none; color: var(--text-1); font-weight: var(--fw-medium); }
+.if-card { background: var(--surface-1); border-radius: var(--r-card); box-shadow: var(--shadow-card); overflow: clip; }
+.if-fold { overflow: clip; }
+.if-table { --row-table: 3.25rem; }
+.if-table tbody th, .if-table tbody td { height: var(--row-table); box-shadow: inset 0 -1px 0 var(--line); }
+.if-table tbody tr.day .cd-date { font-size: calc(var(--fs-table-date) * var(--dt)); line-height: calc(var(--lh-table-date) * var(--dt)); font-weight: var(--fw-semibold); }
+.if-table tbody tr.day .cd-sub { font-size: calc(var(--fs-table-sub) * var(--dt)); line-height: calc(var(--lh-table-sub) * var(--dt)); color: var(--text-2); }
+.if-table tr.total .cd-v { vertical-align: top; padding-top: var(--s-2); }
+.if-table .if-pct { display: block; font-size: calc(var(--fs-foot) * var(--dt)); line-height: calc(var(--lh-foot) * var(--dt)); font-weight: var(--fw-regular); color: var(--text-2); }
+.if-table .if-miss { white-space: nowrap; }
+/* 欄位強調：圖表目前選中的法人，欄底極淡系統灰（不新增顏色） */
+.if-table th.em, .if-table td.em { background-color: var(--surface-row); }
+.if-table thead th.em .cd-h { font-weight: var(--fw-semibold); }
+.if-table td.em .cd-t { font-weight: var(--fw-semibold); }
+.if-table tbody tr.sel > * { background-color: var(--surface-2); }
+.if-table tbody tr.folded { visibility: hidden; }
+.if-more { margin: 0; border-top: 1px solid var(--line); border-radius: 0; }

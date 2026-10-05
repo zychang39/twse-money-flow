@@ -250,7 +250,7 @@ export default function Stock({ code }: { code: string }) {
   // 分段列以下的內容區也可左右滑動換股：水平位移 > 12px 且 |dx| > 2|dy| 才鎖定；超過 30% 寬或速度夠快才換；
   // 排除圖表、分段列、期間膠囊、可橫向捲動的元素、螢幕左右 20px（M3）
   const sw = useRef<{ id: number; x: number; y: number; t: number; lock: boolean | null } | null>(null);
-  const NOSWIPE = '.chart-wrap, .sc2-plot, .sc-wrap, .ui-seg, .segmented, .periods, .chips, .heat, input, textarea, select, [data-noswipe], [role="slider"]';
+  const NOSWIPE = '.chart-wrap, .sc2-plot, .ib-plot, .sc-wrap, .ui-seg, .segmented, .periods, .chips, .heat, input, textarea, select, [data-noswipe], [role="slider"]';
   const lowerSwipe = ctx ? {
     onPointerDown: (e: PointerEvent) => {
       if (e.pointerType === 'mouse') return;
