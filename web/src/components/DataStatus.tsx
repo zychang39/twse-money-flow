@@ -45,7 +45,7 @@ export function DataStatus({ date, extra, uses, asof }: { date?: string | null; 
         {meta.data.demo ? <span class="meta-demo w6">示範資料（合成數據）・</span> : null}
         <a href="#/me/data" class="meta-link" title="資料狀態：每個資料集的來源、最新日、應有日、涵蓋率、回補進度">資料至 {md(d)} 收盤</a>{genText ? `・${genText} 更新` : ''}{extra ? <>・{extra}</> : null}
         {failed ? <>・<a class="meta-alert" href="#/me/health">{failed} 個資料源異常</a></> : null}
-        {fv.next ? <span class="meta-next" data-testid="meta-next">{fv.next}</span> : null}
+        {fv.next ? <><br /><span class="meta-next" data-testid="meta-next">{fv.next}</span></> : null}
       </p>
       {asofLine ? <p class="meta-line asof-line" data-testid="asof-line" style={{ marginTop: 0 }}>各資料集：{asofLine}</p> : null}
       {/* 只列落後的資料集與資料日（最新的不列）；橘色標題＋一行說明，點進資料健康頁 */}

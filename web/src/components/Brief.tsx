@@ -54,7 +54,7 @@ export function BriefStatus({ meta }: { meta: Meta | null }) {
       {fv.holiday ? '休市・' : fv.todayNotUpdated ? '今天的資料尚未更新・' : ''}
       <a class="meta-link" href="#/me/data">資料至 {mdw(d)}</a>{hm ? `・${hm} 更新` : ''}{meta.demo ? '・示範資料' : ''}
       {failed ? <>・<a class="meta-alert" href="#/me/health">{failed} 個資料源異常</a></> : null}
-      {fv.next ? <span class="meta-next" data-testid="brief-next">{fv.next}</span> : null}
+      {fv.next ? <><br /><span class="meta-next" data-testid="brief-next">{fv.next}</span></> : null}
     </span>
   );
 }
