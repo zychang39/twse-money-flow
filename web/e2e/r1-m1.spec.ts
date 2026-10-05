@@ -34,21 +34,32 @@ test.describe('E-02 休市狀態依交易日曆', () => {
     await expect(page.getByTestId('data-time')).toContainText('資料至 9/24');
     await expect(page.getByTestId('stock-stale')).toHaveCount(0);
     await expect(page.getByText('今天的資料尚未更新')).toHaveCount(0);
-    await expect(page.getByText('資料可能過期')).toHaveCount(0);
+    await expect(page.getByText(/資料落後/)).toHaveCount(0);
   });
 
-  test('9/29 上午：只顯示「今天的資料尚未更新」，不是落後 3 個工作日', async ({ page }) => {
+  // 2026-10-06 資料新鮮度規則：今天 15:00（收盤行情預期公布時間）以前，前一個交易日的資料就是最新
+  test('9/29 上午：9/24（前一個交易日）的資料是最新，不顯示「今天的資料尚未更新」；另一小行「下次更新 9/29 15:00 後」', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-09-29T09:00:00+08:00'));
     await page.goto('#/');
-    await expect(page.locator('.meta-line').first()).toContainText('今天的資料尚未更新');
-    await expect(page.getByText('資料可能過期')).toHaveCount(0);
+    await expect(page.getByTestId('brief-status')).toContainText('資料至 9/24');
+    await expect(page.getByTestId('brief-status')).not.toContainText('今天的資料尚未更新');
+    await expect(page.getByTestId('brief-next')).toHaveText('下次更新 9/29 15:00 後');
+    await expect(page.getByTestId('brief-lag')).toHaveCount(0);
   });
 
-  test('真的落後超過 2 個交易日才出現「資料可能過期」', async ({ page }) => {
-    await page.clock.setFixedTime(new Date('2026-10-01T09:00:00+08:00'));
+  test('9/29 16:30：收盤行情、三大法人預期時間已過而資料還停在 9/24 →「今天的資料尚未更新」＋橫幅只列落後的資料集', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-29T16:30:00+08:00'));
     await page.goto('#/');
-    await expect(page.getByText('資料可能過期')).toBeVisible();
-    await expect(page.getByText(/落後 3 個交易日/)).toBeVisible();
+    await expect(page.getByTestId('brief-status')).toContainText('今天的資料尚未更新');
+    const lag = page.getByTestId('brief-lag');
+    await expect(lag).toContainText(/資料落後 收盤行情 9\/24（落後 1 個交易日）/);
+    await expect(lag).not.toContainText('融資融券'); // 融資融券 22:00 才預期公布
+  });
+
+  test('落後多個交易日：橫幅寫出落後幾個交易日', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-01T16:30:00+08:00'));
+    await page.goto('#/');
+    await expect(page.getByTestId('brief-lag')).toContainText(/收盤行情 9\/24（落後 3 個交易日）/);
   });
 });
 
@@ -73,7 +84,7 @@ test.describe('U-02 無成交／停牌不是「今日」漲跌', () => {
     await expect(row.locator('.pill')).toHaveText('今日無成交');
     await row.click();
     await expect(page.locator('.ui-head-sub')).toContainText('今日無成交・最後成交 9/23');
-    await expect(page.getByText('資料可能過期')).toHaveCount(0);
+    await expect(page.getByText(/資料落後/)).toHaveCount(0);
   });
 });
 

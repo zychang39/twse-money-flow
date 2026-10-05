@@ -45,11 +45,11 @@ export function volRatioInterp(v: N): Interp {
   return { text: `成交量是 20 日均量的 ${fmtNum(v, 2)} 倍`, alert: alertHit('volume_ratio', { value: v }) };
 }
 
-/** 法人 20 日佔量：「法人 20 日淨買 953 張，佔量 1.2%」 */
-export function instInterp(lots: N, pct: N): Interp {
+/** 法人 N 日佔量：「法人 20 日淨買 953 張，佔量 1.2%」（N 跟著區間切換，預設 20） */
+export function instInterp(lots: N, pct: N, days = 20): Interp {
   if (!ok(lots)) return { text: null, alert: false };
   const word = lots > 0 ? '淨買' : lots < 0 ? '淨賣' : '買賣相抵';
-  return { text: `法人 20 日${word}${lots ? ` ${fmtNum(Math.abs(lots), 0)} 張` : ''}${ok(pct) ? `，佔量 ${fmtNum(Math.abs(pct), 1)}%` : ''}`, alert: false };
+  return { text: `法人 ${days} 日${word}${lots ? ` ${fmtNum(Math.abs(lots), 0)} 張` : ''}${ok(pct) ? `，佔量 ${fmtNum(Math.abs(pct), 1)}%` : ''}`, alert: false };
 }
 
 /** 千張大戶：「千張大戶 84.77%，連 3 週增加」 */

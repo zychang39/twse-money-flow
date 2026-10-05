@@ -32,7 +32,8 @@ import { isNotFound, loadInactive, loadLongHistory, loadMeta, loadStockIntraday,
 import { INTRADAY_PERIODS, STOCK_CHART_PERIODS, adjDiffers, dailyChange, dailySeries, intradayReason, intradaySeries, kSeries, seriesWindow } from '../lib/stockChart';
 import { windowCoverageNote } from '../lib/series';
 import { statusTags } from '../lib/stockFacts';
-import { dataPhase, makeCalendar } from '../lib/tradingCalendar';
+import { makeCalendar } from '../lib/tradingCalendar';
+import { asofLabel, type FreshKey, freshView, tpeClock } from '../lib/freshness';
 import { todayTpe } from '../lib/dates';
 import { getListContext } from '../lib/listContext';
 import { inactiveText, tradeStatusNote } from '../lib/tradeStatus';
@@ -210,18 +211,16 @@ export default function Stock({ code }: { code: string }) {
   const dayChg = h ? dailyChange(h, 'raw') : null;
   const bb = useMemo(() => (h && menu ? bbTitle(tally(evaluate(h))) : undefined), [h, menu]);
   useAmbient(moodOf(dayChg?.abs));
-  // 資料狀態：落後超過 2 個交易日或本頁用到的資料源異常才顯示（橘色，連到資料健康頁）
+  // 資料狀態（2026-10-06 新鮮度規則）：有資料集落後（資料日早於應有日）或本頁用到的資料源異常才顯示（橘色，連到資料健康頁）
   const staleText = (() => {
     if (!meta.data || !marketDate) return null;
-    const { phase, lag } = dataPhase(marketDate, cal);
+    const fv = freshView(meta.data, cal);
     const failed = affectedFor(PAGE_SOURCES.stock, meta.data.sources_affected ?? meta.data.sources_failed).length;
-    const parts = [
-      phase === 'stale' ? `資料停在 ${md(marketDate)}，落後 ${lag} 個交易日` : '',
-      failed ? `${failed} 個資料源異常` : '',
-    ].filter(Boolean);
+    const parts = [fv.lagging ?? '', failed ? `${failed} 個資料源異常` : ''].filter(Boolean);
     return parts.length ? parts.join('・') : null;
   })();
-  const asof = (d: string | null) => (d ? `資料日 ${md(d)}${marketDate && d < marketDate ? `(${md(marketDate)} 尚未公布)` : ''}` : '無資料');
+  // 各區塊的資料日：預期公布時間未到 →「尚未公布」；已過但沒有資料 →「尚未更新」（lib/freshness）
+  const asof = (d: string | null, key: FreshKey = 'quotes') => asofLabel(d, key, cal, tpeClock(), marketDate);
 
   useEffect(() => { setMenu(false); }, [code]);
 
@@ -250,7 +249,7 @@ export default function Stock({ code }: { code: string }) {
   // 分段列以下的內容區也可左右滑動換股：水平位移 > 12px 且 |dx| > 2|dy| 才鎖定；超過 30% 寬或速度夠快才換；
   // 排除圖表、分段列、期間膠囊、可橫向捲動的元素、螢幕左右 20px（M3）
   const sw = useRef<{ id: number; x: number; y: number; t: number; lock: boolean | null } | null>(null);
-  const NOSWIPE = '.chart-wrap, .sc2-plot, .sc-wrap, .ui-seg, .segmented, .periods, .chips, .heat, input, textarea, select, [data-noswipe], [role="slider"]';
+  const NOSWIPE = '.chart-wrap, .sc2-plot, .ib-plot, .sc-wrap, .ui-seg, .segmented, .periods, .chips, .heat, input, textarea, select, [data-noswipe], [role="slider"]';
   const lowerSwipe = ctx ? {
     onPointerDown: (e: PointerEvent) => {
       if (e.pointerType === 'mouse') return;
@@ -315,7 +314,7 @@ export default function Stock({ code }: { code: string }) {
 
       {h ? (
         <div key={code} class={`stock-lower ${code !== firstCode.current ? 'fade-in' : ''}`} {...lowerSwipe}>
-          {staleText ? <StaleNote lead="資料可能過期" testid="stock-stale">{staleText}</StaleNote> : null}
+          {staleText ? <StaleNote lead="資料落後" testid="stock-stale">{staleText}</StaleNote> : null}
           <StatusTags h={h} today={today} cal={cal} />
           <div class="sk-seg">
             <Seg options={SEGS} value={seg} onChange={setSeg} label="個股分段" sticky testid="stock-seg" />

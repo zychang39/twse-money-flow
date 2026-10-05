@@ -99,7 +99,7 @@
 | twse_intraday_index | 加權指數每 5 秒統計（首頁 1D／1W） | `www.twse.com.tw/rwd/zh/TAIEX/MI_5MINS_INDEX?date=…&response=json`（2026-10 改用 rwd 路徑，舊 `exchangeReport/` 路徑同內容；只存時間與發行量加權股價指數，約 3,241 列／日） | 盤後約 14:00；收盤行情段（14:15）與法人段一起抓，每日任務自動補最近 5 個交易日 | ✅ |
 | twse_insti_amount / tpex_insti_amount | 三大法人買賣金額（全市場，元） | `…/rwd/zh/fund/BFI82U?type=day&dayDate=…`、`…/www/zh-tw/insti/summary?type=Daily&date=YYYY/MM/DD`（櫃買休市日回空表） | 約 15:00（法人段） | ✅（2026-10 新增；首頁三大法人改用實際金額） |
 | yahoo_twii | 加權指數 1 分 K（Yahoo Finance，**非官方**） | `query1.finance.yahoo.com/v8/finance/chart/%5ETWII?interval=1m&range=5d` | 收盤後 | ✅ 只在每 5 秒統計於已收盤的交易日仍取不到時抓（每日任務內，一次請求涵蓋 5 日） |
-| yahoo_kbar | 個股 5 分 K（Yahoo Finance，**非官方**） | `query1.finance.yahoo.com/v8/finance/chart/{代號}.TW?interval=5m&range=5d`（上櫃 `.TWO`） | 收盤後；`task=kbar` 14:45 排程 | ✅（2026-10 新增；見下方「個股 5 分 K」） |
+| yahoo_kbar | 個股 5 分 K（Yahoo Finance，**非官方**） | `query1.finance.yahoo.com/v8/finance/chart/{代號}.TW?interval=5m&range=5d`（上櫃 `.TWO`） | 收盤後；`task=kbar` 14:45 排程（補抓任務備援） | ✅（2026-10 新增；見下方「個股 5 分 K」） |
 | twse_short_halt / tpex_short_halt | 停券預告（融券最後回補日） | `…/rwd/zh/marginTrading/BFI84U?response=json`、`openapi/v1/tpex_margin_trading_term` | 隨時 | ✅ |
 | taifex_insti | 三大法人期貨（TXF/MXF/TMF） | POST `www.taifex.com.tw/cht/3/futContractsDateDown`（Big5 CSV） | 約 15:00 | ✅ |
 | taifex_oi | 各契約全市場未平倉 | POST `www.taifex.com.tw/cht/3/futDataDown`（Big5 CSV，依到期月份，取「一般」時段加總） | 約 15:00 | ✅ |
@@ -122,7 +122,7 @@
 2. **FinMind `TaiwanStockKBar`**：免註冊呼叫回 `{"status":400,"msg":"Your level is free. Please update your user level."}`，分 K 需贊助方案 → 跳過（不使用付費來源）。
 3. **Yahoo Finance chart API**（非官方、免金鑰）：`range=5d&interval=5m` 一次回傳最近 5 個交易日；2330 回 271 根（最新一日 55 根含 13:30、其他日 54 根），時區 Asia/Taipei；上櫃用 `.TWO`。→ **採用**，頁尾標示「非官方」。
 
-抓取：`python -m pipeline run --task kbar`（data.yml 14:45 排程、`kbar` concurrency 群組，每段最多 60 分鐘、未完成自動觸發下一段）。每檔每日一次請求、間隔 0.5–1.0 秒（1–2 次／秒，含抖動）、失敗依 PoliteClient 重試與斷路器；優先順序：近 20 日平均成交金額前 500 名 → 近 60 日任一策略觸發過（讀已部署網站 `data/signals.json`，取不到就略過這一級）→ 其餘（依成交金額）。範圍＝近 20 日有收盤的證券（＝有個股頁的股票，約 2,360 檔）。續傳：目標日檔案已有的代號視為完成，查無 K 棒的代號記在 manifest `kbar.empty`；進度在 manifest `kbar`（target、total、covered、remaining、failed）。存檔 `raw/yahoo_kbar/{YYYY}/{YYYYMMDD}.csv.gz`（date, code, time, open, high, low, close, volume），只保留最近 10 個交易日。
+抓取：`python -m pipeline run --task kbar`（data.yml 14:45 排程、`kbar` concurrency 群組，每段最多 60 分鐘、未完成自動觸發下一段；2026-10-06 起排程沒觸發時由補抓任務觸發）。**涵蓋全部上市＋上櫃個股**（不是只有自選或熱門）：範圍＝近 20 日有收盤的證券，優先順序只決定先後。每檔每日一次請求、間隔 0.5–1.0 秒（1–2 次／秒，含抖動）、失敗依 PoliteClient 重試與斷路器；優先順序：近 20 日平均成交金額前 500 名 → 近 60 日任一策略觸發過（讀已部署網站 `data/signals.json`，取不到就略過這一級）→ 其餘（依成交金額）。範圍＝近 20 日有收盤的證券（＝有個股頁的股票，約 2,360 檔）。續傳：目標日檔案已有的代號視為完成，查無 K 棒的代號記在 manifest `kbar.empty`；進度在 manifest `kbar`（target、total、covered、remaining、failed）。存檔 `raw/yahoo_kbar/{YYYY}/{YYYYMMDD}.csv.gz`（date, code, time, open, high, low, close, volume），只保留最近 10 個交易日。
 
 實測（本機 2026-10-03，21 檔含上櫃 7 檔）：10/02 的 5 分 K 彙總成日線開高低收與證交所／櫃買日線 **21/21 完全一致**；較早 4 天開盤 84/84 一致，但缺 13:30 收盤集合競價那一根（Yahoo 只對最新一日提供），收盤 19/84 一致——每日抓取會保存當天的 13:30，之後每一天都完整。成交量：09:00 與 13:30 兩根（集合競價）Yahoo 回 0 → 存成空值；其餘 K 棒合計約為日成交量的 61–91%（中位數上市 81%、上櫃 85%）。
 
@@ -290,6 +290,29 @@
 - **實際資料量（2026-09-28 量測，回補前）**：data 分支工作目錄 159 MB（7,331 個 `.csv.gz`）；收盤行情每日約 42 KB（上市）＋約 40 KB（上櫃），目前自 2024-04-11 起 → `raw/twse_quotes` 25 MB、`raw/tpex_quotes` 23 MB。正式站單一個股 JSON（2330，600 個交易日）127 KB，gzip 41 KB。
 - **預估（回補 10 年後）**：收盤行情再增加約 2,000 個交易日 × 82 KB ≈ 165 MB → data 分支約 330 MB（< 500 MB）。個股檔以衍生計算視窗 1,100 個交易日為上限：約 230 KB（gzip 約 70 KB）；長歷史檔 `stocks/{code}.hist.json` 約 2,450 筆日期＋收盤＋還原因子 ≈ 70 KB（gzip 約 20 KB），只在選 5Y／10Y／ALL 時載入。回補完成後請以 `du -sh` 與 `stocks/2330*.json` 更新本段實測值。
 - **若 data 分支超過 500 MB 的方案**：①把 3 年以前的每日檔依年合併成 `raw/{來源}/archive/{YYYY}.csv.gz`（一年一檔，gzip 對同欄位的長表壓縮率高，預估縮小 30–40%），`DataStore.read_range` 先讀年檔再讀日檔；②data 分支本身是孤兒分支，定期以「單一快照 commit」重建（`git checkout --orphan` → 強制推送），移除歷史 blob，倉庫大小回到工作目錄大小；③最後手段：10 年以前的上櫃行情改成週資料。
+
+## 資料新鮮度與補抓排程（2026-10-06，取代下方分段更新的排程）
+
+**為什麼改**：10/5（一）GitHub 排程大幅延遲與遺漏——14:15 那一次延到 22:38 才觸發，15:30 延到隔天 00:15，21:30 完全沒觸發；而且分段更新每段只抓自己那一段的來源，22:38 跑的「收盤行情段」不會順手抓早已公布的三大法人、融資融券、期貨法人，結果 10/5 只有收盤行情，盤後簡報顯示「三大法人合計 0.0 億」、個股頁法人 10/5 為「—」。
+（查證：Actions run 37326335628 的排程字串是 `15 6 * * 1-5`、建立於 14:38 UTC；run 37339413057 是 `30 7 * * 1-5`、建立於 16:15 UTC；10/5 沒有任何 `30 13 * * 1-5` 的 run。當天 manifest `runs` 只有一筆 `stage close`（22:40，5 個請求）。）
+
+**新規則**（`config/schedule.yml` `freshness`；前端 `web/src/lib/freshness.ts`、pipeline `pipeline/freshness.py` 讀同一張表）：
+
+| 資料集 | 預期公布時間（台北，交易日當天，含餘裕） | 判斷來源 |
+|---|---|---|
+| 收盤行情、指數、分鐘 K（指數 1D） | 15:00 | twse/tpex_quotes、twse/tpex_index、twse_intraday_index |
+| 三大法人、法人買賣金額、期貨法人、本益比 | 16:00 | twse/tpex_insti、twse/tpex_insti_amount、taifex_insti、twse/tpex_valuation |
+| 外資持股比 | 17:00 | twse/tpex_qfii |
+| 融資融券（含融資總計）、借券、當沖 | 22:00 | twse/tpex_margin、twse/tpex_sbl、twse/tpex_daytrade |
+
+- D(X)＝最近一個「預期公布時間已經過了」的交易日；資料日 ≥ D(X) 為最新，否則落後（以交易日計）。
+- **補抓**（`task=catchup`）：data.yml 台北 15:15、16:30、22:30（UTC `15 7`、`30 8`、`30 14`，週一至五）。每次只抓 D(X) 與之前 5 個交易日內缺的來源與日子，與是哪一次觸發無關；任何一次觸發都會把該有的補齊。
+- **重試**：補抓後仍有缺 → 以 workflow_dispatch 觸發下一次（`attempt`+1、`not_before`＝1 小時後；重試在 `data-retry` 群組等待，不擋其他排程），最多 3 次。dispatch 事件不會像 schedule 一樣被延遲或丟掉。
+- **不靜默失敗**：每次結果寫在 manifest `freshness`（缺哪些資料集與日子、第幾次、下次重試時間）；預期時間已過仍沒有資料記為 pending，3 次重試後仍沒有記為 failed（執行摘要與 data-failure issue）。
+- 分鐘 K 還欠（manifest `kbar.target` 不是 D(分鐘 K) 或還有剩餘）→ 補抓順便觸發 `task=kbar`（14:45 的 kbar 排程沒觸發時的備援）。
+- 分段更新（`task=stage`）保留給手動觸發；頁面狀態列的三段時間改為 15:15／16:30／22:30。
+
+**10/5 資料補回**：2026-10-06 00:33 手動觸發 `task=stage stage=credit`（全部每日來源，目標日 10/5）；排程 `30 7`（延到 00:15 才觸發）也抓了 10/5 的三大法人。
 
 ## 公布時間實測與分段更新（M3.4）
 

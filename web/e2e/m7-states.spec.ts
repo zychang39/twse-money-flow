@@ -38,7 +38,7 @@ for (const hash of PAGES) {
   });
 }
 
-// 資料落後：把時間設在資料日之後 10 天（中間有多個交易日）→ 各頁頁首下方顯示橘色「資料可能過期」，可點進資料健康頁
+// 資料落後：把時間設在資料日之後 10 天（中間有多個交易日）→ 各頁頁首下方顯示橘色「資料落後 收盤行情 …（落後 N 個交易日）」，可點進資料健康頁
 const STALE_PAGES: [string, string][] = [['#/', 'brief-lag'], ['#/stock/2330', 'stock-stale'], ['#/explore', 'page-stale'], ['#/explore/screener', 'page-stale'],
   ['#/explore/strategies', 'page-stale'], ['#/explore/sectors', 'page-stale'], ['#/explore/market', 'page-stale'], ['#/explore/evidence', 'page-stale'], ['#/explore/etf', 'page-stale'], ['#/explore/disposition', 'page-stale']];
 for (const [hash, id] of STALE_PAGES) {
@@ -50,6 +50,7 @@ for (const [hash, id] of STALE_PAGES) {
     await page.goto(hash);
     const note = page.getByTestId(id);
     await expect(note).toBeVisible();
-    await expect(note).toContainText(/資料可能過期/);
+    await expect(note).toContainText(/資料落後/);
+    await expect(note).toContainText(/收盤行情 \d+\/\d+（落後 \d+ 個交易日）/);
   });
 }

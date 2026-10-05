@@ -1,4 +1,4 @@
-/** 個股每日明細子頁（SPEC §5【籌碼】）：法人｜信用｜借券當沖，期間切換（ChipDaily）。sticky 表頭在導覽列之下，不遮住資料列。 */
+/** 個股每日明細子頁（SPEC §5【籌碼】）：信用｜借券當沖，期間切換（ChipDaily；法人 2026-10-06 移到籌碼分頁的法人區塊）。sticky 表頭在導覽列之下，不遮住資料列。 */
 import { TopBar } from '../components/Chrome';
 import { ErrorState, Loading } from '../components/DataStatus';
 import { EmptyRow, List, PageTitle } from '../components/ui';

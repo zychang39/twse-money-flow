@@ -15,6 +15,7 @@
  *   onBasis 存在時顯示「還原價／原始價」切換，主角數字旁標示目前的基準（basis）。
  * 手勢歸屬（M5）：圖表區域的觸控全部交給圖表（touch-action: pan-y＋pointer capture），外層換股只在頁首區域觸發。
  */
+import { type LabelBox, type Placed, type Rect, anchored, placeLabels, textWidth } from '../lib/chartLabels';
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { PERIODS, PERIOD_LABEL, change, windowDayChange, type Dir, type Period, type Window } from '../lib/periods';
@@ -468,6 +469,38 @@ export function HeroChart({
   const baseV = win ? (win.base ?? win.values[0]) : 0;
   const nearBase = (i: number) => !!geo && !!win && geo.pts[i][0] < 140 && Math.abs(win.values[i] - baseV) <= Math.abs(baseV) * 0.003;
   const svgH = height + DATE_GUTTER;
+  // M3（2026-10-06）：註記標籤的碰撞處理——最高、最低優先；起始價／昨收被擋到時往上下推開，推不開才隱藏；
+  // 所有標籤都不壓到線的兩個端點與 X 軸日期（lib/chartLabels）
+  const showBase = !!geo && !!win && scrub === null && !rr;
+  const labels = (() => {
+    if (!geo || !win) return null;
+    const items: LabelBox[] = [];
+    if (showHiLo && hiPt && !nearBase(geo.hi)) {
+      const t = `最高 ${format(win.values[geo.hi])}`;
+      const tw = textWidth(t, 13);
+      items.push({ id: 'hi', x: anchored(hiPt[0], tw, labelAnchor(hiPt[0])), y: Math.max(10, hiPt[1] - 6) - 11, w: tw, h: 15, priority: 2 });
+    }
+    if (showHiLo && loPt && !nearBase(geo.lo)) {
+      const t = `最低 ${format(win.values[geo.lo])}`;
+      const tw = textWidth(t, 13);
+      items.push({ id: 'lo', x: anchored(loPt[0], tw, labelAnchor(loPt[0])), y: Math.min(height - 2, loPt[1] + 13) - 11, w: tw, h: 15, priority: 2 });
+    }
+    if (showBase) {
+      const t = `${period === '1D' ? '昨收' : '起始價'} ${format(win.base ?? win.values[0])}`;
+      const below = Math.min(height - 18, geo.baseY + 4);
+      const above = Math.max(0, geo.baseY - 22);
+      const first = baseLabelBelow(win) ? below : above;
+      items.push({ id: 'base', x: 16, y: first, alts: [first === below ? above : below], w: textWidth(t, 13) + 4, h: 18, priority: 1 });
+    }
+    const p0 = geo.pts[0];
+    const pN = geo.pts[geo.pts.length - 1];
+    const obstacles: Rect[] = [
+      { x: p0[0] - 6, y: p0[1] - 6, w: 12, h: 12 },
+      { x: pN[0] - 10, y: pN[1] - 10, w: 20, h: 20 },
+      ...(win.dates.length >= 2 ? [{ x: frame.padX, y: svgH - 15, w: 64, h: 15 }, { x: w - frame.padX - 64, y: svgH - 15, w: 64, h: 15 }] : []),
+    ];
+    return Object.fromEntries(placeLabels(items, obstacles, { top: 0, bottom: height }).map((pl) => [pl.id, pl])) as Record<string, Placed | undefined>;
+  })();
   const summary = win && latest !== null && chg
     ? `${typeof label === 'string' ? label : ''}${PERIOD_LABEL[period]}走勢：${dateLabel(win.dates[0])}到${dateLabel(win.dates[last])}，最新 ${format(latest)}，${dir === 'up' ? '上漲' : dir === 'down' ? '下跌' : '持平'} ${fd(Math.abs(fromBase(last)?.abs ?? 0))}`
     : '走勢圖資料不足';
@@ -541,8 +574,8 @@ export function HeroChart({
             <path ref={lineRef} class="chart-line" stroke={color} pathLength={1} />
             {showHiLo && hiPt && loPt && win ? (
               <g class="chart-hilo" data-testid="chart-hilo" style={LABEL_STYLE}>
-                {nearBase(geo!.hi) ? null : <text x={hiPt[0]} y={Math.max(10, hiPt[1] - 6)} text-anchor={labelAnchor(hiPt[0])}>最高 {format(win.values[geo!.hi])}</text>}
-                {nearBase(geo!.lo) ? null : <text x={loPt[0]} y={Math.min(height - 2, loPt[1] + 13)} text-anchor={labelAnchor(loPt[0])}>最低 {format(win.values[geo!.lo])}</text>}
+                {!labels?.hi || labels.hi.hidden ? null : <text x={hiPt[0]} y={labels.hi.y + 11} text-anchor={labelAnchor(hiPt[0])}>最高 {format(win.values[geo!.hi])}</text>}
+                {!labels?.lo || labels.lo.hidden ? null : <text x={loPt[0]} y={labels.lo.y + 11} text-anchor={labelAnchor(loPt[0])}>最低 {format(win.values[geo!.lo])}</text>}
               </g>
             ) : null}
             {win && win.dates.length >= 2 ? (
@@ -577,10 +610,9 @@ export function HeroChart({
             ) : null}
           </svg>
         ) : <div class="chart-empty" style={{ height: '100%' }}>{emptyText}</div>}
-        {geo && win && scrub === null && !rr ? (
-          // 起始價虛線的標籤（D1）：虛線左端；1D 顯示「昨收」；可點開名詞說明。標籤放在虛線上方，離線較遠的一側
-          <span class="chart-base-label" data-testid="base-label"
-            style={{ top: `${(baseLabelBelow(win) ? Math.min(height - 18, geo.baseY + 4) : Math.max(0, geo.baseY - 22)) / 16}rem` }}>
+        {geo && win && showBase && labels?.base && !labels.base.hidden ? (
+          // 起始價虛線的標籤（D1）：虛線左端；1D 顯示「昨收」；可點開名詞說明。標籤放在虛線離線較遠的一側；與最高／最低或日期重疊時推開
+          <span class="chart-base-label" data-testid="base-label" style={{ top: `${labels.base.y / 16}rem` }}>
             <Term id="start_price" ctx={{ value: format(win.base ?? win.values[0]), last: format(win.values[last]), dir: dir === 'up' ? '區間上漲' : dir === 'down' ? '區間下跌' : '區間持平' }}>
               {period === '1D' ? '昨收' : '起始價'} {format(win.base ?? win.values[0])}
             </Term>
