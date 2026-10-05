@@ -1018,3 +1018,5 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 .if-table tbody tr.sel > * { background-color: var(--surface-2); }
 .if-table tbody tr.folded { visibility: hidden; }
 .if-more { margin: 0; border-top: 1px solid var(--line); border-radius: 0; }
+/* 2026-10-06：「下次更新 10/6 15:00 後」—頁首資料時間下方獨立一小行（不是警示，系統灰） */
+.meta-next { display: block; color: var(--text-2); }

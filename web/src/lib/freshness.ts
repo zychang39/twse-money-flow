@@ -108,3 +108,48 @@ export function lagBanner(s: FreshSummary): string | null {
 export function nextText(n: { date: string; time: string } | null): string | null {
   return n ? `下次更新 ${md(n.date)} ${n.time} 後` : null;
 }
+
+export interface FreshView {
+  /** 今天休市 */
+  holiday: boolean;
+  /** 「今天的資料尚未更新」 */
+  todayNotUpdated: boolean;
+  /** 「下次更新 10/6 15:00 後」；沒有就是 null */
+  next: string | null;
+  /** 橫幅：「三大法人 10/2（落後 1 個交易日）・…」；全部最新 → null */
+  lagging: string | null;
+  summary: FreshSummary;
+}
+
+/**
+ * 頁首與橫幅共用（盤後簡報、資料狀態列、個股頁）：asof 沒有某資料集（舊版 meta.json）時，收盤行情退回 market_date，
+ * 其餘不判斷（不顯示成落後）。
+ */
+export function freshView(meta: { asof?: Partial<Record<string, string | null>> | null; market_date?: string | null }, cal: TradingCalendar, now: Date = new Date()): FreshView {
+  const clock = tpeClock(now);
+  const asof = { ...(meta.asof ?? {}) };
+  if (!asof.quotes && meta.market_date) asof.quotes = meta.market_date;
+  const summary = freshnessSummary(asof, cal, clock);
+  const lag = summary.lagging.filter((f) => f.state === 'lag');
+  return {
+    holiday: !cal.isTradingDay(clock.today),
+    todayNotUpdated: summary.todayNotUpdated,
+    next: nextText(summary.next),
+    lagging: lag.length ? lag.map(lagText).join('・') : null,
+    summary,
+  };
+}
+
+/**
+ * 區塊的資料日（個股頁「資料日 10/2（10/5 尚未更新）」）：
+ * - 資料日 ≥ D(X) 且已是最新交易日 → 「資料日 10/5」
+ * - 資料日 < D(X)（預期時間已過、還沒資料）→ 「（D 尚未更新）」
+ * - 資料日 ≥ D(X)，但收盤行情已有更新的一天（例：10/6 15:30 看法人 10/5，收盤行情已到 10/6）→ 「（10/6 尚未公布）」
+ */
+export function asofLabel(date: string | null | undefined, key: FreshKey, cal: TradingCalendar, clock: TpeClock, marketDate?: string | null): string {
+  if (!date) return '無資料';
+  const due = dueDate(key, cal, clock);
+  if (date < due) return `資料日 ${md(date)}（${md(due)} ${DAY_STATUS_TEXT.not_updated}）`;
+  if (marketDate && date < marketDate) return `資料日 ${md(date)}（${md(marketDate)} ${DAY_STATUS_TEXT[missingDayStatus(key, marketDate, clock)]}）`;
+  return `資料日 ${md(date)}`;
+}

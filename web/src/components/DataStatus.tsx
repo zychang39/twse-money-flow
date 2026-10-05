@@ -6,7 +6,8 @@ import type { ComponentChildren } from 'preact';
 import { useAsync } from '../hooks';
 import { stageLine, stageLineText } from '../lib/stages';
 import { loadMeta } from '../data/api';
-import { dataPhase, makeCalendar } from '../lib/tradingCalendar';
+import { makeCalendar } from '../lib/tradingCalendar';
+import { freshView } from '../lib/freshness';
 import { affectedFor, asofSummary } from '../lib/health';
 import type { AsofKey } from '../lib/asof';
 import { IconClock, IconCloudOff, IconMoonRest, IconSeed } from './Icons';
@@ -16,8 +17,6 @@ function md(iso: string): string {
   const d = new Date(`${iso}T12:00:00Z`);
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}（${'日一二三四五六'[d.getUTCDay()]}）`;
 }
-
-export type { DataPhase } from '../lib/tradingCalendar';
 
 /**
  * 頁首下方的一行資料說明：資料日期、更新時間；休市／過期／異常時以平靜的提示呈現。
@@ -34,21 +33,23 @@ export function DataStatus({ date, extra, uses, asof }: { date?: string | null; 
   if (!d) return <Banner kind="risk" icon={<IconCloudOff />} title="資料源待處理">尚未取得任何交易日資料。</Banner>;
   const gen = meta.data.generated_at ? new Date(meta.data.generated_at) : null;
   const genText = gen ? new Date(gen.getTime() + 8 * 3600 * 1000).toISOString().slice(11, 16) : null;
-  const { phase, lag } = dataPhase(d, makeCalendar(meta.data.calendar));
+  // 2026-10-06：資料新鮮度規則（lib/freshness）——凌晨看前一個交易日的資料不是「尚未更新」，落後以各資料集的應有日判斷
+  const fv = freshView(meta.data, makeCalendar(meta.data.calendar));
   const failed = affectedFor(uses, meta.data.sources_affected ?? meta.data.sources_failed).length;
   const asofLine = asof ? asofSummary(meta.data.asof, asof) : null;
   return (
     <>
       <p class="meta-line">
-        {phase === 'holiday' ? <span class="meta-phase" title="休市日不會中斷你的連續天數"><IconMoonRest />今天休市・</span> : null}
-        {phase === 'pending' ? <span class="meta-phase" title="分段更新：14:15 收盤行情、15:30 法人、21:30 信用"><IconClock />今天的資料尚未更新・</span> : null}
+        {fv.holiday ? <span class="meta-phase" title="休市日不會中斷你的連續天數"><IconMoonRest />今天休市・</span> : null}
+        {!fv.holiday && fv.todayNotUpdated ? <span class="meta-phase" title="預期公布時間已過、資料還沒進來：收盤行情 15:00、三大法人與期貨法人 16:00、融資融券 22:00"><IconClock />今天的資料尚未更新・</span> : null}
         {meta.data.demo ? <span class="meta-demo w6">示範資料（合成數據）・</span> : null}
         <a href="#/me/data" class="meta-link" title="資料狀態：每個資料集的來源、最新日、應有日、涵蓋率、回補進度">資料至 {md(d)} 收盤</a>{genText ? `・${genText} 更新` : ''}{extra ? <>・{extra}</> : null}
         {failed ? <>・<a class="meta-alert" href="#/me/health">{failed} 個資料源異常</a></> : null}
+        {fv.next ? <span class="meta-next" data-testid="meta-next">{fv.next}</span> : null}
       </p>
       {asofLine ? <p class="meta-line asof-line" data-testid="asof-line" style={{ marginTop: 0 }}>各資料集：{asofLine}</p> : null}
-      {/* 改版前樣式（M2 起全站一致）：橘色標題＋一行說明，點進資料健康頁 */}
-      {phase === 'stale' ? <StaleNote lead="資料可能過期">最新資料停在 {md(d)}，落後 {lag} 個交易日</StaleNote> : null}
+      {/* 只列落後的資料集與資料日（最新的不列）；橘色標題＋一行說明，點進資料健康頁 */}
+      {fv.lagging ? <StaleNote lead="資料落後">{fv.lagging}</StaleNote> : null}
     </>
   );
 }
@@ -151,14 +152,13 @@ export function StageStatus() {
 }
 
 /**
- * 資料落後（F 節，M7）：頁首下方一行橘色提示，收盤行情落後時標出日期與落後交易日數，點進資料健康頁。
- * 不落後、休市、尚未更新時不顯示（那些不是錯誤）。
+ * 資料落後（F 節，M7；2026-10-06 改用資料新鮮度規則）：頁首下方一行橘色提示，只列落後的資料集（資料日早於應有日）
+ * 與落後交易日數，點進資料健康頁。全部最新、休市、還沒到預期公布時間都不顯示（那些不是錯誤）。
  */
 export function PageStale({ testid = 'page-stale' }: { testid?: string }) {
   const meta = useAsync(loadMeta, []);
-  const d = meta.data?.market_date;
-  if (!meta.data || !d) return null;
-  const { phase, lag } = dataPhase(d, makeCalendar(meta.data.calendar));
-  if (phase !== 'stale') return null;
-  return <StaleNote lead="資料可能過期" testid={testid}>收盤行情停在 {md(d)}，落後 {lag} 個交易日</StaleNote>;
+  if (!meta.data?.market_date) return null;
+  const fv = freshView(meta.data, makeCalendar(meta.data.calendar));
+  if (!fv.lagging) return null;
+  return <StaleNote lead="資料落後" testid={testid}>{fv.lagging}</StaleNote>;
 }

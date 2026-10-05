@@ -53,26 +53,4 @@ export function makeCalendar(data?: CalendarData | null): TradingCalendar {
   };
 }
 
-export type DataPhase = 'fresh' | 'holiday' | 'pending' | 'stale';
-
-/** 台北時間的今天與小時 */
-function tpeNow(now: Date): { today: string; hour: number } {
-  const t = new Date(now.getTime() + 8 * 3600 * 1000);
-  return { today: t.toISOString().slice(0, 10), hour: t.getUTCHours() };
-}
-
-/**
- * 依資料日期、交易日曆與現在時間判斷：今日資料、休市、尚未更新、過期（E-02）。
- * lag：資料日之後到今天（含）為止的「交易日」數。休市日、週末都不算落後。
- * - 今天休市且落後不超過 2 個交易日 → holiday（例：9/28 教師節看 9/24 的資料）
- * - 今天是交易日、只差今天（或還在更新窗口）→ pending（例：9/29 上午看 9/24 的資料）
- * - 落後超過 2 個交易日 → stale（琥珀色，只有這種情況才是風險）
- */
-export function dataPhase(date: string, cal: TradingCalendar, now = new Date()): { phase: DataPhase; lag: number } {
-  const { today } = tpeNow(now);
-  if (date >= today) return { phase: 'fresh', lag: 0 };
-  const lag = cal.tradingDaysBetween(date, today);
-  if (lag > 2) return { phase: 'stale', lag };
-  if (!cal.isTradingDay(today)) return { phase: 'holiday', lag };
-  return { phase: 'pending', lag };
-}
+// 2026-10-06：舊的 dataPhase（以「資料日 < 今天」判斷尚未更新）已移除，改用 lib/freshness（各資料集的預期公布時間）。

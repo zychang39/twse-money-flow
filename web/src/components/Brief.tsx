@@ -10,11 +10,10 @@ import { Card, List, Num, Row, Section, Seg, Signed, Table, Tag } from './ui';
 import { Conclusion, Interp, LevelAxis, MiniLine, StaleNote, SummaryCard, Term } from './kit';
 import { BarSeries, Swatch } from './SeriesChart';
 import { HeroChart } from './HeroChart';
-import { ASOF_LABEL, type AsofKey } from '../lib/asof';
-import { expectedDate, tpeNow } from '../lib/dataStatus';
+import { DAY_STATUS_TEXT, freshView, missingDayStatus, tpeClock } from '../lib/freshness';
 import { envCounts, envInfo, LIGHT_LABEL } from '../lib/envState';
 import { fillForward, intradayWindow, sliceWindow, TONIGHT_PERIODS, type Period, type Window } from '../lib/periods';
-import { dataPhase, makeCalendar, type TradingCalendar } from '../lib/tradingCalendar';
+import { makeCalendar } from '../lib/tradingCalendar';
 import { PAGE_SOURCES, affectedFor } from '../lib/health';
 import { fmtNum } from '../lib/format';
 
@@ -38,47 +37,34 @@ export function hmTpe(iso: string | null | undefined): string | null {
   return new Date(t.getTime() + 8 * 3600 * 1000).toISOString().slice(11, 16);
 }
 
-const LAG_KEYS: AsofKey[] = ['quotes', 'insti', 'credit', 'taifex'];
-
-/** 落後的資料集（資料日早於應有日）：「三大法人 10/1」。 */
-export function laggingDatasets(meta: Meta, cal: TradingCalendar, now = tpeNow()): string[] {
-  const out: string[] = [];
-  for (const k of LAG_KEYS) {
-    const have = meta.asof?.[k];
-    if (!have) continue;
-    const want = expectedDate(k, cal, now);
-    if (have < want) out.push(`${ASOF_LABEL[k]} ${md(have)}`);
-  }
-  return out;
-}
-
-/** 頁首資料時間（一行）：「休市・資料至 10/2(五)・18:11 更新」。 */
+/**
+ * 頁首資料時間（一行）＋必要時一小行「下次更新 10/6 15:00 後」（2026-10-06：資料新鮮度規則，lib/freshness）。
+ * - 全部最新：「資料至 10/5(一)・22:42 更新」；凌晨看前一個交易日的資料不是「尚未更新」。
+ * - 「今天的資料尚未更新」只在今天是交易日、至少一個資料集預期公布時間已過、而它的資料日還不是今天時出現。
+ */
 export function BriefStatus({ meta }: { meta: Meta | null }) {
   const cal = useMemo(() => (meta ? makeCalendar(meta.calendar) : null), [meta]);
   if (!meta || !cal) return <span aria-hidden="true">&nbsp;</span>;
   const hm = hmTpe(meta.generated_at);
   const d = meta.market_date;
-  const { phase } = d ? dataPhase(d, cal) : { phase: 'ok' as const };
+  const fv = freshView(meta, cal);
   const failed = affectedFor(PAGE_SOURCES.tonight, meta.sources_affected ?? meta.sources_failed).length;
   return (
     <span class="meta-line" data-testid="brief-status">
-      {phase === 'holiday' ? '休市・' : phase === 'pending' ? '今天的資料尚未更新・' : ''}
+      {fv.holiday ? '休市・' : fv.todayNotUpdated ? '今天的資料尚未更新・' : ''}
       <a class="meta-link" href="#/me/data">資料至 {mdw(d)}</a>{hm ? `・${hm} 更新` : ''}{meta.demo ? '・示範資料' : ''}
       {failed ? <>・<a class="meta-alert" href="#/me/health">{failed} 個資料源異常</a></> : null}
+      {fv.next ? <span class="meta-next" data-testid="brief-next">{fv.next}</span> : null}
     </span>
   );
 }
 
-/** 資料落後提示（橘色，可點進資料健康頁）：真的落後超過 2 個交易日，或有資料集未到應有日；沒有就不顯示。 */
+/** 資料落後橫幅（橘色，可點進資料健康頁）：只列落後的資料集與資料日，最新的不列；全部最新就不顯示。 */
 export function BriefWarn({ meta }: { meta: Meta | null }) {
   const cal = useMemo(() => (meta ? makeCalendar(meta.calendar) : null), [meta]);
   if (!meta || !cal || !meta.market_date) return null;
-  const { phase, lag } = dataPhase(meta.market_date, cal);
-  if (phase === 'stale') {
-    return <div class="brief-stale" data-testid="brief-lag"><StaleNote lead="資料可能過期">{`收盤行情停在 ${mdw(meta.market_date)}，落後 ${lag} 個交易日`}</StaleNote></div>;
-  }
-  const warn = laggingDatasets(meta, cal, tpeNow());
-  return warn.length ? <div class="brief-stale" data-testid="brief-lag"><StaleNote>{warn.join('・')}</StaleNote></div> : null;
+  const fv = freshView(meta, cal);
+  return fv.lagging ? <div class="brief-stale" data-testid="brief-lag"><StaleNote lead="資料落後">{fv.lagging}</StaleNote></div> : null;
 }
 
 // ---------------------------------------------------------------- 加權指數
@@ -187,9 +173,14 @@ export function envLine(market: MarketData | null): string {
   return lights.length ? envCounts(envInfo(lights)) : '資料源待處理';
 }
 
-const flowTotal = (f: MarketData['flows'][number] | undefined) => (f ? (f.foreign ?? 0) + (f.trust ?? 0) + (f.dealer ?? 0) : null);
+/** 三大法人合計（億）：三個都沒有資料 → null（畫面顯示「—」，不是 0 億；2026-10-06） */
+const flowTotal = (f: MarketData['flows'][number] | undefined) => {
+  if (!f || (f.foreign == null && f.trust == null && f.dealer == null)) return null;
+  return (f.foreign ?? 0) + (f.trust ?? 0) + (f.dealer ?? 0);
+};
 const ratio = (c: TurnoverCell | undefined) => (c?.ma20_ratio === null || c?.ma20_ratio === undefined ? null : c.ma20_ratio);
-const yi = (v: number) => `${fmtNum(v, 0)} 億`;
+/** 億元；沒有資料 → 「—」（不是 0 億） */
+const yi = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${fmtNum(v, 0)} 億`);
 const trend10 = (s: number | null, p: number | null) => (s === null || p === null ? '' : s > 0 && s > p ? '加快' : s > 0 ? '放慢' : '');
 
 // ---------------------------------------------------------------- 總覽
@@ -217,9 +208,9 @@ export function Overview({ market, index, onSeg, rows }: {
           interp={<>五項資金指標的判定，點開看每一項的數值與門檻</>} />
         <div class="sum-grid">
           <SummaryCard title="三大法人合計" conclusion={<Signed v={tot} digits={1} unit="億" />} onClick={() => onSeg('money')} testid="sum-flows"
-            interp={flow ? `${md(flow.date)}・外資 ${fmtNum(flow.foreign ?? 0, 0)} 億` : '尚未公布'} />
+            interp={flow ? `${md(flow.date)}・外資 ${flow.foreign == null ? `—（${DAY_STATUS_TEXT[missingDayStatus('insti', flow.date, tpeClock())]}）` : `${fmtNum(flow.foreign, 0)} 億`}` : '尚未公布'} />
           <SummaryCard title="成交金額" conclusion={turn ? <><Num v={turn.total.value} digits={0} unit="億" /></> : '—'} onClick={() => onSeg('money')} testid="sum-turnover"
-            interp={turn ? `20 日平均的 ${fmtNum(ratio(turn.total) ?? 0, 2)} 倍` : undefined} />
+            interp={turn && ratio(turn.total) !== null ? `20 日平均的 ${fmtNum(ratio(turn.total) as number, 2)} 倍` : undefined} />
         </div>
       </Section>
       <div class="ui-sec">
@@ -284,7 +275,7 @@ export function MoneyPane({ market }: { market: MarketData | null }) {
   const flows = market?.flows ?? [];
   const flow = flows[flows.length - 1];
   const f20 = flows.slice(-20);
-  const sum20 = f20.reduce((s, f) => s + (flowTotal(f) ?? 0), 0);
+  const sum20 = f20.some((f) => flowTotal(f) !== null) ? f20.reduce((s, f) => s + (flowTotal(f) ?? 0), 0) : null;
   return (
     <div class="seg-pane" data-testid="pane-money">
       <Section title="資金指標" testid="env-lights-card">
@@ -305,13 +296,13 @@ export function MoneyPane({ market }: { market: MarketData | null }) {
   );
 }
 
-function FlowsSection({ flows, flow, sum20, source }: { flows: MarketData['flows']; flow: MarketData['flows'][number] | undefined; sum20: number; source?: string }) {
+function FlowsSection({ flows, flow, sum20, source }: { flows: MarketData['flows']; flow: MarketData['flows'][number] | undefined; sum20: number | null; source?: string }) {
   const f20 = flows.slice(-20);
   const items = [['外資', flow?.foreign], ['投信', flow?.trust], ['自營商', flow?.dealer]] as const;
   return (
     <Section title={<Term id="insti">三大法人</Term>} aside={flow ? `${md(flow.date)}${flow.est ? '・估' : ''}` : undefined} testid="flows-card"
       info={<><p>上市＋上櫃三大法人買賣超金額（億元）{flow?.est ? '；當日官方金額尚未取得，以淨買賣超張數 × 收盤價估算（標「估」）' : ''}。</p><p>資料來源：{source ?? '證交所、櫃買中心'}。</p></>}>
-      <Conclusion>近 20 日合計 <Signed v={f20.length ? sum20 : null} digits={0} unit="億" /></Conclusion>
+      <Conclusion>近 20 日合計 <Signed v={sum20} digits={0} unit="億" /></Conclusion>
       <Card>
         <div class="flow-cells">
           {items.map(([k, v]) => (
@@ -349,7 +340,7 @@ function TurnoverSection({ turnover }: { turnover: TurnoverDay[] | undefined }) 
         <span class="key-v"><Num v={last.total.value} digits={0} /><span class="key-unit">億</span></span>
         <span class="key-v2"><Num v={ratio(last.total)} digits={2} /><span class="key-unit">倍</span></span>
       </div>
-      <Interp>是前 20 個交易日平均的 {fmtNum(ratio(last.total) ?? 0, 2)} 倍</Interp>
+      <Interp>{ratio(last.total) === null ? null : `是前 20 個交易日平均的 ${fmtNum(ratio(last.total) as number, 2)} 倍`}</Interp>
       <Card>
         <List tags>
           {([['上市', last.twse, 'twse'], ['上櫃', last.tpex, 'tpex']] as const).map(([k, c, id]) => (
@@ -366,10 +357,10 @@ function TurnoverSection({ turnover }: { turnover: TurnoverDay[] | undefined }) 
           format={(v) => fmtNum(v, 0)}
           readout={(i) => (
             <>
-              <span class="sc2-r-item">合計 {yi(recent[i].total.value ?? 0)}</span>
-              <span class="sc2-r-item"><Swatch color="var(--d-80)" kind="bar" />上市 {yi(recent[i].twse.value ?? 0)}</span>
-              <span class="sc2-r-item"><Swatch color="var(--d-3)" kind="bar" />上櫃 {yi(recent[i].tpex.value ?? 0)}</span>
-              <span class="sc2-r-item">倍數 {fmtNum(ratio(recent[i].total) ?? 0, 2)}</span>
+              <span class="sc2-r-item">合計 {yi(recent[i].total.value)}</span>
+              <span class="sc2-r-item"><Swatch color="var(--d-80)" kind="bar" />上市 {yi(recent[i].twse.value)}</span>
+              <span class="sc2-r-item"><Swatch color="var(--d-3)" kind="bar" />上櫃 {yi(recent[i].tpex.value)}</span>
+              <span class="sc2-r-item">倍數 {ratio(recent[i].total) === null ? '—' : fmtNum(ratio(recent[i].total) as number, 2)}</span>
             </>
           )} />
       </Card>

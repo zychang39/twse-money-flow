@@ -8,7 +8,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/ho
 import type { StockHistory } from '../../data/types';
 import type { ChipBlock, ChipRow, ColFormat } from '../../lib/chips';
 import { INSTI_FOOTNOTE, cellPhrase, cellText, colValue, dayText, rowSentence, spokenDate } from '../../lib/chips';
-import { DAY_STATUS_TEXT, missingDayStatus, tpeClock } from '../../lib/freshness';
+import { DAY_STATUS_TEXT, type FreshKey, missingDayStatus, tpeClock } from '../../lib/freshness';
 import {
   INSTI_COLS, INSTI_FOLD, INSTI_PARTIES, INSTI_PARTY_LABEL, INSTI_PERIODS, type InstiDays, type InstiPrefs, instiWindow, maxAbsLots, streakTitle,
 } from '../../lib/instiFlow';
@@ -86,7 +86,7 @@ function useFold(wrap: { current: HTMLElement | null }, expanded: boolean, fold:
   }, [expanded, ...deps]);
 }
 
-export function InstiFlow({ h, asof, prefs, onPrefs }: { h: StockHistory; asof: (d: string | null) => string; prefs: InstiPrefs; onPrefs: (p: InstiPrefs) => void }) {
+export function InstiFlow({ h, asof, prefs, onPrefs }: { h: StockHistory; asof: (d: string | null, key?: FreshKey) => string; prefs: InstiPrefs; onPrefs: (p: InstiPrefs) => void }) {
   const chip = (h.chip as ChipBlock | null | undefined) ?? null;
   const setDays = (days: InstiDays) => { onPrefs({ ...prefs, days }); setExpanded(false); };
   const setParty = (party: InstParty) => onPrefs({ ...prefs, party });
@@ -148,7 +148,7 @@ export function InstiFlow({ h, asof, prefs, onPrefs }: { h: StockHistory; asof: 
 
   return (
     <>
-      <Section title="法人" aside={asof(asofDate)} testid="sec-insti" info={
+      <Section title="法人" aside={asof(asofDate, 'insti')} testid="sec-insti" info={
         <>
           <p>{INSTI_FOOTNOTE}；三大法人合計為官方數字（＝外資＋投信＋自營商），不自行加總。</p>
           <p>買賣超（張）＝淨買賣超股數 ÷ 1,000；區間合計先以股數相加再換算。佔量＝區間淨買賣超 ÷ 同期成交量（只計已公布的日子）。連續＝由最新一個已公布的交易日往回同方向的天數（最多 60 日）。</p>

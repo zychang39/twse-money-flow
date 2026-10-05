@@ -60,6 +60,8 @@ def check_coverage(out: Path) -> tuple[list[str], dict[str, Any]]:
         "kbar_covered": len(intra.get("codes") or []),
         "kbar_no_trade": len(intra.get("no_trade") or []),
         "kbar_missing": len(intra.get("missing") or []),
+        "kbar_failed": len(intra.get("failed") or []),
+        "kbar_not_fetched": len(intra.get("not_fetched") or []),
     }
     return errs, report
 

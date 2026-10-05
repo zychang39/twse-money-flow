@@ -178,12 +178,29 @@ def test_kbar_store_and_files(tmp_path):
     dates = ["2026-09-30", "2026-10-01", "2026-10-02"]
     close = pd.DataFrame({"2330": [2480.0, 2510.0, 2500.0]}, index=dates)
     out = tmp_path / "out"
-    rep = intraday.kbar_files(store, dates, close, {"2330", "9999"}, out)
-    assert rep == {"kbar_codes": 1, "kbar_no_trade": 0, "kbar_missing": 1, "kbar_date": "2026-10-02"}
+    state = {"target": "2026-10-02", "empty": ["9999"], "failed": ["8888"]}
+    rep = intraday.kbar_files(store, dates, close, {"2330", "9999", "8888", "7777"}, out, kbar_state=state)
+    assert rep == {
+        "kbar_codes": 1,
+        "kbar_no_trade": 0,
+        "kbar_missing": 1,
+        "kbar_failed": 1,
+        "kbar_not_fetched": 1,
+        "kbar_date": "2026-10-02",
+    }
     import json
 
     idx = json.loads((out / "intraday" / "index.json").read_text())
+    # 2026-10-06：三種「沒有 K 棒」分開——來源無資料（missing）、抓取失敗（failed）、還沒抓（not_fetched）
     assert idx["codes"] == ["2330"] and idx["missing"] == ["9999"] and "非官方" in idx["source"]
+    assert idx["failed"] == ["8888"] and idx["not_fetched"] == ["7777"]
+    # 抓取進度不是最近交易日（kbar 排程還沒跑）→ 全部算「未抓取」，不是「來源未提供」
+    out2 = tmp_path / "out2"
+    intraday.kbar_files(
+        store, dates, close, {"2330", "9999"}, out2, kbar_state={"target": "2026-10-01", "empty": ["9999"]}
+    )
+    idx2 = json.loads((out2 / "intraday" / "index.json").read_text())
+    assert idx2["missing"] == [] and idx2["not_fetched"] == ["9999"]
     f = json.loads((out / "intraday" / "2330.json").read_text())
     last = f["days"][-1]
     assert last["date"] == "2026-10-02" and last["prev_close"] == 2510.0

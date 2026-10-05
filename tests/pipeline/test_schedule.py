@@ -280,13 +280,18 @@ def test_holders_stalled():
     assert not holders_stalled({}, now)
 
 
-def test_schedule_yml_crons_match_stage_tasks():
-    """M3.4：config/schedule.yml 的每段 cron 與 SCHEDULE_TASKS 的 stage:* 一致。"""
+def test_schedule_yml_crons_match_catchup_tasks():
+    """2026-10-06：config/schedule.yml freshness.catchup 的 cron（UTC）與台北時間、SCHEDULE_TASKS 的 catchup 一致；
+    分段更新（stage:*）不再排程，只留手動觸發。"""
     from pipeline.cli import SCHEDULE_TASKS
     from pipeline.stages import schedule
 
-    stages = {v["cron"]: f"stage:{k}" for k, v in schedule()["stages"].items()}
-    assert {c: t for c, t in SCHEDULE_TASKS.items() if t.startswith("stage:")} == stages
+    cu = schedule()["freshness"]["catchup"]
+    assert {c for c, t in SCHEDULE_TASKS.items() if t == "catchup"} == set(cu["crons"])
+    assert not [t for t in SCHEDULE_TASKS.values() if t.startswith("stage:")]
+    for cron, hm in zip(cu["crons"], cu["times"], strict=True):
+        m, h = (int(x) for x in cron.split()[:2])
+        assert f"{(h + 8) % 24:02d}:{m:02d}" == hm
 
 
 def test_run_stage_retries_until_published_and_records_time(tmp_path, monkeypatch):

@@ -2,23 +2,26 @@
 name: Data
 on:
   schedule:
-    # M3.4 分段更新（config/schedule.yml；未公布時每 5 分鐘重試、最多 60 分鐘，每段各自部署）
-    - cron: "15 6 * * 1-5"      # 14:15（台北）收盤行情 → 價格與價格類訊號
-    - cron: "30 7 * * 1-5"      # 15:30（台北）法人 → 訊號、今日新觸發、策略健康度、Telegram
-    - cron: "30 13 * * 1-5"     # 21:30（台北）信用、借券、當沖與其他晚間資料
-    - cron: "0 2 * * 6"         # 週六 10:00：集保股權分散表
-    - cron: "0 3 11 * *"        # 每月 11 日：月營收
-    - cron: "0 3 16 5,8,11 *"   # 季報法定期限後（5/15、8/14、11/14）
-    - cron: "0 3 1 4 *"         # 年報法定期限後（3/31）
-    - cron: "*/15 1-5 * * 1-5"  # 交易時段每 15 分鐘：盤中提醒
-    - cron: "40 14 * * 1-5"     # 22:40（台北）：接續在每日任務時段延後的回補分段（E-05）
-    - cron: "45 6 * * 1-5"      # 14:45（台北）：個股 5 分 K（Yahoo，非官方；個股頁 1D／1W），跑不完自動接續
+    # GitHub cron 一律是 UTC；右邊註明對應的台北時間（UTC+8，台灣沒有日光節約）。
+    # 2026-10-06：GitHub 排程在負載高時會延遲數小時甚至整個不觸發（10/5 的 15:30、21:30 都沒觸發，14:15 延到 22:38）。
+    # 因此交易日改成三次「依資料新鮮度補抓」（catchup，pipeline/freshness.py）：每次只抓依規則應已公布但還沒拿到的資料集，
+    # 與是哪一次觸發無關；有缺漏時 1 小時後以 workflow_dispatch 再試（最多 3 次，dispatch 不會被延遲）。
+    - cron: "15 7 * * 1-5"      # 週一至五 07:15 UTC＝台北 15:15：收盤行情、指數、分鐘 K（預期 15:00）
+    - cron: "30 8 * * 1-5"      # 週一至五 08:30 UTC＝台北 16:30：三大法人、期貨法人（預期 16:00）、本益比、外資持股
+    - cron: "30 14 * * 1-5"     # 週一至五 14:30 UTC＝台北 22:30：融資融券、借券、當沖（預期 22:00）
+    - cron: "0 2 * * 6"         # 週六 02:00 UTC＝台北週六 10:00：集保股權分散表
+    - cron: "0 3 11 * *"        # 每月 11 日 03:00 UTC＝台北 11:00：月營收
+    - cron: "0 3 16 5,8,11 *"   # 5/16、8/16、11/16 03:00 UTC＝台北 11:00：季報法定期限後
+    - cron: "0 3 1 4 *"         # 4/1 03:00 UTC＝台北 11:00：年報法定期限後
+    - cron: "*/15 1-5 * * 1-5"  # 週一至五 01:00–05:45 UTC 每 15 分鐘＝台北 09:00–13:45：盤中提醒
+    - cron: "40 14 * * 1-5"     # 週一至五 14:40 UTC＝台北 22:40：接續在每日任務時段延後的回補分段（E-05）
+    - cron: "45 6 * * 1-5"      # 週一至五 06:45 UTC＝台北 14:45：個股 5 分 K（Yahoo，非官方；個股頁 1D／1W），跑不完自動接續
   workflow_dispatch:
     inputs:
       task:
         description: "任務"
         type: choice
-        options: [daily, periodic, backfill, holders_backfill, stage, probe, alerts, kbar]
+        options: [catchup, daily, periodic, backfill, holders_backfill, stage, probe, alerts, kbar]
         default: daily
       source:
         description: "來源 id（逗號分隔，可留白）"
@@ -41,6 +44,14 @@ on:
         type: boolean
         required: false
         default: false
+      attempt:
+        description: "補抓（catchup）第幾次；重試由前一次自動觸發"
+        required: false
+        default: ""
+      not_before:
+        description: "補抓重試：等到這個時間（ISO，台北）才開始"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -53,12 +64,13 @@ permissions:
 # M0：全市場集保回補（holders_backfill）用自己的 holders-backfill 群組，和籌碼回補、每日任務互不排隊。
 # v3 M0：再依 source 分群（lane=0/2、lane=1/2 兩道平行；空白或 lanes=2 是只負責觸發兩道的分派者）。
 # M3.4：公布時間實測（probe）只抓取不寫資料，用 publish-probe 群組。
+# 2026-10-06：補抓的重試（catchup＋not_before，會先等 1 小時）用 data-retry 群組，等待時不擋排程的補抓與每日任務。
 # 2026-10：個股 5 分 K（kbar，約 2,400 檔 × 1–2 次／秒）用自己的 kbar 群組，不擋分段更新；每段最多 60 分鐘、跑不完自動接續。
 # E-05：回補用獨立的 data-backfill 群組（每段最多 40 分鐘、交易日 16:30–22:30 不開始新的一段），
 # 不再和每日任務排同一個佇列（GitHub 同一群組只保留最新一個等待中的 run，長時間回補會把排程的每日任務擠掉）。
 # 兩者可能同時寫入 data 分支：commit-data 推送失敗時 rebase 到遠端最新並合併 manifest 後重試（pipeline/gitdata.py）。
 concurrency:
-  group: ${{ (github.event.schedule == '*/15 1-5 * * 1-5' || inputs.task == 'alerts') && 'alerts' || (inputs.task == 'backfill' && 'data-backfill' || (inputs.task == 'holders_backfill' && format('holders-backfill-{0}', inputs.source) || (inputs.task == 'probe' && 'publish-probe' || ((github.event.schedule == '45 6 * * 1-5' || inputs.task == 'kbar') && 'kbar' || 'data-pipeline')))) }}
+  group: ${{ (github.event.schedule == '*/15 1-5 * * 1-5' || inputs.task == 'alerts') && 'alerts' || (inputs.task == 'backfill' && 'data-backfill' || (inputs.task == 'holders_backfill' && format('holders-backfill-{0}', inputs.source) || (inputs.task == 'probe' && 'publish-probe' || ((github.event.schedule == '45 6 * * 1-5' || inputs.task == 'kbar') && 'kbar' || ((inputs.task == 'catchup' && inputs.not_before != '') && 'data-retry' || 'data-pipeline'))))) }}
   cancel-in-progress: false
 
 jobs:
@@ -118,6 +130,7 @@ jobs:
           --task "${{ inputs.task }}" --schedule "${{ github.event.schedule }}"
           --source "${{ inputs.source }}" --start "${{ inputs.start }}" --end "${{ inputs.end }}"
           --refresh "${{ inputs.refresh }}" --stage "${{ inputs.stage }}"
+          --attempt "${{ inputs.attempt }}" --not-before "${{ inputs.not_before }}"
       - if: always() && steps.prepare.outcome == 'success'
         run: python -m pipeline commit-data --data-dir data
       # resume（22:40）只觸發延後的回補，不抓資料、沒有執行摘要，不回報

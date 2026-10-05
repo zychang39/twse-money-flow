@@ -1,30 +1,27 @@
 # 分段更新（M3.4；METHODOLOGY §12、DATA_SOURCES「公布時間實測」）
-# 三段各自抓取、驗證、寫入 data 分支並部署；官方還沒公布時每 5 分鐘重試，最多 60 分鐘。
-# cron 寫在 .github/workflows/data.yml（UTC），與 pipeline/cli.py 的 SCHEDULE_TASKS 以測試比對。
+# 2026-10-06：排程改為依資料新鮮度補抓（下方 freshness.catchup）；這三段保留給手動觸發（task=stage）與狀態列的標籤，
+# time＝補抓排程的台北時間。官方還沒公布時每 5 分鐘重試，最多 60 分鐘（只在手動 task=stage 時）。
 retry:
   interval_minutes: 5
   max_minutes: 60
 stages:
   close:
     label: 收盤行情
-    time: "14:15"             # 台北；收盤行情約 14:00 公布
-    cron: "15 6 * * 1-5"
+    time: "15:15"             # 台北；收盤行情約 14:00 公布（預期 15:00，含餘裕）
     sources: [twse_quotes, tpex_quotes, tpex_index, twse_intraday_index]  # 2026-10：每 5 秒指數統計約 14:00 已公布，與收盤行情同段抓（首頁 1D）
     ready: [twse_quotes, tpex_quotes]
     note: 價格與價格類訊號
     digest: false
   insti:
     label: 法人
-    time: "15:30"             # 三大法人約 15:00–16:30 公布
-    cron: "30 7 * * 1-5"
+    time: "16:30"             # 三大法人約 15:00 公布（預期 16:00，含餘裕）
     sources: [twse_quotes, tpex_quotes, twse_insti, tpex_insti, twse_valuation, tpex_valuation, twse_qfii, tpex_qfii, twse_insti_amount, tpex_insti_amount, twse_intraday_index]
     ready: [twse_insti, tpex_insti]
     note: 法人、訊號、今日新觸發、策略健康度；推送 Telegram（若有設定）
     digest: true
   credit:
     label: 信用
-    time: "21:30"             # 融資融券約 21:00、借券約 21:30、當沖當晚
-    cron: "30 13 * * 1-5"
+    time: "22:30"             # 融資融券約 21:00、借券約 21:30、當沖當晚（預期 22:00，含餘裕）
     sources: all              # 全部每日來源（含期交所、注意／處置、主動式 ETF）
     ready: [twse_margin, tpex_margin]
     note: 信用、借券、當沖與其他晚間資料
@@ -53,5 +50,6 @@ freshness:
   # 補抓排程（data.yml；台北時間）：每次只抓「依規則應已公布但還沒拿到」的資料集；有缺漏時 1 小時後再試，最多 3 次
   catchup:
     times: ["15:15", "16:30", "22:30"]
+    crons: ["15 7 * * 1-5", "30 8 * * 1-5", "30 14 * * 1-5"]   # 同上（UTC），與 data.yml、pipeline/cli.py SCHEDULE_TASKS 以測試比對
     retry_minutes: 60
     max_retries: 3

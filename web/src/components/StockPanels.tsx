@@ -3,6 +3,7 @@
  * 只組合共用元件（components/ui.tsx）；數字全部來自 lib/stockFacts.ts（純函式、已測試），這裡不做計算。
  * 公式、門檻、資料來源、方法說明一律放 ⓘ；區塊標題用名詞。
  */
+import type { FreshKey } from '../lib/freshness';
 import { useState } from 'preact/hooks';
 import type { StockHistory } from '../data/types';
 import { pastConferences, revenueSummary, upcomingEvents, valuationFacts } from '../lib/stockFacts';
@@ -82,7 +83,7 @@ const ymText = (ym: string) => `${ym.slice(0, 4)}/${Number(ym.slice(5, 7))}`;
 const sgn = (v: number, d = 1) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmtNum(Math.abs(v), d)}%`;
 
 /** 基本面（M3）：營收（年增率柱狀圖 → 近 12 個月表）、季財報表、估值（本益比走勢 → 數值）。每區塊有結論行與解讀行。 */
-export function FundamentalPanel({ h, asof }: { h: StockHistory; asof: (d: string | null) => string }) {
+export function FundamentalPanel({ h, asof }: { h: StockHistory; asof: (d: string | null, key?: FreshKey) => string }) {
   const rev = revenueSummary(h);
   const val = valuationFacts(h);
   const [allRev, setAllRev] = useState(false);
@@ -137,7 +138,7 @@ export function FundamentalPanel({ h, asof }: { h: StockHistory; asof: (d: strin
           </>
         ) : <List><EmptyRow>沒有季財報資料</EmptyRow></List>}
       </Section>
-      <Section title="估值" aside={asof(val.date)} testid="sec-valuation" info={<p>本益比 3 年百分位＝最新本益比在自身近 756 個交易日（約 3 年）本益比中的百分位（0–100）；本益比 ≤ 0（虧損）不計。淨值比、殖利率為證交所／櫃買中心每日公布值。</p>}>
+      <Section title="估值" aside={asof(val.date, 'valuation')} testid="sec-valuation" info={<p>本益比 3 年百分位＝最新本益比在自身近 756 個交易日（約 3 年）本益比中的百分位（0–100）；本益比 ≤ 0（虧損）不計。淨值比、殖利率為證交所／櫃買中心每日公布值。</p>}>
         <Conclusion>{ok(val.pe) ? <>本益比 {fmtNum(val.pe, 1)}<span class="key-unit"> 倍</span></> : '本益比：虧損或未公布'}</Conclusion>
         <Interp>{ok(val.pePct3y) ? `位於自身近 3 年的第 ${Math.round(val.pePct3y)} 百分位` : null}</Interp>
         {pe.filter((v) => v !== null).length >= 2 ? (

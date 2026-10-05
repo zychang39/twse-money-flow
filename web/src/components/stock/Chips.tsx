@@ -9,6 +9,7 @@ import { useMemo, useState } from 'preact/hooks';
 import type { StockHistory } from '../../data/types';
 import type { ChipBlock, ChipRow } from '../../lib/chips';
 import { chipRows } from '../../lib/chips';
+import type { FreshKey } from '../../lib/freshness';
 import { loadPrefs, type InstiPrefs, savePrefs } from '../../lib/instiFlow';
 import { creditFacts, foreignHolding, holderFacts } from '../../lib/stockFacts';
 import { marginInterp, whaleInterp } from '../../lib/stockInterp';
@@ -36,7 +37,7 @@ function lastValid(d: string[], a: (number | null)[] | undefined): string | null
 
 const dayCell = (r: ChipRow) => md(r.date);
 
-export function ChipsPane({ h, asof }: { h: StockHistory; asof: (d: string | null) => string }) {
+export function ChipsPane({ h, asof }: { h: StockHistory; asof: (d: string | null, key?: FreshKey) => string }) {
   const chip = (h.chip as ChipBlock | null | undefined) ?? null;
   // 區間與法人：全站共用（localStorage）；信用區塊跟著法人區塊的區間
   const [prefs, setPrefsState] = useState<InstiPrefs>(loadPrefs);
@@ -62,7 +63,7 @@ export function ChipsPane({ h, asof }: { h: StockHistory; asof: (d: string | nul
     <>
       <InstiFlow h={h} asof={asof} prefs={prefs} onPrefs={setPrefs} />
 
-      <Section title="信用與借券當沖" aside={asof(lastValid(h.d, h.mb))} testid="sec-credit" info={
+      <Section title="信用與借券當沖" aside={asof(lastValid(h.d, h.mb), 'credit')} testid="sec-credit" info={
         <p>融資、融券、借券賣出餘額（張）與 5、20 個交易日前相比的增減；當沖率＝當沖成交量 ÷ 成交量。融資使用率＝融資餘額 ÷ 融資限額；券資比＝融券餘額 ÷ 融資餘額；融券最後回補日來自停止融券公告。</p>
       }>
         <Conclusion>融資 {ok(cr.marginBal) ? fmtNum(cr.marginBal, 0) : '—'}<span class="key-unit"> 張</span>・5 日 {ok(cr.margin5.pct) ? `${sgn(cr.margin5.pct, 1)}%` : '—'}</Conclusion>
