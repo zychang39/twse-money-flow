@@ -43,8 +43,8 @@ function useFit(ref: { current: HTMLElement | null }, texts: { vals: string[]; d
     const compute = () => {
       const W = el.clientWidth;
       if (!W) return;
-      // 日期欄：粗體 MM/DD（15）、小字收盤與漲跌（13）、「區間合計」（13 粗體）＋左右內距
-      const dateW = Math.ceil(Math.max(56, width(texts.dates, 15, 600), width(texts.subs, 13, 400), width(['區間合計'], 13, 600)) + 8 + 6);
+      // 日期欄：粗體 MM/DD（15）、小字收盤與漲跌（13）、「區間合計」（13 粗體）＋左右內距（左 16：內容對齊卡片內 x=32 的格線）
+      const dateW = Math.ceil(Math.max(56, width(texts.dates, 15, 600), width(texts.subs, 13, 400), width(['區間合計'], 13, 600)) + 16 + 4);
       // 數字欄：最長的值＋▲▼（縮小，約 0.72em）＋左右內距 8
       const fs = STEPS.find((px) => dateW + 4 * (width(texts.vals, px, 500) + 8) <= W) ?? STEPS[STEPS.length - 1];
       setS((o) => (o.fs === fs && o.dateW === dateW ? o : { fs, dateW }));
@@ -189,7 +189,7 @@ export function InstiFlow({ h, asof, prefs, onPrefs }: { h: StockHistory; asof: 
                   <span>{rows.length} 日・{mdLabel(rows[rows.length - 1].date)}–{mdLabel(rows[0].date)}・點一列看當天完整資料</span>
                   <span class="if-unit">單位：張</span>
                 </div>
-                <div class="if-card" ref={tableRef} style={{ ['--dt' as string]: dt, ['--cd-fs' as string]: `${fs / 16}rem` }}>
+                <div class="if-card ui-card" ref={tableRef} style={{ ['--dt' as string]: dt, ['--cd-fs' as string]: `${fs / 16}rem` }}>
                   <div class="if-fold" ref={wrapRef}>
                     <table class="cd-table if-table" data-testid="insti-daily" aria-label={`近 ${rows.length} 日三大法人每日買賣超（張）`}>
                       <colgroup><col style={{ width: `${dateW}px` }} />{INSTI_PARTIES.map((p) => <col key={p} />)}</colgroup>
@@ -201,12 +201,12 @@ export function InstiFlow({ h, asof, prefs, onPrefs }: { h: StockHistory; asof: 
                       </thead>
                       <tbody>
                         <tr class="total" data-testid="insti-total">
-                          <th scope="row" class="cd-rowhead">
+                          <td role="rowheader" class="cd-rowhead">
                             <span class="cd-date">區間合計</span>
                             <span class="cd-sub">{rows.length} 日</span>
                             {missingNote ? <span class="cd-sub if-miss" data-testid="insti-missing">{missingNote}</span> : null}
                             <button class="cd-rowbtn" aria-haspopup="dialog" aria-label={`區間合計 ${rows.length} 日：看${INSTI_PARTY_LABEL[party]}的佔股本、估計成本與百分位`} onClick={() => setDetailOpen(true)} />
-                          </th>
+                          </td>
                           {INSTI_PARTIES.map((p) => {
                             const c = INSTI_COLS[p];
                             const t = cellText(tot![p].lots, c, 'lots', true, LOTS);
@@ -227,12 +227,12 @@ export function InstiFlow({ h, asof, prefs, onPrefs }: { h: StockHistory; asof: 
                           return (
                             <tr key={r.date} data-date={r.date} class={`day${pick === r.date ? ' sel' : ''}${folded ? ' folded' : ''}`} aria-selected={pick === r.date} aria-hidden={folded || undefined}
                               onClick={() => { setPick(r.date); setDay(r); }}>
-                              <th scope="row" class="cd-rowhead">
+                              <td role="rowheader" class="cd-rowhead">
                                 <span class="cd-date" aria-hidden="true">{mdLabel(r.date)}</span>
                                 <span class="cd-sub" aria-hidden="true">{p.price}<span class={`cd-chg ${p.dir}`}>{p.chg}</span></span>
                                 <button class="cd-rowbtn" tabIndex={folded ? -1 : 0} aria-haspopup="dialog" aria-label={pend ? `${spokenDate(r.date)}，三大法人${pend}` : rowSentence(r, INSTI_PARTIES.map((x) => INSTI_COLS[x]), 'lots')}
                                   onClick={(e) => { e.stopPropagation(); setPick(r.date); setDay(r); }} />
-                              </th>
+                              </td>
                               {INSTI_PARTIES.map((x) => {
                                 const c = INSTI_COLS[x];
                                 const t = cellText(colValue(r, c, 'lots'), c, 'lots', true, LOTS);
