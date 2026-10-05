@@ -1454,7 +1454,7 @@
   "task": "holders_backfill"
  },
  "kbar": {
-  "at": "2026-10-06T00:24+08:00",
+  "at": "2026-10-05T23:19+08:00",
   "covered": 2340,
   "empty": [
    "00643K",
@@ -1640,6 +1640,16 @@
    {
     "at": "22:00",
     "date": "2026-10-02"
+   },
+   {
+    "at": "00:16",
+    "date": "2026-10-05"
+   }
+  ],
+  "twse_insti_amount": [
+   {
+    "at": "00:16",
+    "date": "2026-10-05"
    }
   ],
   "twse_intraday_index": [
@@ -1674,6 +1684,10 @@
    {
     "at": "22:00",
     "date": "2026-10-02"
+   },
+   {
+    "at": "00:16",
+    "date": "2026-10-05"
    }
   ],
   "twse_quotes": [
@@ -1720,24 +1734,14 @@
    {
     "at": "22:00",
     "date": "2026-10-02"
+   },
+   {
+    "at": "00:16",
+    "date": "2026-10-05"
    }
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-04T13:46:40+08:00",
-   "by_source": {
-    "tdcc_full": 45251
-   },
-   "chained": true,
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 45251,
-   "requests": 549,
-   "task": "holders_backfill"
-  },
   {
    "at": "2026-10-04T14:27:24+08:00",
    "by_source": {
@@ -2291,6 +2295,67 @@
    "rows": 0,
    "task": "kbar",
    "total": 2367
+  },
+  {
+   "at": "2026-10-06T01:11:32+08:00",
+   "failed": [
+    "tpex_insti 2026-10-05 HTTP 403：https://www.tpex.org.tw/www/zh-tw/insti/dailyTrade?type=Daily&sect=EW&date=2026/10/05&id=&response=json",
+    "tpex_valuation 2026-10-05 HTTP 403：https://www.tpex.org.tw/www/zh-tw/afterTrading/peQryDate?date=2026/10/05&id=&response=json",
+    "tpex_qfii 2026-10-05 HTTP 403：https://www.tpex.org.tw/www/zh-tw/insti/qfii?date=2026/10/05&id=&response=json",
+    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次"
+   ],
+   "ok": 4,
+   "pending": [],
+   "requests": 7,
+   "stage": "insti",
+   "status": "late",
+   "target": "2026-10-05",
+   "task": "stage",
+   "waited": 55
   }
  ],
  "sources": {
@@ -2540,24 +2605,24 @@
    "validation": "ok"
   },
   "tpex_insti": {
-   "consecutive_failures": 0,
-   "last_attempt": "2026-10-02T22:00:08+08:00",
-   "last_message": null,
-   "last_status": "ok",
+   "consecutive_failures": 12,
+   "last_attempt": "2026-10-06T01:11:32+08:00",
+   "last_message": "斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+   "last_status": "failed",
    "last_success": "2026-10-02",
    "last_success_at": "2026-10-02T22:00:08+08:00",
    "rows": 906,
-   "validation": "ok"
+   "validation": "failed"
   },
   "tpex_insti_amount": {
-   "consecutive_failures": 0,
-   "last_attempt": "2026-10-04T04:47:14+08:00",
-   "last_message": null,
-   "last_status": "ok",
+   "consecutive_failures": 12,
+   "last_attempt": "2026-10-06T01:11:32+08:00",
+   "last_message": "斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+   "last_status": "failed",
    "last_success": "2026-10-02",
    "last_success_at": "2026-10-04T04:47:14+08:00",
    "rows": 6,
-   "validation": "ok"
+   "validation": "failed"
   },
   "tpex_margin": {
    "consecutive_failures": 0,
@@ -2580,14 +2645,14 @@
    "validation": "ok"
   },
   "tpex_qfii": {
-   "consecutive_failures": 0,
-   "last_attempt": "2026-10-02T22:00:27+08:00",
-   "last_message": null,
-   "last_status": "ok",
+   "consecutive_failures": 12,
+   "last_attempt": "2026-10-06T01:11:32+08:00",
+   "last_message": "斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+   "last_status": "failed",
    "last_success": "2026-10-02",
    "last_success_at": "2026-10-02T22:00:27+08:00",
    "rows": 893,
-   "validation": "ok"
+   "validation": "failed"
   },
   "tpex_quotes": {
    "consecutive_failures": 0,
@@ -2630,14 +2695,14 @@
    "validation": "ok"
   },
   "tpex_valuation": {
-   "consecutive_failures": 0,
-   "last_attempt": "2026-10-02T22:00:16+08:00",
-   "last_message": null,
-   "last_status": "ok",
+   "consecutive_failures": 12,
+   "last_attempt": "2026-10-06T01:11:32+08:00",
+   "last_message": "斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
+   "last_status": "failed",
    "last_success": "2026-10-02",
    "last_success_at": "2026-10-02T22:00:16+08:00",
    "rows": 887,
-   "validation": "ok"
+   "validation": "failed"
   },
   "twse_attention": {
    "consecutive_failures": 0,
@@ -2806,21 +2871,21 @@
   },
   "twse_insti": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-02T22:00:03+08:00",
+   "last_attempt": "2026-10-06T00:16:07+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-02T22:00:03+08:00",
-   "rows": 1320,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T00:16:07+08:00",
+   "rows": 1327,
    "validation": "ok"
   },
   "twse_insti_amount": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-04T04:47:09+08:00",
+   "last_attempt": "2026-10-06T00:16:32+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-04T04:47:09+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T00:16:32+08:00",
    "rows": 6,
    "validation": "ok"
   },
@@ -2866,11 +2931,11 @@
   },
   "twse_qfii": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-02T22:00:21+08:00",
+   "last_attempt": "2026-10-06T00:16:23+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-02T22:00:21+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T00:16:23+08:00",
    "rows": 1356,
    "validation": "ok"
   },
@@ -2916,12 +2981,12 @@
   },
   "twse_valuation": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-02T22:00:12+08:00",
+   "last_attempt": "2026-10-06T00:16:16+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-02T22:00:12+08:00",
-   "rows": 1082,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T00:16:16+08:00",
+   "rows": 1083,
    "validation": "ok"
   },
   "ust_10y": {
@@ -2951,8 +3016,13 @@
    "status": "done",
    "waited": 1
   },
-  "date": "2026-10-05"
+  "date": "2026-10-05",
+  "insti": {
+   "at": "01:11",
+   "status": "late",
+   "waited": 55
+  }
  },
- "updated_at": "2026-10-06T00:24:46+08:00",
+ "updated_at": "2026-10-06T01:11:32+08:00",
  "version": 1
 }
