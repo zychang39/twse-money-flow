@@ -1012,6 +1012,12 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
   font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); }
 .if-meta .if-unit { flex: none; color: var(--text-1); font-weight: var(--fw-medium); }
 .if-card { background: var(--surface-1); border-radius: var(--r-card); box-shadow: var(--shadow-card); overflow: clip; }
+/* 對齊格線（align-audit）：卡片內文字左緣 x=32＝卡片左緣＋16；儲存格內距一律 4 的倍數 */
+.if-card.ui-card { padding: 0; }
+.if-table th, .if-table td { padding: var(--s-1); }
+.if-table th:first-child, .if-table td:first-child { padding-left: var(--s-4); }
+.if-table th:last-child, .if-table td:last-child { padding-right: var(--s-4); }
+.if-table .cd-sub { margin-top: 0; }
 .if-fold { overflow: clip; }
 .if-table { --row-table: 3.25rem; }
 .if-table tbody th, .if-table tbody td { height: var(--row-table); box-shadow: inset 0 -1px 0 var(--line); }
@@ -1026,6 +1032,6 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 .if-table td.em .cd-t { font-weight: var(--fw-semibold); }
 .if-table tbody tr.sel > * { background-color: var(--surface-2); }
 .if-table tbody tr.folded { visibility: hidden; }
-.if-more { margin: 0; border-top: 1px solid var(--line); border-radius: 0; }
+.if-more { margin: 0; padding: 0 var(--s-4); border-top: 1px solid var(--line); border-radius: 0; }
 /* 2026-10-06：「下次更新 10/6 15:00 後」—頁首資料時間下方獨立一小行（不是警示，系統灰） */
 .meta-next { color: var(--text-2); }
