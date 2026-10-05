@@ -220,3 +220,25 @@ def test_http_waf_307_is_block_not_format_change():
     same = RedirectedResponse(200, b"{}", "https://example.com/a?x=1", 307)
     c3 = PoliteClient(delay=(0, 0), sleep=lambda s: None, session=FakeSession([same]))  # type: ignore[arg-type]
     assert c3.get_bytes("https://example.com/a") == b"{}"
+
+
+def test_http_403_backs_off_and_retries_like_waf():
+    """2026-10-06：櫃買夜間對 Actions runner 回 403（本機同網址 200）→ 視同阻擋：長退避後再試一次，成功就用；不是立刻放棄。"""
+    from pipeline.core.http import BLOCK_BACKOFF, BlockedError
+
+    sleeps: list[float] = []
+    session = FakeSession([FakeResponse(403, b"Forbidden"), FakeResponse(200, b"{}")])
+    client = PoliteClient(delay=(0, 0), max_retries=4, sleep=sleeps.append, session=session)  # type: ignore[arg-type]
+    assert client.get_bytes("https://www.tpex.org.tw/www/zh-tw/insti/dailyTrade?date=2026/10/05") == b"{}"
+    assert sleeps == [BLOCK_BACKOFF]
+    c2 = PoliteClient(
+        delay=(0, 0), max_retries=4, sleep=lambda s: None, session=FakeSession([FakeResponse(403, b"")] * 5)
+    )  # type: ignore[arg-type]
+    with pytest.raises(BlockedError, match="403"):
+        c2.get_bytes("https://www.tpex.org.tw/a")
+    # 404 仍然不重試
+    s3 = FakeSession([FakeResponse(404, b""), FakeResponse(200, b"{}")])
+    c3 = PoliteClient(delay=(0, 0), max_retries=4, sleep=lambda s: None, session=s3)  # type: ignore[arg-type]
+    with pytest.raises(FetchError):
+        c3.get_bytes("https://example.com/x")
+    assert s3.calls == 1

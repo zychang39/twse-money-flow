@@ -6,24 +6,27 @@ import { gotoDaily, gotoStockSeg } from './helpers';
 test.use({ viewport: { width: 393, height: 852 } });
 
 test.describe('M2-1 每日籌碼表', () => {
-  test('沒有每格比例條，表格上方有法人買賣超柱狀圖；同一欄同一種格式；列高約 52pt；區間合計有底色', async ({ page }) => {
+  test('沒有每格比例條；法人柱狀圖移到籌碼分頁（子頁只有信用、借券當沖）；同一欄同一種格式；列高約 52pt；區間合計有底色', async ({ page }) => {
     await gotoDaily(page);
     const daily = page.locator('section.chip-daily');
     await daily.scrollIntoViewIfNeeded();
     const table = daily.locator('.cd-table');
     await expect(table).toBeVisible();
     await expect(daily.locator('.cd-bar')).toHaveCount(0);
-    await expect(daily.getByRole('img', { name: /^三大法人近 \d+ 日每日買賣超柱狀圖/ })).toBeVisible();
+    // 2026-10-06：法人（含柱狀圖）移到個股籌碼分頁的法人區塊，子頁不再有
+    await expect(daily.getByRole('img', { name: /^三大法人近 \d+ 日每日買賣超柱狀圖/ })).toHaveCount(0);
 
-    // 整張表（#6）：全部是「萬張 1 位小數」或全部是整數（—、0、萬張表格中未滿千張的「235張」除外）
+    // 同一欄同一種格式（#6）：每一欄的小數位數一致（—、0 除外；信用檢視的券資比是 1 位小數 %，其餘張為整數）
     const cols = await table.evaluate((t) => {
       const rows = [...t.querySelectorAll('tbody tr')];
       const n = rows[0].querySelectorAll('td').length;
       return Array.from({ length: n }, (_, i) => rows.map((r) => r.querySelectorAll('td')[i].querySelector('.cd-t')?.textContent ?? ''));
     });
-    const nums = cols.flat().map((t) => t.replace(/[▲▼%]/g, '')).filter((t) => t !== '—' && t !== '0' && !t.endsWith('張'));
-    const decimals = new Set(nums.map((t) => (t.includes('.') ? t.split('.')[1].length : 0)));
-    expect(decimals.size, cols.flat().join(' | ')).toBeLessThanOrEqual(1);
+    for (const col of cols) {
+      const nums = col.map((t) => t.replace(/[▲▼%]/g, '')).filter((t) => t !== '—' && t !== '0' && !t.endsWith('張'));
+      const decimals = new Set(nums.map((t) => (t.includes('.') ? t.split('.')[1].length : 0)));
+      expect(decimals.size, col.join(' | ')).toBeLessThanOrEqual(1);
+    }
     // 數字靠右、等寬數字；▲▼ 縮小
     const style = await table.locator('tbody tr.day td.cd-v').first().evaluate((el) => ({ align: getComputedStyle(el).textAlign, num: getComputedStyle(el).fontVariantNumeric }));
     expect(style.align).toBe('right');
@@ -43,8 +46,9 @@ test.describe('M2-1 每日籌碼表', () => {
     const totalBg = await table.locator('tr.total td').first().evaluate((el) => getComputedStyle(el).backgroundColor);
     const dayBg = await row.locator('td').first().evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(totalBg).not.toBe(dayBg);
-    // 連續天數仍在欄位標題下方
-    await expect(table.locator('thead th').nth(1).locator('.cd-sub')).toHaveText(/連(買|賣)|—/);
+    // 連續天數：法人區塊的標題（籌碼分頁）
+    await gotoStockSeg(page, '#/stock/2330', '籌碼');
+    await expect(page.getByTestId('insti-concl')).toHaveText(/^外資(連[買賣] \d+\+? 日|無連續)・投信/);
   });
 });
 

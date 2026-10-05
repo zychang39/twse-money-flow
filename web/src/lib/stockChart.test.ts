@@ -58,10 +58,14 @@ describe('seriesWindow（折線用的 Window）', () => {
 });
 
 describe('intradayReason（1D／1W 沒有分 K 的原因）', () => {
-  const idx = { date: '2026-10-02', source: 'x', codes: ['2330'], no_trade: ['1234'], missing: ['5678'] };
-  it('各種原因', () => {
+  const idx = { date: '2026-10-02', source: 'x', codes: ['2330'], no_trade: ['1234'], missing: ['5678'], failed: ['4321'], not_fetched: ['2317'] };
+  it('各種原因（未抓取、抓取失敗、來源無資料分開）', () => {
     expect(intradayReason('1234', idx, false)).toBe('10/2 沒有成交，沒有分鐘走勢');
     expect(intradayReason('5678', idx, false)).toBe('10/2 分鐘資料來源未提供這一檔');
+    expect(intradayReason('4321', idx, false)).toBe('10/2 分鐘資料抓取失敗，下一次更新會重試');
+    expect(intradayReason('2317', idx, false)).toBe('10/2 分鐘資料尚未抓取（收盤後依序更新全部個股）');
+    // 舊版 index.json（沒有 not_fetched）：missing 不能斷定是來源沒有
+    expect(intradayReason('5678', { date: '2026-10-02', source: 'x', codes: [], missing: ['5678'] }, false)).toBe('10/2 分鐘資料尚未取得');
     expect(intradayReason('9999', idx, false)).toBe('這一檔尚未涵蓋分鐘資料');
     expect(intradayReason('2330', null, false)).toBe('分鐘資料累積中');
     expect(intradayReason('2330', idx, true)).toBe('分鐘資料讀取失敗');

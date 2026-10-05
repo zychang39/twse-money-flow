@@ -255,7 +255,8 @@ export interface IntradayData {
 /** 個股 5 分 K（Yahoo Finance，非官方）：bars＝[時間 HH:MM, 開, 高, 低, 收, 量（股）] */
 /** 個股 5 分 K（每檔一個小檔；M1.1：每一檔有個股頁的股票都有，當日無成交 no_trade、資料源缺漏 missing）。 */
 export interface StockIntraday { code: string; date: string; source: string; days: { date: string; prev_close: number | null; bars: [string, number | null, number | null, number | null, number | null, number | null][]; no_trade?: boolean; missing?: boolean }[] }
-export interface StockIntradayIndex { date: string; source: string; codes: string[]; no_trade?: string[]; missing?: string[]; kbar_dates?: string[] }
+/** missing＝來源無資料、failed＝抓取失敗、not_fetched＝還沒抓到（2026-10-06 分開；舊版只有 missing） */
+export interface StockIntradayIndex { date: string; source: string; codes: string[]; no_trade?: string[]; missing?: string[]; failed?: string[]; not_fetched?: string[]; kbar_dates?: string[] }
 
 // ---------------------------------------------------------------- M1.2 族群三層
 export type SectorLayer = 'official' | 'fine' | 'theme' | 'chain';

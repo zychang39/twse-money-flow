@@ -11,9 +11,9 @@ describe('資料狀態頁：應有日依公布時程與交易日曆推算（2026
     expect(expectedDate('insti', cal, { today: '2026-10-03', hhmm: '10:00' })).toBe('2026-10-02'); // 週六
     expect(expectedDate('quotes', cal, { today: '2026-10-09', hhmm: '15:00' })).toBe('2026-10-08'); // 國慶日休市
   });
-  it('信用：21:30 前的應有日是前一個交易日', () => {
-    expect(expectedDate('credit', cal, { today: '2026-10-02', hhmm: '20:00' })).toBe('2026-10-01');
-    expect(expectedDate('credit', cal, { today: '2026-10-02', hhmm: '21:45' })).toBe('2026-10-02');
+  it('信用：預期公布時間 22:00（2026-10-06 新鮮度規則）前的應有日是前一個交易日', () => {
+    expect(expectedDate('credit', cal, { today: '2026-10-02', hhmm: '21:45' })).toBe('2026-10-01');
+    expect(expectedDate('credit', cal, { today: '2026-10-02', hhmm: '22:00' })).toBe('2026-10-02');
     expect(expectedDate('credit', cal, { today: '2026-10-03', hhmm: '09:00' })).toBe('2026-10-02');
   });
   it('集保：昨天以前最近的週五（9/25 休市 → 9/24）', () => {

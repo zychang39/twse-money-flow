@@ -1,8 +1,8 @@
 /**
  * 資料狀態頁（2026-10-02 健檢 M2）：每個資料集的來源、最新日、應有日、涵蓋率、回補進度、失敗原因。純函式，可測。
  * 「應有日」依公布時程與交易日曆推算（不是「今天」）：
- * - 每日型（行情、法人、指數、本益比、借券、當沖、外資持股、期貨法人）：最近一個交易日。
- * - 信用（融資融券）：證交所約 21:30 公布；台北時間 21:30 前的應有日是前一個交易日。
+ * - 每日型（行情、法人、指數、本益比、借券、當沖、外資持股、期貨法人、信用）：資料新鮮度規則的 D(X)
+ *   ＝最近一個「預期公布時間已過」的交易日（lib/freshness；config/schedule.yml freshness）。
  * - 集保股權分散：每週（資料日＝該週最後營業日，週六公布）；應有日＝昨天（含）以前最近的一個週五（休市則前一交易日）。
  * - 主動式 ETF 持股：各投信隔天上午揭露；應有日＝今天的前一個交易日。
  * - 月營收：法定期限次月 10 日；10 日之後應有上個月，否則上上個月（YYYY-MM）。
@@ -15,6 +15,7 @@ import { addDays } from './dates';
 import { fmtCount, md } from './format';
 import { describeSource } from './health';
 import type { TradingCalendar } from './tradingCalendar';
+import { FRESH, type FreshKey, dueDate } from './freshness';
 
 /** 資料集 → 來源 id（config/sources.yml） */
 export const DATASET_SOURCES: Record<AsofKey, string[]> = {
@@ -50,11 +51,10 @@ function lastTradingOnOrBefore(cal: TradingCalendar, iso: string): string {
 
 /** 應有日（或應有月份／季度）。 */
 export function expectedDate(key: AsofKey, cal: TradingCalendar, now: Now): string {
+  // 2026-10-06：每日型資料集一律用資料新鮮度規則（lib/freshness，各自的預期公布時間）
+  if (key in FRESH) return dueDate(key as FreshKey, cal, now);
   const latestTrading = lastTradingOnOrBefore(cal, now.today);
   switch (key) {
-    case 'credit':
-    case 'margin_total':
-      return cal.isTradingDay(now.today) && now.hhmm < '21:30' ? cal.previous(now.today) : latestTrading;
     case 'etf_holdings':
       return cal.previous(now.today);
     case 'tdcc': {

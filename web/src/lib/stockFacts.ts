@@ -176,7 +176,6 @@ export function volumeFacts(h: Pick<StockHistory, 'v' | 'metrics'>): VolumeFacts
 export type InstParty = 'foreign' | 'trust' | 'dealer' | 'total';
 export const INST_PARTIES: InstParty[] = ['foreign', 'trust', 'dealer', 'total'];
 export const INST_LABEL: Record<InstParty, string> = { foreign: '外資', trust: '投信', dealer: '自營商', total: '合計' };
-export const INST_PERIODS = [5, 20, 60] as const;
 /** 外資＝外陸資＋外資自營商；自營商＝自行買賣＋避險；合計＝官方三大法人合計 */
 const FLOW_OF: Record<InstParty, FlowKey> = { foreign: 'foreign', trust: 'trust', dealer: 'dealer', total: 'total' };
 

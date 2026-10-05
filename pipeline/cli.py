@@ -23,17 +23,19 @@ log = logging.getLogger("pipeline")
 
 # 排程字串 → 任務（與 .github/workflows/data.yml 的 cron 對應）
 SCHEDULE_TASKS = {
-    # M3.4 分段更新（config/schedule.yml）：14:15 收盤行情、15:30 法人、21:30 信用（台北）
-    "15 6 * * 1-5": "stage:close",
-    "30 7 * * 1-5": "stage:insti",
-    "30 13 * * 1-5": "stage:credit",
+    # 2026-10-06：依資料新鮮度補抓（config/schedule.yml freshness.catchup；pipeline/freshness.py）
+    # 取代原本 14:15／15:30／21:30 的分段更新排程（10/5 那兩段排程整個沒觸發、第一段延後 8 小時且只抓收盤行情段）。
+    "15 7 * * 1-5": "catchup",  # 15:15（台北）收盤行情、指數、分鐘 K
+    "30 8 * * 1-5": "catchup",  # 16:30（台北）三大法人、期貨法人、本益比、外資持股
+    "30 14 * * 1-5": "catchup",  # 22:30（台北）融資融券、借券、當沖
     "0 2 * * 6": "periodic",
     "0 3 11 * *": "periodic",
     "0 3 16 5,8,11 *": "periodic",
     "0 3 1 4 *": "periodic",
     "*/15 1-5 * * 1-5": "alerts",
     "40 14 * * 1-5": "resume",
-    # 2026-10：個股 5 分 K（Yahoo，非官方）；14:45（台北）收盤行情之後，單次跑不完自動接續
+    # 2026-10：個股 5 分 K（Yahoo，非官方）；14:45（台北）收盤之後，單次跑不完自動接續；
+    # 排程沒觸發時由補抓任務（catchup）發現分鐘 K 還欠而觸發
     "45 6 * * 1-5": "kbar",
 }
 
@@ -107,6 +109,9 @@ def cmd_run(args: argparse.Namespace) -> int:
 
             extra = run_stage(ctx, str(stage))
             deploy = "true"
+        elif task == "catchup":
+            extra = run_catchup_task(ctx, args)
+            deploy = "true" if extra.get("progressed") else "false"
         elif task == "probe":
             extra = run_probe(ctx, args)
         elif task == "kbar":
@@ -200,6 +205,14 @@ def cmd_run(args: argparse.Namespace) -> int:
         from pipeline.stages import schedule
 
         stage_digest = bool(schedule()["stages"][str(stage)].get("digest"))
+    if task == "catchup":
+        # 今天的三大法人這一次才補齊 → 推播日報（同一交易日只推一次）
+        fixed = extra.get("fixed")
+        stage_digest = (
+            isinstance(fixed, list)
+            and "insti" in fixed
+            and ctx.manifest.get("last_target_date") == ctx.today.isoformat()
+        )
     if (task == "daily" and ctx.is_final_run) or stage_digest:
         target = ctx.manifest.get("last_target_date")
         if should_send_digest(target, ctx.today.isoformat(), ctx.manifest.get("digest_date")):
@@ -214,6 +227,38 @@ def cmd_run(args: argparse.Namespace) -> int:
         remaining=extra.get("remaining", 0),
     )
     return 0
+
+
+def run_catchup_task(ctx: Any, args: argparse.Namespace) -> dict[str, object]:
+    """依資料新鮮度補抓（pipeline/freshness.py）。重試的那一次先等到 not_before（最多 65 分鐘）。
+
+    缺漏仍在 → 以 workflow_dispatch 觸發下一次（attempt+1、not_before＝現在＋retry_minutes），最多 max_retries 次；
+    分鐘 K 還欠 → 觸發 kbar 任務（排程可能被 GitHub 延遲或丟掉）。
+    """
+    from pipeline import freshness
+
+    attempt = int(getattr(args, "attempt", "") or 1)
+    nb = getattr(args, "not_before", "") or ""
+    if nb:
+        wait = (datetime.fromisoformat(nb) - now_tpe()).total_seconds()
+        if wait > 0:
+            log.info("重試第 %d 次：等到 %s（%d 分鐘）", attempt, nb, round(wait / 60))
+            time.sleep(min(wait, 65 * 60))
+        ctx.now = now_tpe()
+    extra: dict[str, object] = dict(freshness.run_catchup(ctx, attempt=attempt))
+    ref = os.environ.get("GITHUB_REF_NAME", "main")
+    from pipeline.notify.github import dispatch_workflow
+
+    state = ctx.manifest.get("freshness") or {}
+    if extra.get("retry") and args.chain:
+        extra["retry_dispatched"] = dispatch_workflow(
+            "data.yml",
+            {"task": "catchup", "attempt": str(attempt + 1), "not_before": str(state.get("next_retry") or "")},
+            ref=ref,
+        )
+    if args.chain and freshness.kbar_due(ctx.manifest, ctx.calendar, ctx.now) and attempt == 1:
+        extra["kbar_dispatched"] = dispatch_workflow("data.yml", {"task": "kbar"}, ref=ref)
+    return extra
 
 
 def run_probe(ctx: Any, args: argparse.Namespace) -> dict[str, object]:
@@ -552,6 +597,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--chain", action="store_true", help="回補未完成時自動觸發下一輪")
     run.add_argument("--refresh", default="", help="回補時重抓已存在的每日型檔案（true／false；需指定 --source）")
     run.add_argument("--stage", default="", help="分段更新：close／insti／credit（config/schedule.yml）")
+    run.add_argument("--attempt", default="", help="補抓（catchup）第幾次；重試由前一次以 workflow_dispatch 觸發")
+    run.add_argument("--not-before", dest="not_before", default="", help="補抓重試：等到這個時間（ISO，台北）才開始")
     run.set_defaults(func=cmd_run)
 
     for name in ("daily", "periodic", "backfill", HOLDERS_TASK):

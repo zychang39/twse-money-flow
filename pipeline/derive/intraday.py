@@ -133,13 +133,23 @@ def _bars(part: pd.DataFrame) -> list[list[Any]]:
 
 
 def kbar_files(
-    store: Any, dates: list[str], close: pd.DataFrame, codes: set[str], out: Path, volume: pd.DataFrame | None = None
+    store: Any,
+    dates: list[str],
+    close: pd.DataFrame,
+    codes: set[str],
+    out: Path,
+    volume: pd.DataFrame | None = None,
+    kbar_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """dates：交易日（舊→新）；close／volume：原始收盤與成交股數寬表（index=date, columns=code）；codes：有個股頁的代號。
 
     每一檔有個股頁的股票都輸出 intraday/{code}.json（1D／1W 一律可切換）：
     - 最近交易日當日無成交（成交股數 0 或沒有收盤）→ 該日 `no_trade: true`、bars 為空（前端畫前收水平線並註明「當日無成交」）。
-    - 有成交但資料源沒有 K 棒 → `missing: true`（資料健康頁列出；前端註明資料源缺漏）。
+    - 有成交但沒有 K 棒 → `missing: true`，再依 manifest `kbar`（抓取進度）分成三種（2026-10-06）：
+      * `not_fetched`：最近交易日還沒抓到這一檔（抓取任務尚未執行或還沒輪到；例：10/5 夜間看 2330 時 kbar 排程延後未跑）
+      * `failed`：抓了但請求失敗（重試後仍失敗）
+      * `missing`：抓了、Yahoo 回應裡沒有這一天（來源無資料）
+      index.json 的 `missing` 只放「來源無資料」；前端只有這一種才寫「來源未提供」。
     """
     have = [d for d in dates[-(DAYS + 5) :] if store.exists("yahoo_kbar", date.fromisoformat(d))]
     have = have[-DAYS:]
@@ -157,7 +167,11 @@ def kbar_files(
         window = [*window, latest][-DAYS:]
     pos = {d: i for i, d in enumerate(dates)}
     by_code = {c: g for c, g in allk[allk["code"].isin(codes)].groupby("code")} if len(allk) else {}
-    covered, no_trade, missing = [], [], []
+    covered, no_trade, missing, failed, not_fetched = [], [], [], [], []
+    st = kbar_state or {}
+    st_on_latest = st.get("target") == latest
+    st_empty = set(st.get("empty") or []) if st_on_latest else set()
+    st_failed = set(st.get("failed") or []) if st_on_latest else set()
     for code in sorted(codes):
         g = by_code.get(code)
         col = close[code] if code in close.columns else None
@@ -186,8 +200,12 @@ def kbar_files(
             covered.append(code)
         elif last_day.get("no_trade"):
             no_trade.append(code)
-        else:
+        elif code in st_empty:
             missing.append(code)
+        elif code in st_failed:
+            failed.append(code)
+        else:
+            not_fetched.append(code)
         write_json(
             out / "intraday" / f"{code}.json", {"code": code, "date": latest, "source": KBAR_SOURCE, "days": days}
         )
@@ -199,6 +217,8 @@ def kbar_files(
             "codes": covered,
             "no_trade": no_trade,
             "missing": missing,
+            "failed": failed,
+            "not_fetched": not_fetched,
             "kbar_dates": have,
         },
     )
@@ -206,5 +226,7 @@ def kbar_files(
         "kbar_codes": len(covered),
         "kbar_no_trade": len(no_trade),
         "kbar_missing": len(missing),
+        "kbar_failed": len(failed),
+        "kbar_not_fetched": len(not_fetched),
         "kbar_date": latest,
     }

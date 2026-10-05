@@ -4,6 +4,7 @@
  * 2. 所有可見文字 ≥ 11px 3. 表格數字 ≥ 13px 4. 數字欄靠右 5. 可點擊元素 ≥ 44 × 44px（計入 ::before 擴大；行內文字連結除外）
  * 6.（2026-10-02 健檢）少於 10 列的表格不得有 sticky 表頭；sticky 表頭要有實心底色 7. 基準分段控制列（.bench-bar）底色不透明
  * 8. 捲到最底時頁尾免責聲明完整露出在底部導覽上方（內容底部留白＝導覽列＋safe-area＋16px）
+ * 9.（2026-10-06）相鄰的卡片、清單、分段控制、圖表不重疊、不貼齊
  * 指標效度表、策略庫、槓桿計算以真實資料的評估結果（e2e/fixtures，data 分支 2026-09-30 本機重算）取代示範資料（示範資料太短，全部樣本不足）。
  */
 import { expect, test, type Page } from '@playwright/test';
@@ -38,6 +39,10 @@ const VIEWPORTS = [
 
 const PAGES: { name: string; hash: string; prepare?: (page: Page) => Promise<void> }[] = [
   { name: '今晚', hash: '#/' },
+  // 2026-10-06（M3）：盤後簡報四個分段都檢查；個股籌碼法人區塊展開 60 日
+  { name: '今晚・市場', hash: '#/?seg=market' },
+  { name: '今晚・資金', hash: '#/?seg=money' },
+  { name: '今晚・我的', hash: '#/?seg=mine' },
   { name: '我的股票', hash: '#/mine' },
   { name: '探索', hash: '#/explore' },
   { name: '選股', hash: '#/explore/screener' },
@@ -55,6 +60,7 @@ const PAGES: { name: string; hash: string; prepare?: (page: Page) => Promise<voi
   // 2026-10 改版：個股頁四個分段各檢查一次；每日明細推到子頁
   ...(['動能', '籌碼', '基本面', '事件'] as const).map((seg) => ({ name: `個股頁・${seg}`, hash: '#/stock/2330', prepare: async (p: Page) => { await revealAllSections(p); await expect(p.getByTestId('signal-panel')).toBeVisible(); await p.getByTestId('stock-seg').getByRole('button', { name: seg, exact: true }).click(); } })),
   { name: '個股頁・上櫃', hash: '#/stock/6488' },
+  { name: '個股頁・籌碼（法人 60 日全部展開）', hash: '#/stock/2330?seg=c', prepare: async (p) => { await p.getByTestId('insti-period').getByRole('button', { name: '60 日' }).click(); await p.getByTestId('insti-daily-more').click(); } },
   { name: '每日明細（60 日）', hash: '#/stock/2330/daily', prepare: async (p) => { await p.getByRole('group', { name: '明細期間' }).getByRole('button', { name: '60 日' }).click(); } },
   { name: '法人報表', hash: '#/stock/2330/institutional' },
   { name: '籌碼結構', hash: '#/stock/2330/holders' },
@@ -187,6 +193,21 @@ async function audit(page: Page): Promise<Problem[]> {
       if (!visible(bar)) continue;
       const bg = getComputedStyle(bar).backgroundColor;
       if (alpha(bg) < 0.999) add('基準控制列不透明', `background ${bg}`);
+    }
+    // 9.（2026-10-06 M3）容器不重疊：相鄰的卡片、清單、分段控制、圖表互不相交，同層相鄰的不貼齊（間距 ≥ 4px；
+    // 黏在導覽列下的分段列捲動時蓋在內容上是預期行為，不算）
+    const BOX = '.ui-card, .ui-list, .ui-seg, .if-card, .cd-wrap, .cd-cards, .segmented, .sc2, .ib, .periods, .mom-cards, .stale-note, .ui-table';
+    const boxes = Array.from(document.querySelectorAll(BOX)).filter((e) => visible(e) && !e.closest('.ui-seg-sticky, [role="dialog"], .sheet'));
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i], b = boxes[j];
+        if (a.contains(b) || b.contains(a)) continue;
+        const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+        if (Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left) <= 1) continue;
+        const ov = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
+        if (ov > 0.5) add('容器不重疊', `重疊 ${ov.toFixed(1)}px：${desc(a)} × ${desc(b)}`);
+        else if (-ov < 4 && a.parentElement === b.parentElement) add('容器不重疊', `貼齊 ${(-ov).toFixed(1)}px：${desc(a)} / ${desc(b)}`);
+      }
     }
     return out;
   });

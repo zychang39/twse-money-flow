@@ -112,6 +112,10 @@ class PoliteClient:
                 self._last_request = time.monotonic()
                 if is_blocked(resp, url):
                     raise BlockedError(f"被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：{url}")
+                if resp.status_code == 403:
+                    # 2026-10-06：櫃買 10/5 夜間對 Actions runner 回 403（同網址本機 200）→ 視同 WAF 阻擋，退避後重試；
+                    # 仍失敗由補抓任務 1 小時後（換一台 runner）再試
+                    raise BlockedError(f"被網站拒絕（HTTP 403）：{url}")
                 if resp.status_code in (429, 500, 502, 503, 504):
                     raise FetchError(f"HTTP {resp.status_code}：{url}")
                 if resp.status_code >= 400:
@@ -122,7 +126,7 @@ class PoliteClient:
             except (requests.RequestException, FetchError) as exc:
                 self._last_request = time.monotonic()
                 last_error = exc
-                if isinstance(exc, FetchError) and "HTTP 4" in str(exc):
+                if isinstance(exc, FetchError) and not isinstance(exc, BlockedError) and "HTTP 4" in str(exc):
                     break
                 if isinstance(exc, BlockedError):
                     # 被阻擋：計入斷路器，較長退避後最多再試 BLOCK_RETRIES 次

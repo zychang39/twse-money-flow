@@ -318,11 +318,18 @@ export function seriesWindow(s: ChartSeries, h: Pick<StockHistory, 'd' | 'c' | '
 }
 
 const mdOf = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
-/** 1D／1W 沒有分 K 的原因（F 節：說明原因、不留白）：讀取失敗／累積中／當日沒有成交／來源未提供／尚未涵蓋。 */
+/**
+ * 1D／1W 沒有分 K 的原因（F 節：說明原因、不留白）：讀取失敗／累積中／當日沒有成交／尚未抓取／抓取失敗／來源未提供。
+ * 2026-10-06：只有「抓了、Yahoo 沒有這一天」才寫「來源未提供」；還沒抓到（抓取排程延後）與抓取失敗分開寫。
+ */
 export function intradayReason(code: string, idx: StockIntradayIndex | null | undefined, failed: boolean): string {
   if (failed) return '分鐘資料讀取失敗';
   if (!idx) return '分鐘資料累積中';
-  if (idx.no_trade?.includes(code)) return `${mdOf(idx.date)} 沒有成交，沒有分鐘走勢`;
-  if (idx.missing?.includes(code)) return `${mdOf(idx.date)} 分鐘資料來源未提供這一檔`;
+  const d = mdOf(idx.date);
+  if (idx.no_trade?.includes(code)) return `${d} 沒有成交，沒有分鐘走勢`;
+  if (idx.failed?.includes(code)) return `${d} 分鐘資料抓取失敗，下一次更新會重試`;
+  if (idx.not_fetched?.includes(code)) return `${d} 分鐘資料尚未抓取（收盤後依序更新全部個股）`;
+  // 舊版 index.json 沒有 not_fetched：missing 可能是還沒抓，不能斷定是來源沒有
+  if (idx.missing?.includes(code)) return idx.not_fetched ? `${d} 分鐘資料來源未提供這一檔` : `${d} 分鐘資料尚未取得`;
   return '這一檔尚未涵蓋分鐘資料';
 }

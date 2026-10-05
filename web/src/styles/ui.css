@@ -221,3 +221,7 @@
 /* 設定頁：分段控制上方的小標 */
 .set-l { margin: var(--s-3) 0 var(--s-2); }
 .ui-card > .set-l:first-child { margin-top: 0; }
+
+/* M3（2026-10-06）容器間距規則：相鄰的圖表、卡片、清單、分段控制之間固定 --s-3（沿用 spacing token），
+   不可貼齊或互疊；禁止用負 margin 或 transform 讓容器疊到彼此（e2e/layout.spec.ts「容器不重疊」檢查）。 */
+:is(.sc2, .ib, .if-card, .ui-seg, .cd-wrap, .cd-cards, .mom-cards, .stale-note, .ui-table) + :is(.ui-card, .ui-list, .if-card, .cd-wrap, .cd-cards, .ui-seg, .mom-cards, .ui-table) { margin-top: var(--s-3); }

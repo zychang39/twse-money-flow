@@ -1,11 +1,10 @@
 /**
- * 個股籌碼：區間統計卡（1／3／5／10／20／60 日）與「每日籌碼」（預設展開；法人｜信用｜借券當沖）。
+ * 個股籌碼：區間統計卡（1／3／5／10／20／60 日）與「每日籌碼」（預設展開；信用｜借券當沖。法人 2026-10-06 移到個股籌碼分頁的法人區塊）。
  * 數字一律等寬、千分位；正負同時以紅綠色與 ▲▼ 表示（買超、增加為紅）。定義見 METHODOLOGY §4.7.1。
  */
 import { Fragment, type ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import {
-  ALL_COLS,
   type ChipBlock,
   type ChipRow,
   DAY_FIELDS,
@@ -14,7 +13,6 @@ import {
   type ColFormat,
   type Unit,
   UNIT_LABEL,
-  VIEWS,
   VIEW_COLS,
   VIEW_LABEL,
   type View,
@@ -42,7 +40,7 @@ import {
 } from '../lib/chips';
 import { uiConfig } from '../lib/config';
 import { getSetting, setSetting } from '../db/db';
-import { arrow, dirClass, direction, fmtNum, fmtPrice, missing } from '../lib/format';
+import { arrow, direction, fmtNum, fmtPrice, missing } from '../lib/format';
 import { IconChevronDown, IconMore } from './Icons';
 import { MetricGrid } from './Metrics';
 import { Sheet } from './Sheet';
@@ -173,6 +171,8 @@ export function Concentration({ block }: { block: ChipBlock }) {
  * - 點任一列從底部拉出當天完整資料；「複製為 CSV」在右上角「⋯」選單。
  */
 const OPEN_KEY = 'chipDailyOpen';
+/** 每日明細子頁的檢視（法人已移到個股籌碼分頁） */
+export const DAILY_VIEWS: View[] = ['credit', 'sbl'];
 /** 表格數字字級（px）：15 放不下依序降到 14、13（最低 13，不得再小；同一張表同一字級） */
 export const FONT_STEPS = [15, 14, 13];
 type Mode = 'table' | 'cards' | 'all';
@@ -216,6 +216,7 @@ function useChipLayout(
   wideRef: { current: HTMLElement | null },
   texts: { date: string[]; sub: string[]; cols: Record<string, string[]>; heads: Record<string, string[]> },
   view: View,
+  allCols: ViewCol[],
   deps: unknown[],
 ): { mode: Mode; dateW: number; fs: number } {
   const [state, setState] = useState<{ mode: Mode; dateW: number; fs: number }>({ mode: 'table', dateW: 72, fs: FONT_STEPS[0] });
@@ -259,7 +260,7 @@ function useChipLayout(
       // 欄名與標題下方的連續天數過長時換成兩行，不加寬欄位（UI_GUIDE §7-4），所以欄寬只看數字
       const need = (keys: string[]) => Math.max(...keys.map((k) => (texts.cols[k] ? measure(texts.cols[k], 'cd-v') * scale + 8 : Infinity)));
       const viewKeys = VIEW_COLS[view].map((c) => c.key);
-      const allKeys = ALL_COLS.map((c) => c.key);
+      const allKeys = allCols.map((c) => c.key);
       const vw = document.documentElement.clientWidth;
       const wideW = wideRef.current?.getBoundingClientRect().width ?? W;
       const wideAllowed = vw > window.innerHeight || vw >= 768;
@@ -272,7 +273,7 @@ function useChipLayout(
         scale = (step * dt) / basePx;
         return dateW + n * need(keys) <= width;
       });
-      const allFs = wideAllowed ? fits(allKeys, 12, Math.max(W, wideW)) : undefined;
+      const allFs = wideAllowed ? fits(allKeys, allKeys.length, Math.max(W, wideW)) : undefined;
       const viewFs = allFs === undefined ? fits(viewKeys, 4, W) : undefined;
       if (allFs !== undefined) { mode = 'all'; fs = allFs; } else if (viewFs !== undefined) { mode = 'table'; fs = viewFs; }
       setState((s) => (s.mode === mode && s.dateW === dateW && s.fs === fs ? s : { mode, dateW, fs }));
@@ -329,33 +330,6 @@ function Cell({ v, col, unit, fmt, signed }: { v: N; col: ViewCol; unit: Unit; f
   );
 }
 
-/**
- * 表格上方的精簡柱狀圖：所選期間三大法人每日買賣超（張），舊到新；紅＝買超、綠＝賣超，以 0 為中線。
- * 只給趨勢感，精確數字看下方表格（整張圖是一個 role=img，說明含合計與最大值）。
- */
-export function MiniNetBars({ rows }: { rows: ChipRow[] }) {
-  const vals = [...rows].reverse().map((r) => (r.total === null ? null : r.total / 1000));
-  const max = Math.max(0, ...vals.map((v) => Math.abs(v ?? 0)));
-  if (!vals.length || !max) return null;
-  const sum = vals.reduce<number>((a, v) => a + (v ?? 0), 0);
-  const f = (v: number) => `${fmtNum(Math.round(v), 0)} 張`;
-  return (
-    <figure class="cd-mini" role="img" aria-label={`三大法人近 ${vals.length} 日每日買賣超柱狀圖：合計${sum >= 0 ? '買超' : '賣超'} ${f(Math.abs(sum))}，單日最大 ${f(max)}`}>
-      <div class="cd-mini-bars" aria-hidden="true">
-        {vals.map((v, i) => (
-          <span key={i} class="cd-mini-slot">
-            {v ? <span class={`cd-mini-bar ${dirClass(v)}`} style={{ height: `${(Math.abs(v) / max) * 50}%` }} /> : null}
-          </span>
-        ))}
-      </div>
-      <figcaption class="cd-mini-cap" aria-hidden="true">
-        <span>三大法人每日買賣超</span>
-        <span>最大 {f(max)}</span>
-      </figcaption>
-    </figure>
-  );
-}
-
 type N = number | null;
 
 /** 區塊接近畫面（600px 內）或瀏覽器閒置時才渲染明細：個股頁首次載入不被畫面外的表格拖慢。 */
@@ -379,7 +353,10 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
   const [days, setDays] = useState(cfg.table_default);
   // M3：籌碼數字一律以張為唯一單位（移除 億元／佔量 % 與萬張切換）
   const unit: Unit = 'lots';
-  const [view, setView] = useState<View>('insti');
+  // 2026-10-06：法人移到個股籌碼分頁的法人區塊（InstiFlow），子頁只留信用、借券當沖
+  const views = DAILY_VIEWS;
+  const allCols = useMemo(() => views.flatMap((v) => VIEW_COLS[v]), [views]);
+  const [view, setView] = useState<View>(views[0]);
   const [day, setDay] = useState<ChipRow | null>(null);
   const [status, setStatus] = useState('');
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -397,7 +374,7 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
   const available = all.length - 1;
 
   // 表格格式（#6）：含區間合計列，整張表同一種單位只用一種格式（張一律千分位整數）
-  const fmts = useMemo(() => viewFormats(Object.fromEntries(ALL_COLS.map((c) => [
+  const fmts = useMemo(() => viewFormats(Object.fromEntries(allCols.map((c) => [
     c.key, [...rows.map((r) => colValue(r, c, unit)), colTotal(rows, all, c, unit)],
   ])), unit), [rows, all, unit]);
   // 量測用的文字（每欄最長的值、標題、連續天數）
@@ -406,7 +383,7 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
     const heads: Record<string, string[]> = {};
     // 只有橫向或平板寬度才可能同時顯示 12 欄；手機直向只量目前檢視的 4 欄
     const wideAllowed = window.innerWidth > window.innerHeight || window.innerWidth >= 768;
-    for (const c of wideAllowed ? ALL_COLS : VIEW_COLS[view]) {
+    for (const c of wideAllowed ? allCols : VIEW_COLS[view]) {
       const f = fmts[c.key];
       const vals = rows.map((r) => cellText(colValue(r, c, unit), c, unit, c.signed, f).text);
       vals.push(cellText(colTotal(rows, all, c, unit), c, unit, c.kind === 'level' ? true : c.signed, f).text);
@@ -420,8 +397,8 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
       heads,
     };
   }, [rows, all, unit, view, fmts]);
-  const { mode, dateW, fs } = useChipLayout(bodyRef, measureRef, wideRef, texts, view, [texts, view, open, near, dt]);
-  const cols = mode === 'all' ? ALL_COLS : VIEW_COLS[view];
+  const { mode, dateW, fs } = useChipLayout(bodyRef, measureRef, wideRef, texts, view, allCols, [texts, view, open, near, dt]);
+  const cols = mode === 'all' ? allCols : VIEW_COLS[view];
 
   async function copy(text: string, ok: string) {
     try {
@@ -433,7 +410,7 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
   }
   const copyCsv = () => copy(toCsv(rows, unit, { code, name }), `已複製 CSV（${rows.length} 日，單位：${UNIT_LABEL[unit]}）`);
   // 表格上方的單位說明跟著實際顯示的單位（#6：整張表改成萬張時不能還寫「張」）
-  const unitLabel = tableUnitLabel(unit, fmts, mode === 'all' ? VIEWS : [view]);
+  const unitLabel = tableUnitLabel(unit, fmts, mode === 'all' ? views : [view]);
 
   // 法人欄的標題下方寫連買／連賣天數（單位只在表格右上角出現一次）
   const subFor = (c: ViewCol) => (c.party ? streakText(colStreak(all, c), available) : '');
@@ -464,15 +441,13 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
           </div>
           {mode !== 'all' ? (
             <div class="segmented cd-views" role="group" aria-label="檢視">
-              {VIEWS.map((v) => <button key={v} aria-pressed={v === view} onClick={() => setView(v)}>{VIEW_LABEL[v]}</button>)}
+              {views.map((v) => <button key={v} aria-pressed={v === view} onClick={() => setView(v)}>{VIEW_LABEL[v]}</button>)}
             </div>
           ) : null}
-          {view === 'insti' || mode === 'all' ? <MiniNetBars rows={rows} /> : null}
           <div class="cd-meta">
             <span>{rows.length} 日{period ? `・${period}` : ''}・{mode === 'cards' ? '點卡片' : '點一列'}看當天完整資料</span>
             <span class="cd-unit-label" data-testid="chip-unit-label">單位：{unitLabel}</span>
           </div>
-          {view === 'insti' || mode === 'all' ? <p class="caption muted" data-testid="insti-footnote" style={{ margin: '0 0 var(--s-2)' }}>{INSTI_FOOTNOTE}；三大法人合計為官方數字，等於外資＋投信＋自營商。</p> : null}
 
           <div class="cd-wide-probe" ref={wideRef} aria-hidden="true" />
           <span class="cd-measure" ref={measureRef} aria-hidden="true" />
@@ -520,7 +495,7 @@ export function ChipDaily({ block, code, name, market }: { block: ChipBlock; cod
                   {mode === 'all' ? (
                     <tr class="cd-groups">
                       <td />
-                      {VIEWS.map((v) => <th key={v} scope="colgroup" colSpan={4}>{VIEW_LABEL[v]}</th>)}
+                      {views.map((v) => <th key={v} scope="colgroup" colSpan={4}>{VIEW_LABEL[v]}</th>)}
                     </tr>
                   ) : null}
                   <tr>

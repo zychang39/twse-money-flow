@@ -795,7 +795,9 @@ def kbar_files(ds: Any, p: Any, out: Path) -> dict[str, Any]:
     from pipeline.derive import intraday
 
     active = {c for c in p.codes if pd.notna(p.close[c].iloc[-20:]).any()}
-    return intraday.kbar_files(ds.store, list(p.dates), p.close, active, out, p.volume)
+    return intraday.kbar_files(
+        ds.store, list(p.dates), p.close, active, out, p.volume, kbar_state=ds.manifest.get("kbar")
+    )
 
 
 def build_extras(ds: Any, p: Any, mp: Any, sc: Any, fv: Any, out: Path) -> dict[str, Any]:

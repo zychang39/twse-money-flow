@@ -58,12 +58,13 @@ for (const width of [375, 393]) {
 
     test('U-04（2026-10 改版）：法人表、信用表、股權分散表的表頭都單行、不截斷', async ({ page }) => {
       await gotoStockSeg(page, '#/stock/2330', '籌碼');
-      await expect(page.getByTestId('insti-table')).toBeVisible();
-      const heads = await page.locator('.ui-table th').evaluateAll((ths) => ths.map((th) => {
+      await expect(page.getByTestId('insti-daily')).toBeVisible();
+      const heads = await page.locator('.ui-table th, [data-testid="insti-daily"] thead th').evaluateAll((ths) => ths.map((th) => {
         // 只量文字本身的行（名詞按鈕上下擴大的點擊區不算一行）
         const tops = new Set<number>();
         const tw = document.createTreeWalker(th, NodeFilter.SHOW_TEXT);
         for (let n = tw.nextNode(); n; n = tw.nextNode()) {
+          if (n.parentElement?.closest('.sr-only')) continue; // 螢幕閱讀器專用文字不佔版面
           const range = document.createRange();
           range.selectNodeContents(n);
           for (const r of range.getClientRects()) if (r.width > 0) tops.add(Math.round(r.top));
