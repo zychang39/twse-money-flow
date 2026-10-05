@@ -5,7 +5,14 @@
 - 細產業：櫃買中心產業價值鏈快照（config/sectors/tpex_chain.csv）的「產業鏈 › 子類別」＋ config/sectors/fine.yml 的
   手動細產業（例：IC 載板）、未涵蓋股票的對照（assign）、ETF 規則；特別股沿用普通股。每一檔有個股頁的股票至少屬於一個細產業；
   都對不到時歸到「（官方產業）其他」並計入 `unassigned`（驗收檢查應為 0）。
-- 題材：config/sectors/themes.yml（自行整理、上游／中游／下游）。
+- 題材：config/sectors/themes.yml（自行整理、上游／中游／下游）；以及產業價值鏈的「主題型產業鏈」（人工智慧、雲端運算、
+  資安、大數據、區塊鏈、金融科技、體驗科技、運動科技、太空衛星、自動化）——一條鏈一個題材，分段＝鏈內類別
+  （2026-10-06：這些鏈的子類別多是同一批公司自行申報的服務項目，拆成細產業會出現大量成員相同或只有 1–2 檔的族群）。
+
+細產業整理（2026-10-06，fine.yml `tidy`）：
+- 成員少於 MIN_RANKED 的子類別併入同一類別的「（其他）」，類別合併後仍不足再併入產業鏈的「（其他細項）」；舊 id 記在 aliases。
+- 同一產業鏈內成員完全相同的子類別合併成一個（名稱以「／」相連）。
+- 顯示名稱：fine.yml `rename` 優先；不同產業鏈出現同名（例：化學品、系統整合）或名稱本身沒有意義（其他）時，前面加產業鏈名稱。
 
 每日族群統計（三層都算；只用有收盤的成員）：
 - 成員數；1／3／6／12 個月報酬中位數（還原收盤，與 momentum.window_returns 相同的端點規則）。
@@ -69,6 +76,7 @@ class Group:
     basis: str = ""
     date: str = ""
     listed: bool = True
+    folded: list[str] = field(default_factory=list)  # 併入這個「其他」族群的小子類別名稱
 
 
 @dataclass
@@ -78,6 +86,8 @@ class Layers:
     official_of: dict[str, str]  # 代號 → 官方產業 group id
     themes_of: dict[str, list[tuple[str, str]]]  # 代號 → [(題材 id, 上中下游)]
     unassigned: list[str]
+    # 舊族群 id → 新 id（2026-10-06 整理：併入「其他」、相同成員合併、主題型產業鏈改列題材）；前端舊網址用
+    aliases: dict[str, str] = field(default_factory=dict)
 
 
 # ------------------------------------------------------------------ 成員
@@ -119,6 +129,137 @@ def fine_key(row: dict[str, str]) -> str:
     return f"{row['chain_id']}/{row['sub_id']}"
 
 
+def fix_name(name: str, fixes: dict[str, str]) -> str:
+    """名稱更正（fine.yml tidy.name_fixes；例：來源的錯字「Dear-Eye」）：子字串取代。"""
+    for k, v in fixes.items():
+        name = name.replace(k, v)
+    return name
+
+
+def tidy_fine(
+    groups: dict[str, Group],
+    fine_of: dict[str, list[str]],
+    by_key: dict[str, dict[str, str]],
+    tidy: dict[str, Any],
+    universe: set[str],
+    fixes: dict[str, str],
+) -> dict[str, str]:
+    """細產業整理（2026-10-06）：小子類別併入「其他」、相同成員合併、顯示名稱去歧義。回傳 舊 id → 新 id。"""
+    min_n = int(tidy.get("fold_below", MIN_RANKED))
+    rename = {str(k): str(v) for k, v in (tidy.get("rename") or {}).items()}
+    generic = {str(x) for x in tidy.get("generic_names") or []}
+    basis = "櫃買中心產業價值鏈資訊平台（ic.tpex.org.tw）"
+    key_of = {gid("f", k): k for k in by_key if gid("f", k) in groups}
+    aliases: dict[str, str] = {}
+    base: dict[str, str] = {}  # 細產業 id → 名稱（不含產業鏈）
+    chain_of: dict[str, str] = {}
+    for g, k in key_of.items():
+        r = by_key[k]
+        base[g] = rename.get(k) or fix_name(clean_name(r["sub"]), fixes)
+        chain_of[g] = r["chain_id"]
+
+    def live(g: str) -> set[str]:
+        return {c for c in groups[g].members if c in universe}
+
+    def replace(old: str, new: str) -> None:
+        aliases[old] = new
+        for a, b in list(aliases.items()):
+            if b == old:
+                aliases[a] = new
+        for c, lst in fine_of.items():
+            if old in lst:
+                out: list[str] = []
+                for x in lst:
+                    y = new if x == old else x
+                    if y not in out:
+                        out.append(y)
+                fine_of[c] = out
+        for grp in groups.values():
+            if grp.parent == old:
+                grp.parent = new
+        groups.pop(old, None)
+
+    # 0. 沒有上市櫃成員的子類別不輸出
+    for g in [g for g in key_of if not live(g)]:
+        groups.pop(g, None)
+        key_of.pop(g)
+    # 1. 小子類別 → 類別（其他）→ 產業鏈（其他細項）
+    small = [g for g in key_of if len(live(g)) < min_n]
+    target: dict[str, str] = {}
+    for g in small:
+        r = by_key[key_of[g]]
+        target[g] = f"{r['chain_id']}/{r['cat_id']}x" if r["cat_id"] != r["sub_id"] else f"{r['chain_id']}/rest"
+    pool_size: dict[str, set[str]] = {}
+    for g, t in target.items():
+        pool_size.setdefault(t, set()).update(live(g))
+    for g, t in target.items():
+        if not t.endswith("/rest") and len(pool_size[t]) < min_n:
+            target[g] = f"{t.split('/')[0]}/rest"
+    # 只有一個小子類別的「其他」沒有意義：保留原子類別（仍然成員不足、名次依上層）
+    n_src: dict[str, int] = {}
+    for t in target.values():
+        n_src[t] = n_src.get(t, 0) + 1
+    target = {g: t for g, t in target.items() if n_src[t] > 1}
+    for g, t in target.items():
+        r = by_key[key_of[g]]
+        pid = gid("f", t)
+        chain = fix_name(r["chain"], fixes)
+        if pid not in groups:
+            if t.endswith("/rest"):
+                name, path, parent = f"{chain}（其他細項）", [chain, "其他細項"], gid("ch", r["chain_id"])
+            else:
+                cat = fix_name(clean_name(r["cat"]), fixes)
+                name, path, parent = f"{cat}（其他）", [chain, cat, "其他"], gid("c", f"{r['chain_id']}/{r['cat_id']}")
+            groups[pid] = Group(pid, "fine", name, [], parent=parent, path=path, basis=basis, date=groups[g].date)
+            chain_of[pid] = r["chain_id"]
+        pool = groups[pid]
+        pool.members = sorted(set(pool.members) | live(g))
+        for st, cs in groups[g].streams.items():
+            pool.streams[st] = sorted(set(pool.streams.get(st, [])) | set(cs))
+        pool.folded.append(base[g])
+        replace(g, pid)
+        key_of.pop(g, None)
+    for grp in groups.values():
+        if grp.folded:
+            grp.basis = f"{basis}；合併成員少於 {min_n} 檔的子類別：{'、'.join(grp.folded)}"
+            base[grp.id] = grp.name
+    # 2. 同一產業鏈內成員完全相同 → 合併（名稱以「／」相連）
+    same: dict[tuple[str, frozenset[str]], list[str]] = {}
+    for g in sorted(chain_of):
+        if g in groups and live(g):
+            same.setdefault((chain_of[g], frozenset(live(g))), []).append(g)
+    for ids in same.values():
+        if len(ids) < 2:
+            continue
+        keep = ids[0]
+        base[keep] = "／".join(base[g] for g in ids)
+        for g in ids[1:]:
+            replace(g, keep)
+    # 3. 顯示名稱：不同產業鏈同名或名稱沒有意義（其他…）時加產業鏈名稱
+    fine_ids = [g for g in groups if groups[g].layer == "fine" and g in base]
+    count: dict[str, int] = {}
+    for g in fine_ids:
+        count[base[g]] = count.get(base[g], 0) + 1
+    for g in fine_ids:
+        grp = groups[g]
+        chain = grp.path[0] if grp.path else ""
+        nm = base[g]
+        if not grp.folded:
+            grp.path = [*grp.path[:-1], nm] if grp.path else [nm]
+        grp.name = f"{chain}・{nm}" if (count[nm] > 1 or nm in generic) and chain and not nm.startswith(chain) else nm
+    # 加了產業鏈仍同名（同一產業鏈內兩個子類別同名）→ 再加上中下游
+    seen: dict[str, list[str]] = {}
+    for g in fine_ids:
+        seen.setdefault(groups[g].name, []).append(g)
+    for ids in seen.values():
+        if len(ids) > 1:
+            for g in ids:
+                st = by_key[key_of[g]]["stream"] if g in key_of else ""
+                if st:
+                    groups[g].name = f"{groups[g].name}（{st}）"
+    return aliases
+
+
 def gid(kind: str, key: str) -> str:
     """網址安全的族群 id：f-D000-D310、c-D000-D300、ch-D000、o-24、t-ai_server、m-ic_substrate、e-active。"""
     return f"{kind}-{key.replace('/', '-')}"
@@ -136,6 +277,14 @@ def build_layers(
     fine_cfg = fine_cfg if fine_cfg is not None else config.load("sectors/fine")
     themes_cfg = themes_cfg if themes_cfg is not None else config.load("sectors/themes")
     universe = set(codes)
+    tidy = dict(fine_cfg.get("tidy") or {})
+    fixes = {str(k): str(v) for k, v in (tidy.get("name_fixes") or {}).items()}
+    # 主題型產業鏈改列題材層（tidy.theme_chains_as_themes）；其餘產業鏈照舊是細產業
+    theme_chain_ids = (
+        {str(x) for x in fine_cfg.get("theme_chains") or []} if tidy.get("theme_chains_as_themes") else set()
+    )
+    theme_rows = [r for r in rows if r["chain_id"] in theme_chain_ids]
+    rows = [r for r in rows if r["chain_id"] not in theme_chain_ids]
     groups: dict[str, Group] = {}
     snap_date = str(fine_cfg.get("updated", ""))
     chain_basis = "櫃買中心產業價值鏈資訊平台（ic.tpex.org.tw）"
@@ -281,6 +430,9 @@ def build_layers(
         rest = [g for g in lst if g not in head]
         rest.sort(key=lambda g: score(c, g))  # 穩定排序：同分維持頁面順序
         fine_of[c] = head + rest
+    aliases: dict[str, str] = {}
+    if tidy:
+        aliases = tidy_fine(groups, fine_of, by_key, tidy, universe, fixes)
     # ETF
     etf_rules = list(fine_cfg.get("etf") or [])
     for r in etf_rules:
@@ -353,9 +505,49 @@ def build_layers(
             basis=str(themes_cfg.get("basis", "自行整理")),
             date=str(themes_cfg.get("updated", "")),
         )
+    # 主題型產業鏈 → 題材（一條鏈一個；分段＝鏈內類別）
+    by_chain: dict[str, list[dict[str, str]]] = {}
+    for r in theme_rows:
+        by_chain.setdefault(r["chain_id"], []).append(r)
+    for chain_id, rs_ in by_chain.items():
+        g = gid("t", f"chain-{chain_id}")
+        streams_c: dict[str, list[str]] = {}
+        for r in rs_:
+            if r["code"] not in universe:
+                continue
+            cat = fix_name(clean_name(r["cat"]), fixes)
+            if r["code"] not in streams_c.setdefault(cat, []):
+                streams_c[cat].append(r["code"])
+        members = sorted({c for v in streams_c.values() for c in v})
+        if not members:
+            continue
+        name = fix_name(rs_[0]["chain"], fixes)
+        groups[g] = Group(
+            g,
+            "theme",
+            name,
+            members,
+            streams=streams_c,
+            path=[name],
+            basis=f"{chain_basis}的主題型產業鏈（成員為公司申報的相關產品或服務；同一家公司常出現在多個分段）",
+            date=snap_date,
+        )
+        for st, cs in streams_c.items():
+            for c in cs:
+                if (g, st) not in themes_of.get(c, []) and not any(t == g for t, _ in themes_of.get(c, [])):
+                    themes_of.setdefault(c, []).append((g, st))
+        for r in rs_:
+            aliases.setdefault(gid("f", fine_key(r)), g)
     for grp in groups.values():
         grp.members = sorted(set(grp.members))
-    return Layers(groups=groups, fine_of=fine_of, official_of=official_of, themes_of=themes_of, unassigned=unassigned)
+    return Layers(
+        groups=groups,
+        fine_of=fine_of,
+        official_of=official_of,
+        themes_of=themes_of,
+        unassigned=unassigned,
+        aliases=aliases,
+    )
 
 
 # ------------------------------------------------------------------ 統計
@@ -722,6 +914,8 @@ def write_outputs(p: Panels, res: SectorResult, out: Path) -> dict[str, Any]:
         "min_ranked": MIN_RANKED,
         "rank_window": RANK_WINDOW,
         "unassigned": L.unassigned,
+        # 2026-10-06 整理後的舊 id → 新 id（舊網址、自訂族群編輯、追蹤設定沿用）
+        "aliases": {k: v for k, v in L.aliases.items() if v in listed},
         "groups": index_rows,
         "stock_cols": ["fine", "official", "themes", "r1m", "r3m", "r6m", "rs", "above60", "high60", "inst20"],
         "stocks": stocks,

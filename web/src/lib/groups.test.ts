@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyMembers, applyStreams, customStats, equalWeightIndex, median, rankDelta, resolveGroupId, sortGroups, type GroupListRow } from './groups';
+import { applyMembers, applyStreams, customStats, equalWeightIndex, groupCrumb, median, rankDelta, resolveGroupId, sortGroups, type GroupListRow } from './groups';
 import type { SectorsIndex } from '../data/types';
 
 const idx = {
@@ -56,5 +56,22 @@ describe('族群（M4）', () => {
     expect(sortGroups(rows, 'insti').map((r) => r.id)).toEqual(['f-c', 'f-a', 'f-b']);
     expect(rankDelta(3, 5)).toBe(2);
     expect(rankDelta(null, 5)).toBeNull();
+  });
+  it('2026-10-06 整理：舊 id 經 aliases 轉成新族群；ETF 分類排在股票族群之後；清單小字顯示上層路徑', () => {
+    const withAlias = { ...idx, aliases: { 'f-D000-D120': 'f-a', 'f-5300-5310': 't-gone' } } as SectorsIndex;
+    expect(resolveGroupId('f-D000-D120', withAlias)).toBe('f-a');
+    expect(resolveGroupId('f-5300-5310', withAlias)).toBeNull(); // 目標不存在就不轉
+    const rows = [
+      { id: 'e-theme', name: '產業與主題 ETF', rank: 1 },
+      { id: 'f-b', name: '乙', rank: 2 },
+      { id: 'f-a', name: '甲', rank: 1 },
+    ] as GroupListRow[];
+    expect(sortGroups(rows, 'rank').map((r) => r.id)).toEqual(['f-a', 'f-b', 'e-theme']);
+    // 成員不足（名次依上層）的排在有自己名次的之後
+    const withMerged = [{ id: 'f-x', name: '期貨業', rank: 1, merged: 'ch-U000' }, ...rows] as GroupListRow[];
+    expect(sortGroups(withMerged, 'rank').map((r) => r.id)).toEqual(['f-a', 'f-b', 'f-x', 'e-theme']);
+    expect(groupCrumb({ layer: 'fine', name: '消費性IC', path: ['半導體', 'IC設計', '消費性IC'] })).toBe('半導體 › IC設計');
+    expect(groupCrumb({ layer: 'fine', name: '半導體・化學品', path: ['半導體', '化學品'] })).toBe('');
+    expect(groupCrumb({ layer: 'official', name: '半導體業', path: ['半導體業'] })).toBe('');
   });
 });

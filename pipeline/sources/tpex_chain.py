@@ -48,7 +48,9 @@ def _text(fragment: str) -> str:
     t = re.sub(r"<[^>]+>", "", t)
     t = _html.unescape(t).replace("►", "").replace("\xa0", " ")
     t = _COUNT.sub("", t)
-    return re.sub(r"\s+", "", t).strip()
+    # 2026-10-06：中文之間的空白去掉，英文單字之間保留一個空白（「VR Headset」不再變成「VRHeadset」）
+    t = re.sub(r"\s+", " ", t).strip()
+    return re.sub(r"(?<=[^\x00-\x7f]) | (?=[^\x00-\x7f])", "", t)
 
 
 def parse_index(page: str) -> dict[str, str]:

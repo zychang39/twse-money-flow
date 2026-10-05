@@ -191,3 +191,86 @@ def test_wilder_atr_matches_methodology():
     a15 = (out[14] * 13 + 16) / 14
     assert out[15] == pytest.approx(a15) and out[16] == pytest.approx(a15)
     assert out[17] == pytest.approx((a15 * 13 + 20) / 14)
+
+
+def _rows_tidy():
+    def r(code, sub, chain_id="D000", chain="半導體", cat_id=None, cat=None, sub_name=None, stream="上游"):
+        return {
+            "code": code,
+            "name": code,
+            "chain_id": chain_id,
+            "chain": chain,
+            "stream": stream,
+            "cat_id": cat_id or sub,
+            "cat": cat or (sub_name or sub),
+            "sub_id": sub,
+            "sub": sub_name or sub,
+        }
+
+    big = [str(1000 + i) for i in range(6)]
+    rows = [r(c, "D140", cat_id="D100", cat="IC設計", sub_name="消費性IC") for c in big]
+    # IC設計底下兩個小子類別（各 3 檔、合計 5 檔）→ 「IC設計（其他）」
+    rows += [r(c, "D120", cat_id="D100", cat="IC設計", sub_name="光通訊IC") for c in ["2001", "2002", "2003"]]
+    rows += [r(c, "D130", cat_id="D100", cat="IC設計", sub_name="光源管理IC") for c in ["2003", "2004", "2005"]]
+    # 同名（D400 中游、D600 下游）＋ fine.yml rename
+    rows += [r(c, "D400", sub_name="生產製程及檢測設備", stream="中游") for c in big[:5]]
+    rows += [r(c, "D600", sub_name="生產製程及檢測設備", stream="下游") for c in big[1:6]]
+    # 不同產業鏈的同名「化學品」→ 加產業鏈名稱
+    rows += [r(c, "D500", sub_name="化學品") for c in ["1000", "1001", "1002", "1003", "1005"]]
+    rows += [r(c, "G100", chain_id="G000", chain="平面顯示器", sub_name="化學品") for c in big[:5]]
+    # 成員完全相同的兩個子類別 → 合併
+    rows += [r(c, "C410", chain_id="C400", chain="再生醫療", sub_name="幹細胞收集儲存") for c in big[:5]]
+    rows += [r(c, "C420", chain_id="C400", chain="再生醫療", sub_name="幹細胞開發") for c in big[:5]]
+    # 只有一個小子類別 → 保留原名
+    rows += [r(c, "U300", chain_id="U000", chain="金融", sub_name="期貨業") for c in ["3001", "3002"]]
+    # 主題型產業鏈 → 題材
+    rows += [
+        r(c, "5310", chain_id="5300", chain="人工智慧", cat_id="5310", cat="系統整合", sub_name="系統整合", stream="")
+        for c in big[:3]
+    ]
+    rows += [
+        r(c, "5320", chain_id="5300", chain="人工智慧", cat_id="5320", cat="顧問諮詢", sub_name="顧問諮詢", stream="")
+        for c in big[:3]
+    ]
+    return rows
+
+
+def test_tidy_fine_folds_merges_renames_and_moves_theme_chains():
+    rows = _rows_tidy()
+    codes = sorted({r["code"] for r in rows})
+    fine_cfg = {
+        "updated": "2026-10-06",
+        "theme_chains": ["5300"],
+        "tidy": {
+            "theme_chains_as_themes": True,
+            "fold_below": 5,
+            "rename": {"D000/D400": "晶圓製程及檢測設備"},
+            "generic_names": ["其他"],
+        },
+    }
+    L = sectors.build_layers(codes, {}, {}, rows, fine_cfg, {"themes": []})
+    g = L.groups
+    pool = g["f-D000-D100x"]
+    assert pool.name == "IC設計（其他）" and pool.members == ["2001", "2002", "2003", "2004", "2005"]
+    assert set(pool.folded) == {"光通訊IC", "光源管理IC"} and "f-D000-D120" not in g
+    assert L.aliases["f-D000-D120"] == "f-D000-D100x" and L.fine_of["2001"] == ["f-D000-D100x"]
+    assert g["f-D000-D400"].name == "晶圓製程及檢測設備"
+    assert g["f-D000-D600"].name == "生產製程及檢測設備"  # rename 後不再同名
+    assert g["f-D000-D500"].name == "半導體・化學品" and g["f-G000-G100"].name == "平面顯示器・化學品"
+    assert g["f-C400-C410"].name == "幹細胞收集儲存／幹細胞開發" and "f-C400-C420" not in g
+    assert L.aliases["f-C400-C420"] == "f-C400-C410"
+    assert g["f-U000-U300"].name == "期貨業"  # 只有一個小子類別：保留原名
+    # 主題型產業鏈：沒有細產業，一條鏈一個題材，分段＝類別
+    assert not any(k.startswith("f-5300") for k in g)
+    t = g["t-chain-5300"]
+    assert t.layer == "theme" and t.name == "人工智慧" and set(t.streams) == {"系統整合", "顧問諮詢"}
+    assert L.aliases["f-5300-5310"] == "t-chain-5300"
+    assert all(not f.startswith("f-5300") for lst in L.fine_of.values() for f in lst)
+    names = [x.name for x in g.values() if x.layer == "fine" and x.members]
+    assert len(names) == len(set(names))
+
+
+def test_chain_text_keeps_spaces_between_latin_words():
+    assert tpex_chain._text("VR Headset") == "VR Headset"
+    assert tpex_chain._text("近眼顯示 (Near-Eye Display)") == "近眼顯示(Near-Eye Display)"
+    assert tpex_chain._text("硬板、 軟板") == "硬板、軟板"

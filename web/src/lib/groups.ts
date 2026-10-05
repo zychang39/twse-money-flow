@@ -51,7 +51,7 @@ export function customStats(codes: string[], idx: SectorsIndex | null | undefine
   const med1m = median(rows.map((r) => r[3]));
   const med3m = median(rows.map((r) => r[4]));
   const ab = rows.map((r) => r[7]).filter(ok);
-  const fine = (idx?.groups ?? []).filter((g) => g.layer === 'fine' && ok(g.rank) && ok(g.med['3M']));
+  const fine = (idx?.groups ?? []).filter((g) => g.layer === 'fine' && !isEtfGroup(g) && ok(g.rank) && ok(g.med['3M']));
   const of = fine.length ? Math.max(...fine.map((g) => g.of ?? 0)) : null;
   const rank = ok(med3m) && fine.length ? fine.filter((g) => (g.med['3M'] as number) > med3m).length + 1 : null;
   return {
@@ -91,6 +91,9 @@ export function equalWeightIndex(hists: (Pick<StockHistory, 'd' | 'c' | 'af'> | 
 export function resolveGroupId(key: string, idx: SectorsIndex | null | undefined): string | null {
   if (!idx) return null;
   if (key.startsWith('u-') || idx.groups.some((g) => g.id === key)) return key;
+  // 2026-10-06：整理後併入「其他」、合併或改列題材的舊族群 id
+  const alias = idx.aliases?.[key];
+  if (alias && idx.groups.some((g) => g.id === alias)) return alias;
   const byName = idx.groups.find((g) => g.layer === 'official' && g.name === key) ?? idx.groups.find((g) => g.name === key);
   return byName?.id ?? null;
 }
@@ -116,14 +119,27 @@ export function rowFromCustom(u: UserGroup, idx: SectorsIndex | null | undefined
   };
 }
 
-/** 排序：名次（小在前，無名次排最後）、1 個月報酬（大在前）、法人買超（大在前）；同值依名稱 */
+/** ETF 分類（e-*）：名次只和 ETF 分類比，不和股票的細產業一起排 */
+export function isEtfGroup(g: { id: string }): boolean {
+  return g.id.startsWith('e-');
+}
+
+/** 細產業的上層路徑（清單小字）：「半導體 › IC設計」；官方產業與題材沒有 */
+export function groupCrumb(r: Pick<GroupListRow, 'layer' | 'path' | 'name'>): string {
+  if (r.layer !== 'fine' || r.path.length < 2) return '';
+  return r.path.slice(0, -1).filter((p) => !r.name.startsWith(p)).join(' › ');
+}
+
+/** 排序：名次（小在前，無名次排最後）、1 個月報酬（大在前）、法人買超（大在前）；同值依名稱。ETF 分類一律排在股票族群之後。 */
 export function sortGroups(rows: GroupListRow[], by: GroupSort): GroupListRow[] {
   const key = (r: GroupListRow): number => {
-    if (by === 'rank') return ok(r.rank) ? r.rank : Number.POSITIVE_INFINITY;
+    // 成員不足的族群（merged）名次是上層的，排在有自己名次的族群之後
+    if (by === 'rank') return ok(r.rank) && !r.merged ? r.rank : ok(r.rank) ? 1e6 + r.rank : Number.POSITIVE_INFINITY;
     const v = by === 'r1m' ? r.med1m : r.insti20;
     return ok(v) ? -v : Number.POSITIVE_INFINITY;
   };
-  return [...rows].sort((a, b) => key(a) - key(b) || a.name.localeCompare(b.name, 'zh-Hant'));
+  const etf = (r: GroupListRow) => (isEtfGroup(r) ? 1 : 0);
+  return [...rows].sort((a, b) => etf(a) - etf(b) || key(a) - key(b) || a.name.localeCompare(b.name, 'zh-Hant'));
 }
 
 /** 名次 20 日變化：正＝名次往前（數字變小） */

@@ -280,6 +280,8 @@ export interface SectorsIndex {
   min_ranked: number;
   rank_window: string;
   unassigned: string[];
+  /** 2026-10-06 族群整理後的舊 id → 新 id（舊網址、自訂族群編輯沿用） */
+  aliases?: Record<string, string>;
   groups: SectorRow[];
   stock_cols: string[];
   /** 代號 → [細產業 id[], 官方產業 id, 題材 id[], r1m, r3m, r6m, rs, above60, high60, inst20（法人 20 日買超 ÷ 成交金額 %，M4 起）] */
