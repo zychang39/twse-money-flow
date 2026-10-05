@@ -247,7 +247,8 @@ export function StockChart({ series, candle, period, onPeriod, periods, adjLabel
             {geo.ticks.map((t) => (
               <g key={t}>
                 <line x1={0} x2={plotW} y1={geo.y(t)} y2={geo.y(t)} class="sc-grid" />
-                <text x={w} y={geo.y(t) + 4} text-anchor="end" class="sc-axis">{numberFormat(0).format(t)}</text>
+                {/* M3：刻度標籤與目前價格標籤（高優先）重疊時隱藏刻度（lib/chartLabels 的規則） */}
+                {Math.abs(geo.y(t) - geo.y(series.bars[last].c)) < 15 ? null : <text x={w} y={geo.y(t) + 4} text-anchor="end" class="sc-axis">{numberFormat(0).format(t)}</text>}
               </g>
             ))}
             {series.dayStarts.slice(1).map((i) => <line key={i} x1={i * geo.slot} x2={i * geo.slot} y1={0} y2={PRICE_H} class="sc-grid" />)}
