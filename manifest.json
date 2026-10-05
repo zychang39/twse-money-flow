@@ -907,55 +907,55 @@
  ],
  "coverage": {
   "tpex_attention": {
-   "end": "2026-10-02",
+   "end": "2026-10-05",
    "start": "2023-06-01"
   },
   "tpex_capreduce": {
-   "end": "2026-10-02",
+   "end": "2026-10-05",
    "start": "2016-01-01"
   },
   "tpex_disposition": {
-   "end": "2026-10-02",
+   "end": "2026-10-05",
    "start": "2015-01-01"
   },
   "tpex_etfrevsplit": {
-   "end": "2026-10-02",
+   "end": "2026-10-05",
    "start": "2016-01-01"
   },
   "tpex_etfsplit": {
-   "end": "2026-10-02",
+   "end": "2026-10-05",
    "start": "2016-01-01"
   },
   "tpex_exright": {
-   "end": "2026-10-02",
+   "end": "2026-10-05",
    "start": "2016-01-01"
   },
   "twse_attention": {
-   "end": "2026-10-02",
+   "end": "2026-10-05",
    "start": "2023-06-01"
   },
   "twse_capreduce": {
-   "end": "2026-10-02",
+   "end": "2026-10-05",
    "start": "2016-01-01"
   },
   "twse_disposition": {
-   "end": "2026-10-02",
+   "end": "2026-10-05",
    "start": "2015-01-01"
   },
   "twse_etfsplit": {
-   "end": "2026-10-02",
+   "end": "2026-10-05",
    "start": "2016-01-01"
   },
   "twse_exright": {
-   "end": "2026-10-02",
+   "end": "2026-10-05",
    "start": "2016-01-01"
   },
   "twse_fulldelivery": {
-   "end": "2026-10-02",
+   "end": "2026-10-05",
    "start": "2026-09-20"
   },
   "twse_parchange": {
-   "end": "2026-10-02",
+   "end": "2026-10-05",
    "start": "2016-01-01"
   }
  },
@@ -1524,6 +1524,10 @@
    {
     "at": "02:43",
     "date": "2026-10-02"
+   },
+   {
+    "at": "02:01",
+    "date": "2026-10-05"
    }
   ],
   "tpex_insti": [
@@ -1538,6 +1542,16 @@
    {
     "at": "22:00",
     "date": "2026-10-02"
+   },
+   {
+    "at": "02:01",
+    "date": "2026-10-05"
+   }
+  ],
+  "tpex_insti_amount": [
+   {
+    "at": "02:01",
+    "date": "2026-10-05"
    }
   ],
   "tpex_margin": [
@@ -1552,6 +1566,10 @@
    {
     "at": "02:43",
     "date": "2026-10-02"
+   },
+   {
+    "at": "02:01",
+    "date": "2026-10-05"
    }
   ],
   "tpex_qfii": [
@@ -1566,6 +1584,10 @@
    {
     "at": "22:00",
     "date": "2026-10-02"
+   },
+   {
+    "at": "02:01",
+    "date": "2026-10-05"
    }
   ],
   "tpex_quotes": [
@@ -1598,6 +1620,10 @@
    {
     "at": "02:43",
     "date": "2026-10-02"
+   },
+   {
+    "at": "02:01",
+    "date": "2026-10-05"
    }
   ],
   "tpex_valuation": [
@@ -1612,6 +1638,10 @@
    {
     "at": "22:00",
     "date": "2026-10-02"
+   },
+   {
+    "at": "02:01",
+    "date": "2026-10-05"
    }
   ],
   "twse_daytrade": [
@@ -1626,6 +1656,10 @@
    {
     "at": "02:43",
     "date": "2026-10-02"
+   },
+   {
+    "at": "02:01",
+    "date": "2026-10-05"
    }
   ],
   "twse_insti": [
@@ -1670,6 +1704,10 @@
    {
     "at": "02:43",
     "date": "2026-10-02"
+   },
+   {
+    "at": "02:01",
+    "date": "2026-10-05"
    }
   ],
   "twse_qfii": [
@@ -1720,6 +1758,10 @@
    {
     "at": "02:43",
     "date": "2026-10-02"
+   },
+   {
+    "at": "02:01",
+    "date": "2026-10-05"
    }
   ],
   "twse_valuation": [
@@ -1742,20 +1784,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-04T14:27:24+08:00",
-   "by_source": {
-    "tdcc_full": 44727
-   },
-   "chained": true,
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 44727,
-   "requests": 528,
-   "task": "holders_backfill"
-  },
   {
    "at": "2026-10-04T15:08:11+08:00",
    "by_source": {
@@ -2356,17 +2384,32 @@
    "target": "2026-10-05",
    "task": "stage",
    "waited": 55
+  },
+  {
+   "at": "2026-10-06T02:01:07+08:00",
+   "failed": [],
+   "format_warnings": [
+    "twse_fulldelivery"
+   ],
+   "ok": 53,
+   "pending": [],
+   "requests": 129,
+   "stage": "credit",
+   "status": "done",
+   "target": "2026-10-05",
+   "task": "stage",
+   "waited": 11
   }
  ],
  "sources": {
   "active_etf": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:43:12+08:00",
-   "last_message": "已取得 8/32 檔主動式 ETF 持股（元大投信、富邦投信、群益投信、野村投信）；其餘投信因反爬、導向循環、驗證機制或尚未找到端點而未涵蓋",
+   "last_attempt": "2026-10-06T02:01:07+08:00",
+   "last_message": "已取得 16/32 檔主動式 ETF 持股（元大投信、凱基投信、台新投信、富邦投信、復華投信、第一金投信、群益投信、聯博投信、野村投信）；其餘投信因反爬、導向循環、驗證機制或尚未找到端點而未涵蓋",
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:43:12+08:00",
-   "rows": 312,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T02:01:07+08:00",
+   "rows": 1760,
    "validation": "ok"
   },
   "cbc_money": {
@@ -2391,12 +2434,12 @@
   },
   "fx_usdtwd": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:42:03+08:00",
+   "last_attempt": "2026-10-06T01:54:44+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:42:03+08:00",
-   "rows": 2,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:54:44+08:00",
+   "rows": 3,
    "validation": "ok"
   },
   "investor_conference": {
@@ -2421,22 +2464,32 @@
   },
   "taifex_insti": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:41:48+08:00",
+   "last_attempt": "2026-10-06T01:54:25+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:41:48+08:00",
-   "rows": 18,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:54:25+08:00",
+   "rows": 27,
    "validation": "ok"
   },
   "taifex_oi": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:41:59+08:00",
+   "last_attempt": "2026-10-06T01:54:38+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:41:59+08:00",
-   "rows": 6,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:54:38+08:00",
+   "rows": 9,
+   "validation": "ok"
+  },
+  "taifex_pc": {
+   "consecutive_failures": 0,
+   "last_attempt": "2026-10-06T01:54:48+08:00",
+   "last_message": null,
+   "last_status": "ok",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:54:48+08:00",
+   "rows": 3,
    "validation": "ok"
   },
   "tdcc_history": {
@@ -2459,71 +2512,71 @@
   },
   "tpex_attention": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:38:58+08:00",
+   "last_attempt": "2026-10-06T01:52:10+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:38:58+08:00",
-   "rows": 147,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:52:10+08:00",
+   "rows": 113,
    "validation": "ok"
   },
   "tpex_attention_accum": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:39:31+08:00",
+   "last_attempt": "2026-10-06T01:52:34+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:39:31+08:00",
-   "rows": 4,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:52:34+08:00",
+   "rows": 5,
    "validation": "ok"
   },
   "tpex_capreduce": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:38:49+08:00",
+   "last_attempt": "2026-10-06T01:52:00+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:38:49+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:52:00+08:00",
    "rows": 1,
    "validation": "ok"
   },
   "tpex_cmode": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:40:49+08:00",
-   "last_message": null,
+   "last_attempt": "2026-10-06T01:53:22+08:00",
+   "last_message": "內容未變動",
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:40:49+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:53:22+08:00",
    "rows": 22,
    "validation": "ok"
   },
   "tpex_company": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:40:16+08:00",
+   "last_attempt": "2026-10-06T01:52:55+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:40:16+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:52:55+08:00",
    "rows": 892,
    "validation": "ok"
   },
   "tpex_daytrade": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:38:02+08:00",
+   "last_attempt": "2026-10-06T01:51:19+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:38:02+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:51:19+08:00",
    "rows": 841,
    "validation": "ok"
   },
   "tpex_daytrade_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:38:02+08:00",
+   "last_attempt": "2026-10-06T01:51:19+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:38:02+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:51:19+08:00",
    "rows": 1,
    "validation": "ok"
   },
@@ -2536,123 +2589,123 @@
   },
   "tpex_disposition": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:39:09+08:00",
+   "last_attempt": "2026-10-06T01:52:19+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:39:09+08:00",
-   "rows": 34,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:52:19+08:00",
+   "rows": 35,
    "validation": "ok"
   },
   "tpex_etfrevsplit": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:38:31+08:00",
+   "last_attempt": "2026-10-06T01:51:42+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:38:31+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:51:42+08:00",
    "rows": 0,
    "validation": "ok"
   },
   "tpex_etfsplit": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:38:27+08:00",
+   "last_attempt": "2026-10-06T01:51:37+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:38:27+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:51:37+08:00",
    "rows": 0,
    "validation": "ok"
   },
   "tpex_exright": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:38:40+08:00",
+   "last_attempt": "2026-10-06T01:51:50+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:38:40+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:51:50+08:00",
    "rows": 12,
    "validation": "ok"
   },
   "tpex_exright_notice": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:39:40+08:00",
+   "last_attempt": "2026-10-06T01:52:44+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:39:40+08:00",
-   "rows": 80,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:52:44+08:00",
+   "rows": 76,
    "validation": "ok"
   },
   "tpex_index": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-05T22:40:22+08:00",
+   "last_attempt": "2026-10-06T01:52:27+08:00",
    "last_message": null,
    "last_status": "ok",
    "last_success": "2026-10-05",
-   "last_success_at": "2026-10-05T22:40:22+08:00",
+   "last_success_at": "2026-10-06T01:52:27+08:00",
    "rows": 3,
    "validation": "ok"
   },
   "tpex_insider": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:41:06+08:00",
+   "last_attempt": "2026-10-06T01:53:37+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:41:06+08:00",
-   "rows": 1,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:53:37+08:00",
+   "rows": 19,
    "validation": "ok"
   },
   "tpex_insti": {
-   "consecutive_failures": 12,
-   "last_attempt": "2026-10-06T01:11:32+08:00",
-   "last_message": "斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-   "last_status": "failed",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-02T22:00:08+08:00",
-   "rows": 906,
-   "validation": "failed"
+   "consecutive_failures": 0,
+   "last_attempt": "2026-10-06T01:50:43+08:00",
+   "last_message": null,
+   "last_status": "ok",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:50:43+08:00",
+   "rows": 912,
+   "validation": "ok"
   },
   "tpex_insti_amount": {
-   "consecutive_failures": 12,
-   "last_attempt": "2026-10-06T01:11:32+08:00",
-   "last_message": "斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-   "last_status": "failed",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-04T04:47:14+08:00",
+   "consecutive_failures": 0,
+   "last_attempt": "2026-10-06T01:51:24+08:00",
+   "last_message": null,
+   "last_status": "ok",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:51:24+08:00",
    "rows": 6,
-   "validation": "failed"
+   "validation": "ok"
   },
   "tpex_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:37:45+08:00",
+   "last_attempt": "2026-10-06T01:50:48+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:37:45+08:00",
-   "rows": 919,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:50:48+08:00",
+   "rows": 918,
    "validation": "ok"
   },
   "tpex_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:37:45+08:00",
+   "last_attempt": "2026-10-06T01:50:48+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:37:45+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:50:48+08:00",
    "rows": 2,
    "validation": "ok"
   },
   "tpex_qfii": {
-   "consecutive_failures": 12,
-   "last_attempt": "2026-10-06T01:11:32+08:00",
-   "last_message": "斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-   "last_status": "failed",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-02T22:00:27+08:00",
+   "consecutive_failures": 0,
+   "last_attempt": "2026-10-06T01:51:09+08:00",
+   "last_message": null,
+   "last_status": "ok",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:51:09+08:00",
    "rows": 893,
-   "validation": "failed"
+   "validation": "ok"
   },
   "tpex_quotes": {
    "consecutive_failures": 0,
@@ -2666,176 +2719,176 @@
   },
   "tpex_revenue": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:40:35+08:00",
+   "last_attempt": "2026-10-06T01:53:08+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:40:35+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:53:08+08:00",
    "rows": 892,
    "validation": "ok"
   },
   "tpex_sbl": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:37:55+08:00",
+   "last_attempt": "2026-10-06T01:51:04+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:37:55+08:00",
-   "rows": 932,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:51:04+08:00",
+   "rows": 931,
    "validation": "ok"
   },
   "tpex_short_halt": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:40:58+08:00",
+   "last_attempt": "2026-10-06T01:53:30+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:40:58+08:00",
-   "rows": 55,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:53:30+08:00",
+   "rows": 64,
    "validation": "ok"
   },
   "tpex_valuation": {
-   "consecutive_failures": 12,
-   "last_attempt": "2026-10-06T01:11:32+08:00",
-   "last_message": "斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-   "last_status": "failed",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-02T22:00:16+08:00",
+   "consecutive_failures": 0,
+   "last_attempt": "2026-10-06T01:50:55+08:00",
+   "last_message": null,
+   "last_status": "ok",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:50:55+08:00",
    "rows": 887,
-   "validation": "failed"
+   "validation": "ok"
   },
   "twse_attention": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:38:54+08:00",
+   "last_attempt": "2026-10-06T01:52:05+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:38:54+08:00",
-   "rows": 153,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:52:05+08:00",
+   "rows": 113,
    "validation": "ok"
   },
   "twse_attention_accum": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:39:24+08:00",
+   "last_attempt": "2026-10-06T01:52:31+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:39:24+08:00",
-   "rows": 4,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:52:31+08:00",
+   "rows": 6,
    "validation": "ok"
   },
   "twse_capreduce": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:38:45+08:00",
+   "last_attempt": "2026-10-06T01:51:54+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:38:45+08:00",
-   "rows": 2,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:51:54+08:00",
+   "rows": 3,
    "validation": "ok"
   },
   "twse_cmode": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:40:45+08:00",
+   "last_attempt": "2026-10-06T01:53:17+08:00",
    "last_message": "內容未變動",
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:40:45+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:53:17+08:00",
    "rows": 10,
    "validation": "ok"
   },
   "twse_company": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:40:11+08:00",
+   "last_attempt": "2026-10-06T01:52:49+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:40:11+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:52:49+08:00",
    "rows": 1095,
    "validation": "ok"
   },
   "twse_daytrade": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:37:59+08:00",
+   "last_attempt": "2026-10-06T01:51:14+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:37:59+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:51:14+08:00",
    "rows": 1227,
    "validation": "ok"
   },
   "twse_daytrade_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:37:59+08:00",
+   "last_attempt": "2026-10-06T01:51:14+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:37:59+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:51:14+08:00",
    "rows": 1,
    "validation": "ok"
   },
   "twse_delisted": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:40:40+08:00",
+   "last_attempt": "2026-10-06T01:53:12+08:00",
    "last_message": "內容未變動",
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:40:40+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:53:12+08:00",
    "rows": 265,
    "validation": "ok"
   },
   "twse_disposition": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:39:04+08:00",
+   "last_attempt": "2026-10-06T01:52:14+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:39:04+08:00",
-   "rows": 13,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:52:14+08:00",
+   "rows": 15,
    "validation": "ok"
   },
   "twse_etfsplit": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:38:23+08:00",
+   "last_attempt": "2026-10-06T01:51:32+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:38:23+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:51:32+08:00",
    "rows": 0,
    "validation": "ok"
   },
   "twse_exright": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:38:36+08:00",
+   "last_attempt": "2026-10-06T01:51:47+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:38:36+08:00",
-   "rows": 11,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:51:47+08:00",
+   "rows": 8,
    "validation": "ok"
   },
   "twse_exright_notice": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:39:35+08:00",
+   "last_attempt": "2026-10-06T01:52:39+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:39:35+08:00",
-   "rows": 58,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:52:39+08:00",
+   "rows": 62,
    "validation": "ok"
   },
   "twse_fulldelivery": {
    "consecutive_failures": 0,
-   "format_warning_at": "2026-10-03T02:39:13+08:00",
-   "format_warning_date": "2026-10-02",
+   "format_warning_at": "2026-10-06T01:52:23+08:00",
+   "format_warning_date": "2026-10-05",
    "format_warnings": [
     "BFIHBU：欄位「日期」改名為「新增變更交易日期」，已自動對應"
    ],
-   "last_attempt": "2026-10-03T02:39:13+08:00",
+   "last_attempt": "2026-10-06T01:52:23+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:39:13+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:52:23+08:00",
    "rows": 0,
    "validation": "ok"
   },
@@ -2861,12 +2914,12 @@
   },
   "twse_insider": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:41:02+08:00",
+   "last_attempt": "2026-10-06T01:53:33+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:41:02+08:00",
-   "rows": 6,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:53:33+08:00",
+   "rows": 1,
    "validation": "ok"
   },
   "twse_insti": {
@@ -2901,31 +2954,31 @@
   },
   "twse_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:37:37+08:00",
+   "last_attempt": "2026-10-06T01:50:38+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:37:37+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:50:38+08:00",
    "rows": 1293,
    "validation": "ok"
   },
   "twse_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:37:37+08:00",
+   "last_attempt": "2026-10-06T01:50:38+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:37:37+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:50:38+08:00",
    "rows": 3,
    "validation": "ok"
   },
   "twse_parchange": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:38:13+08:00",
+   "last_attempt": "2026-10-06T01:51:29+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:38:13+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:51:29+08:00",
    "rows": 0,
    "validation": "ok"
   },
@@ -2951,32 +3004,32 @@
   },
   "twse_revenue": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:40:30+08:00",
+   "last_attempt": "2026-10-06T01:53:00+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:40:30+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:53:00+08:00",
    "rows": 1086,
    "validation": "ok"
   },
   "twse_sbl": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:37:50+08:00",
+   "last_attempt": "2026-10-06T01:51:00+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:37:50+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:51:00+08:00",
    "rows": 1297,
    "validation": "ok"
   },
   "twse_short_halt": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:40:54+08:00",
+   "last_attempt": "2026-10-06T01:53:26+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:40:54+08:00",
-   "rows": 60,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-06T01:53:26+08:00",
+   "rows": 59,
    "validation": "ok"
   },
   "twse_valuation": {
@@ -2991,12 +3044,12 @@
   },
   "ust_10y": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:42:24+08:00",
+   "last_attempt": "2026-10-06T01:55:10+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-01",
-   "last_success_at": "2026-10-03T02:42:24+08:00",
-   "rows": 189,
+   "last_success": "2026-10-02",
+   "last_success_at": "2026-10-06T01:55:10+08:00",
+   "rows": 190,
    "validation": "ok"
   },
   "yahoo_kbar": {
@@ -3016,6 +3069,11 @@
    "status": "done",
    "waited": 1
   },
+  "credit": {
+   "at": "02:01",
+   "status": "done",
+   "waited": 11
+  },
   "date": "2026-10-05",
   "insti": {
    "at": "01:11",
@@ -3023,6 +3081,6 @@
    "waited": 55
   }
  },
- "updated_at": "2026-10-06T01:11:32+08:00",
+ "updated_at": "2026-10-06T02:01:07+08:00",
  "version": 1
 }
