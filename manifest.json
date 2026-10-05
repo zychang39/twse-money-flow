@@ -1497,7 +1497,7 @@
   "target": "2026-10-02",
   "total": 2367
  },
- "last_target_date": "2026-10-02",
+ "last_target_date": "2026-10-05",
  "publish_probe": {
   "2026-09-30": {
    "tpex_daytrade": "20:34",
@@ -1585,6 +1585,10 @@
    {
     "at": "20:36",
     "date": "2026-10-02"
+   },
+   {
+    "at": "22:40",
+    "date": "2026-10-05"
    }
   ],
   "tpex_sbl": [
@@ -1643,6 +1647,12 @@
     "date": "2026-10-02"
    }
   ],
+  "twse_intraday_index": [
+   {
+    "at": "22:40",
+    "date": "2026-10-05"
+   }
+  ],
   "twse_margin": [
    {
     "at": "02:35",
@@ -1683,6 +1693,10 @@
    {
     "at": "20:36",
     "date": "2026-10-02"
+   },
+   {
+    "at": "22:40",
+    "date": "2026-10-05"
    }
   ],
   "twse_sbl": [
@@ -1715,20 +1729,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-04T11:44:09+08:00",
-   "by_source": {
-    "tdcc_full": 46910
-   },
-   "chained": true,
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 46910,
-   "requests": 552,
-   "task": "holders_backfill"
-  },
   {
    "at": "2026-10-04T12:25:00+08:00",
    "by_source": {
@@ -2269,6 +2269,18 @@
    "pending": [],
    "requests": 0,
    "task": "holders_backfill"
+  },
+  {
+   "at": "2026-10-05T22:40:22+08:00",
+   "failed": [],
+   "ok": 5,
+   "pending": [],
+   "requests": 5,
+   "stage": "close",
+   "status": "done",
+   "target": "2026-10-05",
+   "task": "stage",
+   "waited": 1
   }
  ],
  "sources": {
@@ -2499,12 +2511,12 @@
   },
   "tpex_index": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T02:39:17+08:00",
+   "last_attempt": "2026-10-05T22:40:22+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T02:39:17+08:00",
-   "rows": 2,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-05T22:40:22+08:00",
+   "rows": 3,
    "validation": "ok"
   },
   "tpex_insider": {
@@ -2569,12 +2581,12 @@
   },
   "tpex_quotes": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-02T20:36:04+08:00",
+   "last_attempt": "2026-10-05T22:40:12+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-02T20:36:04+08:00",
-   "rows": 1007,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-05T22:40:12+08:00",
+   "rows": 1006,
    "validation": "ok"
   },
   "tpex_revenue": {
@@ -2764,11 +2776,11 @@
   },
   "twse_index": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-02T20:35:55+08:00",
+   "last_attempt": "2026-10-05T22:39:51+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-02T20:35:55+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-05T22:39:51+08:00",
    "rows": 265,
    "validation": "ok"
   },
@@ -2804,11 +2816,11 @@
   },
   "twse_intraday_index": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-04T04:20:49+08:00",
+   "last_attempt": "2026-10-05T22:40:16+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-04T04:20:49+08:00",
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-05T22:40:16+08:00",
    "rows": 3241,
    "validation": "ok"
   },
@@ -2854,12 +2866,12 @@
   },
   "twse_quotes": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-02T20:35:55+08:00",
+   "last_attempt": "2026-10-05T22:39:51+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-02T20:35:55+08:00",
-   "rows": 1352,
+   "last_success": "2026-10-05",
+   "last_success_at": "2026-10-05T22:39:51+08:00",
+   "rows": 1353,
    "validation": "ok"
   },
   "twse_revenue": {
@@ -2925,22 +2937,12 @@
  },
  "stages": {
   "close": {
-   "at": "20:36",
+   "at": "22:40",
    "status": "done",
-   "waited": 0
+   "waited": 1
   },
-  "credit": {
-   "at": "02:43",
-   "status": "done",
-   "waited": 6
-  },
-  "date": "2026-10-02",
-  "insti": {
-   "at": "22:00",
-   "status": "done",
-   "waited": 0
-  }
+  "date": "2026-10-05"
  },
- "updated_at": "2026-10-05T13:37:48+08:00",
+ "updated_at": "2026-10-05T22:40:22+08:00",
  "version": 1
 }

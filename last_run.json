@@ -1,9 +1,12 @@
 {
- "task": "holders_backfill",
- "at": "2026-10-05T13:37:48+08:00",
- "requests": 0,
- "ok": 0,
+ "task": "stage",
+ "at": "2026-10-05T22:40:22+08:00",
+ "requests": 5,
+ "ok": 5,
  "failed": [],
  "pending": [],
- "deferred": true
+ "stage": "close",
+ "status": "done",
+ "waited": 1,
+ "target": "2026-10-05"
 }
