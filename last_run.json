@@ -1,22 +1,41 @@
 {
- "task": "kbar",
- "at": "2026-10-06T22:14:06+08:00",
- "requests": 0,
- "ok": 1,
+ "task": "catchup",
+ "at": "2026-10-06T22:15:23+08:00",
+ "requests": 27,
+ "ok": 27,
  "failed": [],
  "pending": [],
- "kbar_target": "2026-10-06",
- "fetched": 2360,
- "rows": 379132,
- "covered": 2330,
- "total": 2367,
- "remaining": 7,
+ "missing_before": [
+  "quotes",
+  "index",
+  "intraday",
+  "insti",
+  "insti_amount",
+  "taifex",
+  "valuation",
+  "qfii",
+  "credit",
+  "margin_total",
+  "sbl",
+  "daytrade"
+ ],
+ "missing_after": [],
+ "fixed": [
+  "credit",
+  "daytrade",
+  "index",
+  "insti",
+  "insti_amount",
+  "intraday",
+  "margin_total",
+  "qfii",
+  "quotes",
+  "sbl",
+  "taifex",
+  "valuation"
+ ],
+ "attempt": 1,
+ "retry": false,
  "progressed": true,
- "pruned": 0,
- "by_tier": {
-  "1": 500,
-  "2": 442,
-  "3": 1418
- },
- "chained": true
+ "kbar_dispatched": true
 }

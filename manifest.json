@@ -960,6 +960,26 @@
   }
  },
  "digest_date": "2026-10-02",
+ "freshness": {
+  "at": "2026-10-06T22:12+08:00",
+  "attempt": 1,
+  "fixed": [
+   "credit",
+   "daytrade",
+   "index",
+   "insti",
+   "insti_amount",
+   "intraday",
+   "margin_total",
+   "qfii",
+   "quotes",
+   "sbl",
+   "taifex",
+   "valuation"
+  ],
+  "missing": [],
+  "next_retry": null
+ },
  "holders_backfill": {
   "codes": 1990,
   "done": 77817,
@@ -1535,52 +1555,42 @@
   "task": "holders_backfill"
  },
  "kbar": {
-  "at": "2026-10-06T21:40+08:00",
-  "covered": 2330,
+  "at": "2026-10-05T23:19+08:00",
+  "covered": 2340,
   "empty": [
-   "00707R",
+   "00643K",
    "00847B",
-   "1101B",
+   "1259",
    "1522A",
    "2035",
-   "2073",
    "2323",
-   "2724",
-   "2941",
-   "2948",
-   "2949",
+   "2937",
    "3085",
-   "4183",
-   "4413",
+   "4305",
+   "4527",
+   "4584",
+   "4950",
+   "5301",
+   "5514",
+   "5601",
+   "6169",
    "6236",
-   "6512",
-   "6592A",
-   "6597",
-   "6751",
-   "6762",
-   "6856",
+   "6662",
+   "6767",
    "7716",
-   "7747",
-   "7842",
-   "8342",
-   "8416",
    "8444",
-   "8921",
-   "8923",
-   "9960"
+   "8905",
+   "8921"
   ],
   "failed": [
    "00625K",
-   "00643K",
    "00793B",
    "3067",
-   "4527",
-   "5301",
    "8183"
   ],
-  "remaining": 7,
+  "remaining": 4,
   "stopped": null,
-  "target": "2026-10-06",
+  "target": "2026-10-05",
   "total": 2367
  },
  "last_target_date": "2026-10-05",
@@ -1875,20 +1885,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-05T00:40:43+08:00",
-   "by_source": {
-    "tdcc_full": 36546
-   },
-   "chained": true,
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 36546,
-   "requests": 553,
-   "task": "holders_backfill"
-  },
   {
    "at": "2026-10-05T01:21:31+08:00",
    "by_source": {
@@ -2493,6 +2489,47 @@
    "rows": 379132,
    "task": "kbar",
    "total": 2367
+  },
+  {
+   "at": "2026-10-06T22:15:23+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [
+    "credit",
+    "daytrade",
+    "index",
+    "insti",
+    "insti_amount",
+    "intraday",
+    "margin_total",
+    "qfii",
+    "quotes",
+    "sbl",
+    "taifex",
+    "valuation"
+   ],
+   "kbar_dispatched": true,
+   "missing_after": [],
+   "missing_before": [
+    "quotes",
+    "index",
+    "intraday",
+    "insti",
+    "insti_amount",
+    "taifex",
+    "valuation",
+    "qfii",
+    "credit",
+    "margin_total",
+    "sbl",
+    "daytrade"
+   ],
+   "ok": 27,
+   "pending": [],
+   "progressed": true,
+   "requests": 27,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -2528,12 +2565,12 @@
   },
   "fx_usdtwd": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:54:44+08:00",
+   "last_attempt": "2026-10-06T22:15:16+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:54:44+08:00",
-   "rows": 3,
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:15:16+08:00",
+   "rows": 1,
    "validation": "ok"
   },
   "investor_conference": {
@@ -2558,32 +2595,32 @@
   },
   "taifex_insti": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:54:25+08:00",
+   "last_attempt": "2026-10-06T22:14:59+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:54:25+08:00",
-   "rows": 27,
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:14:59+08:00",
+   "rows": 9,
    "validation": "ok"
   },
   "taifex_oi": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:54:38+08:00",
+   "last_attempt": "2026-10-06T22:15:12+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:54:38+08:00",
-   "rows": 9,
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:15:12+08:00",
+   "rows": 3,
    "validation": "ok"
   },
   "taifex_pc": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:54:48+08:00",
+   "last_attempt": "2026-10-06T22:15:21+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:54:48+08:00",
-   "rows": 3,
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:15:21+08:00",
+   "rows": 1,
    "validation": "ok"
   },
   "tdcc_history": {
@@ -2656,21 +2693,21 @@
   },
   "tpex_daytrade": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:51:19+08:00",
+   "last_attempt": "2026-10-06T22:13:30+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:51:19+08:00",
-   "rows": 841,
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:13:30+08:00",
+   "rows": 843,
    "validation": "ok"
   },
   "tpex_daytrade_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:51:19+08:00",
+   "last_attempt": "2026-10-06T22:13:30+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:51:19+08:00",
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:13:30+08:00",
    "rows": 1,
    "validation": "ok"
   },
@@ -2733,12 +2770,12 @@
   },
   "tpex_index": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:52:27+08:00",
+   "last_attempt": "2026-10-06T22:14:45+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:52:27+08:00",
-   "rows": 3,
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:14:45+08:00",
+   "rows": 4,
    "validation": "ok"
   },
   "tpex_insider": {
@@ -2753,62 +2790,62 @@
   },
   "tpex_insti": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:50:43+08:00",
+   "last_attempt": "2026-10-06T22:13:39+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:50:43+08:00",
-   "rows": 912,
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:13:39+08:00",
+   "rows": 900,
    "validation": "ok"
   },
   "tpex_insti_amount": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:51:24+08:00",
+   "last_attempt": "2026-10-06T22:13:45+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:51:24+08:00",
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:13:45+08:00",
    "rows": 6,
    "validation": "ok"
   },
   "tpex_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:50:48+08:00",
+   "last_attempt": "2026-10-06T22:13:50+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:50:48+08:00",
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:13:50+08:00",
    "rows": 918,
    "validation": "ok"
   },
   "tpex_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:50:48+08:00",
+   "last_attempt": "2026-10-06T22:13:50+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:50:48+08:00",
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:13:50+08:00",
    "rows": 2,
    "validation": "ok"
   },
   "tpex_qfii": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:51:09+08:00",
+   "last_attempt": "2026-10-06T22:13:54+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:51:09+08:00",
-   "rows": 893,
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:13:54+08:00",
+   "rows": 894,
    "validation": "ok"
   },
   "tpex_quotes": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-05T22:40:12+08:00",
+   "last_attempt": "2026-10-06T22:13:26+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-05T22:40:12+08:00",
-   "rows": 1006,
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:13:26+08:00",
+   "rows": 1007,
    "validation": "ok"
   },
   "tpex_revenue": {
@@ -2823,11 +2860,11 @@
   },
   "tpex_sbl": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:51:04+08:00",
+   "last_attempt": "2026-10-06T22:13:58+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:51:04+08:00",
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:13:58+08:00",
    "rows": 931,
    "validation": "ok"
   },
@@ -2843,12 +2880,12 @@
   },
   "tpex_valuation": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:50:55+08:00",
+   "last_attempt": "2026-10-06T22:14:05+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:50:55+08:00",
-   "rows": 887,
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:14:05+08:00",
+   "rows": 888,
    "validation": "ok"
   },
   "twse_attention": {
@@ -2903,21 +2940,21 @@
   },
   "twse_daytrade": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:51:14+08:00",
+   "last_attempt": "2026-10-06T22:14:11+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:51:14+08:00",
-   "rows": 1227,
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:14:11+08:00",
+   "rows": 1226,
    "validation": "ok"
   },
   "twse_daytrade_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:51:14+08:00",
+   "last_attempt": "2026-10-06T22:14:11+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:51:14+08:00",
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:14:11+08:00",
    "rows": 1,
    "validation": "ok"
   },
@@ -2998,11 +3035,11 @@
   },
   "twse_index": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-05T22:39:51+08:00",
+   "last_attempt": "2026-10-06T22:12:50+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-05T22:39:51+08:00",
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:12:50+08:00",
    "rows": 265,
    "validation": "ok"
   },
@@ -3018,51 +3055,51 @@
   },
   "twse_insti": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T00:16:07+08:00",
+   "last_attempt": "2026-10-06T22:14:14+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T00:16:07+08:00",
-   "rows": 1327,
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:14:14+08:00",
+   "rows": 1323,
    "validation": "ok"
   },
   "twse_insti_amount": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T00:16:32+08:00",
+   "last_attempt": "2026-10-06T22:14:19+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T00:16:32+08:00",
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:14:19+08:00",
    "rows": 6,
    "validation": "ok"
   },
   "twse_intraday_index": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-05T22:40:16+08:00",
+   "last_attempt": "2026-10-06T22:14:24+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-05T22:40:16+08:00",
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:14:24+08:00",
    "rows": 3241,
    "validation": "ok"
   },
   "twse_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:50:38+08:00",
+   "last_attempt": "2026-10-06T22:14:29+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:50:38+08:00",
-   "rows": 1293,
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:14:29+08:00",
+   "rows": 1294,
    "validation": "ok"
   },
   "twse_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:50:38+08:00",
+   "last_attempt": "2026-10-06T22:14:29+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:50:38+08:00",
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:14:29+08:00",
    "rows": 3,
    "validation": "ok"
   },
@@ -3078,21 +3115,21 @@
   },
   "twse_qfii": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T00:16:23+08:00",
+   "last_attempt": "2026-10-06T22:14:32+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T00:16:23+08:00",
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:14:32+08:00",
    "rows": 1356,
    "validation": "ok"
   },
   "twse_quotes": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-05T22:39:51+08:00",
+   "last_attempt": "2026-10-06T22:12:50+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-05T22:39:51+08:00",
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:12:50+08:00",
    "rows": 1353,
    "validation": "ok"
   },
@@ -3108,11 +3145,11 @@
   },
   "twse_sbl": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T01:51:00+08:00",
+   "last_attempt": "2026-10-06T22:14:38+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T01:51:00+08:00",
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:14:38+08:00",
    "rows": 1297,
    "validation": "ok"
   },
@@ -3128,11 +3165,11 @@
   },
   "twse_valuation": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-06T00:16:16+08:00",
+   "last_attempt": "2026-10-06T22:14:41+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-05",
-   "last_success_at": "2026-10-06T00:16:16+08:00",
+   "last_success": "2026-10-06",
+   "last_success_at": "2026-10-06T22:14:41+08:00",
    "rows": 1083,
    "validation": "ok"
   },
@@ -3159,22 +3196,22 @@
  },
  "stages": {
   "close": {
-   "at": "22:40",
+   "at": "22:12",
    "status": "done",
-   "waited": 1
+   "waited": 0
   },
   "credit": {
-   "at": "02:01",
+   "at": "22:12",
    "status": "done",
-   "waited": 11
+   "waited": 0
   },
-  "date": "2026-10-05",
+  "date": "2026-10-06",
   "insti": {
-   "at": "01:11",
-   "status": "late",
-   "waited": 55
+   "at": "22:12",
+   "status": "done",
+   "waited": 0
   }
  },
- "updated_at": "2026-10-06T22:14:06+08:00",
+ "updated_at": "2026-10-06T22:15:23+08:00",
  "version": 1
 }
