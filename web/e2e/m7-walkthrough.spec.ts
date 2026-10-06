@@ -30,9 +30,18 @@ const recordFrames = (page: Page) => page.evaluate(() => {
   requestAnimationFrame(f);
 });
 const frames = (page: Page) => page.evaluate(() => (window as unknown as { __frames: unknown[] }).__frames);
+/**
+ * 等進場動畫與捲動觸發的轉場（有限長度的動畫）結束再量捲動位置、再點擊。
+ * 動畫還在跑時 Playwright 判定元素「不穩定」，重試點擊前會換一種對齊方式重新捲動，實際離開的位置就不是測試量到的 y
+ * （CI 機器較忙時偶發；2026-10-06 main CI 106：族群列在 358 被捲回 0、策略頁 1157 被捲到 727）。
+ */
+const settle = (page: Page) => page.evaluate(() => Promise.all(document.getAnimations()
+  .filter((a) => Number.isFinite(a.effect?.getComputedTiming().endTime ?? Infinity))
+  .map((a) => a.finished.catch(() => undefined))));
 async function scrollTo(page: Page, y: number) {
   await page.evaluate((v) => window.scrollTo(0, v), y);
   await page.waitForTimeout(300);
+  await settle(page);
   return scrollY(page);
 }
 
@@ -70,6 +79,8 @@ test('選股篩出 → 個股 → 返回：仍是篩出；策略績效（2024 �
   await page.goto('#/explore/strategies/rev_confirm?seg=p&p=year:2024&b=ew');
   const held = page.getByTestId('st-held').locator('a').first();
   await held.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  await settle(page);
   const y = await scrollY(page);
   await held.click();
   await expect(page).toHaveURL(/#\/stock\//);
@@ -81,7 +92,7 @@ test('選股篩出 → 個股 → 返回：仍是篩出；策略績效（2024 �
   try {
     await expect.poll(() => scrollY(page), { timeout: 10000 }).toBeGreaterThan(y - 120);
   } catch (e) {
-    // CI 偶發（本機重現不到）：印出返回後每個畫格的捲動位置與可捲高度，方便判斷是被夾住還是被移動
+    // 失敗時印出返回後每個畫格的捲動位置與可捲高度，方便判斷是被夾住還是被移動
     console.warn(`返回前 y=${y}；[ms, scrollY, maxScroll, hash]：`, JSON.stringify(await frames(page)));
     throw e;
   }
