@@ -1525,6 +1525,15 @@
   "updated_at": "2026-10-06T13:09+08:00",
   "weeks": 51
  },
+ "holders_backfill_pending": {
+  "deferred_at": "2026-10-06T13:50+08:00",
+  "end": "2026-10-03",
+  "ref": "claude/momentum-strategy-lab-v2",
+  "refresh": false,
+  "source": "",
+  "start": "2023-10-01",
+  "task": "holders_backfill"
+ },
  "kbar": {
   "at": "2026-10-05T23:19+08:00",
   "covered": 2340,
@@ -1856,20 +1865,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-04T23:18:58+08:00",
-   "by_source": {
-    "tdcc_full": 37648
-   },
-   "chained": true,
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 37648,
-   "requests": 550,
-   "task": "holders_backfill"
-  },
   {
    "at": "2026-10-04T23:59:46+08:00",
    "by_source": {
@@ -2470,6 +2465,15 @@
    "progressed": true,
    "remaining": 19698,
    "requests": 559,
+   "task": "holders_backfill"
+  },
+  {
+   "at": "2026-10-06T13:50:31+08:00",
+   "deferred": true,
+   "failed": [],
+   "ok": 0,
+   "pending": [],
+   "requests": 0,
    "task": "holders_backfill"
   }
  ],
@@ -3153,6 +3157,6 @@
    "waited": 55
   }
  },
- "updated_at": "2026-10-06T13:49:43+08:00",
+ "updated_at": "2026-10-06T13:50:31+08:00",
  "version": 1
 }
