@@ -1,17 +1,20 @@
 /**
  * 新增持倉前檢查表的計算與提示（#10；純函式）。
  * - 停損或目標是空的時，不計算風險報酬比與建議部位（原本 Number('') = 0，被當成停損 0 元 → 「1 : −1.00」「每股風險＝進場價」）。
- * - 「加入持倉」按鈕依實際卡住的條件說明（缺哪一題、價格順序、股數為 0），不再一律寫「停損 < 進場 < 目標」。
+ * - 2026-10-06：檢查表不是關卡。1–5 由系統自動帶出（lib/checklistAuto），理由、停損、目標都是選填；
+ *   「加入持倉」只在缺進場價或股數時停用，按鈕寫出缺哪一欄。停損 ≥ 進場、目標 ≤ 進場只在欄位下方說明，不擋送出
+ *   （存檔後停損不算有效停損，持股列表顯示「未設停損」）。
  */
 import { positionSize, rewardRisk } from './sizing';
 
 export interface ChecklistInput {
   hasStock: boolean;
-  market: string;
-  trend: string;
-  revenue: string;
-  valuation: string;
-  reason: string;
+  /** 1–5 與理由不再影響能否送出（2026-10-06）；保留選填欄位，舊呼叫端不用改 */
+  market?: string;
+  trend?: string;
+  revenue?: string;
+  valuation?: string;
+  reason?: string;
   entry: string;
   stop: string;
   target: string;
@@ -33,10 +36,14 @@ export interface ChecklistCalc {
   /** 實際股數（使用者輸入優先） */
   shares: number;
   lossIfStopped: number | null;
-  /** 定性題目都完成（可以「決定先不進場」） */
+  /** 已選股票（可以「決定先不進場」） */
   qualitative: boolean;
-  /** 卡住「加入持倉」的第一個條件；null＝可以加入 */
+  /** 卡住「加入持倉」的第一個條件（只有選股、進場價、股數）；null＝可以加入 */
   blocker: string | null;
+  /** 停損欄的說明（停損 ≥ 進場價時不計入風險計算）；沒有問題為 null */
+  stopNote: string | null;
+  /** 目標欄的說明（目標 ≤ 進場價時不計算風險報酬比）；沒有問題為 null */
+  targetNote: string | null;
 }
 
 /** 空字串、非數字、≤ 0 → null（價格一定為正） */
@@ -52,10 +59,10 @@ export const FIELD_LABEL = {
   revenue: '3. 營收',
   valuation: '4. 估值',
   reasonType: '5. 理由類型',
-  reason: '理由',
+  reason: '理由（選填，建議填寫供復盤）',
   entry: '進場價',
-  stop: '6. 停損價',
-  target: '7. 目標價',
+  stop: '6. 停損價（選填）',
+  target: '7. 目標價（選填）',
   shares: '實際股數',
 } as const;
 
@@ -64,7 +71,8 @@ export function checklistCalc(f: ChecklistInput, p: { capital: number; riskPct: 
   const stop = priceOf(f.stop);
   const target = priceOf(f.target);
   const orderOk = entry !== null && stop !== null && stop < entry;
-  const rr = orderOk && target !== null ? rewardRisk(entry, stop, target) : null;
+  const targetOk = entry !== null && target !== null && target > entry;
+  const rr = orderOk && targetOk ? rewardRisk(entry, stop, target) : null;
   const perShareRisk = orderOk ? entry - stop : null;
   const sized = orderOk ? positionSize(p.capital, p.riskPct, entry, stop, p.oddLot) : null;
   const size = sized ? { shares: sized.shares, lots: sized.lots } : null;
@@ -72,41 +80,33 @@ export function checklistCalc(f: ChecklistInput, p: { capital: number; riskPct: 
   const shares = typed !== null && Number.isFinite(typed) ? Math.max(0, Math.floor(typed)) : size?.shares ?? 0;
 
   let rrText: string;
-  if (stop === null && target === null) rrText = '—（填入停損與目標後計算）';
-  else if (stop === null) rrText = '—（填入停損後計算）';
-  else if (target === null) rrText = '—（填入目標後計算）';
-  else if (!orderOk) rrText = '—（停損要低於進場價）';
+  if (stop === null && target === null) rrText = '—（未填停損與目標，無法計算）';
+  else if (stop === null) rrText = '—（未填停損，無法計算）';
+  else if (target === null) rrText = '—（未填目標，無法計算）';
+  else if (!orderOk) rrText = '—（停損不低於進場價，無法計算）';
+  else if (!targetOk) rrText = '—（目標不高於進場價，無法計算）';
   else rrText = rr === null ? '—' : `1 : ${rr.toFixed(2)}`;
 
   let sizeText: string;
   if (entry === null) sizeText = '—（填入進場價後計算）';
-  else if (stop === null) sizeText = '—（填入停損後計算）';
-  else if (!orderOk || !sized) sizeText = '—（停損要低於進場價）';
+  else if (stop === null) sizeText = '—（未填停損，無法依單筆風險換算）';
+  else if (!orderOk || !sized) sizeText = '—（停損不低於進場價，無法換算）';
   else sizeText = `${p.oddLot ? `${sized.shares} 股` : `${sized.lots} 張`}（總資金 ${fmt(p.capital)} × 單筆風險 ${p.riskPct}% ÷ 每股風險 ${(entry - stop).toFixed(2)}）`;
 
-  const missing: [boolean, string][] = [
-    [!f.hasStock, '請先選擇股票'],
-    [!f.market, `請選擇「${FIELD_LABEL.market}」`],
-    [!f.trend, `請選擇「${FIELD_LABEL.trend}」`],
-    [!f.revenue, `請選擇「${FIELD_LABEL.revenue}」`],
-    [!f.valuation, `請選擇「${FIELD_LABEL.valuation}」`],
-    [!f.reason.trim(), '請填寫理由'],
-  ];
-  const qualitative = !missing.some(([m]) => m);
+  const qualitative = f.hasStock;
   const blocker =
-    missing.find(([m]) => m)?.[1]
-    ?? (entry === null ? '請填入進場價'
-      : stop === null ? `請填入「${FIELD_LABEL.stop}」`
-      : target === null ? `請填入「${FIELD_LABEL.target}」`
-      : stop >= entry ? '停損價要低於進場價'
-      : target <= entry ? '目標價要高於進場價'
-      : shares <= 0 ? (size && size.shares === 0 && typed === null ? '股數為 0：風險上限換算的股數小於 1 張，請改用零股或自行輸入股數' : '請輸入大於 0 的股數')
-      : null);
+    !f.hasStock ? '請先選擇股票'
+    : entry === null ? '請填入「進場價」'
+    : shares <= 0 ? (size && size.shares === 0 && typed === null ? '股數為 0：風險上限換算的股數小於 1 張，請改用零股或自行輸入股數'
+      : typed === null ? `請填入「${FIELD_LABEL.shares}」` : '請輸入大於 0 的股數')
+    : null;
+  const stopNote = entry !== null && stop !== null && stop >= entry ? '停損價不低於進場價：不計入風險計算，存檔後視為未設停損' : null;
+  const targetNote = entry !== null && target !== null && target <= entry ? '目標價不高於進場價：不計算風險報酬比' : null;
 
   return {
     entry, stop, target, rr, rrText, size, sizeText, perShareRisk, shares,
     lossIfStopped: perShareRisk !== null ? perShareRisk * shares : null,
-    qualitative, blocker,
+    qualitative, blocker, stopNote, targetNote,
   };
 }
 

@@ -6,13 +6,13 @@
 import type { ComponentChildren } from 'preact';
 import { createPortal } from 'preact/compat';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { IconClose } from './Icons';
+import { IconBack, IconClose } from './Icons';
 
 export type Detent = 'half' | 'full';
 
 let openCount = 0;
 
-export function Sheet({ open, onClose, title, children, detent = 'half', actions, labelledTitle = true }: {
+export function Sheet({ open, onClose, title, children, detent = 'half', actions, labelledTitle = true, back }: {
   open: boolean;
   onClose: () => void;
   title: string;
@@ -20,6 +20,8 @@ export function Sheet({ open, onClose, title, children, detent = 'half', actions
   detent?: Detent;
   actions?: ComponentChildren;
   labelledTitle?: boolean;
+  /** 面板內推入的子頁（2026-10-06 檢查表說明頁）：標題左側顯示「‹ 上一頁名稱」；Esc 先返回上一頁 */
+  back?: { label: string; onBack: () => void };
 }) {
   const [mounted, setMounted] = useState(open);
   const [shown, setShown] = useState(false);
@@ -79,10 +81,14 @@ export function Sheet({ open, onClose, title, children, detent = 'half', actions
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (back) back.onBack();
+      else onClose();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, onClose, back]);
 
   if (!mounted) return null;
 
@@ -132,7 +138,12 @@ export function Sheet({ open, onClose, title, children, detent = 'half', actions
         <div class="sheet-head" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
           <div class="grabber" aria-hidden="true" />
           <div class="row between">
-            {labelledTitle ? <h2 class="section">{title}</h2> : <span />}
+            {back ? (
+              <button type="button" class="sheet-back" onClick={back.onBack} aria-label={`返回${back.label}`} data-testid="sheet-back">
+                <IconBack /><span>{back.label}</span>
+              </button>
+            ) : null}
+            {labelledTitle ? <h2 class={`section ${back ? 'sheet-title-sub' : ''}`}>{title}</h2> : <span />}
             <div class="row">
               {actions}
               <button class="icon-btn sheet-close" onClick={onClose} aria-label="關閉"><IconClose /></button>

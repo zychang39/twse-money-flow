@@ -318,6 +318,25 @@ def retail_ratio(ti: pd.DataFrame, oi: pd.DataFrame, fut_contract: str, oi_contr
     return ((long_r - short_r) / df["total_oi"] * 100).sort_index()
 
 
+# 新增持倉前檢查表（2026-10-06）：每個資金燈號附資料日期與近期序列（說明頁的走勢小圖與原始數值）
+SERIES_DAILY = 20  # 日資料：近 20 個交易日
+SERIES_MONTHLY = 12  # 月資料：近 12 個月
+
+
+def _points(
+    s: pd.Series, n: int, digits: int, raw: pd.Series | None = None, raw_digits: int = 2
+) -> list[dict[str, Any]]:
+    """序列尾端 n 個有值的點：{d 日期, v 判定用的數值, x 原始數值（例：匯率、殖利率）}。"""
+    s = s.dropna().iloc[-n:]
+    out = []
+    for d, v in s.items():
+        pt: dict[str, Any] = {"d": str(d), "v": clean(v, digits)}
+        if raw is not None:
+            pt["x"] = clean(raw.get(d), raw_digits)
+        out.append(pt)
+    return out
+
+
 def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
     env = config.thresholds()["market_env"]
     temp = config.thresholds()["market_temperature"]
@@ -345,6 +364,7 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
         # 2026-10：近 250 個交易日百分位（0–100）
         lights[-1]["pct250"] = envhist.percentile(net, 250)
         lights[-1].update(short=f"{_m(f'{v:,.0f}')} 口", detail=str(net.index[-1]))
+        lights[-1].update(date=str(net.index[-1]), series=_points(net, SERIES_DAILY, 0))
     else:
         lights.append(_light("futures", "外資台指期淨未平倉", "gray", "資料源待處理", "期交所三大法人期貨資料尚未取得"))
         lights[-1]["pct250"] = None
@@ -365,6 +385,7 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
             )
         )
         lights[-1].update(short=f"{s.iloc[-1]:.3f}", detail=f"USD/TWD・20 日 {_m(f'{chg:+.2f}')}%")
+        lights[-1].update(date=str(s.index[-1]), series=_points((s / s.shift(20) - 1) * 100, SERIES_DAILY, 2, s, 3))
     else:
         lights.append(_light("fx", "台幣匯率趨勢", "gray", "資料源待處理", "期交所每日匯率資料不足 20 日"))
     # 3) 大盤與年線
@@ -377,6 +398,7 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
             _light("ma240", "大盤與年線", st, f"{gap:+.1f}%", f"加權指數相對 240 日均線；±{band}% 內視為年線附近")
         )
         lights[-1].update(short=f"{_m(f'{gap:+.1f}')}%", detail="加權指數相對 240 日均線")
+        lights[-1].update(date=str(taiex.index[-1]), series=_points((taiex / ma - 1) * 100, SERIES_DAILY, 2, taiex, 0))
     else:
         lights.append(_light("ma240", "大盤與年線", "gray", "歷史不足 240 日", "回補完成後顯示"))
     # 4) M1B／M2
@@ -398,6 +420,19 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
             short=f"M1B−M2 {_m(f'{gap:+.2f}')}",
             detail=f"M1B {r['m1b_yoy']:.2f}%・M2 {r['m2_yoy']:.2f}%（{r['ym']}）",
         )
+        mm = money.sort_values("ym").drop_duplicates("ym", keep="last").iloc[-SERIES_MONTHLY:]
+        lights[-1].update(
+            date=str(r["ym"]),
+            series=[
+                {
+                    "d": str(x["ym"]),
+                    "v": clean(x["m1b_yoy"] - x["m2_yoy"], 2),
+                    "x": clean(x["m1b_yoy"], 2),
+                    "y": clean(x["m2_yoy"], 2),
+                }
+                for _, x in mm.iterrows()
+            ],
+        )
     else:
         lights.append(_light("m1b", "M1B／M2 年增率", "gray", "資料源待處理", "央行貨幣總計數（選配資料）"))
     # 5) 美國 10 年期殖利率
@@ -417,6 +452,7 @@ def market_env(ds: Any, p: Any, taiex: pd.Series) -> dict[str, Any]:
             )
         )
         lights[-1].update(short=f"{s.iloc[-1]:.2f}%", detail=f"20 日 {_m(f'{bp:+.0f}')}bp")
+        lights[-1].update(date=str(s.index[-1]), series=_points((s - s.shift(20)) * 100, SERIES_DAILY, 0, s, 2))
     else:
         lights.append(_light("ust", "美國 10 年期殖利率", "gray", "資料源待處理", "美國財政部 Par Yield Curve"))
     score = sum({"green": 1, "red": -1}.get(li["state"], 0) for li in lights)

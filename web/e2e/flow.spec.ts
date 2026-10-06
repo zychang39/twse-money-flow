@@ -52,20 +52,14 @@ test.describe('流程頁（§8）', () => {
 
   test('檢查表帶入：個股頁風險試算的參考價、停損價、股數', async ({ page }) => {
     await page.goto('#/discipline/checklist?code=2330&price=123.5&stop=110&shares=150');
-    await page.waitForLoadState('networkidle'); // 資料與延後載入的元件都到齊後再操作（載入途中重新掛載會重設冷靜卡）
-    // 資金環境保守時先出現冷靜卡（需勾選確認），否則直接是檢查表
-    const ack = page.getByText('我已看過以上事實');
-    const shares = page.getByLabel('實際股數（預設為建議部位）');
-    await expect(ack.or(shares)).toBeVisible();
-    if (await ack.isVisible()) {
-      // 檢查表開啟時會重設確認狀態；勾選後確認「繼續」已可按再點
-      const box = page.getByRole('checkbox', { name: '我已看過以上事實' });
-      const cont = page.getByRole('button', { name: '繼續填寫檢查表' });
-      await expect(async () => { await box.check(); await expect(cont).toBeEnabled({ timeout: 300 }); }).toPass();
-      await cont.click();
-    }
+    await page.waitForLoadState('networkidle'); // 資料與延後載入的元件都到齊後再操作
+    // 資金環境保守時先出現事實頁（2026-10-06 起不需勾選，「繼續填寫檢查表」直接可按），否則直接是檢查表
+    const cont = page.getByRole('button', { name: '繼續填寫檢查表' });
+    const shares = page.getByLabel('實際股數');
+    await expect(cont.or(shares)).toBeVisible();
+    if (await cont.isVisible()) await cont.click();
     await expect(page.getByLabel('進場價')).toHaveValue('123.5');
-    await expect(page.getByLabel('6. 停損價', { exact: true })).toHaveValue('110');
+    await expect(page.getByLabel('6. 停損價（選填）', { exact: true })).toHaveValue('110');
     await expect(shares).toHaveValue('150');
   });
 });

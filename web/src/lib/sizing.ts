@@ -92,7 +92,7 @@ export function byReason(trades: Trade[]): { reason: string; stats: ClosedStats 
   return [...groups.entries()].map(([reason, ts]) => ({ reason, stats: closedStats(ts) }));
 }
 
-/** 全部觸及停損時的總虧損（只計停損價低於現價的持倉）。 */
+/** 全部觸及停損時的總虧損（只計停損價低於現價的持倉；未設停損〔停損 ≤ 0〕的不計入，原本會把整個市值算成虧損）。 */
 export function lossIfAllStopped(open: { shares: number; stop: number; price: number }[]): number {
-  return open.reduce((s, p) => s + (p.price > p.stop ? (p.price - p.stop) * p.shares : 0), 0);
+  return open.reduce((s, p) => s + (p.stop > 0 && p.price > p.stop ? (p.price - p.stop) * p.shares : 0), 0);
 }

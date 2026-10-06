@@ -244,7 +244,7 @@ export default function Discipline() {
       <Section title="工具" testid="flow-entries">
         <List chev>
           <NavRow icon={<IconNotebook />} title="日誌" sub={`持倉 ${open.length}・已平倉 ${closed.length}${pendingReviews ? `・待檢討 ${pendingReviews}` : ''}`} href="#/discipline/journal" />
-          <NavRow icon={<IconClipboard />} title="新增持倉前檢查表" sub="7 題・停損・計畫風險" href="#/discipline/checklist" />
+          <NavRow icon={<IconClipboard />} title="新增持倉前檢查表" sub="1–5 自動帶出・停損・計畫風險" href="#/discipline/checklist" />
           <NavRow icon={<IconBars />} title="個人統計" sub={recent.total ? `近 ${recent.total} 日完成率 ${pct(recent.rate)}・以 R 計` : '以 R 計・合規與不合規'} href="#/discipline/stats" />
           <NavRow icon={<IconMedal />} title="成就" sub={gamification ? `${earned}/${badges.length}` : '遊戲化已關閉'} href="#/discipline/badges" />
           <NavRow icon={<IconPaper />} title="週報" sub={week.completion.total ? `本週完成率 ${pct(week.completion.rate)}・違規 ${week.total} 次` : `本週違規 ${week.total} 次`} href="#/discipline/weekly" />

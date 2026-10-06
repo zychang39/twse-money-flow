@@ -200,7 +200,12 @@ export interface Lists {
 
 // ---------- market.json ----------
 export type LightStateT = 'green' | 'yellow' | 'red' | 'gray';
-export interface MarketLight { id: string; label: string; state: LightStateT; value: string; basis: string; /** 外資期貨淨未平倉：近 250 個交易日百分位（0–100） */ pct250?: number | null; /** 2026-10：右欄短數值（負號 U+2212；資料不足為「—」） */ short?: string; /** 2026-10：副資訊一行（資料不足時為原因） */ detail?: string }
+export interface MarketLight { id: string; label: string; state: LightStateT; value: string; basis: string; /** 外資期貨淨未平倉：近 250 個交易日百分位（0–100） */ pct250?: number | null; /** 2026-10：右欄短數值（負號 U+2212；資料不足為「—」） */ short?: string; /** 2026-10：副資訊一行（資料不足時為原因） */ detail?: string;
+  /** 2026-10-06（檢查表說明頁）：最新資料日（日資料 YYYY-MM-DD；M1B／M2 為 YYYY-MM）；舊版資料沒有 */
+  date?: string | null;
+  /** 2026-10-06：近期序列（日資料近 20 個交易日、月資料近 12 個月）。v＝判定用的數值；x、y＝原始數值（匯率、殖利率、指數；M1B、M2 年增率） */
+  series?: LightPoint[] }
+export interface LightPoint { d: string; v: number | null; x?: number | null; y?: number | null }
 export interface Sector { industry: string; count: number; up: number; down: number; foreign_1: number | null; trust_1: number | null; [k: string]: string | number | null }
 /** 主動式 ETF 持股日變動分類（M2 2026-10-03）：new 新增（前次沒有）、add 加碼、reduce 減碼、exit 剔除（本次 0 股） */
 export type EtfKind = 'new' | 'add' | 'reduce' | 'exit';

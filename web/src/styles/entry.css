@@ -1,0 +1,74 @@
+/*
+ * 新增持倉前檢查表（2026-10-06）：事實頁、1–5 資料列、面板內推入的說明頁。
+ * 只用 tokens.css 的尺寸與顏色；列、卡片、標籤沿用 ui.css（.ui-list／.ui-row／.ui-tag）。
+ * 由 components/EntryCheck.tsx 匯入（隨檢查表的 JS 分塊載入）。
+ */
+
+/* ---------- 面板內推入／返回（iOS push：新頁由右滑入、舊頁往左退 30% 並淡出） ---------- */
+.nav-stack { position: relative; }
+@supports (overflow: clip) { .nav-stack { overflow-x: clip; } }
+.nav-pane { transition: transform var(--dur-sheet) var(--ease-out), opacity var(--dur-sheet) var(--ease-out); }
+.nav-pane:focus { outline: none; }
+/* 不在畫面上的那一層不佔高度（滑出途中仍可見） */
+.nav-pane.off { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; }
+.nav-root.under { transform: translateX(-30%); opacity: 0; }
+.nav-detail.away { transform: translateX(100%); }
+.nav-detail.dragging { transition: none; }
+.nav-detail { touch-action: pan-y; }
+
+/* 面板標題列的返回鈕（‹ 上一頁名稱）：電光藍＝可互動；點擊區域 44 */
+.sheet-back {
+  display: inline-flex; align-items: center; gap: var(--s-1);
+  min-height: var(--tap); margin-left: calc(-1 * var(--s-2)); padding: 0 var(--s-2);
+  border: 0; background: none; color: var(--brand); font: inherit; font-size: var(--fs-body); cursor: pointer;
+}
+.sheet-back svg { width: var(--s-5); height: var(--s-5); }
+.sheet-head .row:has(.sheet-back) { position: relative; }
+.sheet-title-sub { position: absolute; left: 50%; transform: translateX(-50%); max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+
+/* ---------- 列（inset grouped list：面板底色上用次層底色） ---------- */
+.ck .ui-list, .ck .ui-card { background: var(--surface-2); }
+.ck .ui-card > .ui-list { background: none; }
+.ck-lead { margin: var(--s-4) 0 var(--s-2); }
+.ck .ui-sec { margin-top: var(--s-5); }
+.ck-item + .ck-item { box-shadow: inset 0 0.5px 0 var(--line); }
+.ck-inline { padding: 0 0 var(--s-3); margin: 0; }
+.ck-inline.field > label { margin-bottom: var(--s-1); }
+.ck .ck-inline .select { background: var(--surface-3); }
+.ck-restore { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
+.ck-restore .btn.small { min-height: var(--tap); }
+/* 副資訊裡的小標（資料落後、手動）：不撐高行高 */
+.ck-flag {
+  display: inline-block; margin-left: var(--s-2); padding: 0 var(--s-1);
+  border-radius: var(--r-xs); background: var(--surface-3); color: var(--text-1);
+  font-size: var(--fs-foot); line-height: var(--lh-foot); font-weight: var(--fw-semibold); white-space: nowrap;
+}
+.ck-flag.risk { background: var(--risk-tint); color: var(--risk); }
+
+/* 頂部一列中性摘要（不是警告：主文字色、無圖示） */
+.ck-summary { margin: var(--s-3) 0 0; padding: var(--s-3) var(--card-pad); border-radius: var(--r-card); background: var(--surface-2); color: var(--text-1); }
+
+.ck-actions { display: flex; flex-direction: column; gap: var(--s-2); margin-top: var(--s-5); }
+.ck-note { margin: var(--s-1) 0 0; }
+.ck-source { margin: var(--s-3) 0 0; }
+.ck-rules { margin: var(--s-2) 0 0; padding-left: var(--s-5); }
+.ck-rules li + li { margin-top: var(--s-1); }
+
+/* 停損參考價：可換行；點擊區域 44 */
+.ck-ref { flex-wrap: wrap; overflow: visible; margin-top: var(--s-2); }
+.ck-ref .chip { min-height: var(--tap); font-variant-numeric: tabular-nums; background: var(--surface-2); }
+
+/* 手動調整的選項列：右側勾選 */
+.ck-opt .ui-row-value { color: var(--brand); align-self: center; }
+.ck-opt .ui-row-value svg { width: var(--s-5); height: var(--s-5); }
+
+/* 事實頁的狀態標籤只有 2 個字（偏多／中性／偏空）：標籤欄 48，讓長的指標名稱在 402pt 寬不換行 */
+.ui-list.ck-tags-sm { --tag-w: 3rem; }
+.ck .ui-row-label { text-wrap: balance; }
+.ck-flag.lead { margin-left: 0; margin-right: var(--s-2); }
+/* 長的指標名稱：375pt 寬改用短名稱（完整名稱在說明頁標題與 VoiceOver） */
+.ck-lbl-short { display: none; }
+@media (max-width: 24.4375rem) {
+  .ck-lbl-full { display: none; }
+  .ck-lbl-short { display: inline; }
+}

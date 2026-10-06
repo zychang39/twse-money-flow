@@ -121,45 +121,45 @@ test.describe('#10 新增持倉前檢查表', () => {
     await page.goto('#/discipline/checklist');
     await page.getByRole('searchbox', { name: '搜尋股票' }).fill(code);
     await page.getByRole('option', { name: new RegExp(code) }).first().click();
-    const ack = page.getByText('我已看過以上事實');
-    if (await ack.count()) { await ack.click(); await page.getByRole('button', { name: '繼續填寫檢查表' }).click(); }
+    const cont = page.getByRole('button', { name: '繼續填寫檢查表' });
+    await expect(cont.or(page.getByTestId('checklist-form'))).toBeVisible();
+    if (await cont.isVisible()) await cont.click();
   }
 
   test('每個欄位都有對應題目的名稱（label for）；停損、目標是空的時不計算', async ({ page }) => {
     await open(page, '0050');
-    for (const name of ['1. 市場燈號', '2. 趨勢', '3. 營收', '4. 估值', '5. 理由類型']) await expect(page.getByRole('combobox', { name: new RegExp(`^${name.replace('.', '\\.')}`) })).toBeVisible();
-    await expect(page.getByLabel('6. 停損價', { exact: true })).toBeVisible();
-    await expect(page.getByLabel('7. 目標價', { exact: true })).toBeVisible();
+    // 1–5 改為唯讀資料列（2026-10-06）：每列是可點的按鈕，名稱含題目
+    for (const name of ['1. 市場燈號', '2. 趨勢', '3. 營收', '4. 估值', '5. 理由類型']) await expect(page.getByRole('button', { name: new RegExp(`^${name.replace('.', '\\.')}`) })).toBeVisible();
+    await expect(page.getByLabel('6. 停損價（選填）', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('7. 目標價（選填）', { exact: true })).toBeVisible();
     await expect(page.getByLabel('進場價', { exact: true })).not.toHaveValue('');
-    // 每個欄位的 id 與 label[for] 一一對應
-    const pairs = await page.getByRole('dialog').evaluate((d) => [...d.querySelectorAll('select, input.input, textarea')].map((el) => !!d.querySelector(`label[for="${el.id}"]`)));
+    // 每個欄位的 id 與 label[for] 一一對應（推入說明頁時根層 inert，只看表單）
+    const pairs = await page.getByTestId('checklist-form').evaluate((d) => [...d.querySelectorAll('select, input.input, textarea')].map((el) => !!d.querySelector(`label[for="${el.id}"]`)));
     expect(pairs.every(Boolean)).toBe(true);
-    await expect(page.getByTestId('checklist-rr')).toHaveText('—（填入停損與目標後計算）');
-    await expect(page.getByTestId('checklist-size')).toHaveText('建議部位：—（填入停損後計算）');
+    await expect(page.getByTestId('checklist-rr')).toHaveText('—（未填停損與目標，無法計算）');
+    await expect(page.getByTestId('checklist-size')).toHaveText('建議部位：—（未填停損，無法依單筆風險換算）');
     await expect(page.getByTestId('checklist-calc')).not.toContainText('-1.00');
   });
 
-  test('按鈕寫出實際卡住的條件：缺理由 → 價格順序 → 股數為 0', async ({ page }) => {
+  test('按鈕只在缺進場價或股數時停用，並寫出缺哪一欄；停損與目標順序不對只提示、不擋', async ({ page }) => {
     await open(page, '2330');
-    await page.getByLabel('1. 市場燈號').selectOption('中性');
-    for (const label of ['2. 趨勢', '3. 營收', '4. 估值']) {
-      const sel = page.getByLabel(label);
-      if (!(await sel.inputValue())) await sel.selectOption({ index: 1 });
-    }
     const submit = page.getByTestId('checklist-submit');
-    await expect(submit).toHaveText('請填寫理由');
-    await page.getByLabel('理由（必填）').fill('投信連買');
+    await expect(submit).toHaveText('請填入「實際股數」');
+    await expect(submit).toBeDisabled();
+    await page.getByLabel('進場價', { exact: true }).fill('');
+    await expect(submit).toHaveText('請填入「進場價」');
     await page.getByLabel('進場價', { exact: true }).fill('190');
-    await page.getByLabel('6. 停損價', { exact: true }).fill('195');
-    await page.getByLabel('7. 目標價', { exact: true }).fill('250');
-    await expect(submit).toHaveText('停損價要低於進場價');
-    await page.getByLabel('6. 停損價', { exact: true }).fill('170');
+    await page.getByLabel('6. 停損價（選填）', { exact: true }).fill('195');
+    await page.getByLabel('7. 目標價（選填）', { exact: true }).fill('250');
+    await expect(page.getByText(/^停損價不低於進場價/)).toBeVisible();
+    await page.getByLabel('6. 停損價（選填）', { exact: true }).fill('170');
     // 100 萬 × 1% ÷ 20 = 500 股 → 0 張
     await expect(submit).toHaveText(/^股數為 0/);
     await expect(submit).toBeDisabled();
-    await page.getByLabel('實際股數（預設為建議部位）').fill('500');
+    await page.getByLabel('實際股數').fill('500');
     await expect(submit).toHaveText('加入持倉');
     await expect(submit).toBeEnabled();
+    await expect(page.getByText(/請選擇「|請填寫理由/)).toHaveCount(0);
   });
 });
 

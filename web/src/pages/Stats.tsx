@@ -105,7 +105,8 @@ function RiskPanel({ open, byCode }: { open: Trade[]; byCode: Map<string, StockR
     <>
       <List>
         <Row label="持倉市值" value={<Num v={total} unit="元" />} />
-        <Row label="全部觸及停損的虧損" value={<span class="ui-risk"><Num v={loss} unit="元" /></span>} />
+        <Row label="全部觸及停損的虧損" value={<span class="ui-risk"><Num v={loss} unit="元" /></span>}
+          sub={positions.some((p) => !(p.stop > 0)) ? `${positions.filter((p) => !(p.stop > 0)).length} 筆未設停損，不計入` : undefined} />
       </List>
       <Card>
         <CardLabel>產業集中度</CardLabel>

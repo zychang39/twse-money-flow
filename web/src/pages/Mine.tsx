@@ -42,6 +42,7 @@ import { fmtInt, fmtNum, pctSigned } from '../lib/format';
 import { navigate, useRoute } from '../router';
 import { trackHoldings, trackMovers } from '../lib/flowTrack';
 import { Term } from '../components/kit';
+import { hasStop } from '../lib/ritual';
 
 type Seg = 'watch' | 'hold';
 /** 系統清單的群組 id（不會與使用者群組名稱衝突） */
@@ -333,6 +334,12 @@ export default function Mine() {
     ] : [];
   }
   const sub = (code: string, reasons: { text: string; risk?: boolean }[]) => {
+    const base = subBase(code, reasons);
+    // 2026-10-06：停損改為選填；沒有有效停損的持倉一律加「未設停損」（中性標籤：是紀錄的事實，不是風險警示）
+    if (seg === 'hold' && open.some((t) => t.code === code && !hasStop(t))) return <span>{base} <span class="tag" data-testid="no-stop-tag">未設停損</span></span>;
+    return base;
+  };
+  const subBase = (code: string, reasons: { text: string; risk?: boolean }[]) => {
     const a = alertBy.get(code);
     if (a?.risk) return <span class="tag risk">{a.items[0].label.split(/[ ：]/)[0]}</span>;
     // M2：風險旗標用橘色小標籤（其餘理由是一般副資訊）

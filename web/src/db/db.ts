@@ -38,7 +38,35 @@ export interface ChecklistAnswers {
   trend: string;
   revenue: string;
   valuation: string;
+  /** 2026-10-06 起為選填（可為空字串） */
   reason: string;
+}
+
+/**
+ * 2026-10-06：新增持倉當下檢查表 1–5 的判定快照（供日後復盤）。選填欄位，舊紀錄沒有，不需要遷移。
+ * source：auto＝系統自動判定；manual＝手動調整或資料不足時手動選擇（auto 為當時的自動判定，資料不足為 null）。
+ */
+export interface ChecklistSnapshotItem {
+  source: 'auto' | 'manual';
+  /** 採用的答案（同 checklist 的文字）；資料不足且沒有手動選擇時為 null */
+  result: string | null;
+  /** 自動判定的答案；資料不足為 null */
+  auto: string | null;
+  /** 依據（例「季線 566 (+8.2%)・年線 531 (+15.3%)」）與主數值（例「612」） */
+  basis: string;
+  main: string;
+  /** 依據數字（例 { close, ma60, ma240, gap60, gap240 }） */
+  numbers: Record<string, number | string | null>;
+  /** 資料日（YYYY-MM-DD；營收為 YYYY-MM） */
+  date: string | null;
+  stale: boolean;
+}
+export interface ChecklistSnapshot {
+  /** 存檔時間（ISO） */
+  at: string;
+  /** 當時的最新交易日（summary 的資料日） */
+  dataDate: string | null;
+  items: Partial<Record<'market' | 'trend' | 'revenue' | 'valuation' | 'reasonType', ChecklistSnapshotItem>>;
 }
 
 /** 出場原因（v5）：停損、時間停損、規則出場（含達目標價）屬於「依計畫出場」；其他＝主觀判斷或未列在計畫中的原因。 */
@@ -52,10 +80,14 @@ export interface Trade {
   openedAt: string;
   entry: number;
   shares: number;
+  /** 停損價；2026-10-06 起選填，未設時存 0（hasStop＝false，持股列表標「未設停損」） */
   stop: number;
+  /** 目標價；2026-10-06 起選填，未設時存 0 */
   target: number;
   reasonType: string;
   checklist: ChecklistAnswers;
+  /** 2026-10-06：檢查表 1–5 的判定快照（舊紀錄沒有） */
+  checklistSnapshot?: ChecklistSnapshot;
   closedAt?: string;
   exit?: number;
   review?: string;
