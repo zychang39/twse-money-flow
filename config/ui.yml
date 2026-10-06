@@ -20,6 +20,16 @@ impulse:
   ma20_gap_pct: 10          # 股價高於 20 日均線超過 10%
   price_change_5d_pct: 15   # 近 5 日漲幅超過 15%
 
+# 新增持倉前檢查表 1–5 自動帶出（2026-10-06；分級沿用原本檢查表的自動預選，只是從程式搬到這裡）
+checklist:
+  revenue_high_growth_pct: 20   # 近 3 月營收年增率（逐月年增率的平均）≥ 20% → 高成長；> 0 → 成長；≤ 0 → 衰退
+  valuation_low_max: 33         # 本益比歷史百分位 ≤ 33 → 位置低
+  valuation_mid_max: 67         # ≤ 67 → 位置中；> 67 → 位置高
+  stop_low_days: 20             # 停損參考價：近 20 個交易日最低價
+  # 停損參考價「進場價 −7%」沿用 thresholds.yml 的 backtest.stop_loss_pct
+  ust_lag_days: 4               # 美國公債殖利率比最新交易日早超過 4 個日曆日才算資料落後（時差＋美國週末）
+  monthly_lag_months: 2         # M1B／M2：比最新交易日所在月份早超過 2 個月才算資料落後（月資料落後約一個月公布）
+
 # 回測可信度（依訊號樣本數）
 backtest_confidence:
   low_below: 30             # 樣本 < 30 → 可信度低

@@ -12,7 +12,7 @@ import { useUser } from '../data/useUser';
 import { deleteTrade, getSetting, type Trade } from '../db/db';
 import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
 import { DEFAULT_COSTS, type CostSettings } from '../lib/costs';
-import { hasReview } from '../lib/ritual';
+import { hasReview, hasStop } from '../lib/ritual';
 import { parseChecklistQuery } from '../lib/checklist';
 import { adjustTrade, eventsFor, unrealizedPnl } from '../lib/corpActions';
 import { tradePnl } from '../lib/sizing';
@@ -73,25 +73,28 @@ export default function Journal({ startChecklist }: { startChecklist?: boolean }
             const ev = eventsFor(byCode.get(t.code), hist.get(t.code));
             const a = adjustTrade(t, ev);
             const pnl = unrealizedPnl(t, price, ev);
-            const hitStop = price !== null && price <= a.stop;
-            const hitTarget = price !== null && price >= a.target;
+            // 2026-10-06：停損、目標選填（未設存 0）；原本目標 0 會被判成「已達目標價」
+            const hitStop = price !== null && hasStop(t) && price <= a.stop;
+            const hitTarget = price !== null && t.target > 0 && price >= a.target;
+            const px = (v: number) => (v > 0 ? fmtPrice(v) : '未設');
             return (
               <div class="card" key={t.id}>
                 <div class="row between">
                   <a class="body w6" href={`#/stock/${t.code}`}>{t.name} <span class="caption muted">{t.code}</span></a>
                   <span class="body"><Signed value={pnl} format={fmtMoney} label="未實現損益" /></span>
                 </div>
-                <div class="caption muted">{t.openedAt}・{t.shares.toLocaleString()} 股 @ {fmtPrice(t.entry)}・現價 {fmtPrice(price)}・停損 {fmtPrice(t.stop)}・目標 {fmtPrice(t.target)}</div>
+                <div class="caption muted">{t.openedAt}・{t.shares.toLocaleString()} 股 @ {fmtPrice(t.entry)}・現價 {fmtPrice(price)}・停損 {hasStop(t) ? fmtPrice(t.stop) : '未設'}・目標 {px(t.target)}</div>
                 {a.notes.length ? (
-                  <div class="caption muted" data-testid="adjusted-note">{a.notes.join('、')}：換算為 {a.shares.toLocaleString()} 股 @ {fmtPrice(a.entry)}・停損 {fmtPrice(a.stop)}・目標 {fmtPrice(a.target)}</div>
+                  <div class="caption muted" data-testid="adjusted-note">{a.notes.join('、')}：換算為 {a.shares.toLocaleString()} 股 @ {fmtPrice(a.entry)}・停損 {hasStop(t) ? fmtPrice(a.stop) : '未設'}・目標 {px(a.target)}</div>
                 ) : null}
-                {hitStop || hitTarget ? (
+                {hitStop || hitTarget || !hasStop(t) ? (
                   <div class="row" style={{ gap: 'var(--s-1)', marginTop: 'var(--s-1)' }}>
                     {hitStop ? <span class="tag risk">已觸及停損</span> : null}
                     {hitTarget ? <span class="tag">已達目標價</span> : null}
+                    {!hasStop(t) ? <span class="tag" data-testid="no-stop-tag">未設停損</span> : null}
                   </div>
                 ) : null}
-                <div class="caption muted" style={{ marginTop: 'var(--s-1)' }}>理由（{t.reasonType}）：{t.checklist.reason}</div>
+                <div class="caption muted" style={{ marginTop: 'var(--s-1)' }}>理由（{t.reasonType || '未分類'}）：{t.checklist.reason?.trim() || '未填'}</div>
                 <div class="row" style={{ marginTop: 'var(--s-3)' }}>
                   <button class="btn small" onClick={() => setClosing(t)}>平倉</button>
                   <button class="btn small danger" onClick={() => confirm('刪除這筆紀錄？') && deleteTrade(t.id)}>刪除</button>

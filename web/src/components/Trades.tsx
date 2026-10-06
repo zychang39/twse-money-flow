@@ -1,9 +1,10 @@
 /**
- * 交易流程元件：新增持倉前檢查表（含衝動攔截的冷靜卡）、平倉、補寫檢討。
+ * 交易流程元件：新增持倉前檢查表（含事實頁、1–5 自動帶出、說明頁）、平倉、補寫檢討。
  * 流程紀錄：檢查表、停損、計畫風險與檢討時間存在交易紀錄（db.saveTrade 自動補 v5 欄位）；平倉時記出場原因。
  * 檢查表可由網址帶入參考價、停損價、股數（個股頁風險試算 → #/discipline/checklist?code=&price=&stop=&shares=）。
  */
-import { useEffect, useRef, useState } from 'preact/hooks';
+import type { ComponentChildren } from 'preact';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Sheet } from './Sheet';
 import { StockSearch } from './StockSearch';
 import { Signed } from './Change';
@@ -12,53 +13,34 @@ import { loadMarket, loadStock } from '../data/api';
 import { adjustTrade, eventsFor } from '../lib/corpActions';
 import { logActivity, saveTrade, uid, type ExitReason, type Trade } from '../db/db';
 import { EXIT_REASON_LABEL } from '../lib/ritual';
-import type { StockRow } from '../data/types';
+import type { StockHistory, StockRow } from '../data/types';
 import type { PortfolioSettings } from '../lib/settings';
 import { roundTrip, type CostSettings } from '../lib/costs';
-import { checklistCalc, FIELD_LABEL, type ChecklistPrefill } from '../lib/checklist';
+import { checklistCalc, FIELD_LABEL, priceOf, type ChecklistPrefill } from '../lib/checklist';
+import { AUTO_LABEL, autoItems, buildSnapshot, effectiveOf, itemDoc, reasonDraft, snapshotDone, stopRefs, topSummary, type AutoKey, type Overrides } from '../lib/checklistAuto';
+import { envSummary, lightDoc, lightRow, stockFactDoc, stockFactRows } from '../lib/entryFacts';
+import { FactDetail, FactsView, ItemDetail, ItemRows, NavStack } from './EntryCheck';
+import { Section } from './ui';
+import { Skeleton } from './kit';
 import { envInfo } from '../lib/envState';
 import { impulseFacts } from '../lib/impulse';
 import { thresholds } from '../lib/config';
 import { todayTpe } from '../lib/dates';
-import { fmtMoney, fmtNum } from '../lib/format';
+import { fmtMoney, fmtNum, fmtPrice } from '../lib/format';
 
-export const REASONS = ['籌碼', '動能', '營收', '估值', '事件', '其他'];
+export { REASONS } from '../lib/checklistAuto';
 export const ERROR_TAGS = ['追高', '攤平', '提早停利', '未守停損', '過度交易', '違反計畫', '消息面衝動', '部位過大'];
 const MIN_RR = Number(thresholds.portfolio.min_reward_risk);
 
-function autoChecklist(r: StockRow | undefined) {
-  if (!r) return { trend: '', revenue: '', valuation: '' };
-  const ma240 = r.ma240_gap as number | null;
-  const ma60 = r.ma60_gap as number | null;
-  const trend = ma240 === null || ma240 === undefined ? '' : ma240 > 0 && (ma60 ?? 0) > 0 ? '多頭（年線、季線之上）' : ma240 > 0 ? '年線之上、短線整理' : '年線之下';
-  const y3 = r.revenue_yoy_3m as number | null;
-  const revenue = y3 === null || y3 === undefined ? '' : y3 >= 20 ? '高成長（近 3 月年增 ≥ 20%）' : y3 > 0 ? '成長' : '衰退';
-  const fp = r.fair_position as number | null;
-  const valuation = fp === null || fp === undefined ? '' : fp <= 33 ? '本益比位置低' : fp <= 67 ? '本益比位置中' : '本益比位置高';
-  return { trend, revenue, valuation };
-}
+const EMPTY = { reason: '', entry: '', stop: '', target: '', shares: '' };
+type Detail = { kind: 'fact'; id: string } | { kind: 'item'; key: AutoKey } | null;
 
-const EMPTY = { market: '', trend: '', revenue: '', valuation: '', reasonType: '籌碼', reason: '', entry: '', stop: '', target: '', shares: '' };
-
-/** 冷靜卡：列出事實，需要多確認一步才能繼續。語氣中性。 */
-export function CalmCard({ facts, onContinue, onCancel }: { facts: string[]; onContinue: () => void; onCancel: () => void }) {
-  const [ack, setAck] = useState(false);
-  return (
-    <div class="calm" role="group" aria-label="繼續之前的事實整理">
-      <div class="body w6">繼續之前，先看一下目前的事實</div>
-      <ul class="caption t1">{facts.map((f) => <li key={f}>{f}</li>)}</ul>
-      <label class="check" style={{ marginTop: 'var(--s-3)' }}>
-        <input type="checkbox" checked={ack} onChange={(e) => setAck((e.target as HTMLInputElement).checked)} />
-        <span class="caption">我已看過以上事實</span>
-      </label>
-      <div class="row" style={{ marginTop: 'var(--s-2)' }}>
-        <button class="btn primary" disabled={!ack} onClick={onContinue}>繼續填寫檢查表</button>
-        <button class="btn" onClick={onCancel}>先不要</button>
-      </div>
-    </div>
-  );
-}
-
+/**
+ * 新增持倉前檢查表（2026-10-06 重做）：檢查表是「進場前看懂現況」，不是關卡。
+ * - 符合冷靜卡條件（lib/impulse）時先顯示事實頁：資金環境總結＋每項指標一列，「繼續填寫檢查表」直接可按。
+ * - 1–5 由系統自動帶出（lib/checklistAuto），資料不足時退回手動選單；理由、停損、目標選填。
+ * - 只有缺進場價或股數時「加入持倉」停用，按鈕寫出缺哪一欄。每一列都能推入說明頁（面板內 push）。
+ */
 export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, prefill }: {
   open: boolean;
   onClose: () => void;
@@ -71,94 +53,155 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
 }) {
   const market = useAsync(loadMarket, []);
   const [row, setRow] = useState<StockRow | undefined>(preset);
-  const [ack, setAck] = useState(false);
+  const [factsDone, setFactsDone] = useState(false);
   const [f, setF] = useState(EMPTY);
+  const [overrides, setOverrides] = useState<Overrides>({});
+  /** 使用者改過理由（之後資料再載入也不覆蓋草稿） */
+  const [reasonEdited, setReasonEdited] = useState(false);
+  const [detail, setDetail] = useState<Detail>(null);
   const carried = { ...(prefill?.entry ? { entry: prefill.entry } : {}), ...(prefill?.stop ? { stop: prefill.stop } : {}), ...(prefill?.shares ? { shares: prefill.shares } : {}) };
-  // 只在開啟的那一刻重設（避免頁面重新繪製時把已勾選的冷靜卡、已填的欄位清掉）；開啟後才載入到的帶入股票另外補上
+  // 只在開啟的那一刻重設（避免頁面重新繪製時把已填的欄位清掉）；開啟後才載入到的帶入股票另外補上
+  // 進場價預帶最新收盤（個股頁帶入的參考價優先）
+  const entryFor = (r: StockRow | undefined) => (!r ? '' : prefill?.entry && (!prefill.code || r.code === prefill.code) ? prefill.entry : String(r.close ?? ''));
   const wasOpen = useRef(false);
   useEffect(() => {
-    if (open && !wasOpen.current) { setRow(preset); setAck(false); setF({ ...EMPTY, ...carried }); }
+    // 重新開啟同一檔（preset 不變）時 row 不會改變，進場價在這裡一併帶入
+    if (open && !wasOpen.current) { setRow(preset); setFactsDone(false); setF({ ...EMPTY, ...carried, entry: entryFor(preset) }); setOverrides({}); setReasonEdited(false); setDetail(null); }
     wasOpen.current = open;
   }, [open]);
   useEffect(() => { if (open && preset && !row) setRow(preset); }, [preset?.code]);
+  // 換股：進場價重新帶入，理由回到草稿，手動調整清空
   useEffect(() => {
     if (!row) return;
-    const auto = autoChecklist(row);
-    const entry = prefill?.entry && (!prefill.code || row.code === prefill.code) ? prefill.entry : String(row.close ?? '');
-    setF((x) => ({ ...x, ...Object.fromEntries(Object.entries(auto).filter(([, v]) => v)), entry }));
-  }, [row]);
+    setF((x) => ({ ...x, entry: entryFor(row), reason: '' }));
+    setOverrides({});
+    setReasonEdited(false);
+    setDetail(null);
+  }, [row?.code]);
+
+  // 個股檔：營收逐月年增率、近 20 日低點、說明頁走勢（載入中為 undefined，失敗為 null）
+  const histQ = useAsync(() => (row ? loadStock(row.code).catch(() => null) : Promise.resolve(null)), [row?.code]);
+  const hist: StockHistory | null | undefined = !row ? null : histQ.loading || (histQ.data && histQ.data.code !== row.code) ? undefined : histQ.data;
+  const latest = day || market.data?.date || null;
+  const items = useMemo(() => autoItems({ row, hist, market: market.data, latest }), [row, hist, market.data, latest]);
+  const draft = useMemo(() => reasonDraft(row, items), [row, items]);
+  useEffect(() => { if (!reasonEdited) setF((x) => ({ ...x, reason: draft })); }, [draft, reasonEdited]);
+
   const env = market.data ? envInfo(market.data.env?.lights) : null;
   const facts = row ? impulseFacts(row, env) : [];
-  // #10：空的停損／目標不當成 0；按鈕寫出實際卡住的條件
+  const showFacts = !!row && facts.length > 0 && !factsDone;
+  // 資金燈號還沒載入時不先畫表單（載入後才知道要不要先顯示事實頁，避免畫面跳換）
+  const waiting = !!row && market.loading && !factsDone;
+  const lights = market.data?.env?.lights ?? [];
   const calc = checklistCalc({ hasStock: !!row, ...f }, portfolio, fmtMoney);
   const { entry, stop, target, rr, shares } = calc;
-  const qualitative = calc.qualitative;
   const valid = calc.blocker === null;
   const set = (k: keyof typeof f) => (e: Event) => setF({ ...f, [k]: (e.target as HTMLInputElement).value });
-  const checklist = () => ({ market: f.market, trend: f.trend, revenue: f.revenue, valuation: f.valuation, reason: f.reason.trim() });
+  const eff = (k: AutoKey) => effectiveOf(items, overrides, k);
+  const setOverride = (k: AutoKey, v: string | undefined) => setOverrides((o) => {
+    const n = { ...o };
+    if (v === undefined || v === items[k].value) delete n[k];
+    else n[k] = v;
+    return n;
+  });
+  const refs = stopRefs(row, hist, entry);
+  const summaryLine = topSummary(items, overrides);
 
   async function save() {
-    if (!row || !valid) return;
-    if (entry === null || stop === null || target === null) return;
-    await saveTrade({ id: uid(), code: row.code, name: row.name, status: 'open', openedAt: todayTpe(), entry, shares, stop, target, reasonType: f.reasonType, checklist: checklist() });
+    if (!row || !valid || entry === null) return;
+    const snapshot = buildSnapshot(items, overrides, latest, new Date().toISOString());
+    await saveTrade({
+      id: uid(), code: row.code, name: row.name, status: 'open', openedAt: todayTpe(), entry, shares,
+      // 停損、目標選填：未填存 0（hasStop＝false → 持股列表「未設停損」）
+      stop: stop ?? 0, target: target ?? 0,
+      reasonType: eff('reasonType') || '其他',
+      checklist: { market: eff('market'), trend: eff('trend'), revenue: eff('revenue'), valuation: eff('valuation'), reason: f.reason.trim() },
+      checklistSnapshot: snapshot,
+      checklistDone: snapshotDone(snapshot),
+    });
     await logActivity('checklist_done', day, { outcome: 'open', code: row.code });
     onClose();
   }
   async function skip() {
-    if (!row || !qualitative) return;
+    if (!row) return;
     await logActivity('checklist_done', day, { outcome: 'skip', code: row.code, reason: f.reason.trim() });
     onClose();
   }
 
   // #10：每個欄位用 <label for> 對應題目（原本 select 包在 label 裡另加 aria-label，iOS VoiceOver 會唸成目前的值）
-  const sel = (k: keyof typeof f, label: string, options: string[], hint?: string) => (
-    <div class="field">
-      <label for={`ck-${k}`}>{label}{hint ? <span class="muted">{hint}</span> : null}</label>
-      <select id={`ck-${k}`} class="select" value={f[k]} onChange={set(k)}>
-        <option value="">請選擇</option>
-        {[...new Set([f[k], ...options].filter(Boolean))].map((o) => <option key={o}>{o}</option>)}
-      </select>
-    </div>
-  );
-  const num = (k: 'entry' | 'stop' | 'target' | 'shares', label: string, value: string, mode: 'decimal' | 'numeric' = 'decimal') => (
+  const num = (k: 'entry' | 'stop' | 'target' | 'shares', label: string, value: string, mode: 'decimal' | 'numeric' = 'decimal', note?: string | null, children?: ComponentChildren) => (
     <div class="field">
       <label for={`ck-${k}`}>{label}</label>
-      <input id={`ck-${k}`} class="input" type="number" inputMode={mode} value={value} onInput={set(k)} />
+      <input id={`ck-${k}`} class="input" type="number" inputMode={mode} value={value} onInput={set(k)} aria-describedby={note ? `ck-${k}-note` : undefined} />
+      {children}
+      {note ? <p id={`ck-${k}-note`} class="ck-note ui-foot ui-muted">{note}</p> : null}
     </div>
   );
 
-  return (
-    <Sheet open={open} onClose={onClose} title="新增持倉前檢查表" detent="full">
+  // ---- 說明頁（面板內推入）
+  let detailNode: ComponentChildren | null = null;
+  let detailTitle = '';
+  if (row && detail?.kind === 'fact') {
+    const l = lights.find((x) => x.id === detail.id);
+    const doc = l ? lightDoc(l, latest) : stockFactDoc(detail.id, row, hist, latest);
+    detailTitle = doc.title;
+    detailNode = <FactDetail doc={doc} />;
+  } else if (row && detail?.kind === 'item') {
+    const k = detail.key;
+    detailTitle = AUTO_LABEL[k].replace(/^\d\. /, '');
+    detailNode = <ItemDetail k={k} item={items[k]} doc={itemDoc(k, row)} override={overrides[k]} onSet={(v) => setOverride(k, v)} />;
+  }
+
+  const root = (
+    <>
       {!row ? <StockSearch rows={rows} onPick={setRow} autoFocus /> : (
         <div class="row between"><span class="body w6">{row.name} <span class="caption muted">{row.code}</span></span>{!preset ? <button class="btn small" onClick={() => setRow(undefined)}>更換</button> : null}</div>
       )}
-      {row && facts.length && !ack ? (
-        <div style={{ marginTop: 'var(--s-4)' }}><CalmCard facts={facts} onContinue={() => setAck(true)} onCancel={onClose} /></div>
+      {waiting ? <div class="ck" style={{ marginTop: 'var(--s-4)' }}><Skeleton lines={5} testid="checklist-loading" /></div> : row && showFacts ? (
+        <FactsView summary={envSummary(lights)} envRows={lights.map((l) => lightRow(l, latest))} stockRows={stockFactRows(row, latest)} stockName={row.name}
+          onOpen={(id) => setDetail({ kind: 'fact', id })} onContinue={() => setFactsDone(true)} onCancel={onClose} />
       ) : row ? (
-        <>
-          {sel('market', FIELD_LABEL.market, ['偏多', '中性', '偏空'], '（見盤後簡報）')}
-          {sel('trend', FIELD_LABEL.trend, ['多頭（年線、季線之上）', '年線之上、短線整理', '年線之下'])}
-          {sel('revenue', FIELD_LABEL.revenue, ['高成長（近 3 月年增 ≥ 20%）', '成長', '衰退', '不適用'])}
-          {sel('valuation', FIELD_LABEL.valuation, ['本益比位置低', '本益比位置中', '本益比位置高', '不適用'])}
-          {sel('reasonType', FIELD_LABEL.reasonType, REASONS)}
-          <div class="field"><label for="ck-reason">理由（必填）</label><textarea id="ck-reason" class="input" rows={2} value={f.reason} onInput={set('reason')} /></div>
-          <div class="grid three">
-            {num('entry', FIELD_LABEL.entry, f.entry)}
-            {num('stop', FIELD_LABEL.stop, f.stop)}
-            {num('target', FIELD_LABEL.target, f.target)}
+        <div class="ck" data-testid="checklist-form">
+          {summaryLine ? <p class="ck-summary ui-foot" role="note" data-testid="ck-summary">{summaryLine}</p> : null}
+          <Section title="進場前現況" aside="自動帶出・點列看依據">
+            <ItemRows items={items} overrides={overrides} onOpen={(key) => setDetail({ kind: 'item', key })} onSet={setOverride} />
+          </Section>
+          <div class="field">
+            <label for="ck-reason">{FIELD_LABEL.reason}</label>
+            <textarea id="ck-reason" class="input" rows={3} value={f.reason} aria-describedby="ck-reason-note"
+              onInput={(e) => { setReasonEdited(true); setF({ ...f, reason: (e.target as HTMLTextAreaElement).value }); }} />
+            <p id="ck-reason-note" class="ck-note ui-foot ui-muted">依目前觸發的訊號與 1–4 帶入的事實草稿，可直接修改或清空。</p>
           </div>
+          {num('entry', FIELD_LABEL.entry, f.entry)}
+          {num('stop', FIELD_LABEL.stop, f.stop, 'decimal', calc.stopNote, refs.length ? (
+            <div class="chips ck-ref" role="group" aria-label="停損參考價（點一下填入）">
+              {refs.map((r) => (
+                <button key={r.id} type="button" class="chip" aria-pressed={priceOf(f.stop) === r.price} onClick={() => setF({ ...f, stop: String(r.price) })} data-testid={`stop-ref-${r.id}`}>
+                  {r.label} {fmtPrice(r.price)}
+                </button>
+              ))}
+            </div>
+          ) : null)}
+          {num('target', FIELD_LABEL.target, f.target, 'decimal', calc.targetNote)}
           <div class="card caption" data-testid="checklist-calc">
             <div>風險報酬比：<b class={rr !== null && rr < MIN_RR ? 'risk' : ''} data-testid="checklist-rr">{calc.rrText}</b>
               {rr !== null && rr < MIN_RR ? <span class="tag risk" style={{ marginLeft: 'var(--s-2)' }}>低於 1:{MIN_RR}</span> : null}</div>
             <div data-testid="checklist-size">建議部位：{calc.sizeText}</div>
-            <div>觸及停損的虧損：{calc.lossIfStopped === null ? '—' : `約 ${fmtMoney(calc.lossIfStopped)}`}</div>
+            <div>觸及停損的虧損：{calc.lossIfStopped === null ? (stop === null ? '—（未填停損，無法計算）' : '—（停損不低於進場價，無法計算）') : `約 ${fmtMoney(calc.lossIfStopped)}`}</div>
             {calc.size && calc.size.shares === 0 ? <div class="risk">風險上限換算的股數小於 1 張：可改用零股、放寬停損或自行輸入股數</div> : null}
           </div>
-          {num('shares', `${FIELD_LABEL.shares}（預設為建議部位）`, f.shares || String(calc.size?.shares ?? ''), 'numeric')}
+          {num('shares', FIELD_LABEL.shares, f.shares || String(calc.size?.shares ?? ''), 'numeric', calc.size ? '預設為建議部位，可自行修改' : '未填停損時沒有建議部位，請自行輸入')}
           <button class="btn primary block" disabled={!valid} onClick={save} data-testid="checklist-submit">{valid ? '加入持倉' : calc.blocker}</button>
-          <button class="btn block" style={{ marginTop: 'var(--s-2)' }} disabled={!qualitative} onClick={skip}>檢查完，決定先不進場</button>
-        </>
+          <button class="btn block" style={{ marginTop: 'var(--s-2)' }} disabled={!calc.qualitative} onClick={skip} data-testid="checklist-skip">檢查完，決定先不進場</button>
+        </div>
       ) : null}
+    </>
+  );
+
+  return (
+    <Sheet open={open} onClose={onClose} title={detailNode ? detailTitle : '新增持倉前檢查表'} detent="full"
+      back={detailNode ? { label: showFacts ? '事實' : '檢查表', onBack: () => setDetail(null) } : undefined}>
+      <NavStack root={root} detail={detailNode} onPop={() => setDetail(null)} />
     </Sheet>
   );
 }
@@ -226,7 +269,7 @@ export function ReviewSheet({ trade, onClose, day }: { trade: Trade | null; onCl
     <Sheet open={!!trade} onClose={onClose} title={trade ? `檢討：${trade.name}` : '檢討'} detent="full">
       {trade ? (
         <>
-          <p class="caption muted">{trade.openedAt} → {trade.closedAt}・{fmtNum(trade.entry)} → {fmtNum(trade.exit ?? null)}（理由：{trade.reasonType}，{trade.checklist.reason}）</p>
+          <p class="caption muted">{trade.openedAt} → {trade.closedAt}・{fmtNum(trade.entry)} → {fmtNum(trade.exit ?? null)}（理由：{trade.reasonType || '未分類'}{trade.checklist.reason?.trim() ? `，${trade.checklist.reason.trim()}` : ''}）</p>
           <label class="field"><span>這筆交易做對與做錯的地方</span><textarea class="input" rows={4} value={review} data-autofocus onInput={(e) => setReview((e.target as HTMLTextAreaElement).value)} /></label>
           <div class="chips wrap" role="group" aria-label="錯誤標籤" style={{ flexWrap: 'wrap' }}>
             {ERROR_TAGS.map((t) => (

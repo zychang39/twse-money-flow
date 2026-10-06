@@ -136,29 +136,24 @@ test('回測：預設組合顯示統計與可信度；自訂條件在 Web Worker
   await expect(page.getByTestId('bt-main').getByRole('cell', { name: '絕對勝率' })).toBeVisible();
 });
 
-test('日誌：冷靜卡 → 新增持倉前檢查表 → 新增持倉 → 平倉 → 統計出現錯誤標籤', async ({ page }) => {
+test('日誌：事實頁 → 新增持倉前檢查表（1–5 自動帶出）→ 新增持倉 → 平倉 → 統計出現錯誤標籤', async ({ page }) => {
   await page.goto('#/discipline/journal');
   await page.getByRole('button', { name: '新增持倉' }).click();
   await page.getByRole('searchbox', { name: '搜尋股票' }).fill('2330');
   await page.getByRole('option', { name: /2330/ }).click();
-  // 示範資料的資金環境為「保守」→ 先出現冷靜卡，需勾選確認才能繼續
+  // 示範資料的資金環境為「保守」→ 先出現事實頁；2026-10-06 起不需勾選確認，「繼續填寫檢查表」直接可按
+  await expect(page.getByText('繼續之前，先看一下目前的事實')).toBeVisible();
+  await expect(page.getByText('我已看過以上事實')).toHaveCount(0);
   const cont = page.getByRole('button', { name: '繼續填寫檢查表' });
-  await expect(cont).toBeDisabled();
-  await page.getByText('我已看過以上事實').click();
+  await expect(cont).toBeEnabled();
   await cont.click();
-  const save = page.getByTestId('checklist-submit');
-  await expect(save).toBeDisabled();
-  await page.getByLabel('1. 市場燈號（見盤後簡報）').selectOption('中性');
-  for (const [label, idx] of [['2. 趨勢', 1], ['3. 營收', 1], ['4. 估值', 1]] as const) {
-    const sel = page.getByLabel(label);
-    if (!(await sel.inputValue())) await sel.selectOption({ index: idx });
-  }
-  await page.getByLabel('理由（必填）').fill('投信連買、營收創新高');
+  // 1–5 已自動帶出，不需要選擇
+  for (const k of ['market', 'trend', 'revenue', 'valuation', 'reasonType']) await expect(page.getByTestId(`ck-row-${k}`)).toBeVisible();
   const entry = Number(await page.getByLabel('進場價').inputValue());
-  await page.getByLabel('6. 停損價').fill(String(Math.round(entry * 0.95)));
-  await page.getByLabel('7. 目標價').fill(String(Math.round(entry * 1.2)));
+  await page.getByLabel('6. 停損價（選填）').fill(String(Math.round(entry * 0.95)));
+  await page.getByLabel('7. 目標價（選填）').fill(String(Math.round(entry * 1.2)));
   await expect(page.getByText(/風險報酬比：/)).toBeVisible();
-  await page.getByLabel('實際股數（預設為建議部位）').fill('1000');
+  await page.getByLabel('實際股數').fill('1000');
   await page.getByRole('button', { name: '加入持倉' }).click();
   await expect(page.getByRole('button', { name: /持倉\s*1/ })).toBeVisible();
   await page.getByRole('button', { name: '平倉', exact: true }).click();

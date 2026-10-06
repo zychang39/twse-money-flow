@@ -120,7 +120,8 @@ export default function Methodology() {
           <li>變化優先：以「上次查看」的快照為基準（第一次使用以前一交易日為基準）。顯著門檻：漲跌 ≥ {uiConfig.significance.price_pct}%、外資或投信新達到連買／連賣 {uiConfig.significance.inst_streak_days} 日、法人淨買賣超 ≥ 成交量 {uiConfig.significance.inst_volume_pct}%、融資變化 ≥ {uiConfig.significance.margin_pct}%、新的風險旗標；低於門檻的預設收合。</li>
           <li>資金環境燈號：任一指標為風險（紅燈）→ 保守；沒有風險且 ≥ {uiConfig.env_state.aggressive_min_green} 項有利 → 積極；其餘為中性。</li>
           <li>持股警示：收盤 ≤ 停損價為「觸及停損」；距停損 ≤ {uiConfig.significance.near_stop_pct}% 為「接近停損」；新的或嚴重的風險旗標。</li>
-          <li>冷靜卡：新增持倉時若資金環境為保守、股價高於 20 日均線超過 {uiConfig.impulse.ma20_gap_pct}%、或近 5 日上漲超過 {uiConfig.impulse.price_change_5d_pct}%，先列出事實並需多確認一步。</li>
+          <li>事實頁：新增持倉時若資金環境為保守、股價高於 20 日均線超過 {uiConfig.impulse.ma20_gap_pct}%、或近 5 日上漲超過 {uiConfig.impulse.price_change_5d_pct}%，先列出資金環境與每項指標的事實（不需勾選即可繼續）。</li>
+          <li>新增持倉前檢查表 1–5 自動帶出：營收近 3 月年增率平均 ≥ {uiConfig.checklist.revenue_high_growth_pct}% 為高成長；本益比歷史百分位 ≤ {uiConfig.checklist.valuation_low_max} 為位置低、≤ {uiConfig.checklist.valuation_mid_max} 為位置中、其餘為位置高。資料不足時退回手動選擇，只有進場價與股數是必填。</li>
           <li>回測可信度：樣本 &lt; {uiConfig.backtest_confidence.low_below} 筆為低、≥ {uiConfig.backtest_confidence.high_from} 筆為高，其餘為中。</li>
           <li>系統清單「{uiConfig.hot_momentum.label}」（依規則產生，非推薦）：每個交易日收盤後，從{uiConfig.hot_momentum.exclude_etf ? '普通股（不含 ETF／ETN）' : '所有證券'}中取成交值排名前 {uiConfig.hot_momentum.value_rank_top} 名、RS 百分位 ≥ {uiConfig.hot_momentum.min_rs_percentile}、沒有{uiConfig.hot_momentum.max_danger_flags ? `超過 ${uiConfig.hot_momentum.max_danger_flags} 個` : ''}危險級風險旗標、注意級風險旗標最多 {uiConfig.hot_momentum.max_warn_flags} 個者，依 RS 百分位由高到低（同分依成交值）取前 {uiConfig.hot_momentum.size} 檔。只是篩選條件的結果，不代表未來表現。</li>
           <li>範例自選（新用戶歡迎卡）：{uiConfig.sample_watchlist.codes.join('、')}，放在「{uiConfig.sample_watchlist.group}」群組並標示為範例，可一鍵清除。</li>

@@ -19,6 +19,7 @@ import { logActivityOnce } from '../db/db';
 import { makeSnapshot, type Snapshot } from '../lib/changes';
 import { WATCH_SCOPE, snapshotRows, watchRows as watchRowsOf, watchSub, watchSummary } from '../lib/watchChanges';
 import { holdingAlerts } from '../lib/holdings';
+import { hasStop } from '../lib/ritual';
 import { TONIGHT_DEFAULT_PERIOD, type Period } from '../lib/periods';
 import { makeCalendar } from '../lib/tradingCalendar';
 import { baseline, commit, commitHero, heroSeen } from '../lib/seen';
@@ -140,7 +141,7 @@ export default function Tonight() {
             tag={<span class="ui-row-toggle" aria-hidden="true"><IconChevronDown /></span>} testid="holdings-calm" />
         ) : null}
         {showCalm ? calm.map((a) => a.row ? (
-          <Row key={a.trade.id} label={<NameCode row={a.row} />} sub={<>停損 <Num v={fmtPrice(a.trade.stop)} /></>}
+          <Row key={a.trade.id} label={<NameCode row={a.row} />} sub={hasStop(a.trade) ? <>停損 <Num v={fmtPrice(a.trade.stop)} /></> : '未設停損'}
             value={<Num v={fmtPrice(a.row.close)} />} value2={<Signed v={a.row.change_pct} kind="arrow" unit="%" />}
             onClick={() => openStock(a.trade.code, '持倉', alerts.map((x) => x.trade.code))} />
         ) : null) : null}

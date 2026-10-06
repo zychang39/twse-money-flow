@@ -58,6 +58,7 @@ export interface UiConfig {
   significance: { price_pct: number; inst_streak_days: number; inst_volume_pct: number; margin_pct: number; near_stop_pct: number };
   env_state: { conservative_min_red: number; aggressive_min_green: number };
   impulse: { env_conservative: boolean; ma20_gap_pct: number; price_change_5d_pct: number };
+  checklist: { revenue_high_growth_pct: number; valuation_low_max: number; valuation_mid_max: number; stop_low_days: number; ust_lag_days: number; monthly_lag_months: number };
   backtest_confidence: { low_below: number; high_from: number };
   gamification: {
     review_due_trading_days: number;
