@@ -1,9 +1,22 @@
 {
- "task": "holders_backfill",
- "at": "2026-10-06T13:50:31+08:00",
+ "task": "kbar",
+ "at": "2026-10-06T22:14:06+08:00",
  "requests": 0,
- "ok": 0,
+ "ok": 1,
  "failed": [],
  "pending": [],
- "deferred": true
+ "kbar_target": "2026-10-06",
+ "fetched": 2360,
+ "rows": 379132,
+ "covered": 2330,
+ "total": 2367,
+ "remaining": 7,
+ "progressed": true,
+ "pruned": 0,
+ "by_tier": {
+  "1": 500,
+  "2": 442,
+  "3": 1418
+ },
+ "chained": true
 }
