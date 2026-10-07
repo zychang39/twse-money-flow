@@ -961,7 +961,7 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-07T23:51+08:00",
+  "at": "2026-10-08T04:03+08:00",
   "attempt": 1,
   "fixed": [],
   "missing": [],
@@ -1883,20 +1883,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-05T13:37:00+08:00",
-   "by_source": {
-    "tdcc_full": 26213
-   },
-   "chained": true,
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 26213,
-   "requests": 545,
-   "task": "holders_backfill"
-  },
-  {
    "at": "2026-10-05T13:37:48+08:00",
    "deferred": true,
    "failed": [],
@@ -2664,6 +2650,21 @@
    "rows": 0,
    "task": "kbar",
    "total": 2368
+  },
+  {
+   "at": "2026-10-08T04:03:42+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "kbar_dispatched": true,
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "progressed": false,
+   "requests": 0,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3346,6 +3347,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-07T23:52:04+08:00",
+ "updated_at": "2026-10-08T04:03:42+08:00",
  "version": 1
 }
