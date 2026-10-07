@@ -56,3 +56,34 @@ def test_merge_manifests_pending_slot_keeps_newer_deferral():
     m = merge_manifests(ours, theirs)
     assert m["holders_backfill_pending"]["source"] == "lanes=2"
     assert m["backfill_pending"]["ref"] == "new"
+
+
+def test_refresh_pulls_remote_data_when_clean(tmp_path):
+    """2026-10-07：接力睡醒後同步到遠端最新；工作目錄有改動時不動。"""
+    import subprocess
+
+    from pipeline.gitdata import refresh
+
+    def git(*args, cwd):
+        subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+
+    remote, writer, data = tmp_path / "remote.git", tmp_path / "writer", tmp_path / "data"
+    git("init", "-q", "--bare", str(remote), cwd=tmp_path)
+    git("clone", "-q", str(remote), str(writer), cwd=tmp_path)
+    for k, v in {"user.name": "t", "user.email": "t@t"}.items():
+        git("config", k, v, cwd=writer)
+    git("checkout", "-q", "-b", "data", cwd=writer)
+    (writer / "manifest.json").write_text("{}", encoding="utf-8")
+    git("add", "-A", cwd=writer)
+    git("commit", "-q", "-m", "1", cwd=writer)
+    git("push", "-q", "origin", "data", cwd=writer)
+    git("clone", "-q", "-b", "data", str(remote), str(data), cwd=tmp_path)
+    assert refresh(tmp_path / "not-git") == "skip"
+    # 睡覺期間別的任務推進了 data 分支
+    (writer / "manifest.json").write_text('{"v": 2}', encoding="utf-8")
+    git("commit", "-q", "-am", "2", cwd=writer)
+    git("push", "-q", "origin", "data", cwd=writer)
+    assert refresh(data) == "refreshed"
+    assert (data / "manifest.json").read_text(encoding="utf-8") == '{"v": 2}'
+    (data / "x.txt").write_text("local", encoding="utf-8")
+    assert refresh(data) == "dirty"
