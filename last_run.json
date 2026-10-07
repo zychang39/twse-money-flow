@@ -1,27 +1,21 @@
 {
- "task": "catchup",
- "at": "2026-10-07T22:30:03+08:00",
- "requests": 7,
- "ok": 11,
+ "task": "kbar",
+ "at": "2026-10-07T22:33:53+08:00",
+ "requests": 0,
+ "ok": 1,
  "failed": [],
  "pending": [],
- "missing_before": [
-  "qfii",
-  "credit",
-  "margin_total",
-  "sbl",
-  "daytrade"
- ],
- "missing_after": [],
- "fixed": [
-  "credit",
-  "daytrade",
-  "margin_total",
-  "qfii",
-  "sbl"
- ],
- "attempt": 1,
- "retry": false,
- "progressed": true,
- "kbar_dispatched": true
+ "kbar_target": "2026-10-07",
+ "fetched": 0,
+ "rows": 0,
+ "covered": 2331,
+ "total": 2368,
+ "remaining": 8,
+ "progressed": false,
+ "pruned": 0,
+ "by_tier": {
+  "1": 0,
+  "2": 0,
+  "3": 0
+ }
 }
