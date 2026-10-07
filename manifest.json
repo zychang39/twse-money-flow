@@ -969,8 +969,8 @@
  },
  "holders_backfill": {
   "codes": 1991,
-  "done": 79441,
-  "eta": "2026-10-09T15:22+08:00",
+  "done": 80004,
+  "eta": "2026-10-09T13:54+08:00",
   "nodata": {
    "1103": [
     "20260522"
@@ -1538,14 +1538,14 @@
    ]
   },
   "oldest_week": "20251009",
-  "per_query_sec": 4.4,
+  "per_query_sec": 4.25,
   "ref": "claude/momentum-strategy-lab-v2",
-  "remaining": 18123,
-  "runtime_hours_left": 22.2,
-  "segments": 150,
+  "remaining": 17560,
+  "runtime_hours_left": 20.7,
+  "segments": 151,
   "started_at": "2026-09-29T23:44+08:00",
   "total": 97564,
-  "updated_at": "2026-10-08T05:44+08:00",
+  "updated_at": "2026-10-08T06:25+08:00",
   "weeks": 51
  },
  "kbar": {
@@ -1889,67 +1889,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-06T01:11:32+08:00",
-   "failed": [
-    "tpex_insti 2026-10-05 HTTP 403：https://www.tpex.org.tw/www/zh-tw/insti/dailyTrade?type=Daily&sect=EW&date=2026/10/05&id=&response=json",
-    "tpex_valuation 2026-10-05 HTTP 403：https://www.tpex.org.tw/www/zh-tw/afterTrading/peQryDate?date=2026/10/05&id=&response=json",
-    "tpex_qfii 2026-10-05 HTTP 403：https://www.tpex.org.tw/www/zh-tw/insti/qfii?date=2026/10/05&id=&response=json",
-    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_valuation 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_qfii 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次",
-    "tpex_insti_amount 2026-10-05 斷路器開啟：www.tpex.org.tw 連續失敗 6 次"
-   ],
-   "ok": 4,
-   "pending": [],
-   "requests": 7,
-   "stage": "insti",
-   "status": "late",
-   "target": "2026-10-05",
-   "task": "stage",
-   "waited": 55
-  },
   {
    "at": "2026-10-06T02:01:07+08:00",
    "failed": [],
@@ -2671,6 +2610,20 @@
    "remaining": 18123,
    "requests": 544,
    "task": "holders_backfill"
+  },
+  {
+   "at": "2026-10-08T07:05:49+08:00",
+   "by_source": {
+    "tdcc_full": 17560
+   },
+   "chained": true,
+   "failed": [],
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "remaining": 17560,
+   "requests": 564,
+   "task": "holders_backfill"
   }
  ],
  "sources": {
@@ -2766,10 +2719,10 @@
   },
   "tdcc_history": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-08T06:24:56+08:00",
-   "last_message": "全市場 1991 檔 × 51 週：本段 542 次查詢；剩餘 18123 次",
+   "last_attempt": "2026-10-08T07:05:47+08:00",
+   "last_message": "全市場 1991 檔 × 51 週：本段 563 次查詢；剩餘 17560 次",
    "last_status": "ok",
-   "last_success_at": "2026-10-08T06:24:56+08:00",
+   "last_success_at": "2026-10-08T07:05:47+08:00",
    "validation": "ok"
   },
   "tdcc_holders": {
@@ -3353,6 +3306,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-08T06:24:57+08:00",
+ "updated_at": "2026-10-08T07:05:49+08:00",
  "version": 1
 }
