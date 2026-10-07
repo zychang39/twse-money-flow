@@ -961,15 +961,9 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-07T22:29+08:00",
+  "at": "2026-10-07T23:51+08:00",
   "attempt": 1,
-  "fixed": [
-   "credit",
-   "daytrade",
-   "margin_total",
-   "qfii",
-   "sbl"
-  ],
+  "fixed": [],
   "missing": [],
   "next_retry": null
  },
@@ -1889,20 +1883,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-05T12:15:16+08:00",
-   "by_source": {
-    "tdcc_full": 27276
-   },
-   "chained": true,
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 27276,
-   "requests": 549,
-   "task": "holders_backfill"
-  },
-  {
    "at": "2026-10-05T12:56:06+08:00",
    "by_source": {
     "tdcc_full": 26755
@@ -2662,6 +2642,21 @@
    "rows": 0,
    "task": "kbar",
    "total": 2368
+  },
+  {
+   "at": "2026-10-07T23:51:08+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "kbar_dispatched": true,
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "progressed": false,
+   "requests": 0,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3344,6 +3339,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-07T22:33:53+08:00",
+ "updated_at": "2026-10-07T23:51:08+08:00",
  "version": 1
 }
