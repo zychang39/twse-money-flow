@@ -1,21 +1,22 @@
 {
- "task": "catchup",
- "at": "2026-10-07T20:55:00+08:00",
- "requests": 1,
- "ok": 0,
- "failed": [
-  "twse_qfii 2026-10-07 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!",
-  "twse_qfii 2026-10-07 外資持股比：預期時間已過仍未取得（第 4 次補抓）"
- ],
+ "task": "kbar",
+ "at": "2026-10-07T22:00:17+08:00",
+ "requests": 0,
+ "ok": 1,
+ "failed": [],
  "pending": [],
- "missing_before": [
-  "qfii"
- ],
- "missing_after": [
-  "qfii"
- ],
- "fixed": [],
- "attempt": 4,
- "retry": false,
- "progressed": false
+ "kbar_target": "2026-10-07",
+ "fetched": 29,
+ "rows": 812,
+ "covered": 2331,
+ "total": 2368,
+ "remaining": 8,
+ "progressed": true,
+ "pruned": 0,
+ "by_tier": {
+  "1": 1,
+  "2": 0,
+  "3": 28
+ },
+ "chained": true
 }
