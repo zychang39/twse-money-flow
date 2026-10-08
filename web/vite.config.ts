@@ -13,7 +13,10 @@ function commitShort(): string {
   return process.env.GITHUB_SHA?.slice(0, 7) || 'dev';
 }
 const APP_COMMIT = commitShort();
-const APP_BUILD_DATE = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+// 2026-10-08：精確到分鐘（台北時間，例「2026-10-08 19:25」）——一天會部署好幾次，只有日期分不出是不是新版
+const APP_BUILD_DATE = new Intl.DateTimeFormat('sv-SE', {
+  timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+}).format(new Date());
 
 export default defineConfig({
   base: '/twse-money-flow/',

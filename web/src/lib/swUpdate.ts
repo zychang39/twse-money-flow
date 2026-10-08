@@ -169,7 +169,7 @@ export function domBusy(doc: Document = document): boolean {
   return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable);
 }
 
-/** 目前版本字串：commit 短碼＋建置日期（build 時由 Vite define 注入）。 */
+/** 目前版本字串：commit 短碼＋建置時間（台北，到分鐘；build 時由 Vite define 注入）。 */
 export function appVersion(): string {
   return `${__APP_COMMIT__}・${__APP_BUILD_DATE__}`;
 }

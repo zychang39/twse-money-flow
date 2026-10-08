@@ -22,7 +22,12 @@ test.beforeAll(async () => {
   server = createServer((req, res) => {
     const path = decodeURIComponent(new URL(req.url!, 'http://x').pathname).replace(/^\/twse-money-flow\//, '/');
     let file = join(dir, path.endsWith('/') ? `${path}index.html` : path);
-    if (!existsSync(file) || statSync(file).isDirectory()) file = join(dir, 'index.html');
+    if (!existsSync(file) || statSync(file).isDirectory()) {
+      // 與 GitHub Pages 一樣：缺少的檔案（有副檔名）回 404；只有導覽（沒有副檔名）回 index.html。
+      // 2026-10-08：原本一律回 index.html，掩蓋了 sw.js 外殼清單裡 5 個不存在的檔案（安裝永遠失敗）
+      if (extname(path)) { res.writeHead(404); res.end(); return; }
+      file = join(dir, 'index.html');
+    }
     res.writeHead(200, { 'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream', 'Cache-Control': 'no-cache' });
     res.end(readFileSync(file));
   });
@@ -135,4 +140,15 @@ test('部署剛完成、CDN 仍回舊的 index.html：新版 service worker 安�
   expect(r.waiting).toBe(false);
   expect(r.state).toBe('redundant');
   expect(await shellCaches(page)).toEqual(before); // 沒有留下半套的新版快取
+});
+
+test('原樣部署：外殼清單的每個檔案都在（安裝成功、接手頁面）；設定頁檢查更新回「已是最新版本」，版本與資料時間到分鐘', async ({ page }) => {
+  // 2026-10-08：清單曾列入 5 個 Vite 刪掉的空 JS 分塊 → GitHub Pages 回 404 → 安裝永遠失敗，「檢查更新」一直顯示無法檢查
+  await install(page);
+  expect(await shellCaches(page)).toHaveLength(1);
+  await page.goto(`${base}#/me/settings`);
+  await expect(page.getByTestId('app-version-string')).toHaveText(/^[0-9a-z]+・\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+  await expect(page.getByTestId('app-data-time')).toHaveText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+  await page.getByRole('button', { name: '檢查更新' }).click();
+  await expect(page.getByTestId('app-version').getByRole('status')).toHaveText('已是最新版本');
 });

@@ -10,17 +10,33 @@
  */
 import type { Plugin } from 'vite';
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 export function serviceWorker(appVersion = 'dev'): Plugin {
+  let shellFiles: string[] = [];
   return {
     name: 'service-worker',
     apply: 'build',
-    generateBundle(_options, bundle) {
-      const files = Object.keys(bundle).filter((f) => !f.endsWith('.map') && f !== 'index.html' && !f.startsWith('.vite/'));
-      const entry = Object.values(bundle).find((b) => b.type === 'chunk' && b.isEntry)?.fileName ?? '';
-      const shell = ['./manifest.webmanifest', './icons/icon-192.png', ...files.map((f) => `./${f}`)];
-      const version = createHash('sha256').update(files.sort().join('|') + appVersion).digest('hex').slice(0, 12);
-      this.emitFile({ type: 'asset', fileName: 'sw.js', source: swSource({ version, appVersion, entry, shell: [...new Set(shell)] }) });
+    // 2026-10-08：order 'post'＝在 Vite 自己的 generateBundle 之後才列外殼檔案。原本先列，Vite 接著刪掉
+    // 只有 CSS 的空 JS 分塊（evidence／flow／stock／strategy／tools），清單裡留下 5 個 404 的檔案 →
+    // 安裝時 cache.addAll 失敗、新版 service worker 永遠裝不起來，設定頁「檢查更新」一直顯示無法檢查。
+    generateBundle: {
+      order: 'post',
+      handler(_options, bundle) {
+        const files = Object.keys(bundle).filter((f) => !f.endsWith('.map') && f !== 'index.html' && !f.startsWith('.vite/'));
+        const entry = Object.values(bundle).find((b) => b.type === 'chunk' && b.isEntry)?.fileName ?? '';
+        const shell = [...new Set(['./manifest.webmanifest', './icons/icon-192.png', ...files.map((f) => `./${f}`)])];
+        shellFiles = shell;
+        const version = createHash('sha256').update(files.sort().join('|') + appVersion).digest('hex').slice(0, 12);
+        this.emitFile({ type: 'asset', fileName: 'sw.js', source: swSource({ version, appVersion, entry, shell }) });
+      },
+    },
+    // 寫出後再確認一次：外殼清單的每個檔案都要真的在輸出目錄裡（少一個，使用者就永遠裝不起新版）
+    writeBundle(options) {
+      const dir = options.dir ?? 'dist';
+      const missing = shellFiles.filter((u) => !existsSync(join(dir, u.slice(2))));
+      if (missing.length) this.error(`sw.js 的外殼清單有輸出目錄裡沒有的檔案：${missing.join('、')}`);
     },
   };
 }
