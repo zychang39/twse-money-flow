@@ -964,7 +964,7 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-08T22:33+08:00",
+  "at": "2026-10-08T23:51+08:00",
   "attempt": 1,
   "fixed": [],
   "missing": [],
@@ -1953,44 +1953,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-07T17:57:20+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [
-    "index",
-    "insti",
-    "insti_amount",
-    "intraday",
-    "quotes",
-    "taifex",
-    "valuation"
-   ],
-   "kbar_dispatched": true,
-   "missing_after": [
-    "qfii"
-   ],
-   "missing_before": [
-    "quotes",
-    "index",
-    "intraday",
-    "insti",
-    "insti_amount",
-    "taifex",
-    "valuation",
-    "qfii"
-   ],
-   "ok": 16,
-   "pending": [
-    "twse_qfii",
-    "twse_qfii"
-   ],
-   "progressed": true,
-   "requests": 20,
-   "retry": true,
-   "retry_dispatched": true,
-   "task": "catchup"
-  },
-  {
    "at": "2026-10-07T18:30:33+08:00",
    "by_tier": {
     "1": 500,
@@ -2708,6 +2670,21 @@
    "rows": 0,
    "task": "kbar",
    "total": 2369
+  },
+  {
+   "at": "2026-10-08T23:51:16+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "kbar_dispatched": true,
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "progressed": false,
+   "requests": 0,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3390,6 +3367,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-08T22:34:26+08:00",
+ "updated_at": "2026-10-08T23:51:16+08:00",
  "version": 1
 }
