@@ -543,3 +543,9 @@
 430. **data.yml 觸發部署就結束**：原本以 reusable workflow（`uses: ./.github/workflows/deploy.yml`）在同一個 run 裡等部署跑完（20～30 分鐘），workflow 層級的 concurrency 讓這段期間的同群組 run 都在排隊——5 分 K 每一段要將近一小時、補抓接力的下一棒也要等。改為 data job 最後一步以 `gh workflow run deploy.yml` 觸發（`digest` 改由 workflow_dispatch 的 input 傳入），抓資料的 run 推完 data 分支就結束。部署仍在 `pages` 群組排隊，GitHub 同一群組只保留最新一個等待中的 run，連續幾次資料更新只會部署一次最新的。只有 main 會觸發部署（同前）。
 431. **5 分 K 只在最後一段部署**：原本每一段（一天 3～4 段）有前進就部署，佔住部署佇列，傍晚補抓的資料要排在後面。改為沒有剩餘、或下一段沒有接上時才部署（`cli.kbar_should_deploy`）；個股頁 1D／1W 在全部抓完後一次更新。
 
+### 2026-10-08 build-web 加速（輸出不變）
+432. **指標效度評估快取**（`pipeline/derive/evcache.py`）：本機分段計時，build-web 約三成時間在全期間事件研究與隨機對照，但一天的多次部署多數時候輸入相同。以 EvData 每個陣列、pipeline 程式碼與 config 的雜湊當 key，相同就沿用上一次寫出的檔案與結果（判定改變的 Telegram 推播不重送），任何一項不同就重算；deploy.yml 以 actions/cache 保存 `.evidence-cache`，沒有快取時照常重算。只用輸入內容判斷、不看日期：同一個交易日 22:00 補進融資融券後輸入變了，也會重算。
+433. **月營收指標一次計算**：`revenue_panels` 原本每檔每個月都把「到該月為止」的整段序列重算一次（約 24 萬次、O(n²)），改為 `indicators.revenue_metrics_prefixes` 一次走完，與逐月呼叫結果相同（隨機序列逐項比對）。
+434. **JSON 清理快速路徑**：`sanitize`（部署時約 1 億次呼叫）先判斷確切型別，float／int／str／None 直接處理，其他型別走原本的邏輯；隨機巢狀結構與舊版輸出相同，約快 6.7 倍。
+驗證：以 10/8 的 data 分支在本機完整建置，新舊版 7,642 個 JSON 除產生時間外完全相同；快取命中時輸出也相同。本機時間由約 47.5 分鐘（沒有快取）降到 29 分鐘（命中快取）；剩下的主要是讀取原始資料與個股衍生資料。
+

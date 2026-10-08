@@ -33,7 +33,8 @@ jobs:
     # CI 在 main 失敗（或被取消）時不部署；push 事件本身不再觸發部署
     if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-24.04
-    # build-web 隨資料累積已接近 30 分鐘（2026-10-04 實測 29 分），30 分上限會在 build 前被取消
+    # build-web 隨資料累積已接近 30 分鐘（2026-10-04 實測 29 分），30 分上限會在 build 前被取消；
+    # 2026-10-08 起指標效度評估有快取、月營收指標改為一次計算、JSON 清理改快速路徑
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -53,6 +54,13 @@ jobs:
           cache: pip
           cache-dependency-path: pipeline/requirements.txt
       - run: pip install -r pipeline/requirements.txt
+      # 2026-10-08：指標效度評估的快取（輸入資料、pipeline 程式、config 都沒變就沿用上一次的輸出；pipeline/derive/evcache.py）。
+      # 以最近一份快取還原，python 依內容雜湊決定能不能用；建置後以 meta.json 的雜湊存成新的快取（內容沒變就不重複存）。
+      - uses: actions/cache/restore@v4
+        with:
+          path: .evidence-cache
+          key: evidence-v1-restore-${{ github.run_id }}
+          restore-keys: evidence-v1-
       - name: Build derived data
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -60,7 +68,13 @@ jobs:
           # v3 M4-2：大戶涵蓋率達標、三方同買改判時推播（沒有設定就略過）
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -m pipeline build-web --data-dir data --out web/public/data
+        run: python -m pipeline build-web --data-dir data --out web/public/data --evidence-cache .evidence-cache
+      - if: hashFiles('.evidence-cache/meta.json') != ''
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: .evidence-cache
+          key: evidence-v1-${{ hashFiles('.evidence-cache/meta.json') }}
       - name: 下載線上前一版（守門比對用；抓不到就只做欄位檢查）
         continue-on-error: true
         run: |

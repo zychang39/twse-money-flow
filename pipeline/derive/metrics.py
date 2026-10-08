@@ -117,11 +117,13 @@ def revenue_panels(revenue: pd.DataFrame, dates: list[str], codes: list[str]) ->
                     s[prev] = float(ly)
             s = s.sort_index()
         seen = dict(zip(part["ym"], part.get("first_seen", pd.Series([None] * len(part))), strict=True))
+        # 2026-10-08：一次算完每個月的指標（與逐月呼叫 revenue_metrics(s.iloc[: i + 1]) 相同，見 indicators）
+        per_month = ind.revenue_metrics_prefixes(s)
         for i in range(len(s)):
             ym = s.index[i]
             if ym not in seen:  # 補進的去年值不產生訊號
                 continue
-            m: dict[str, object] = dict(ind.revenue_metrics(s.iloc[: i + 1]))
+            m: dict[str, object] = dict(per_month[i])
             m["code"] = code
             m["effective"] = effective_date_for_month(ym, seen.get(ym), fallback)
             rows.append(m)
