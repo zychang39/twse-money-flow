@@ -7,10 +7,10 @@ import { gotoStock, seed } from './helpers';
 test.use({ viewport: { width: 390, height: 844 } });
 
 test.describe('#1 版本字串與 service worker 更新', () => {
-  test('設定頁與資料健康頁顯示同一個版本字串（commit 短碼・建置日期）', async ({ page }) => {
+  test('設定頁與資料健康頁顯示同一個版本字串（commit 短碼・建置日期與時間）', async ({ page }) => {
     await page.goto('#/me/settings');
     const v = page.getByTestId('app-version-string');
-    await expect(v).toHaveText(/^[0-9a-z]{4,}・\d{4}-\d{2}-\d{2}$/);
+    await expect(v).toHaveText(/^[0-9a-z]{4,}・\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
     const text = await v.textContent();
     await expect(page.getByRole('button', { name: '檢查更新' })).toBeVisible();
     await page.goto('#/me/health');
