@@ -160,7 +160,7 @@ describe('SW 更新：提示', () => {
 
 describe('版本字串與 sw.js', () => {
   it('appVersion 是「commit 短碼・建置日期」', () => {
-    expect(appVersion()).toMatch(/^[0-9a-z]+・\d{4}-\d{2}-\d{2}$/);
+    expect(appVersion()).toMatch(/^[0-9a-z]+・\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
   });
 
   it('sw.js：安裝後等待 SKIP_WAITING，外殼一律向網路重新取得，並驗證 index.html 是這一版', () => {
