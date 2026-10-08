@@ -54,6 +54,8 @@ freshness:
     crons: ["5 0 * * 1-5", "5 2 * * 1-5", "5 4 * * 1-5", "15 7 * * 1-5", "30 8 * * 1-5", "30 14 * * 1-5"]   # 同上（UTC），與 data.yml、pipeline/cli.py SCHEDULE_TASKS 以測試比對
     retry_minutes: 60
     max_retries: 3
+    # 每日任務的其他來源（不在上表：主動式 ETF 持股、注意／處置、除權息、公司資料…）每個時段跑一次；時段起點＝這個時間與上表各預期公布時間
+    extras_start: "08:00"
     # 接力（2026-10-07；pipeline/freshness.py plan_next）：每次補抓結束時，自己以 workflow_dispatch 預約下一次——
     # 今天下一個還沒到的預期公布時間＋offset_minutes（或重試時間，取早的）。dispatch 不像 schedule 會被延遲或丟掉，
     # 所以當天只要有一次觸發，之後 15:00／16:00／17:00／22:00 都會準時補抓。單次最多等 max_wait_minutes

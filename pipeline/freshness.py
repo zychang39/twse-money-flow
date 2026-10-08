@@ -9,6 +9,8 @@
   10/5 的教訓：GitHub 排程延遲 8 小時以上、甚至整個掉了（15:30、21:30 兩次都沒觸發），而 22:38 才跑的 14:15 那一段
   只抓「收盤行情」段的來源——三大法人、融資融券早已公布卻沒有抓。改成依新鮮度補抓後，任何一次觸發都會把該有的都補齊。
 - 補抓後仍有缺漏 → 以 workflow_dispatch 觸發下一次（1 小時後，最多 3 次；dispatch 不像 schedule 會被延遲或丟掉）。
+- 每日任務的其他來源（不在新鮮度表上：主動式 ETF 持股、注意／處置、除權息、公司資料、月營收快照、美債）
+  在每個時段的第一次補抓一起跑（extras_due；2026-10-08，10/6 起只跑補抓時這些來源停更）。
 - 接力（2026-10-07）：每次補抓結束時預約下一次＝今天下一個還沒到的預期公布時間（或重試時間，取早的）；
   10/6、10/7 排程連續延遲 5–7 小時，當天只要有一次觸發，之後就不再依賴排程（plan_next、relay_decision）。
 - 每次的結果寫在 manifest `freshness`（缺哪些、第幾次、下次重試時間），資料健康頁與執行摘要看得到；不靜默失敗。
@@ -140,6 +142,10 @@ def run_catchup(ctx: Any, *, attempt: int = 1) -> dict[str, Any]:
         tasks.run_month_query(ctx, SPECS["tpex_index"], m)
     if taifex:
         tasks_advanced.run_taifex(ctx, min(taifex), max(taifex))
+    # 2026-10-08：每日任務的其他來源（主動式 ETF 持股、注意／處置、除權息、公司資料…）每個時段跑一次
+    if extras_due(ctx.manifest, ctx.now):
+        tasks.task_daily_extras(ctx)
+        ctx.manifest["daily_extras"] = {"at": ctx.now.isoformat(timespec="minutes")}
     after = gaps(ctx.store, ctx.calendar, ctx.now)
     cfg = table()["catchup"]
     retry = bool(after) and attempt < int(cfg["max_retries"]) + 1
@@ -238,3 +244,18 @@ def relay_decision(target: datetime, alive: list[tuple[int, datetime]]) -> tuple
     if any(nb <= target for _, nb in alive):
         return False, []
     return True, [rid for rid, _ in alive]
+
+
+def extras_due(manifest: dict[str, Any], now: datetime) -> bool:
+    """每日任務的其他來源是否該跑：上次跑在最近一個時段起點之前（時段起點＝extras_start 與各資料集的預期公布時間；
+    同一時段內的重試、中繼不重跑）。"""
+    last = (manifest.get("daily_extras") or {}).get("at")
+    if not last:
+        return True
+    marks = sorted(
+        {_hm(str(table()["catchup"].get("extras_start", "08:00")))} | {_hm(str(d["time"])) for d in datasets().values()}
+    )
+    today = [now.replace(hour=h, minute=m, second=0, microsecond=0) for h, m in marks]
+    passed = [t for t in today if t <= now]
+    start = passed[-1] if passed else today[-1] - timedelta(days=1)
+    return datetime.fromisoformat(str(last)) < start

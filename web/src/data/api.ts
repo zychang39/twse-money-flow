@@ -69,6 +69,12 @@ export const loadLongHistory = (code: string) =>
   loadMeta().then((m) => (m.long_history?.files ? getJson<import('./types').LongHistory>(`stocks/${encodeURIComponent(code)}.hist.json`).catch(() => null) : null));
 export const loadJson = <T>(path: string) => getJson<T>(path);
 export const loadMarket = () => getJson<import('./types').MarketData>('market.json');
+/** 主動式 ETF 詳細頁（2026-10-08）：持股歷史；投信尚未涵蓋（沒有這個檔案）→ null。 */
+export const loadEtfDetail = (code: string) =>
+  getJson<import('../lib/etfDetail').EtfDetail>(`etf/${encodeURIComponent(code)}.json`).catch((e: unknown) => {
+    if (isNotFound(e)) return null;
+    throw e;
+  });
 /** 系統清單（熱門動能）；舊版部署沒有這個檔案時回傳 null，不影響其他畫面。 */
 export const loadLists = () => getJson<import('./types').Lists>('lists.json').catch(() => null);
 /** U-01：近 20 個交易日沒有成交、沒有個股檔的證券（下市、長期停牌）；舊版部署沒有這個檔案時為空。 */

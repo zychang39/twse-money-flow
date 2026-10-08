@@ -54,6 +54,7 @@ def test_due_date_holiday(tmp_path):
 def test_catchup_fetches_only_due_and_missing(tmp_path, monkeypatch):
     """10/6 00:13：10/5 收盤行情已有、三大法人與融資融券缺 → 只抓 10/5 的這些來源；不抓 10/6（還沒到預期時間）。"""
     ctx = make_ctx(tmp_path, {}, now=datetime(2026, 10, 6, 0, 13, tzinfo=TPE))
+    monkeypatch.setattr(tasks, "task_daily_extras", lambda c: None)
     miss = {
         ("twse_insti", date(2026, 10, 5)),
         ("tpex_insti", date(2026, 10, 5)),
@@ -100,6 +101,7 @@ def test_catchup_fetches_only_due_and_missing(tmp_path, monkeypatch):
 def test_catchup_still_missing_schedules_retry_and_records(tmp_path, monkeypatch):
     """抓不到 → manifest 記下缺哪些與下次重試時間；第 4 次（3 次重試用完）記為失敗，不靜默。"""
     ctx = make_ctx(tmp_path, {}, now=datetime(2026, 10, 6, 16, 30, tzinfo=TPE))
+    monkeypatch.setattr(tasks, "task_daily_extras", lambda c: None)
     _fill(ctx.store, [*DAYS, date(2026, 10, 6)], skip={("twse_insti", date(2026, 10, 6))})
     monkeypatch.setattr(tasks, "run_daily_source", lambda c, spec, d, overwrite=False: "pending")
     res = freshness.run_catchup(ctx, attempt=1)
@@ -303,3 +305,62 @@ def test_alive_relays_parses_titles(monkeypatch):
     monkeypatch.setenv("GITHUB_RUN_ID", "4")
     monkeypatch.setattr(github.requests, "get", lambda *a, **k: Resp())
     assert github.alive_relays() == [(1, datetime(2026, 10, 7, 16, 2, tzinfo=TPE))]
+
+
+# ── 每日任務的其他來源（2026-10-08）：10/6 起只跑補抓，主動式 ETF 持股等來源停在 10/5 ─────────
+
+
+def test_daily_extras_cover_rest_of_daily_task():
+    """每日任務的每個來源不是在新鮮度表上，就是在 DAILY_EXTRAS（補抓時一起跑），不會再有來源被漏掉。"""
+    from pipeline.registry import ADVANCED_DAILY, CORE_DAILY, CORE_SNAPSHOT
+
+    fresh = {s for d in freshness.datasets().values() for s in d["sources"]}
+    daily = set(CORE_DAILY + ADVANCED_DAILY)
+    assert daily <= fresh, daily - fresh
+    assert set(CORE_SNAPSHOT) <= set(tasks.DAILY_EXTRAS)
+    assert not (set(tasks.DAILY_EXTRAS) & fresh)
+
+
+@pytest.mark.parametrize(
+    ("last", "now", "due"),
+    [
+        (None, (10, 7, 15, 2), True),
+        ((10, 7, 15, 2), (10, 7, 15, 40), False),  # 同一時段（15:00 起）的重試、中繼不重跑
+        ((10, 7, 15, 2), (10, 7, 16, 2), True),  # 16:00 新時段
+        ((10, 7, 17, 2), (10, 7, 22, 2), True),
+        ((10, 7, 22, 2), (10, 8, 7, 50), False),  # 08:00 前仍屬前一天 22:00 時段
+        ((10, 7, 22, 2), (10, 8, 8, 5), True),  # 起跑點：補前一天晚上才公布的 ETF 持股
+    ],
+)
+def test_extras_due(last, now, due):
+    ts = lambda m, d, h, mi: datetime(2026, m, d, h, mi, tzinfo=TPE)  # noqa: E731
+    manifest = {"daily_extras": {"at": ts(*last).isoformat(timespec="minutes")}} if last else {}
+    assert freshness.extras_due(manifest, ts(*now)) is due
+
+
+def test_catchup_runs_extras_once_per_slot(tmp_path, monkeypatch):
+    ctx = make_ctx(tmp_path, {}, now=datetime(2026, 10, 7, 16, 2, tzinfo=TPE))
+    _fill(ctx.store, [*DAYS, date(2026, 10, 6), date(2026, 10, 7)])
+    ran: list[datetime] = []
+    monkeypatch.setattr(tasks, "task_daily_extras", lambda c: ran.append(c.now))
+    freshness.run_catchup(ctx)
+    assert ran == [ctx.now] and ctx.manifest["daily_extras"]["at"] == "2026-10-07T16:02+08:00"
+    ctx.now = datetime(2026, 10, 7, 16, 40, tzinfo=TPE)
+    freshness.run_catchup(ctx)
+    assert len(ran) == 1
+
+
+def test_task_daily_extras_fetches_etf_holdings(tmp_path, monkeypatch):
+    """補抓時的其他來源包含主動式 ETF 持股、美債、區間型與快照來源（目標日＝最近已收盤的交易日）。"""
+    from pipeline import tasks_advanced
+
+    ctx = make_ctx(tmp_path, {}, now=datetime(2026, 10, 8, 8, 5, tzinfo=TPE))
+    seen: dict[str, list] = {"range": [], "snap": [], "etf": [], "ust": []}
+    monkeypatch.setattr(tasks, "run_range_source", lambda c, spec, a, b: seen["range"].append((spec.id, b)))
+    monkeypatch.setattr(tasks, "run_snapshot", lambda c, spec, d: seen["snap"].append(spec.id))
+    monkeypatch.setattr(tasks_advanced, "run_etf_holdings", lambda c, d, days=None: seen["etf"].append(d))
+    monkeypatch.setattr(tasks_advanced, "run_ust", lambda c, y: seen["ust"].append(y))
+    tasks.task_daily_extras(ctx)
+    assert seen["etf"] == [date(2026, 10, 7)] and seen["ust"] == [2026]
+    assert ("twse_disposition", date(2026, 10, 7)) in seen["range"]
+    assert "twse_attention_accum" in seen["snap"] and "twse_exright_notice" in seen["snap"]

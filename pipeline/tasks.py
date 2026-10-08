@@ -422,6 +422,24 @@ def task_daily(ctx: RunContext, sources: list[str] | None = None, heal_days: int
         tasks_advanced.run_etf_holdings(ctx, target)
 
 
+#: 2026-10-08：補抓（catchup）只抓資料新鮮度表上的每日來源；每日任務其餘的來源（區間型、快照、美債、主動式 ETF 持股）
+#: 改由 task_daily_extras 在補抓時一起跑（freshness.extras_due 控制頻率）。10/6 改成補抓排程後這些來源停在 10/5。
+DAILY_EXTRAS = CORE_RANGE + CORE_SNAPSHOT + ADVANCED_SNAPSHOT
+
+
+def task_daily_extras(ctx: RunContext) -> None:
+    """每日任務中「不在資料新鮮度表上」的來源：與 task_daily 第 2、4–6 步相同（目標日＝最近已收盤的交易日）。"""
+    from pipeline import tasks_advanced
+
+    target = target_trading_date(ctx)
+    for sid in [s for s in DAILY_EXTRAS if SPECS[s].kind == "range"]:
+        run_range_source(ctx, SPECS[sid], target - timedelta(days=10), target)
+    for sid in [s for s in DAILY_EXTRAS if SPECS[s].kind == "snapshot"]:
+        run_snapshot(ctx, SPECS[sid], target)
+    tasks_advanced.run_ust(ctx, target.year)
+    tasks_advanced.run_etf_holdings(ctx, target)
+
+
 def _after_financial_deadline(today: date) -> bool:
     """季報法定期限後的 1–5 天（對應 data.yml 的季報排程）。"""
     for md in config.thresholds()["backtest"]["financial_deadlines"].values():

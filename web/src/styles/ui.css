@@ -51,8 +51,8 @@
 .ui-card-label { display: flex; justify-content: space-between; gap: var(--s-3); margin-top: var(--s-4); }
 .ui-card-label:first-child { margin-top: 0; }
 .ui-card > .ui-list, .ui-card > .ui-stats, .ui-card > .ui-table { margin-top: var(--s-2); }
-/* 卡片裡的列（不再有自己的外框）：左右不再內縮 */
-.ui-card > .ui-list { padding: 0; background: none; border-radius: 0; }
+/* 卡片裡的列（不再有自己的外框）：左右不再內縮；2026-10-08 補上 box-shadow（原本留著 1px 邊，卡片裡多一層細框） */
+.ui-card > .ui-list { padding: 0; background: none; border-radius: 0; box-shadow: none; }
 
 /* ---------- 列 ---------- */
 .ui-list { --tagcol: 0px; --chevcol: 0px; --extracol: 0px; }
