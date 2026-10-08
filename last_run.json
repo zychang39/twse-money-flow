@@ -1,7 +1,7 @@
 {
- "task": "kbar",
- "at": "2026-10-09T04:02:38+08:00",
- "requests": 0,
+ "task": "backfill",
+ "at": "2026-10-09T04:25:20+08:00",
+ "requests": 486,
  "ok": 1,
  "failed": [],
  "pending": [],
