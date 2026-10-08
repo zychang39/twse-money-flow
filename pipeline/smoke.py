@@ -7,6 +7,9 @@
 
 from __future__ import annotations
 
+import base64
+import gzip
+import os
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -101,3 +104,81 @@ def to_markdown(results: list[SmokeResult], d: date) -> str:
     bad = [r.source for r in results if r.is_format_problem]
     lines += ["", f"格式變動（需要處理）：{'、'.join(bad) if bad else '無'}"]
     return "\n".join(lines) + "\n"
+
+
+#: 主動式 ETF 各投信的冒煙測試代表檔（2026-10-09）：每家取一檔、查最新一份，檢查能取得持股
+ETF_SMOKE = {
+    "nomura": "00980A",
+    "capital": "00982A",
+    "yuanta": "00990A",
+    "fubon": "00405A",
+    "uni": "00981A",
+    "ctbc": "00406A",
+    "allianz": "00993A",
+    "sinopac": "00410A",
+    "taishin": "00986A",
+    "jpmorgan": "00401A",
+    "kgi": "00407A",
+    "ab": "00404A",
+    "fsitc": "00408A",
+    "fhtrust": "00991A",
+}
+
+
+class _WeekdayCalendar:
+    """冒煙測試沒有交易日曆：以週一到週五近似（只用在摩根的單位數公告日）。"""
+
+    def trading_days(self, a: date, b: date) -> list[date]:
+        return [a + timedelta(days=i) for i in range((b - a).days + 1) if (a + timedelta(days=i)).weekday() < 5]
+
+
+def smoke_active_etf(client: PoliteClient, d: date) -> list[SmokeResult]:
+    """每家已實作的投信抓一檔最新持股（流程與每日任務相同：基金清單、權杖、工作階段 cookie）。"""
+    from types import SimpleNamespace
+
+    from pipeline.core import config
+    from pipeline.tasks_advanced import _EtfFetcher
+
+    issuers = config.source("active_etf")["issuers"]
+    ctx = SimpleNamespace(client=client, today=d, calendar=_WeekdayCalendar())
+    fetcher = _EtfFetcher(ctx, issuers)  # type: ignore[arg-type]
+    out = []
+    for issuer, etf in ETF_SMOKE.items():
+        if issuers.get(issuer, {}).get("status") != "verified":
+            continue
+        sid = f"active_etf.{issuer}"
+        try:
+            if issuer == "uni" and os.environ.get("GITHUB_ACTIONS"):  # TEMP 2026-10-09：取真實樣本，取得後移除
+                _dump_uni(client, fetcher, etf)
+            res = fetcher.fetch(issuer, etf, None)
+        except FetchError as exc:
+            out.append(SmokeResult(sid, "fetch_error", message=str(exc)[:200]))
+            continue
+        except ParseError as exc:
+            out.append(SmokeResult(sid, "format_error", message=str(exc)[:300]))
+            continue
+        if res.df.empty:
+            out.append(SmokeResult(sid, "no_data", message=res.message))
+            continue
+        units = res.df["units"].iloc[0] if "units" in res.df else None
+        note = f"{etf} 持股日 {res.response_date}、單位數 {'有' if units == units and units else '無'}"
+        out.append(SmokeResult(sid, "ok", len(res.df), message=note))
+    return out
+
+
+def _dump_uni(client: PoliteClient, fetcher: object, etf: str) -> None:  # TEMP 2026-10-09
+    from pipeline.core import config
+
+    cfg = config.source("active_etf")["issuers"]["uni"]
+    page = client.get_bytes(str(cfg["list_url"]))
+    print("SAMPLE etf_uni_pcf_page.html", base64.b64encode(gzip.compress(page)).decode())
+    from pipeline.sources import etf_holdings as eh
+
+    fund = eh.parse_uni_funds(page)[etf]
+    for name, body in [
+        ("latest", {"fundCode": fund, "date": "115/10/12", "specificDate": False}),
+        ("20261007", {"fundCode": fund, "date": "115/10/07", "specificDate": True}),
+        ("holiday", {"fundCode": fund, "date": "115/10/04", "specificDate": True}),
+    ]:
+        raw = client.post_json(str(cfg["url"]), body, {"Referer": str(cfg["list_url"])})
+        print(f"SAMPLE etf_uni_{etf}_{name}.json", base64.b64encode(gzip.compress(raw)).decode())

@@ -8,12 +8,13 @@ import re
 import time
 from datetime import date, timedelta
 from typing import Any
+from urllib.parse import quote
 
 import pandas as pd
 
 from pipeline.core import config
 from pipeline.core.dates import month_start, next_month, slash
-from pipeline.core.http import CircuitOpenError
+from pipeline.core.http import CircuitOpenError, FetchError
 from pipeline.registry import build_url
 from pipeline.sources import advanced
 from pipeline.sources.base import ParseError, ParseResult
@@ -565,6 +566,7 @@ class _EtfFetcher:
         self.ctx = ctx
         self.issuers = issuers
         self._maps: dict[str, dict[str, str]] = {}
+        self._tokens: dict[str, str] = {}
         self.list_failed: set[str] = set()
 
     def _config_fund(self, issuer: str, etf: str) -> str | None:
@@ -579,6 +581,21 @@ class _EtfFetcher:
             try:
                 if issuer == "capital":
                     self._maps[issuer] = eh.parse_capital_items(self.ctx.client.post_json(str(cfg["list_url"]), {}))
+                elif issuer == "uni":
+                    self._maps[issuer] = eh.parse_uni_funds(_fetch(self.ctx, str(cfg["list_url"])))
+                elif issuer == "ctbc":
+                    token_url = str(cfg["token_url"])
+                    self._tokens[issuer] = eh.parse_ctbc_token(self.ctx.client.post_json(token_url, {}))
+                    q = f"{cfg['list_url']}?token={quote(self._tokens[issuer], safe='')}"
+                    self._maps[issuer] = eh.parse_ctbc_list(self.ctx.client.post_json(q, {}))
+                elif issuer == "allianz":
+                    _fetch(self.ctx, str(cfg["page_url"]))  # 建立工作階段 cookie（權杖與 cookie 綁定）
+                    self._tokens[issuer] = eh.parse_allianz_token(_fetch(self.ctx, str(cfg["token_url"])))
+                    h = {"X-XSRF-TOKEN": self._tokens[issuer], "Referer": str(cfg["page_url"])}
+                    type_id = eh.parse_allianz_type(self.ctx.client.post_json(str(cfg["types_url"]), {}, h))
+                    self._maps[issuer] = eh.parse_allianz_funds(
+                        self.ctx.client.post_json(str(cfg["list_url"]), {"TypeId": type_id}, h)
+                    )
                 else:
                     self._maps[issuer] = eh.parse_cathay_list(_fetch(self.ctx, str(cfg["list_url"])))
             except SOURCE_ERRORS:
@@ -645,7 +662,63 @@ class _EtfFetcher:
                     res.df["units"] = units if units and units > 0 else None
                 return res
             return eh.parse_fhtrust(_fetch(self.ctx, url.format(fund=fund, ymd=day.strftime("%Y%m%d"))), etf)
+        if issuer == "uni":
+            # PCF 頁取「代號 → 基金代碼」並建立工作階段 cookie；GetPCF 的 date＝公告日（民國），specificDate＝True 查該日，
+            # False＋未來日＝最新一份
+            fund = self._fund_map(issuer).get(etf)
+            if fund is None:
+                return ParseResult(pd.DataFrame(), no_data=True, message=f"統一 PCF 頁沒有 {etf}")
+            q = d or self.ctx.today + timedelta(days=3)
+            body = {"fundCode": fund, "date": f"{q.year - 1911}/{q:%m/%d}", "specificDate": d is not None}
+            return eh.parse_uni(self.ctx.client.post_json(url, body, {"Referer": str(cfg["list_url"])}), etf)
+        if issuer == "ctbc":
+            # 匿名工作階段權杖（網站發給每位訪客，不需登入）；StartDate 回該日（含）以前最近一次揭露
+            fund = self._fund_map(issuer).get(etf)
+            if fund is None:
+                return ParseResult(pd.DataFrame(), no_data=True, message=f"中信 ETFList 沒有 {etf}")
+            q = f"{url}?token={quote(self._tokens[issuer], safe='')}"
+            return eh.parse_ctbc(self.ctx.client.post_json(q, {"FID": fund, "StartDate": slash(day)}), etf)
+        if issuer == "allianz":
+            # Date＝申購買回清單公告日；POST 需帶防偽權杖（與工作階段 cookie 綁定）
+            fund = self._fund_map(issuer).get(etf)
+            if fund is None:
+                return ParseResult(pd.DataFrame(), no_data=True, message=f"安聯基金清單沒有 {etf}")
+            body = {"Type": 1, "Keyword": "", "FundNo": fund, "Date": day.isoformat()}
+            return eh.parse_allianz(self.ctx.client.post_json(url, body, self._allianz_headers()), etf)
+        if issuer == "jpmorgan":
+            # date＝持股日；沒有資料回 HTTP 404（視為查無，不停用投信）
+            q = url.format(isin=eh.isin_of(etf), kind="holding_pcf", day=day.isoformat())
+            try:
+                res = eh.parse_jpmorgan(_fetch(self.ctx, q), etf)
+            except FetchError as exc:
+                if "HTTP 404" in str(exc):
+                    return ParseResult(pd.DataFrame(), no_data=True, message=f"摩根：{day} 查無持股")
+                raise
+            if not res.df.empty and res.response_date:
+                # 受益權單位數在之後第 units_lag 個交易日公告的現金申購買回清單（m12_pcf；美股型晚 2 日），
+                # 淨值日＝持股日才採用；取不到不影響持股
+                lag = int((cfg.get("units_lag_by_etf") or {}).get(etf, 1))
+                d0 = res.response_date
+                nxt = self.ctx.calendar.trading_days(d0 + timedelta(days=1), d0 + timedelta(days=lag * 7 + 10))
+                if len(nxt) >= lag and nxt[lag - 1] <= self.ctx.today:
+                    try:
+                        q = url.format(isin=eh.isin_of(etf), kind="m12_pcf", day=nxt[lag - 1].isoformat())
+                        raw = _fetch(self.ctx, q)
+                        nav_d, units, aum = eh.parse_jpmorgan_units(raw)
+                    except SOURCE_ERRORS:
+                        nav_d, units, aum = None, None, None
+                    if nav_d == res.response_date:
+                        res.df["units"] = units if units and units > 0 else None
+                        res.df["aum"] = aum if aum and aum > 0 else None
+            return res
+        if issuer == "sinopac":
+            # 只有最新一份（網址不吃日期）；request_date 一律為 None，每輪每檔只請求一次
+            return eh.parse_sinopac(_fetch(self.ctx, url.format(etf=etf)), etf)
         raise ParseError(f"未實作的投信：{issuer}")
+
+    def _allianz_headers(self) -> dict[str, str]:
+        self._fund_map("allianz")  # 權杖在取基金清單時建立
+        return {"X-XSRF-TOKEN": self._tokens["allianz"], "Referer": str(self.issuers["allianz"]["page_url"])}
 
 
 def _replace_holdings(ctx: RunContext, df: pd.DataFrame) -> None:
@@ -701,8 +774,11 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
     dead_issuers: set[str] = set()
     asked: set[tuple[str, date | None]] = set()
 
-    def request_date(issuer: str, x: date) -> date | None:
-        lag = int(issuers[issuer].get("lag_days", 0))
+    def request_date(issuer: str, etf: str, x: date) -> date | None:
+        icfg = issuers[issuer]
+        if icfg.get("latest_only"):
+            return None  # 網站只有最新一份（永豐）
+        lag = int((icfg.get("lag_days_by_etf") or {}).get(etf, icfg.get("lag_days", 0)))
         if lag == 0:
             return x
         after = ctx.calendar.trading_days(x + timedelta(days=1), x + timedelta(days=lag * 7 + 21))
@@ -712,7 +788,7 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
 
     def attempt(issuer: str, etf: str, x: date) -> bool | None:
         """True＝取得持股；False＝查無或失敗；None＝未請求（已問過、投信停用、超時）。"""
-        d = request_date(issuer, x)
+        d = request_date(issuer, etf, x)
         if issuer in dead_issuers or (etf, d) in asked or ctx.out_of_time():
             return None
         asked.add((etf, d))

@@ -3,8 +3,11 @@
 只涵蓋沒有反爬、導向循環或驗證機制的投信（清單與狀態見 config/sources.yml 的 active_etf.issuers）。
 每家一個 parser，輸出統一欄位：date（持股日期＝淨值日，ISO）、etf、code、name、shares（股）、weight（%）、
 units（該 ETF 當日已發行／在外流通受益權單位數，每列相同；投信沒有揭露時為空值，見 UNITS_FIELD）。
-只保留台灣掛牌的證券代號（4–6 碼數字，可帶 1 碼英文）；海外持股（如 "NVDA US"）、期貨、現金不列入。
-已實作：野村、群益、元大、富邦（2026-09-27）；台新、凱基、聯博、第一金、復華（2026-10-03）；國泰解析器完成但網站擋本工具。
+aum（基金淨資產，元；投信有揭露才有）、foreign（海外持股＝True）。
+2026-10-09 起海外持股（如 "NVDA US"、"8411 JP"）也保留（foreign＝True，代號保留原樣），供 ETF 詳細頁呈現完整持股；
+跨檔排行、個股頁等台股計算只用台股（foreign 為 False）。期貨、選擇權、現金不列入。
+已實作：野村、群益、元大、富邦（2026-09-27）；台新、凱基、聯博、第一金、復華（2026-10-03）；
+統一、中信、安聯、摩根、永豐（2026-10-09；DECISIONS #436）。國泰、兆豐的網站依 User-Agent 擋本工具，未涵蓋。
 各家的請求方式（查詢日與持股日的關係）由 pipeline/tasks_advanced.py 的 _EtfFetcher 依 config 組合。
 """
 
@@ -35,7 +38,7 @@ from pipeline.sources.base import (
     resolve_fields,
 )
 
-HOLDING_COLS = ["date", "etf", "code", "name", "shares", "weight", "units"]
+HOLDING_COLS = ["date", "etf", "code", "name", "shares", "weight", "units", "aum", "foreign"]
 #: §3.4（2026-10-03）各投信受益權單位數的來源欄位；None＝該端點沒有揭露（以真實回應逐家確認，DATA_SOURCES.md）。
 #: 每家都以「淨資產 ÷ 單位數 ＝ 每單位淨值」對照確認單位數與持股同一個淨值日。
 UNITS_FIELD: dict[str, str | None] = {
@@ -49,6 +52,11 @@ UNITS_FIELD: dict[str, str | None] = {
     "fhtrust": "工作表「基金在外流通單位數」",
     "ab": None,  # holdings 與基金資訊端點都沒有單位數（fundAssetTotal 只有各類資產市值與比例）
     "cathay": None,  # GetETFDetailStockList 只有持股列（且網站擋本工具，依規則跳過）
+    "uni": "GetPCF 的 pcf 摘要 OUT_UNIT",
+    "ctbc": "FundAssets「基金在外流通單位數」",
+    "allianz": "Entries.CAnceTotalIssues",
+    "jpmorgan": "m12_pcf 工作表「已發行受益權單位總數」（另一個請求；淨值日＝持股日才採用）",
+    "sinopac": "頁面「基金在外流通單位數」",
 }
 TW_CODE = re.compile(r"^\d{4,6}[A-Z]?$")
 
@@ -61,24 +69,41 @@ def issuer_of(name: str, issuers: dict[str, dict[str, Any]]) -> str | None:
     return None
 
 
-def _frame(rows: list[tuple[Any, Any, Any, Any]], etf: str, d: date, units: float | None = None) -> pd.DataFrame:
-    """units：該 ETF 當日受益權單位數（> 0 才保留，其餘記為空值）。"""
+def holding_code(raw: Any) -> tuple[str, bool]:
+    """持股代號 →（代號, 是否海外）。台股：4–6 碼數字可帶 1 碼英文，彭博格式「2330 TT」去掉 TT；
+    其他（「NVDA US」「8411 JP」「NVDA」）視為海外，代號只整理空白、保留原樣。"""
+    text = " ".join(str(raw if raw is not None else "").split()).upper()
+    if text.endswith(" TT"):
+        text = text[:-3]
+    c = clean_code(text)
+    if TW_CODE.match(c):
+        return c, False
+    return text, True
+
+
+def _frame(
+    rows: list[tuple[Any, Any, Any, Any]], etf: str, d: date, units: float | None = None, aum: float | None = None
+) -> pd.DataFrame:
+    """units：該 ETF 當日受益權單位數；aum：基金淨資產（元）；兩者 > 0 才保留，其餘記為空值。"""
     u = units if units is not None and units > 0 else None
+    a = aum if aum is not None and aum > 0 else None
     out = []
     for code, name, shares, weight in rows:
-        c = clean_code(code)
+        c, foreign = holding_code(code)
         n = to_num(shares)
-        if not TW_CODE.match(c) or n is None:
+        if not c or n is None:
             continue
         out.append(
             {
                 "date": d.isoformat(),
                 "etf": etf,
                 "code": c,
-                "name": clean_name(name),
+                "name": " ".join(str(name or "").split()) if foreign else clean_name(name),
                 "shares": n,
                 "weight": to_num(weight),
                 "units": u,
+                "aum": a,
+                "foreign": foreign,
             }
         )
     df = pd.DataFrame(out, columns=HOLDING_COLS)
@@ -248,7 +273,7 @@ _TAISHIN_ACTUAL = re.compile(r"(\d{4}/\d{1,2}/\d{1,2})每基數實際申購總�
 
 
 def _strip_tt(code: Any) -> Any:
-    """台新以彭博代碼呈現（「2330 TT」）：台股去掉 TT 字尾；其他市場（NVDA US…）保留原樣，之後由 TW_CODE 篩掉。"""
+    """台新以彭博代碼呈現（「2330 TT」）：台股去掉 TT 字尾；其他市場（NVDA US…）保留原樣（holding_code 判定為海外）。"""
     parts = str(code or "").split()
     return parts[0] if len(parts) == 2 and parts[1] == "TT" else code
 
@@ -340,7 +365,18 @@ def parse_ab(payload: bytes | str, etf: str) -> ParseResult:
         source="聯博 holdings",
         infer_types=False,
     )
-    return ParseResult(_frame(_tuples(df), etf, d), response_date=d)
+    return ParseResult(_frame(_tuples(df), etf, d, aum=_ab_aum(obj)), response_date=d)
+
+
+def _ab_aum(obj: dict[str, Any]) -> float | None:
+    """聯博沒有揭露單位數與淨資產：以 fundAssetTotal 的股票市值 ÷ 股票占淨資產比例還原基金淨資產（元）。"""
+    total = obj.get("fundAssetTotal") or {}
+    for sec in total.get("allocationObjSecType") or []:
+        if sec.get("allocationObjSecType") == "holdings-section-equity":
+            value, pct = to_num(sec.get("underlyingSecuritiesValue")), to_num(sec.get("percentageUnderlyingSecurities"))
+            if value and pct and pct > 0:
+                return value / (pct / 100)
+    return None
 
 
 # ------------------------------------------------------------------ 第一金投信（POST JSON WebAPI.aspx/Get_hd，ASP.NET WebMethod）
@@ -400,18 +436,18 @@ def _col_index(ref: str | None) -> int | None:
     return n - 1
 
 
-def xlsx_rows(raw: bytes) -> list[list[str]]:
-    """以標準函式庫讀 xlsx 第一張工作表 → 每列的儲存格文字（共用字串、數值、inline 字串）；不另外引入 openpyxl。"""
+def xlsx_rows(raw: bytes, sheet_no: int = 1) -> list[list[str]]:
+    """以標準函式庫讀 xlsx 第 sheet_no 張工作表（預設第一張） → 每列的儲存格文字（共用字串、數值、inline 字串）；不另外引入 openpyxl。"""
     try:
         with zipfile.ZipFile(io.BytesIO(raw)) as z:
-            sheets = sorted(n for n in z.namelist() if n.startswith("xl/worksheets/sheet") and n.endswith(".xml"))
-            if not sheets:
-                raise ParseError("xlsx：找不到工作表")
+            name = f"xl/worksheets/sheet{sheet_no}.xml"
+            if name not in z.namelist():
+                raise ParseError(f"xlsx：找不到第 {sheet_no} 張工作表")
             shared: list[str] = []
             if "xl/sharedStrings.xml" in z.namelist():
                 sst = ET.fromstring(z.read("xl/sharedStrings.xml"))
                 shared = ["".join(t.text or "" for t in si.iter(f"{_XLSX_NS}t")) for si in sst.iter(f"{_XLSX_NS}si")]
-            sheet = ET.fromstring(z.read(sheets[0]))
+            sheet = ET.fromstring(z.read(name))
     except (zipfile.BadZipFile, ET.ParseError) as exc:
         raise ParseError(f"xlsx：檔案損毀（{exc}）") from exc
     rows: list[list[str]] = []
@@ -444,6 +480,7 @@ def parse_fhtrust(payload: bytes | str, etf: str) -> ParseResult:
     rows = xlsx_rows(payload)
     d: date | None = None
     units: float | None = None
+    aum: float | None = None
     header_at: int | None = None
     for i, r in enumerate(rows):
         for text in r:
@@ -453,6 +490,8 @@ def parse_fhtrust(payload: bytes | str, etf: str) -> ParseResult:
         # 摘要區：「基金在外流通單位數」的下一列是數值
         if r and r[0].strip() == "基金在外流通單位數" and i + 1 < len(rows) and rows[i + 1]:
             units = to_num(rows[i + 1][0])
+        if r and r[0].strip() == "基金資產淨值" and i + 1 < len(rows) and rows[i + 1]:
+            aum = to_num(rows[i + 1][0])
         if "證券代號" in r and "股數" in r:
             header_at = i
             break
@@ -461,7 +500,7 @@ def parse_fhtrust(payload: bytes | str, etf: str) -> ParseResult:
     if header_at is None:
         return _no_stock_table(d, "復華：無持股表")
     body = _table_rows(rows[header_at:], _holding_map("證券代號", "證券名稱", "股數", "權重(%)"), "復華持股表")
-    return ParseResult(_frame(body, etf, d, units), response_date=d)
+    return ParseResult(_frame(body, etf, d, units, aum), response_date=d)
 
 
 # ------------------------------------------------------------------ 國泰投信（GET api/ETF/GetETFList、GetETFDetailStockList）
@@ -491,3 +530,224 @@ def parse_cathay(payload: bytes | str, etf: str, d: date) -> ParseResult:
         result, _holding_map("stockCode", "stockName", "volumn", "weights"), source="國泰 result", infer_types=False
     )
     return ParseResult(_frame(_tuples(df), etf, d), response_date=d)
+
+
+# ------------------------------------------------------------------ 統一投信（ezmoney：GET ETF/Transaction/PCF、POST GetPCF）
+_EZ_FUNDS = re.compile(r"""id=['"]DataFundList['"][^>]*data-content=['"](.*?)['"]""", re.S)
+_DOTNET_DATE = re.compile(r"/Date\((-?\d+)")
+
+
+def parse_uni_funds(payload: bytes | str) -> dict[str, str]:
+    """PCF 頁的 <div id="DataFundList" data-content="…">（HTML 跳脫的 JSON）→ ETF 代號 → 內部基金代碼（sFundCode）。
+    取得這頁同時建立工作階段 cookie（GetPCF 需要）。"""
+    m = _EZ_FUNDS.search(_html_text(payload))
+    if not m:
+        raise ParseError("統一：PCF 頁找不到 DataFundList")
+    funds = load_json(unescape(m.group(1)))
+    if not isinstance(funds, list):
+        raise ParseError("統一：DataFundList 不是清單")
+    return {clean_code(f["sStockNo"]): str(f["sFundCode"]) for f in funds if f.get("sStockNo") and f.get("sFundCode")}
+
+
+def _uni_date(v: Any) -> date | None:
+    """GetPCF 的日期可能是 .NET 格式（/Date(1759766400000)/）或 ISO 字串。"""
+    m = _DOTNET_DATE.search(str(v or ""))
+    if m:
+        from datetime import UTC, datetime, timedelta
+
+        return (datetime.fromtimestamp(int(m.group(1)) / 1000, UTC) + timedelta(hours=8)).date()
+    return parse_date(str(v)[:10]) if v else None
+
+
+def parse_uni(payload: bytes | str, etf: str) -> ParseResult:
+    """GetPCF：asset[] 中 AssetCode＝ST 的 Details 為股票（DetailCode、DetailName、Share、NavRate）；
+    pcf[] 以 PCFCode 為鍵：TranDate＝持股日，NAV＝基金淨資產、OUT_UNIT＝已發行單位數。"""
+    obj = load_json(payload)
+    if not isinstance(obj, dict) or "asset" not in obj:
+        raise ParseError("統一：回應格式不符（缺 asset）")
+    pcf = obj.get("pcf") or []
+    stocks = next((a for a in obj.get("asset") or [] if a.get("AssetCode") == "ST"), None)
+    if not pcf or stocks is None or not stocks.get("Details"):
+        return _empty("統一：查無申購買回清單")
+    d = _uni_date(pcf[0].get("TranDate"))
+    if d is None:
+        raise ParseError("統一：找不到持股日（pcf.TranDate）")
+    amount = {str(r.get("PCFCode")): r.get("Amount") for r in pcf}
+    df = frame_from_records(
+        stocks["Details"], _holding_map("DetailCode", "DetailName", "Share", "NavRate"), source="統一 Details", infer_types=False
+    )
+    return ParseResult(
+        _frame(_tuples(df), etf, d, to_num(amount.get("OUT_UNIT")), to_num(amount.get("NAV"))), response_date=d
+    )
+
+
+# ------------------------------------------------------------------ 中國信託投信（POST API/home/AuthToken、etf/ETFList、etf/ETFHoldingWeight）
+def _ctbc_json(payload: bytes | str) -> Any:
+    """全站 API 的回應可能是「JSON 字串」（雙層編碼）。"""
+    obj = load_json(payload)
+    return load_json(obj) if isinstance(obj, str) else obj
+
+
+def parse_ctbc_token(payload: bytes | str) -> str:
+    """匿名工作階段權杖（網站發給每位訪客，不需登入）；之後的 API 以 ?token= 帶入。"""
+    obj = _ctbc_json(payload)
+    try:
+        return str(obj["Data"]["token"])
+    except (KeyError, TypeError) as exc:
+        raise ParseError("中信：AuthToken 回應格式不符") from exc
+
+
+def parse_ctbc_list(payload: bytes | str) -> dict[str, str]:
+    obj = _ctbc_json(payload)
+    data = obj.get("Data") if isinstance(obj, dict) else None
+    rows = data.get("Data") if isinstance(data, dict) else data
+    if not isinstance(rows, list):
+        raise ParseError("中信：ETFList 格式不符")
+    return {clean_code(r["ETF_ID"]): str(r["FID"]) for r in rows if r.get("ETF_ID") and r.get("FID")}
+
+
+def parse_ctbc(payload: bytes | str, etf: str) -> ParseResult:
+    """StartDate 為查詢日，回應該日（含）以前最近一次揭露；FundAssets[0].資料日期＝持股日；
+    FundAssetsDetail 中 Code＝STOCK 為股票（code_、name_、qty_、weights_），期貨、選擇權、保證金另段。"""
+    obj = _ctbc_json(payload)
+    if not isinstance(obj, dict) or "ResultCode" not in obj:
+        raise ParseError("中信：回應格式不符（缺 ResultCode）")
+    data = obj.get("Data") or {}
+    assets = data.get("FundAssets") if isinstance(data, dict) else None
+    if obj["ResultCode"] != 0 or not assets:
+        return _empty(str(obj.get("ResultMsg") or "中信：查無持股資料"))
+    a = assets[0]
+    d = parse_date(a.get("資料日期"))
+    if d is None:
+        raise ParseError("中信：找不到資料日期")
+    stock = next((g for g in data.get("FundAssetsDetail") or [] if g.get("Code") == "STOCK"), None)
+    if stock is None or not stock.get("Data"):
+        return _no_stock_table(d, "中信：無股票持股")
+    df = frame_from_records(
+        stock["Data"], _holding_map("code_", "name_", "qty_", "weights_"), source="中信 STOCK", infer_types=False
+    )
+    return ParseResult(
+        _frame(_tuples(df), etf, d, to_num(a.get("基金在外流通單位數")), to_num(a.get("基金淨資產"))), response_date=d
+    )
+
+
+# ------------------------------------------------------------------ 安聯投信（etf.allianzgi.com.tw webapi：防偽權杖＋JSON）
+def parse_allianz_token(payload: bytes | str) -> str:
+    """ASP.NET 防偽權杖（與工作階段 cookie 綁定，網站發給每位訪客）；之後的 POST 以 X-XSRF-TOKEN 標頭帶入。"""
+    obj = load_json(payload)
+    if not isinstance(obj, dict) or not obj.get("token"):
+        raise ParseError("安聯：GetAntiForgeryToken 回應格式不符")
+    return str(obj["token"])
+
+
+def parse_allianz_type(payload: bytes | str) -> int:
+    """基金類別清單 → 「主動式」類別的 Id（不寫死，對方調整分類時才不會默默失效）。"""
+    obj = load_json(payload)
+    for e in (obj.get("Entries") if isinstance(obj, dict) else None) or []:
+        if "主動" in str(e.get("Name") or ""):
+            return int(e["Id"])
+    raise ParseError("安聯：基金類別找不到「主動式」")
+
+
+def parse_allianz_funds(payload: bytes | str) -> dict[str, str]:
+    obj = load_json(payload)
+    entries = obj.get("Entries") if isinstance(obj, dict) else None
+    if not isinstance(entries, list):
+        raise ParseError("安聯：基金清單格式不符")
+    return {
+        clean_code(e["SecuritiesCode"]): str(e["FundNo"])
+        for e in entries
+        if str(e.get("SecuritiesCode") or "").strip() and e.get("FundNo")
+    }
+
+
+def parse_allianz(payload: bytes | str, etf: str) -> ParseResult:
+    """Fund/GetFundTradeInfo：Date＝申購買回清單公告日（非公告日回空的 Entries）；CNavDt＝持股日（淨值日）；
+    DynamicTableData 中標題以「股票」開頭的表為持股（列：序號、代號、名稱、股數、權重）。"""
+    obj = load_json(payload)
+    if not isinstance(obj, dict) or "Entries" not in obj:
+        raise ParseError("安聯：回應格式不符（缺 Entries）")
+    e = obj.get("Entries") or {}
+    d = parse_date(str(e.get("CNavDt") or "")[:10]) if e else None
+    if d is None:
+        return _empty("安聯：該日無申購買回清單")
+    table = next((t for t in e.get("DynamicTableData") or [] if str(t.get("TableTitle") or "").startswith("股票")), None)
+    if table is None:
+        return _no_stock_table(d, "安聯：無股票持股表")
+    rows = [(r[1], r[2], r[3], r[4]) for r in table.get("Rows") or [] if isinstance(r, list) and len(r) >= 5]
+    return ParseResult(
+        _frame(rows, etf, d, to_num(e.get("CAnceTotalIssues")), to_num(e.get("CAnceTotalAv"))), response_date=d
+    )
+
+
+# ------------------------------------------------------------------ 摩根投信（GET FundsMarketingHandler/excel，xlsx）
+_JPM_TITLE = re.compile(r"\((\d{4}-\d{2}-\d{2})\)")
+_JPM_NAV = re.compile(r"(\d{4}/\d{1,2}/\d{1,2})\s*每受益權單位淨資產價值")
+
+
+def parse_jpmorgan(payload: bytes | str, etf: str) -> ParseResult:
+    """type=holding_pcf：date＝持股日；第 1 張工作表標題「基金資產 - 股票 (YYYY-MM-DD)」，表頭「股票代碼／股票名稱／股數／金額／權重(%)」。
+    沒有資料時回 HTTP 404 的 JSON（呼叫端視為查無）。"""
+    if isinstance(payload, str) or not payload.startswith(b"PK"):
+        return _empty("摩根：查無持股（非交易日或尚未公告）")
+    rows = xlsx_rows(payload)
+    m = _JPM_TITLE.search(rows[0][0]) if rows and rows[0] else None
+    d = parse_date(m.group(1)) if m else None
+    if d is None:
+        raise ParseError("摩根：找不到工作表標題的持股日")
+    header_at = next((i for i, r in enumerate(rows) if "股票代碼" in r and "股數" in r), None)
+    if header_at is None:
+        return _no_stock_table(d, "摩根：無股票持股表")
+    body = _table_rows(rows[header_at:], _holding_map("股票代碼", "股票名稱", "股數", "權重(%)"), "摩根持股表")
+    return ParseResult(_frame(body, etf, d), response_date=d)
+
+
+def parse_jpmorgan_units(payload: bytes | str) -> tuple[date | None, float | None, float | None]:
+    """type=m12_pcf（現金申購買回清單公告，date＝公告日）→（淨值日, 已發行受益權單位總數, 基金淨資產價值）；
+    「標籤, 值」兩欄。取不到回三個 None。"""
+    if isinstance(payload, str) or not payload.startswith(b"PK"):
+        return None, None, None
+    try:
+        rows = xlsx_rows(payload)
+    except ParseError:
+        return None, None, None
+    d, units, aum = None, None, None
+    for r in rows:
+        if len(r) < 2:
+            continue
+        label = r[0].strip()
+        if label.startswith("已發行受益權單位總數"):
+            units = to_num(r[1])
+        elif label.startswith("基金淨資產價值"):
+            aum = to_num(r[1])
+        elif (m := _JPM_NAV.search(label)) is not None:
+            d = parse_date(m.group(1))
+    return d, units, aum
+
+
+# ------------------------------------------------------------------ 永豐投信（GET sitc.sinopac.com SinopacEtfs/Etfs/SinglePcf/{etf}，HTML）
+_SINOPAC_DATE = re.compile(r"資料日期：\s*(\d{4}/\d{1,2}/\d{1,2})")
+
+
+def parse_sinopac(payload: bytes | str, etf: str) -> ParseResult:
+    """只有最新一份。頁面留有全系列 ETF 的空白表格模板：取第一個「資料日期：」之後、第一張有資料列的
+    「證券代碼／證券名稱／股數／佔基金淨資產之權重(%)」表；單位數與淨資產也取同一段（其他基金的殘留區塊在後面）。"""
+    text = unescape(_html_text(payload))
+    if f"{etf}" not in text:
+        raise ParseError(f"永豐：頁面沒有 {etf}")
+    m = _SINOPAC_DATE.search(text)
+    if not m:
+        return _empty("永豐：找不到資料日期（尚未公告）")
+    d = parse_date(m.group(1))
+    if d is None:
+        raise ParseError(f"永豐：無法解析資料日期 {m.group(1)!r}")
+    rest = text[m.end() :]
+    for rows in _html_tables(rest):
+        if rows and "證券代碼" in rows[0] and len(rows) > 1:
+            body = _table_rows(rows, _holding_map("證券代碼", "證券名稱", "股數", "佔基金淨資產之權重(%)"), "永豐持股表")
+            if body:
+                head = rest[: rest.find("證券代碼")]
+                units = _label_number(head, "基金在外流通單位數")
+                aum = _label_number(head, "基金淨資產價值(元)")
+                return ParseResult(_frame(body, etf, d, units, aum), response_date=d)
+    return _no_stock_table(d, "永豐：無股票持股表")
