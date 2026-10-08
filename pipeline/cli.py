@@ -25,6 +25,10 @@ log = logging.getLogger("pipeline")
 SCHEDULE_TASKS = {
     # 2026-10-06：依資料新鮮度補抓（config/schedule.yml freshness.catchup；pipeline/freshness.py）
     # 取代原本 14:15／15:30／21:30 的分段更新排程（10/5 那兩段排程整個沒觸發、第一段延後 8 小時且只抓收盤行情段）。
+    # 2026-10-07：08:05／10:05／12:05 是接力的起跑點（排程延遲 5–7 小時時，任何一次觸發都能接上當天的接力）
+    "5 0 * * 1-5": "catchup",  # 08:05（台北）
+    "5 2 * * 1-5": "catchup",  # 10:05（台北）
+    "5 4 * * 1-5": "catchup",  # 12:05（台北）
     "15 7 * * 1-5": "catchup",  # 15:15（台北）收盤行情、指數、分鐘 K
     "30 8 * * 1-5": "catchup",  # 16:30（台北）三大法人、期貨法人、本益比、外資持股
     "30 14 * * 1-5": "catchup",  # 22:30（台北）融資融券、借券、當沖
@@ -230,35 +234,67 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def run_catchup_task(ctx: Any, args: argparse.Namespace) -> dict[str, object]:
-    """依資料新鮮度補抓（pipeline/freshness.py）。重試的那一次先等到 not_before（最多 65 分鐘）。
+    """依資料新鮮度補抓（pipeline/freshness.py）。接力的那一次先等到 not_before（最多 relay.max_wait_minutes）。
 
-    缺漏仍在 → 以 workflow_dispatch 觸發下一次（attempt+1、not_before＝現在＋retry_minutes），最多 max_retries 次；
+    結束時接力（2026-10-07）：預約下一次＝重試時間（缺漏仍在、attempt＋1，最多 max_retries 次）與今天下一個預期公布時間
+    取早的（freshness.plan_next）；已有不晚於它的接力在等就不再觸發（freshness.relay_decision）。
     分鐘 K 還欠 → 觸發 kbar 任務（排程可能被 GitHub 延遲或丟掉）。
     """
     from pipeline import freshness
 
     attempt = int(getattr(args, "attempt", "") or 1)
+    max_wait = int(freshness.relay_config().get("max_wait_minutes", 300))
     nb = getattr(args, "not_before", "") or ""
     if nb:
         wait = (datetime.fromisoformat(nb) - now_tpe()).total_seconds()
         if wait > 0:
-            log.info("重試第 %d 次：等到 %s（%d 分鐘）", attempt, nb, round(wait / 60))
-            time.sleep(min(wait, 65 * 60))
+            log.info("接力（第 %d 次）：等到 %s（%d 分鐘）", attempt, nb, round(wait / 60))
+            time.sleep(min(wait, (max_wait + 5) * 60))
+            from pipeline.gitdata import refresh
+
+            # 睡了數小時：其他任務可能已推進 data 分支 → 同步到最新再判斷缺什麼（不重抓別人已抓到的）
+            if refresh(Path(args.data_dir)) == "refreshed":
+                ctx.manifest = ctx.store.load_manifest()
         ctx.now = now_tpe()
     extra: dict[str, object] = dict(freshness.run_catchup(ctx, attempt=attempt))
     ref = os.environ.get("GITHUB_REF_NAME", "main")
     from pipeline.notify.github import dispatch_workflow
 
-    state = ctx.manifest.get("freshness") or {}
-    if extra.get("retry") and args.chain:
-        extra["retry_dispatched"] = dispatch_workflow(
-            "data.yml",
-            {"task": "catchup", "attempt": str(attempt + 1), "not_before": str(state.get("next_retry") or "")},
-            ref=ref,
+    if args.chain:
+        state = ctx.manifest.get("freshness") or {}
+        retry_at = (
+            datetime.fromisoformat(state["next_retry"]) if extra.get("retry") and state.get("next_retry") else None
         )
+        now = now_tpe()
+        plan = freshness.plan_next(now, attempt, retry_at, freshness.next_due_at(ctx.calendar, now), max_wait)
+        if plan:
+            res = dispatch_relay(*plan, ref=ref)
+            extra["relay"] = res
+            # 實際會醒來的那一棒（已有較早的在等 → 記那一棒的時間）；資料健康頁、執行摘要看得到
+            state["next_run"] = None if res == "failed" else res.removeprefix("skip:")
     if args.chain and freshness.kbar_due(ctx.manifest, ctx.calendar, ctx.now) and attempt == 1:
         extra["kbar_dispatched"] = dispatch_workflow("data.yml", {"task": "kbar"}, ref=ref)
     return extra
+
+
+def dispatch_relay(not_before: datetime, attempt: int, ref: str = "main") -> str:
+    """觸發下一棒補抓接力；同時只留一棒（不晚於 not_before 的已在等 → 略過；比它晚的 → 取消再觸發）。"""
+    from pipeline import freshness
+    from pipeline.notify.github import alive_relays, cancel_run, dispatch_workflow
+
+    nb = not_before.isoformat(timespec="minutes")
+    alive = alive_relays() or []
+    go, cancel = freshness.relay_decision(not_before, alive)
+    if not go:
+        waiting = min(t for _, t in alive).isoformat(timespec="minutes")
+        log.info("接力：已有 %s 的接力在等，不再觸發 %s", waiting, nb)
+        return f"skip:{waiting}"
+    for rid in cancel:
+        log.info("接力：取消較晚的接力 run %s", rid)
+        cancel_run(rid)
+    ok = dispatch_workflow("data.yml", {"task": "catchup", "attempt": str(attempt), "not_before": nb}, ref=ref)
+    log.info("接力：預約 %s（第 %d 次）%s", nb, attempt, "" if ok else "失敗")
+    return nb if ok else "failed"
 
 
 def run_probe(ctx: Any, args: argparse.Namespace) -> dict[str, object]:
@@ -597,8 +633,10 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--chain", action="store_true", help="回補未完成時自動觸發下一輪")
     run.add_argument("--refresh", default="", help="回補時重抓已存在的每日型檔案（true／false；需指定 --source）")
     run.add_argument("--stage", default="", help="分段更新：close／insti／credit（config/schedule.yml）")
-    run.add_argument("--attempt", default="", help="補抓（catchup）第幾次；重試由前一次以 workflow_dispatch 觸發")
-    run.add_argument("--not-before", dest="not_before", default="", help="補抓重試：等到這個時間（ISO，台北）才開始")
+    run.add_argument("--attempt", default="", help="補抓（catchup）第幾次；重試與接力由前一次以 workflow_dispatch 觸發")
+    run.add_argument(
+        "--not-before", dest="not_before", default="", help="補抓重試／接力：等到這個時間（ISO，台北）才開始"
+    )
     run.set_defaults(func=cmd_run)
 
     for name in ("daily", "periodic", "backfill", HOLDERS_TASK):

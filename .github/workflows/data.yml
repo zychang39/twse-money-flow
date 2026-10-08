@@ -1,11 +1,19 @@
 # 資料 workflow：所有邏輯在 python -m pipeline，YAML 只負責排程與環境。
 name: Data
+# 補抓接力（catchup＋not_before）的標題帶預約時間，pipeline 用它找「已在等的接力」，同時只留一棒（pipeline/notify/github.py）
+run-name: ${{ (inputs.task == 'catchup' && inputs.not_before != '') && format('Data · 補抓接力 {0}', inputs.not_before) || 'Data' }}
 on:
   schedule:
     # GitHub cron 一律是 UTC；右邊註明對應的台北時間（UTC+8，台灣沒有日光節約）。
     # 2026-10-06：GitHub 排程在負載高時會延遲數小時甚至整個不觸發（10/5 的 15:30、21:30 都沒觸發，14:15 延到 22:38）。
     # 因此交易日改成三次「依資料新鮮度補抓」（catchup，pipeline/freshness.py）：每次只抓依規則應已公布但還沒拿到的資料集，
     # 與是哪一次觸發無關；有缺漏時 1 小時後以 workflow_dispatch 再試（最多 3 次，dispatch 不會被延遲）。
+    # 2026-10-07：10/6、10/7 排程仍連續延遲 5–7 小時 → 每次補抓結束時以 workflow_dispatch 預約下一次（接力）：
+    # 今天下一個預期公布時間（15:00／16:00／17:00／22:00＋2 分鐘）。當天只要有一次排程觸發，之後就不再依賴排程。
+    # 08:05／10:05／12:05 是起跑點（補前一天的缺漏，並接上當天的接力）；15:15／16:30／22:30 留作備援。
+    - cron: "5 0 * * 1-5"       # 週一至五 00:05 UTC＝台北 08:05：接力起跑點
+    - cron: "5 2 * * 1-5"       # 週一至五 02:05 UTC＝台北 10:05：接力起跑點
+    - cron: "5 4 * * 1-5"       # 週一至五 04:05 UTC＝台北 12:05：接力起跑點
     - cron: "15 7 * * 1-5"      # 週一至五 07:15 UTC＝台北 15:15：收盤行情、指數、分鐘 K（預期 15:00）
     - cron: "30 8 * * 1-5"      # 週一至五 08:30 UTC＝台北 16:30：三大法人、期貨法人（預期 16:00）、本益比、外資持股
     - cron: "30 14 * * 1-5"     # 週一至五 14:30 UTC＝台北 22:30：融資融券、借券、當沖（預期 22:00）
@@ -65,6 +73,7 @@ permissions:
 # v3 M0：再依 source 分群（lane=0/2、lane=1/2 兩道平行；空白或 lanes=2 是只負責觸發兩道的分派者）。
 # M3.4：公布時間實測（probe）只抓取不寫資料，用 publish-probe 群組。
 # 2026-10-06：補抓的重試（catchup＋not_before，會先等 1 小時）用 data-retry 群組，等待時不擋排程的補抓與每日任務。
+# 2026-10-07：補抓接力也是 catchup＋not_before（最多等 300 分鐘），同樣在 data-retry 群組；同時只留一棒。
 # 2026-10：個股 5 分 K（kbar，約 2,400 檔 × 1–2 次／秒）用自己的 kbar 群組，不擋分段更新；每段最多 60 分鐘、跑不完自動接續。
 # E-05：回補用獨立的 data-backfill 群組（每段最多 40 分鐘、交易日 16:30–22:30 不開始新的一段），
 # 不再和每日任務排同一個佇列（GitHub 同一群組只保留最新一個等待中的 run，長時間回補會把排程的每日任務擠掉）。
@@ -133,8 +142,9 @@ jobs:
           --attempt "${{ inputs.attempt }}" --not-before "${{ inputs.not_before }}"
       - if: always() && steps.prepare.outcome == 'success'
         run: python -m pipeline commit-data --data-dir data
-      # resume（22:40）只觸發延後的回補，不抓資料、沒有執行摘要，不回報
-      - if: always() && github.event.schedule != '40 14 * * 1-5'
+      # resume（22:40）只觸發延後的回補，不抓資料、沒有執行摘要，不回報；
+      # 被取消的不回報（2026-10-07：較晚的接力在等待中被較早的取代時會被取消，不是資料失敗）
+      - if: ${{ !cancelled() && github.event.schedule != '40 14 * * 1-5' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python -m pipeline report --data-dir data --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

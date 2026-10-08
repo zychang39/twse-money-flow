@@ -1,4 +1,4 @@
-"""GitHub REST：data-failure Issue、workflow dispatch（回補續跑）、排程保活。
+"""GitHub REST：data-failure Issue、workflow dispatch（回補續跑、補抓接力）、排程保活。
 
 只使用 Actions 提供的 GITHUB_TOKEN（環境變數），不存放任何密鑰。
 """
@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime
 from typing import Any
 
 import requests
@@ -108,6 +109,53 @@ def dispatch_workflow(workflow: str, inputs: dict[str, str], ref: str = "main") 
     )
     if r.status_code >= 300:
         log.warning("dispatch 失敗：%s %s", r.status_code, r.text[:200])
+        return False
+    return True
+
+
+# data.yml 的 run-name：補抓接力（catchup＋not_before）的執行標題是「Data · 補抓接力 <not_before>」
+RELAY_TITLE = "補抓接力 "
+
+
+def alive_relays(workflow: str = "data.yml") -> list[tuple[int, datetime]] | None:
+    """還沒結束（等待中或執行中）的補抓接力：[(run id, not_before)]，不含自己；查不到 → None。"""
+    env = _env()
+    if env is None:
+        return None
+    token, repo = env
+    try:
+        r = requests.get(
+            f"{API}/repos/{repo}/actions/workflows/{workflow}/runs",
+            headers=_headers(token),
+            params={"event": "workflow_dispatch", "per_page": "100"},
+            timeout=30,
+        )
+        r.raise_for_status()
+        runs = r.json().get("workflow_runs", [])
+    except (requests.RequestException, ValueError) as exc:
+        log.warning("查詢接力失敗：%s", exc)
+        return None
+    me = os.environ.get("GITHUB_RUN_ID", "")
+    out = []
+    for run in runs:
+        title = str(run.get("display_title") or "")
+        if run.get("status") == "completed" or str(run.get("id")) == me or RELAY_TITLE not in title:
+            continue
+        try:
+            out.append((int(run["id"]), datetime.fromisoformat(title.split(RELAY_TITLE, 1)[1].strip())))
+        except (KeyError, ValueError):
+            continue
+    return out
+
+
+def cancel_run(run_id: int) -> bool:
+    env = _env()
+    if env is None:
+        return False
+    token, repo = env
+    r = requests.post(f"{API}/repos/{repo}/actions/runs/{run_id}/cancel", headers=_headers(token), timeout=30)
+    if r.status_code >= 300:
+        log.warning("取消 run %s 失敗：%s", run_id, r.status_code)
         return False
     return True
 

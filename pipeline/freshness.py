@@ -9,6 +9,8 @@
   10/5 的教訓：GitHub 排程延遲 8 小時以上、甚至整個掉了（15:30、21:30 兩次都沒觸發），而 22:38 才跑的 14:15 那一段
   只抓「收盤行情」段的來源——三大法人、融資融券早已公布卻沒有抓。改成依新鮮度補抓後，任何一次觸發都會把該有的都補齊。
 - 補抓後仍有缺漏 → 以 workflow_dispatch 觸發下一次（1 小時後，最多 3 次；dispatch 不像 schedule 會被延遲或丟掉）。
+- 接力（2026-10-07）：每次補抓結束時預約下一次＝今天下一個還沒到的預期公布時間（或重試時間，取早的）；
+  10/6、10/7 排程連續延遲 5–7 小時，當天只要有一次觸發，之後就不再依賴排程（plan_next、relay_decision）。
 - 每次的結果寫在 manifest `freshness`（缺哪些、第幾次、下次重試時間），資料健康頁與執行摘要看得到；不靜默失敗。
 """
 
@@ -198,3 +200,41 @@ def kbar_due(manifest: dict[str, Any], cal: TradingCalendar, now: datetime) -> b
     due = due_date("intraday", cal, now).isoformat()
     st = manifest.get("kbar") or {}
     return st.get("target") != due or bool(st.get("remaining"))
+
+
+def relay_config() -> dict[str, Any]:
+    return dict(table()["catchup"].get("relay") or {})
+
+
+def next_due_at(cal: TradingCalendar, now: datetime) -> datetime | None:
+    """今天（交易日）下一個還沒到的預期公布時間＋offset；今天都過了或休市 → None（隔天由排程起跑）。"""
+    if not cal.is_trading_day(now.date()):
+        return None
+    offset = int(relay_config().get("offset_minutes", 2))
+    for h, m in sorted({_hm(str(d["time"])) for d in datasets().values()}):
+        if (h, m) > (now.hour, now.minute):
+            return now.replace(hour=h, minute=m, second=0, microsecond=0) + timedelta(minutes=offset)
+    return None
+
+
+def plan_next(
+    now: datetime, attempt: int, retry_at: datetime | None, due_at: datetime | None, max_wait_minutes: int
+) -> tuple[datetime, int] | None:
+    """下一棒（not_before, attempt）：重試時間與下一個預期公布時間取早的；超過 max_wait 先等到上限（中繼）。
+
+    有重試時 attempt＋1（就算先醒來的是下一個公布時間，也照算重試次數，第 4 次仍記 failed）；沒有重試從 1 起算。
+    """
+    cands = [t for t in (retry_at, due_at) if t is not None]
+    if not cands:
+        return None
+    target = min(cands)
+    cap = now + timedelta(minutes=max_wait_minutes)
+    return min(target, cap).replace(second=0, microsecond=0), attempt + 1 if retry_at is not None else 1
+
+
+def relay_decision(target: datetime, alive: list[tuple[int, datetime]]) -> tuple[bool, list[int]]:
+    """（要不要觸發, 要取消的 run id）。已有不晚於 target 的接力在等 → 不觸發；只有比 target 晚的 → 取消它們再觸發
+    （同一個 data-retry 群組一次只跑一個，晚的那棒在睡就會擋住早的）。"""
+    if any(nb <= target for _, nb in alive):
+        return False, []
+    return True, [rid for rid, _ in alive]

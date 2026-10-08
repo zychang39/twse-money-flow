@@ -39,6 +39,22 @@ def prepare(data_dir: Path) -> str:
     return "created"
 
 
+def refresh(data_dir: Path) -> str:
+    """同步到遠端最新（2026-10-07：補抓接力會先睡數小時，這段期間其他任務可能已推進 data 分支）。
+
+    只在工作目錄乾淨時做（還沒寫任何檔案）；不是 git 工作目錄、有改動或抓不到 → 不動，照舊靠推送時 rebase。"""
+    if not (data_dir / ".git").exists():
+        return "skip"
+    if _git("status", "--porcelain", cwd=data_dir, check=False):
+        return "dirty"
+    res = subprocess.run(["git", "fetch", "--depth=1", "origin", BRANCH], cwd=data_dir, capture_output=True, text=True)
+    if res.returncode != 0:
+        log.warning("接力醒來後同步 data 分支失敗：%s", res.stderr.strip())
+        return "fetch-failed"
+    _git("reset", "-q", "--hard", "FETCH_HEAD", cwd=data_dir)
+    return "refreshed"
+
+
 def merge_manifests(ours: dict[str, Any], theirs: dict[str, Any]) -> dict[str, Any]:
     """E-05：每日任務與回補同時寫入 data 分支時，合併兩邊的 manifest（不是整份覆蓋）。
 
