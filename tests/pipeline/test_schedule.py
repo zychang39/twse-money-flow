@@ -451,3 +451,32 @@ def test_data_yml_holders_lanes_have_own_groups():
     """兩道各自一個 concurrency group（holders-backfill-lane=0/2…），不互相排隊。"""
     text = (Path(__file__).resolve().parents[2] / ".github/workflows/data.yml").read_text(encoding="utf-8")
     assert "format('holders-backfill-{0}', inputs.source)" in text
+
+
+def test_kbar_deploys_only_on_last_segment():
+    """2026-10-08：5 分 K 分段只有最後一段（或下一段沒有接上）才部署，不再每段都佔住部署佇列。"""
+    from pipeline.cli import kbar_should_deploy
+
+    assert not kbar_should_deploy({"progressed": False, "remaining": 0})
+    assert not kbar_should_deploy({"progressed": True, "remaining": 300, "chained": True})
+    assert kbar_should_deploy({"progressed": True, "remaining": 300, "chained": False})
+    assert kbar_should_deploy({"progressed": True, "remaining": 300})  # 本機執行（沒有接續）
+    assert kbar_should_deploy({"progressed": True, "remaining": 0})
+
+
+def test_data_workflow_dispatches_deploy_without_waiting():
+    """2026-10-08：data.yml 觸發 deploy.yml 就結束（不再以 reusable workflow 等部署完成，佔住 concurrency 群組）；
+    deploy.yml 的 workflow_dispatch 接受 digest（盤後日報）。"""
+    from pathlib import Path
+
+    import yaml
+
+    root = Path(__file__).parents[2] / ".github" / "workflows"
+    data = yaml.safe_load((root / "data.yml").read_text(encoding="utf-8"))
+    assert "deploy" not in data["jobs"]
+    steps = data["jobs"]["data"]["steps"]
+    run = [s for s in steps if "gh workflow run deploy.yml" in str(s.get("run", ""))]
+    assert len(run) == 1 and "github.ref_name == 'main'" in run[0]["if"] and "digest" in run[0]["run"]
+    deploy = yaml.safe_load((root / "deploy.yml").read_text(encoding="utf-8"))
+    on = deploy[True]
+    assert on["workflow_dispatch"]["inputs"]["digest"]["default"] == "false"
