@@ -18,7 +18,7 @@ from pipeline.sources import etf_holdings as eh
 from pipeline.sources.base import ParseError
 from tests.pipeline.conftest import sample
 
-COLS = ["date", "etf", "code", "name", "shares", "weight", "units"]
+COLS = ["date", "etf", "code", "name", "shares", "weight", "units", "aum", "foreign"]
 
 
 def test_nomura():
@@ -55,8 +55,9 @@ def test_capital_uses_nav_date_and_fund_map():
 def test_yuanta_keeps_only_taiwan_listed():
     res = eh.parse_yuanta(sample("etf_yuanta_00990A.json"), "00990A")
     assert res.response_date == date(2026, 9, 22)  # PCF.trandate（公告日 2026-09-24）
-    assert list(res.df["code"]) == ["2454", "2308", "2330", "2383"]
-    assert not any(" " in c for c in res.df["code"])  # 美股（如 LITE US）略過
+    tw = res.df[~res.df["foreign"]]
+    assert list(tw["code"]) == ["2454", "2308", "2330", "2383"]
+    assert "LITE US" in set(res.df.loc[res.df["foreign"], "code"])  # 美股保留並標 foreign（2026-10-09）
     assert set(res.df["units"]) == {2361522000.0}  # PCF.osunit（trandate 當日；preunit 是下一日預估，不用）
     assert eh.parse_yuanta(sample("etf_yuanta_nodata.json"), "00990A").no_data
 
@@ -91,8 +92,9 @@ def test_taishin_html_uses_nav_label_and_bloomberg_codes():
     res = eh.parse_taishin(sample("etf_taishin_00986A.html"), "00986A")
     assert res.response_date == date(2026, 10, 1)
     assert list(res.df.columns) == COLS
-    # 彭博代碼「2330 TT」去掉 TT；海外持股（NVDA US、GOOGL US…）不列入
-    assert list(res.df["code"]) == ["2330"]
+    # 彭博代碼「2330 TT」去掉 TT；海外持股（NVDA US、GOOGL US…）保留並標 foreign（2026-10-09）
+    assert list(res.df.loc[~res.df["foreign"], "code"]) == ["2330"]
+    assert "NVDA US" in set(res.df.loc[res.df["foreign"], "code"])
     row = res.df.iloc[0]
     assert (row["name"], row["shares"], row["weight"]) == ("台積電", 18000.0, 7.6628)
     assert row["units"] == 39327000.0  # 「已發行受益權單位總數」（淨資產 ÷ 單位數 ＝ 14.81）
@@ -151,8 +153,10 @@ def test_fsitc_webmethod_nested_json():
 def test_fhtrust_xlsx_stdlib_reader():
     res = eh.parse_fhtrust(sample("etf_fhtrust_ETF26.xlsx"), "00409A")
     assert res.response_date == date(2026, 10, 1)  # 工作表「日期: 2026/10/01」
-    codes = list(res.df["code"])
-    assert "8046" in codes and codes[-1] == "2360" and not any(" " in c for c in codes)  # LITE US、009150 KS 等海外略過
+    tw = res.df[~res.df["foreign"]]
+    codes = list(tw["code"])
+    assert "8046" in codes and codes[-1] == "2360" and not any(" " in c for c in codes)
+    assert {"LITE US", "009150 KS"} <= set(res.df.loc[res.df["foreign"], "code"])  # 海外持股保留（2026-10-09）
     row = res.df.set_index("code").loc["8046"]
     assert (row["name"], row["shares"], row["weight"]) == ("南亞電路", 446000.0, 4.078)
     assert row["units"] == 1502948000.0  # 摘要區「基金在外流通單位數」的下一列
@@ -212,6 +216,7 @@ class JsonFakeClient:
     def __init__(self, routes: dict[str, bytes | Exception]):
         self.routes = routes
         self.calls: list[str] = []
+        self.headers: list[dict[str, str]] = []
         self.request_count = 0
 
     def _hit(self, key: str) -> bytes:
@@ -224,13 +229,15 @@ class JsonFakeClient:
                 return payload
         return b'{"code":400,"data":null,"message":"not found"}'
 
-    def get_bytes(self, url: str) -> bytes:
+    def get_bytes(self, url: str, headers: dict[str, str] | None = None) -> bytes:
+        self.headers.append(headers or {})
         return self._hit(url)
 
     def post_bytes(self, url: str, data: dict[str, str]) -> bytes:
         return self._hit(url)
 
-    def post_json(self, url: str, body: dict[str, object]) -> bytes:
+    def post_json(self, url: str, body: dict[str, object], headers: dict[str, str] | None = None) -> bytes:
+        self.headers.append(headers or {})
         return self._hit(url + " " + " ".join(f"{k}={v}" for k, v in body.items()))
 
 
@@ -265,8 +272,9 @@ def test_run_daily_fetches_supported_issuers_and_heals(tmp_path):
     )
     tasks_advanced.run_etf_holdings(ctx, date(2026, 9, 24))
     calls = ctx.client.calls  # type: ignore[attr-defined]
-    # 國泰（WAF 擋本工具 User-Agent）、統一（導向循環）依規則跳過：完全不發出請求
-    assert not any("cathaysite" in c or "ezmoney" in c for c in calls)
+    # 國泰（WAF 擋本工具 User-Agent）依規則跳過：完全不發出請求；統一的 PCF 頁回應不符 → 本輪停用（只請求一次）
+    assert not any("cathaysite" in c for c in calls)
+    assert len([c for c in calls if "ezmoney" in c]) == 1
     h = ctx.store.read_range("etf_holdings")
     assert set(h["etf"]) == {"00980A", "00982A"}
     assert sorted(h[h["etf"] == "00982A"]["date"].unique()) == ["2026-09-23"]
@@ -320,8 +328,8 @@ def test_run_replaces_same_day_holdings(tmp_path):
     ctx = _ctx(tmp_path, {})
     old = pd.DataFrame(
         [
-            ["2026-09-24", "00400A", "9999", "已賣出", 1000.0, 1.0, None],
-            ["2026-09-23", "00400A", "9999", "已賣出", 1000.0, 1.0, None],
+            ["2026-09-24", "00400A", "9999", "已賣出", 1000.0, 1.0, None, None, False],
+            ["2026-09-23", "00400A", "9999", "已賣出", 1000.0, 1.0, None, None, False],
         ],
         columns=COLS,
     )
@@ -380,3 +388,147 @@ def test_backfill_stops_after_consecutive_empty_days(tmp_path):
     tasks_advanced.run_etf_holdings(ctx, days[0], days=days)
     calls = ctx.client.calls  # type: ignore[attr-defined]
     assert len([c for c in calls if "GetFundAssets" in c]) == tasks_advanced.BACKFILL_EMPTY_STOP
+
+
+# ------------------------------------------------------------------ 2026-10-09：統一、中信、安聯、摩根、永豐；海外持股
+def test_holding_code_marks_overseas():
+    assert eh.holding_code("2330 TT") == ("2330", False)
+    assert eh.holding_code(" 00981A ") == ("00981A", False)
+    assert eh.holding_code("NVDA  US") == ("NVDA US", True)
+    assert eh.holding_code("8411 JP") == ("8411 JP", True)  # 日股 4 碼代號帶市場字尾 → 海外
+    assert eh.holding_code("nvda") == ("NVDA", True)
+
+
+def test_ctbc_holdings_and_overseas():
+    assert eh.parse_ctbc_list(sample("etf_ctbc_list.json"))["00406A"] == "E0038"
+    # StartDate 10/04（週日）→ 回最近一次揭露 10/02；股票段之外（期貨、選擇權、保證金、現金）不列入
+    res = eh.parse_ctbc(sample("etf_ctbc_E0038.json"), "00406A")
+    assert res.response_date == date(2026, 10, 2) and list(res.df.columns) == COLS
+    row = res.df.iloc[0]
+    assert (row["code"], row["shares"], row["weight"], row["foreign"]) == ("2330", 2369000.0, 9.44, False)
+    assert (row["units"], row["aum"]) == (6239562000.0, 63053774732.0)
+    assert not set(res.df["code"]) & {"TX", "TXV", "TX1"}
+    us = eh.parse_ctbc(sample("etf_ctbc_E0034.json"), "00983A")
+    assert us.df["foreign"].all() and us.df.iloc[0][["code", "name"]].tolist() == ["TSLA US", "特斯拉公司"]
+    assert eh.parse_ctbc(b'{"ResultCode":1,"ResultMsg":"no data","Data":null}', "00406A").no_data
+    assert eh.parse_ctbc(b'"{\\"ResultCode\\":1,\\"Data\\":null}"', "00406A").no_data  # 雙層編碼
+
+
+def test_allianz_holdings():
+    assert eh.parse_allianz_type(sample("etf_allianz_types.json")) == 6
+    assert eh.parse_allianz_funds(sample("etf_allianz_funds.json")) == {
+        "00984A": "E0001",
+        "00993A": "E0002",
+        "00402A": "E0003",
+        "00412A": "E0004",
+    }
+    res = eh.parse_allianz(sample("etf_allianz_E0002.json"), "00993A")
+    assert res.response_date == date(2026, 10, 7)  # 公告日 10/08 → CNavDt 10/07
+    row = res.df.iloc[0]
+    assert (row["code"], row["name"], row["shares"], row["weight"]) == ("2330", "台積電", 341000.0, 8.43)
+    assert (row["units"], row["aum"]) == (715591000.0, 10474380388.0)
+    assert "TX" not in set(res.df["code"])  # 期貨表不列入
+    us = eh.parse_allianz(sample("etf_allianz_E0003.json"), "00402A")
+    assert us.response_date == date(2026, 10, 6) and us.df["foreign"].all()
+    assert us.df.iloc[0]["name"] == "NVIDIA Corp"  # 海外名稱保留空白
+    assert eh.parse_allianz(sample("etf_allianz_nodata.json"), "00993A").no_data
+
+
+def test_jpmorgan_xlsx():
+    res = eh.parse_jpmorgan(sample("etf_jpmorgan_00401A.xlsx"), "00401A")
+    assert res.response_date == date(2026, 10, 8) and len(res.df) == 56
+    assert res.df.iloc[0][["code", "shares", "weight"]].tolist() == ["2330", 300960.0, 20.38]
+    assert eh.parse_jpmorgan(sample("etf_jpmorgan_nodata.json"), "00401A").no_data  # HTTP 404 的 JSON
+    # m12_pcf（10/08 公告）：淨值日 10/07、單位數與淨資產
+    assert eh.parse_jpmorgan_units(sample("etf_jpmorgan_m12_00401A.xlsx")) == (
+        date(2026, 10, 7),
+        259395000.0,
+        3799022067.0,
+    )
+    assert eh.parse_jpmorgan_units(b"<html>") == (None, None, None)
+
+
+def test_sinopac_first_filled_table_only():
+    res = eh.parse_sinopac(sample("etf_sinopac_00410A.html"), "00410A")
+    assert res.response_date == date(2026, 10, 8) and len(res.df) == 28
+    assert res.df.iloc[0][["code", "name", "shares", "weight"]].tolist() == ["2330", "台積電", 45000.0, 5.75]
+    assert (res.df.iloc[0]["units"], res.df.iloc[0]["aum"]) == (153860000.0, 1998107444.0)
+    with pytest.raises(ParseError):
+        eh.parse_sinopac(sample("etf_sinopac_00410A.html"), "00999A")
+
+
+def test_fhtrust_global_fund_keeps_overseas_and_aum():
+    """00998A（全球金融）全部是海外持股：2026-10-09 以前全被略過，清單顯示「無持股資料」。"""
+    res = eh.parse_fhtrust(sample("etf_fhtrust_ETF24.xlsx"), "00998A")
+    assert len(res.df) == 55 and res.df["foreign"].all()
+    assert res.df.iloc[0][["code", "shares", "aum"]].tolist() == ["ABN NA", 170000.0, 6297329228.0]
+
+
+def test_fetcher_new_issuers(tmp_path):
+    routes = {
+        "AuthToken": b'{"ResultCode":0,"ResultMsg":"","Data":{"token":"abc+/="}}',
+        "ETFList": sample("etf_ctbc_list.json"),
+        "FID=E0038 StartDate=2026/10/04": sample("etf_ctbc_E0038.json"),
+        "list-trade": b"<html></html>",
+        "GetAntiForgeryToken": b'{"token":"xsrf"}',
+        "GetFundTypeDropdownOptions": sample("etf_allianz_types.json"),
+        "GetFundDropdownOptions TypeId=6": sample("etf_allianz_funds.json"),
+        "GetFundTradeInfo Type=1 Keyword= FundNo=E0002 Date=2026-10-08": sample("etf_allianz_E0002.json"),
+        "type=holding_pcf&cusip=TW00000401A1&country=tw&role=twetf&locale=zh-TW&date=2026-10-08": sample(
+            "etf_jpmorgan_00401A.xlsx"
+        ),
+        "type=m12_pcf&cusip=TW00000401A1&country=tw&role=twetf&locale=zh-TW&date=2026-10-12": sample(
+            "etf_jpmorgan_m12_00401A.xlsx"
+        ),
+        "date=2026-10-07": FetchError("HTTP 404：https://am.jpmorgan.com/..."),
+        "SinglePcf/00410A": sample("etf_sinopac_00410A.html"),
+    }
+    ctx = _ctx(tmp_path, routes, now=datetime(2026, 10, 12, 21, 0, tzinfo=TPE))
+    f = tasks_advanced._EtfFetcher(ctx, config.source("active_etf")["issuers"])
+    assert f.fetch("ctbc", "00406A", date(2026, 10, 4)).response_date == date(2026, 10, 2)
+    assert f.fetch("allianz", "00993A", date(2026, 10, 8)).response_date == date(2026, 10, 7)
+    jp = f.fetch("jpmorgan", "00401A", date(2026, 10, 8))
+    # 樣本 m12 的淨值日是 10/07 ≠ 持股日 10/08 → 不採用（只在淨值日相同時寫入單位數）
+    assert jp.response_date == date(2026, 10, 8) and jp.df["units"].isna().all()
+    assert f.fetch("jpmorgan", "00401A", date(2026, 10, 7)).no_data  # 404＝查無，不是錯誤
+    assert f.fetch("sinopac", "00410A", None).response_date == date(2026, 10, 8)
+    calls = ctx.client.calls  # type: ignore[attr-defined]
+    assert "token=abc%2B%2F%3D" in next(c for c in calls if "ETFList" in c)  # 權杖 URL 編碼
+    assert {"X-XSRF-TOKEN": "xsrf", "Referer": "https://etf.allianzgi.com.tw/list-trade"} in ctx.client.headers  # type: ignore[attr-defined]
+    assert calls.index(next(c for c in calls if "list-trade" in c)) < calls.index(
+        next(c for c in calls if "GetAntiForgeryToken" in c)
+    )  # 先建立工作階段 cookie 再取權杖
+
+
+def test_uni_getpcf():
+    """統一（2026-10-09 Actions 取樣）：保留工作階段 cookie 後可取得；公告日 10/07 → 持股日 10/06（lag 1）。"""
+    funds = eh.parse_uni_funds(sample("etf_uni_pcf_page.html"))
+    assert {k: funds[k] for k in ("00981A", "00403A", "00988A", "00411A")} == {
+        "00981A": "49YTW",
+        "00403A": "63YTW",
+        "00988A": "61YTW",
+        "00411A": "64YTW",
+    }
+    latest = eh.parse_uni(sample("etf_uni_00981A_latest.json"), "00981A")
+    assert latest.response_date == date(2026, 10, 8) and len(latest.df) == 50
+    row = latest.df.iloc[0]
+    assert (row["code"], row["name"], row["shares"], row["weight"]) == ("2330", "台積電", 11824000.0, 10.35)
+    assert (row["units"], row["aum"]) == (9025209000.0, 291243124865.0)  # pcf 的 OUT_UNIT、NAV
+    assert eh.parse_uni(sample("etf_uni_00981A_20261007.json"), "00981A").response_date == date(2026, 10, 6)
+    assert eh.parse_uni(sample("etf_uni_00981A_holiday.json"), "00981A").no_data
+    with pytest.raises(ParseError):
+        eh.parse_uni_funds(b"<html>redirect</html>")
+
+
+def test_fetcher_uni_request(tmp_path):
+    routes = {
+        "ETF/Transaction/PCF": sample("etf_uni_pcf_page.html"),
+        "fundCode=49YTW date=115/10/07 specificDate=True": sample("etf_uni_00981A_20261007.json"),
+        "fundCode=49YTW date=115/10/15 specificDate=False": sample("etf_uni_00981A_latest.json"),
+    }
+    ctx = _ctx(tmp_path, routes, now=datetime(2026, 10, 12, 21, 0, tzinfo=TPE))
+    f = tasks_advanced._EtfFetcher(ctx, config.source("active_etf")["issuers"])
+    assert f.fetch("uni", "00981A", date(2026, 10, 7)).response_date == date(2026, 10, 6)
+    assert f.fetch("uni", "00981A", None).response_date == date(2026, 10, 8)  # 最新一份：未來日＋specificDate False
+    assert f.fetch("uni", "00999A", None).no_data  # PCF 頁沒有的代號不請求
+    assert len([c for c in ctx.client.calls if c.endswith("ETF/Transaction/PCF")]) == 1  # type: ignore[attr-defined]

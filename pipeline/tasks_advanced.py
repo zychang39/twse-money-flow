@@ -668,9 +668,13 @@ class _EtfFetcher:
             fund = self._fund_map(issuer).get(etf)
             if fund is None:
                 return ParseResult(pd.DataFrame(), no_data=True, message=f"統一 PCF 頁沒有 {etf}")
-            q = d or self.ctx.today + timedelta(days=3)
-            body = {"fundCode": fund, "date": f"{q.year - 1911}/{q:%m/%d}", "specificDate": d is not None}
-            return eh.parse_uni(self.ctx.client.post_json(url, body, {"Referer": str(cfg["list_url"])}), etf)
+            ask = d or self.ctx.today + timedelta(days=3)
+            pcf: dict[str, Any] = {
+                "fundCode": fund,
+                "date": f"{ask.year - 1911}/{ask:%m/%d}",
+                "specificDate": d is not None,
+            }
+            return eh.parse_uni(self.ctx.client.post_json(url, pcf, {"Referer": str(cfg["list_url"])}), etf)
         if issuer == "ctbc":
             # 匿名工作階段權杖（網站發給每位訪客，不需登入）；StartDate 回該日（含）以前最近一次揭露
             fund = self._fund_map(issuer).get(etf)
@@ -683,8 +687,8 @@ class _EtfFetcher:
             fund = self._fund_map(issuer).get(etf)
             if fund is None:
                 return ParseResult(pd.DataFrame(), no_data=True, message=f"安聯基金清單沒有 {etf}")
-            body = {"Type": 1, "Keyword": "", "FundNo": fund, "Date": day.isoformat()}
-            return eh.parse_allianz(self.ctx.client.post_json(url, body, self._allianz_headers()), etf)
+            trade: dict[str, Any] = {"Type": 1, "Keyword": "", "FundNo": fund, "Date": day.isoformat()}
+            return eh.parse_allianz(self.ctx.client.post_json(url, trade, self._allianz_headers()), etf)
         if issuer == "jpmorgan":
             # date＝持股日；沒有資料回 HTTP 404（視為查無，不停用投信）
             q = url.format(isin=eh.isin_of(etf), kind="holding_pcf", day=day.isoformat())
@@ -761,9 +765,23 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
     if not stored.empty:
         # §3.4（2026-10-03）：有揭露受益權單位數的投信，舊資料（沒有 units 欄）視為缺漏，回補時重抓
         has_units = stored["units"].notna() if "units" in stored.columns else pd.Series(False, index=stored.index)
-        for d_, e_, u_ in set(
-            zip(stored["date"].astype(str), stored["etf"].astype(str), has_units.astype(bool), strict=True)
+        # 2026-10-09：有海外持股的 ETF，舊資料（存檔時略過海外持股、沒有 foreign 欄）視為缺漏，回補時重抓
+        from pipeline.derive.etf import foreign_flags
+
+        flags = foreign_flags(stored)
+        foreign_etfs = set(stored.loc[flags.eq(True), "etf"].astype(str))  # flags 含 NaN（未知）
+        known = flags.notna()
+        for d_, e_, u_, k_ in set(
+            zip(
+                stored["date"].astype(str),
+                stored["etf"].astype(str),
+                has_units.astype(bool),
+                known.astype(bool),
+                strict=True,
+            )
         ):
+            if e_ in foreign_etfs and not k_:
+                continue
             if u_ or eh.UNITS_FIELD.get(targets.get(e_, ""), None) is None:
                 have.setdefault(e_, set()).add(d_)
     lookback = int(cfg.get("backfill_days", 20))

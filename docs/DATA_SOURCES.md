@@ -106,7 +106,7 @@
 | taifex_pc | 臺指選擇權 Put/Call 比（成交量比率、未平倉量比率 %） | POST `www.taifex.com.tw/cht/3/pcRatioDown`（表單 `queryStartDate`／`queryEndDate`，Big5 CSV，每列結尾多一個逗號；欄位 `日期, 賣權成交量, 買權成交量, 買賣權成交量比率%, 賣權未平倉量, 買權未平倉量, 買賣權未平倉量比率%`） | 約 15:00；與其他期交所區間查詢一起以月為單位抓取 | ✅ 本機實測 2026-10-03（樣本 `taifex_pcRatio.csv`）；只作市場溫度頁的走勢資訊，不設門檻、不進燈號（DECISIONS #241） |
 | fx_usdtwd | 美元兌台幣 | POST `www.taifex.com.tw/cht/3/dailyFXRateDown`（Big5 CSV） | 每日 | ✅ |
 | financials | 季財報（上市＋上櫃） | MOPS `ajax_t163sb04`（綜合損益彙總）、`ajax_t163sb05`（資產負債彙總），GET 帶 `TYPEK=sii/otc&year=民國年&season=季`；一次涵蓋一般業、金融、證券、保險等所有格式 | 法定期限後 | ✅（Actions 實測；OpenAPI t187ap06／07 只有最新一季且依產業分檔，改用 MOPS） |
-| active_etf | 主動式 ETF 每日持股 | 各發行投信官網的持股揭露／申購買回清單（PCF），逐家實作（見下方「主動式 ETF 持股」） | 每日（多為當晚或次一營業日） | 🟡 部分涵蓋：已實作 9 家投信（對應 17／32 檔）；實際有持股資料的檔數與投信家數依每日抓取結果（市場頁「涵蓋 N/32 檔」、資料健康頁）；2026-10-03 起同時保存受益權單位數（聯博未揭露）（DECISIONS #22、#242；2026-10-03 新增台新、凱基、聯博、第一金、復華） |
+| active_etf | 主動式 ETF 每日持股 | 各發行投信官網的持股揭露／申購買回清單（PCF），逐家實作（見下方「主動式 ETF 持股」） | 每日（多為當晚或次一營業日） | 🟡 已實作 14 家投信（對應 30／32 檔；國泰、兆豐依 User-Agent 擋本工具，2026-10-09）；實際有持股資料的檔數與投信家數依每日抓取結果（市場頁「涵蓋 N/32 檔」、資料健康頁）；2026-10-03 起同時保存受益權單位數（聯博未揭露）（DECISIONS #22、#242；2026-10-03 新增台新、凱基、聯博、第一金、復華） |
 
 其他：`twse_insider`／`tpex_insider`（內部人轉讓事前申報，OpenAPI t187ap12_L／mopsfin_t187ap12_O）列為選配資料並用於風險旗標。
 
@@ -135,13 +135,13 @@
 
 **分鐘資料實測（2026-10-03，Actions run 158／159）**：yahoo_kbar 10/2 涵蓋 2,335／2,367 檔（另 32 檔當日沒有收盤價＝無成交）；證交所每 5 秒指數回補 9/24、9/29–10/2 共 5 個交易日（9/25–9/28 休市）。抽 10 檔（上櫃 5347、6488、8299、3064、6904；低成交量 3064、6904）比對 1D 開高低收與日線：10／10 完全一致。
 
-## 主動式 ETF 持股（各投信官網，部分涵蓋）
+## 主動式 ETF 持股（各投信官網；32 檔中 30 檔，2026-10-09）
 
 法規要求投信每日揭露主動式 ETF 的完整持股，但只公告在各投信官網，格式不一；證交所、櫃買「ETF 訊息中心」與 FundClear 都沒有集中的持股明細端點。2026-09-27 再試兩個方向：
 
 **1. 證交所 ETF 專區（e添富，`www.twse.com.tw/zh/ETFortune/…`）**：本環境連不到證交所，改由 Actions 取樣 `ETFortune/index` 與 `ETFortune/etfInfo/00980A`（`tests/fixtures/raw/twse_etfortune_*.html`）。個別 ETF 頁只有基本資料、規模、受益人數、配息、淨值與折溢價、分割預告與績效，**沒有持股或申購買回清單**；而且 e添富使用條款寫明「非依臺灣證券交易所同意之方式……禁止透過包括但不限於自動化裝置、指令碼、自動程式、蜘蛛程式、爬蟲程式或擷取程式等方式下載本網站之軟體或資料」→ 不採用。
 
-**2. 各投信官網的持股揭露／申購買回清單（PCF）**：以行情代號 `00xxxA` 找出 32 檔主動式 ETF（2026-09-24：上市 30、上櫃 2），依名稱判定 16 家發行投信，逐家實測（遇到反爬、導向循環或驗證機制就跳過，不嘗試繞過）：
+**2. 各投信官網的持股揭露／申購買回清單（PCF）**：以行情代號 `00xxxA` 找出 32 檔主動式 ETF（2026-09-24：上市 30、上櫃 2），依名稱判定 16 家發行投信，逐家實測。原則（2026-10-09 起，DECISIONS #436）：以本工具的 User-Agent（含專案網址）請求；網站發給每位訪客的工作階段 cookie、匿名權杖、防偽權杖照一般瀏覽流程使用（不登入、沒有驗證碼）；依 User-Agent 阻擋的網站不偽裝瀏覽器：
 
 | 投信 | 主動式 ETF | 狀態 | 端點／原因 |
 |---|---|---|---|
@@ -149,22 +149,22 @@
 | 群益 | 00982A、00992A、00997A（00415A 待掛牌） | ✅ 已實作 | POST JSON `www.capitalfund.com.tw/CFWeb/api/etf/items` 取內部基金代碼 → `…/etf/buyback`（`fundId`、`date`＝清單適用日，`null`＝最新）；持股日＝`pcf.date2`（比查詢日早 1 個交易日） |
 | 元大 | 00990A | ✅ 已實作 | GET `etfapi.yuantaetfs.com/ectranslation/api/bridge?APIType=ETFAPI&AppName=ETF&Device=3&Platform=ETF&FuncId=PCF/Daily&ticker=…[&date=公告日]`；持股日＝`PCF.trandate`（00990A 為全球型，比公告日早 2 個交易日）；海外持股不列入 |
 | 富邦 | 00405A | ✅ 已實作 | GET HTML `websys.fsit.com.tw/FubonETF/Trade/Assets.aspx?stkId=…&ddate=YYYY/MM/DD`；非交易日會回傳最近一次的資料，以頁面「資料日期」為準 |
-| 國泰 | 00400A | ⛔ 跳過（反爬） | `cwapi.cathaysite.com.tw/api/ETF/GetETFDetailStockList` 前有網站防火牆（Akamai）：以本工具的 User-Agent（含專案網址）請求回 403 Access Denied；換成瀏覽器 User-Agent 雖可取得，但屬繞過反爬機制，依規則不做。解析器已依真實樣本完成並有測試，網站開放後把 `config/sources.yml` 的 `status` 改為 `verified` 即可啟用 |
-| 統一 | 00403A、00411A、00981A、00988A | ⛔ 跳過（導向循環） | `www.ezmoney.com.tw` 302 導向超過 50 次 |
-| 兆豐 | 00996A | ⛔ 跳過（拒絕存取） | `www.megafunds.com.tw` 回 403 |
-| 安聯 | 00402A、00984A、00993A | ⛔ 跳過（驗證機制） | `etf.allianzgi.com.tw` 的 API 需先取得 AntiForgery 權杖 |
+| 國泰 | 00400A | ⛔ 跳過（依 User-Agent 阻擋） | `cwapi.cathaysite.com.tw/api/ETF/GetETFDetailStockList` 前有網站防火牆（Akamai）：以本工具的 User-Agent 請求回 403；只有偽裝成瀏覽器才取得到，不做。解析器已依真實樣本完成並有測試，網站開放後把 `config/sources.yml` 的 `status` 改為 `verified` 即可啟用 |
+| 統一 | 00403A、00411A、00981A、00988A | ✅ 已實作（2026-10-09） | GET `www.ezmoney.com.tw/ETF/Transaction/PCF`（`<div id="DataFundList" data-content>` 取代號 → `sFundCode`，同時建立工作階段 cookie）→ POST JSON `…/GetPCF`（`fundCode`、`date`＝公告日民國 `YYY/MM/DD`、`specificDate` true；未來日＋false＝最新）；`asset` 的 `AssetCode`＝`ST` 為股票（`DetailCode`、`DetailName`、`Share`、`NavRate`）；`pcf` 以 `PCFCode` 為鍵：`TranDate`＝持股日（.NET 日期，比公告日早 1 個交易日）、`NAV`＝淨資產、`OUT_UNIT`＝單位數。2026-10-03 記為「導向循環」是因為當時沒有保留網站設定的 cookie。本環境連不到，以 Actions 冒煙測試（`pipeline smoke`）驗證與取樣 |
+| 兆豐 | 00996A | ⛔ 跳過（依 User-Agent 阻擋） | `www.megafunds.com.tw/MEGA/etf/trade_pcf.aspx`（ASP.NET WebForms）對本工具回 403（2026-10-09 再測） |
+| 安聯 | 00402A、00984A、00993A | ✅ 已實作（2026-10-09） | GET `etf.allianzgi.com.tw/list-trade` 建立 cookie → GET `webapi/api/AntiForgery/GetAntiForgeryToken` 取防偽權杖 → 之後 POST 帶 `X-XSRF-TOKEN`：`Category/GetFundTypeDropdownOptions` 找「主動式」類別、`GetFundDropdownOptions` 取代號 → `FundNo`、`Fund/GetFundTradeInfo`（`Date`＝公告日）；`CNavDt`＝持股日（台股型早 1 個交易日、美股型 00402A 早 2 個）；`DynamicTableData` 標題「股票 (…)」的表為持股；`CAnceTotalIssues`＝單位數、`CAnceTotalAv`＝淨資產 |
 | 台新 | 00986A、00987A | ✅ 已實作（2026-10-03） | GET HTML `www.tsit.com.tw/ETF/Home/Pcf/{etf}?FundType=ALL[&DataDate=YYYY-MM-DD]`（`DataDate`＝清單適用日，不帶＝最新）；表頭「代號／名稱／股數／持股權重」，代號為彭博格式（`2330 TT`，海外如 `NVDA US` 不列入）；持股日＝頁面「YYYY/M/D預估發行受益權單位數」的日期（清單製作時的最新淨值日，通常為適用日前 1 個交易日）；查無資料時版面仍在、日期為 `0001/1/1` |
 | 凱基 | 00407A | ✅ 已實作（2026-10-03） | POST 表單 `www.kgifund.com.tw/Fund/RedemptionVC`（`fundID`、`queryDate`＝清單適用日 YYYY/MM/DD，空＝最新；網頁以 jQuery `.load` 取得的局部 HTML，中文為 `&#x…;` 實體）；表頭「股票代號／股票名稱／股數／權重(%)」，含「看更多」隱藏列；持股日＝「(YYYY/MM/DD)每受益權單位淨資產價值」的淨值日；基金代碼 `00407A→J024` 無清單端點，寫在 `config` 的 `funds` |
 | 聯博 | 00404A | ✅ 已實作（2026-10-03） | GET JSON `webapi.alliancebernstein.com/v2/funds/tw/zh-tw/investor/{ISIN}/holdings[?date=YYYY-MM-DD]`（官網 PCF 頁 React 元件的資料來源；`date`＝持股日）；ISIN＝`TW000`＋代號＋Luhn 檢查碼（`isin_of`，`00404A→TW00000404A5`）；`domesticHoldings` 的 `holdings-section-equity` 為股票（`holdingCode`、`holdingShares`、`holdingPerc`），期貨、選擇權另段；`asOfDate` 為 MM/DD/YYYY |
 | 第一金 | 00408A、00994A | ✅ 已實作（2026-10-03） | POST JSON `www.fsitc.com.tw/WebAPI.aspx/Get_hd`（ASP.NET WebMethod；`pStrFundID`、`pStrDate`＝公告日 YYYY/MM/DD，空＝最新）；回應 `{"d": JSON 字串}`，`group 1`＝股票（`A` 代號、`B` 名稱、`C` 權重、`D` 股數）、`4` 現金、`5` 配置摘要；持股日＝`sdate`（比公告日早 1 個交易日：查 10/01 回 09/30）；基金代碼 `183→00408A`、`182→00994A`（`FundDetail.aspx?ID=` 頁的「股票代號」）寫在 `config` 的 `funds` |
 | 復華 | 00409A、00991A、00998A | ✅ 已實作（2026-10-03） | GET xlsx `www.fhtrust.com.tw/api/assetsExcel/{基金代碼}/{YYYYMMDD}`（ETF 專區明細頁「申購買回清單」的下載連結；日期＝持股日）；工作表「日期: YYYY/MM/DD」＋「證券代號／證券名稱／股數／金額／權重(%)」，海外持股（`LITE US`）不列入；無資料時回 HTTP 200 的 JSON 文字「查無資料」；以標準函式庫（zipfile＋ElementTree）解析，不引入 openpyxl；基金代碼 `00409A→ETF26`、`00991A→ETF23`、`00998A→ETF24`（`/ETF/index` 基金卡片）寫在 `config` 的 `funds`。明細頁另有 JSON API（`getAssets`，`fundID`＋`qDate`），但網址藏在未取得的共用模組，未採用 |
-| 永豐 | 00410A | ⏳ 待處理 | 2026-10-03：開發環境的對外代理對 `www.sinopacfunds.com.tw` 的 CONNECT 回 502（2 次，無法建立連線），未取得樣本；需在 Actions 或其他網路環境再試 |
-| 摩根 | 00401A、00989A | ⏳ 待處理 | 2026-10-03：官網可連（首頁、ETF 專區 `twetf`、00401A 基金頁與產品頁 `…/twetf/products/…tw00000401a1#/pcf`），但產品頁為 `FundsMarketingHandler` 單頁應用（webpack 分塊載入），6 次請求（含 loader 與 `pdp-v3` chunk）內未找到持股／PCF 資料端點 |
-| 中國信託 | 00406A、00983A、00995A | ⛔ 跳過（驗證機制） | 2026-10-03：官網為單頁應用程式（Vue），所有 API（`www.ctbcinvestments.com.tw/API/…`，含 ETF 申購買回清單 `Buyback`、持股 `ShareHolding`）都要先 POST `home/AuthToken` 取得權杖再以 `token` 參數請求，依規則不繞過 |
+| 永豐 | 00410A | ✅ 已實作（2026-10-09） | GET HTML `sitc.sinopac.com/SinopacEtfs/Etfs/SinglePcf/{etf}`（2026-10-03 嘗試的 `www.sinopacfunds.com.tw` 連不上）；只有最新一份（網址不吃日期）；「資料日期：YYYY/MM/DD」＝持股日；頁面留有全系列 ETF 的空白表格模板，取資料日期之後第一張有資料的「證券代碼／證券名稱／股數／佔基金淨資產之權重(%)」表；單位數、淨資產取同一段 |
+| 摩根 | 00401A、00989A | ✅ 已實作（2026-10-09） | GET xlsx `am.jpmorgan.com/FundsMarketingHandler/excel?type=holding_pcf&cusip={ISIN}&country=tw&role=twetf&locale=zh-TW&date=YYYY-MM-DD`（`date`＝持股日；`locale` 與 `date` 都必填，沒有資料回 404）；第 1 張工作表「基金資產 - 股票 (YYYY-MM-DD)」；單位數與淨資產在 `type=m12_pcf`（現金申購買回清單公告，`date`＝公告日：台股型為持股日的下一個交易日、美股型 00989A 晚 2 日），淨值日＝持股日才採用 |
+| 中國信託 | 00406A、00983A、00995A | ✅ 已實作（2026-10-09） | POST `www.ctbcinvestments.com.tw/API/home/AuthToken?token=www.ctbcinvestments.com`（本文 `{}`）取匿名工作階段權杖（網站發給每位訪客）→ `API/etf/ETFList?token=…` 取 `ETF_ID` → `FID` → `API/etf/ETFHoldingWeight?token=…`（`FID`、`StartDate` YYYY/MM/DD，回該日含以前最近一次揭露）；`FundAssets[0].資料日期`＝持股日、`基金在外流通單位數`、`基金淨資產`；`FundAssetsDetail` 的 `Code`＝`STOCK` 為股票（期貨、選擇權、保證金另段）；回應可能是雙層編碼的 JSON 字串 |
 
 實作細節（`pipeline/sources/etf_holdings.py`、`pipeline/tasks_advanced.py::run_etf_holdings`；投信清單與狀態在 `config/sources.yml` 的 `active_etf.issuers`）：
 
-- 欄位：`date`（持股日＝淨值日）、`etf`、`code`、`name`、`shares`（股）、`weight`（%）、`units`（該 ETF 當日已發行／在外流通受益權單位數，每列相同；2026-10-03 起）；存成 `raw/etf_holdings/{YYYY}/{YYYYMM01}.csv.gz`（月檔），同一檔 ETF 同一天整批取代。
+- 欄位：`date`（持股日＝淨值日）、`etf`、`code`、`name`、`shares`（股）、`weight`（%）、`units`（該 ETF 當日已發行／在外流通受益權單位數，每列相同；2026-10-03 起）、`aum`（基金淨資產，元；投信有揭露才有）、`foreign`（海外持股；2026-10-09 起）；存成 `raw/etf_holdings/{YYYY}/{YYYYMM01}.csv.gz`（月檔），同一檔 ETF 同一天整批取代。
 - 受益權單位數（SPEC §3.4，2026-10-03 以真實回應逐家確認；每家都以「淨資產 ÷ 單位數 ＝ 每單位淨值」對照，確認與持股同一個淨值日）：
 
   | 投信 | 股數 | 權重 | 受益權單位數 | 來源欄位 |
@@ -178,14 +178,19 @@
   | 第一金 | ✅ | ✅ | ✅（另一個請求） | `Get_hd` 沒有；同一公告日的 `WebAPI.aspx/Get_BuySellA`（申購買回清單摘要）「已發行受益權單位總數-台幣交易」（`config` 的 `units_url`；樣本 `etf_fsitc_pcf_183.json`）；每個持股日多 1 次請求 |
   | 復華 | ✅ | ✅ | ✅ | xlsx 摘要區「基金在外流通單位數」的下一列 |
   | 聯博 | ✅ | ✅ | ❌ 未揭露 | `holdings` 只有各段資產市值與比例；`/investor/{ISIN}` 基金資訊沒有單位數；試過 `/pcf`、`/overview`、`/prices` 皆 404。加減碼判定改用共同持股股數比的中位數估計單位數變化（METHODOLOGY §8） |
+  | 統一 | ✅ | ✅ | ✅ | `GetPCF` 的 `pcf`：`OUT_UNIT`（`NAV` ÷ `OUT_UNIT` ＝ `P_UNIT`） |
+  | 中信 | ✅ | ✅ | ✅ | `FundAssets`「基金在外流通單位數」 |
+  | 安聯 | ✅ | ✅ | ✅ | `CAnceTotalIssues` |
+  | 摩根 | ✅ | ✅ | ✅（另一個請求） | `m12_pcf`「已發行受益權單位總數」 |
+  | 永豐 | ✅ | ✅ | ✅ | 頁面「基金在外流通單位數」 |
   | 國泰（跳過） | ✅ | ✅ | ❌ 未揭露 | `GetETFDetailStockList` 只有持股列 |
 
   改版前存的持股沒有 `units`；有揭露單位數的投信，回補（`backfill --source active_etf`）時把這些持股日視為缺漏重抓，聯博不重抓。
 - 本機回補實測（2025-10-01～2026-10-02，每家投信一個行程、間隔 3–5 秒，2026-10-03）：17 檔中 15 檔取得歷史持股（每檔自掛牌日起；台新 00986A 最早只到 2025-12-08，網站保留期間）。
   發現並修正：台新國內型 00987A 的頁面沒有「預估發行受益權單位數」列（只有跨國型 00986A 有），原解析器每次都失敗（184 次），改以「YYYY/M/D每基數實際申購總價金」的日期為持股日（淨值 17.76 對應 10/02 收盤 17.68；樣本 `etf_taishin_00987A.html`）。
-  復華 00998A（全球金融股息）持股全為海外證券、沒有台灣掛牌持股，依規則不列入（不是抓取失敗）。
+  復華 00998A（全球金融股息）持股全為海外證券；2026-10-09 起海外持股也保留（見下）。
   回補時同一檔連續 10 個交易日查無資料就停止往前（`BACKFILL_EMPTY_STOP`，避免掛牌前的無效請求）。
-- 只保留台灣掛牌證券（4–6 碼，可帶 1 碼英文）；期貨、現金、海外持股不列入。
+- 台灣掛牌證券（4–6 碼，可帶 1 碼英文；彭博格式 `2330 TT` 去掉 TT）與海外持股都保留，海外持股 `foreign`＝True、代號保留原樣（`NVDA US`、`8411 JP`、摩根美股型為 `NVDA`）；期貨、選擇權、現金不列入。2026-10-09 以前只存台股：有海外持股的 ETF，舊持股日視為缺漏（回補時重抓），ETF 詳細頁也不用這些日子（避免海外持股全被當成新增）。跨檔加碼／減碼、個股頁「主動式 ETF」一列只用台股（`derive/etf.domestic`）。
 - 日期定義以「淨值 ÷ 收盤價」對照驗證：各家的持股日欄位都與當日收盤價對應（例：國泰 00400A 淨值 15.53／15.66／15.74 對應 9/22–9/24 收盤 15.49／15.57／15.66）。2026-10-03 新增的五家以回應本身的日期欄位為持股日（聯博 `asOfDate`、第一金 `sdate`、復華「日期」、凱基與台新的淨值日標籤），尚未以收盤價對照（本環境連不到證交所）；凱基與台新同一份 10/05 清單的淨值日都是 10/02，彼此一致。
 - 每日任務：最近 3 個交易日缺的持股日各試一次；第一次看到的 ETF 若不到兩天，最多往回 20 個交易日取得第二天（計算加碼／減碼需要）。同一投信出現 HTTP 4xx 或基金清單取不到，本輪就不再請求該投信。回補：`python -m pipeline backfill --source active_etf --start … --end …`。
 - 查詢日與持股日：野村、聯博、復華、國泰以持股日查詢（`lag_days` 0）；群益、台新、凱基、第一金以申購買回清單的適用日／公告日查詢（`lag_days` 1，回應裡的日期才是持股日）；元大 00990A 為 2。

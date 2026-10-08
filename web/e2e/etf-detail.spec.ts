@@ -53,8 +53,54 @@ test('ETF 詳細頁：拖迄日時起日跟著往前；375 寬不需要左右滑
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
 });
 
-test('ETF 清單的列進入詳細頁；投信尚未涵蓋的 ETF 說明原因並連到個股頁', async ({ page }) => {
+test('沒有持股檔的 ETF 說明原因（清單上的 holdings_note）並連到個股頁', async ({ page }) => {
   await page.goto('#/explore/etf/00981A');
-  await expect(page.getByTestId('etf-detail-missing')).toContainText('尚未涵蓋');
+  await expect(page.getByTestId('etf-detail-missing')).toContainText('持股資料累積中');
   await expect(page.getByRole('link', { name: /股價與成交/ })).toHaveAttribute('href', '#/stock/00981A');
+});
+
+/** 示範資料沒有主動式 ETF：在 market.json 補幾列（含沒有持股、上市未滿期間的 ETF）。 */
+const LIST = [
+  { code: '00981A', name: '主動統一台股增長', close: 32.24, change_pct: -0.06, value_million_20d: 4613, mcap_yi: 2910, ret: { '1d': -0.06, '5d': 1.2, '20d': 3.2, '60d': 8.4, ytd: 25.1, '1y': null }, listed: '2025-05-27', has_holdings: true, holdings_n: 50, holdings_foreign: 0 },
+  { code: '00400A', name: '主動國泰動能高息', close: 16.15, change_pct: -1.94, value_million_20d: 514, mcap_yi: null, ret: { '1d': -1.94, '5d': -2.1, '20d': -4.1, '60d': 1.1, ytd: 3.5, '1y': null }, listed: '2025-11-10', has_holdings: false, holdings_note: '國泰投信官網擋本工具的自動抓取，沒有持股資料' },
+  { code: '00989A', name: '主動摩根美國科技', close: 11.5, change_pct: 0.8, value_million_20d: 120, mcap_yi: 11.7, ret: { '1d': 0.8, '5d': 0.3, '20d': null, '60d': null, ytd: null, '1y': null }, listed: '2026-09-25', has_holdings: true, holdings_n: 67, holdings_foreign: 67 },
+];
+
+test('ETF 清單（2026-10-09）：依成交值／市值／績效排序，切期間；每列一條橫條；不寫「無持股資料」', async ({ page }) => {
+  await page.route('**/data/market.json', async (route) => {
+    const res = await route.fetch();
+    const json = { ...(await res.json()), active_etfs: LIST };
+    await route.fulfill({ response: res, json });
+  });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('#/explore/etf');
+  const list = page.getByTestId('etf-list');
+  const rows = list.getByTestId('etf-list-row');
+  await expect(rows.first()).toBeVisible();
+  await expect(list).not.toContainText('無持股資料');
+  await expect(rows.first().locator('.pbar')).toBeVisible(); // 預設成交值：長條
+  await list.getByTestId('etf-list-sort').getByRole('button', { name: '績效' }).click();
+  await expect(rows.first().locator('.dbar')).toBeVisible(); // 績效：以 0 為中心的發散橫條
+  await list.getByTestId('etf-period').getByRole('button', { name: '1 日' }).click();
+  await expect(list.getByTestId('etf-period-summary')).toContainText('1 日：');
+  // 依 1 日報酬由大到小
+  const vals = await rows.evaluateAll((els) => els.map((el) => {
+    const t = el.querySelector('.el-v')?.textContent ?? '';
+    const n = Number(t.replace(/[^\d.]/g, ''));
+    return t.includes('▼') ? -n : t.includes('—') ? null : n;
+  }));
+  const nums = vals.filter((v): v is number => v !== null);
+  expect(nums).toEqual([...nums].sort((a, b) => b - a));
+  // 切期間時排序自動改為績效；選擇記住（重新整理後仍在）
+  await list.getByTestId('etf-list-sort').getByRole('button', { name: '市值' }).click();
+  await list.getByTestId('etf-period').getByRole('button', { name: '20 日' }).click();
+  await expect(list.getByTestId('etf-list-sort').locator('[aria-pressed=true]')).toHaveText('績效');
+  await page.reload();
+  await expect(page.getByTestId('etf-list').getByTestId('etf-period').locator('[aria-pressed=true]')).toHaveText('20 日');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await expect(list.getByTestId('etf-period-summary')).toHaveText('20 日：上漲 1 檔・下跌 1 檔・中位數 −0.45%（1 檔上市未滿期間）');
+  await expect(rows.last()).toContainText('上市未滿 20 個交易日（9/25 上市）');
+  await expect(list).toContainText('國泰投信官網擋本工具的自動抓取');
+  await rows.first().click();
+  await expect(page).toHaveURL(/#\/explore\/etf\/00981A/);
 });

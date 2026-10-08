@@ -7,9 +7,6 @@
 
 from __future__ import annotations
 
-import base64
-import gzip
-import os
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -148,8 +145,6 @@ def smoke_active_etf(client: PoliteClient, d: date) -> list[SmokeResult]:
             continue
         sid = f"active_etf.{issuer}"
         try:
-            if issuer == "uni" and os.environ.get("GITHUB_ACTIONS"):  # TEMP 2026-10-09：取真實樣本，取得後移除
-                _dump_uni(client, fetcher, etf)
             res = fetcher.fetch(issuer, etf, None)
         except FetchError as exc:
             out.append(SmokeResult(sid, "fetch_error", message=str(exc)[:200]))
@@ -164,21 +159,3 @@ def smoke_active_etf(client: PoliteClient, d: date) -> list[SmokeResult]:
         note = f"{etf} 持股日 {res.response_date}、單位數 {'有' if units == units and units else '無'}"
         out.append(SmokeResult(sid, "ok", len(res.df), message=note))
     return out
-
-
-def _dump_uni(client: PoliteClient, fetcher: object, etf: str) -> None:  # TEMP 2026-10-09
-    from pipeline.core import config
-
-    cfg = config.source("active_etf")["issuers"]["uni"]
-    page = client.get_bytes(str(cfg["list_url"]))
-    print("SAMPLE etf_uni_pcf_page.html", base64.b64encode(gzip.compress(page)).decode())
-    from pipeline.sources import etf_holdings as eh
-
-    fund = eh.parse_uni_funds(page)[etf]
-    for name, body in [
-        ("latest", {"fundCode": fund, "date": "115/10/12", "specificDate": False}),
-        ("20261007", {"fundCode": fund, "date": "115/10/07", "specificDate": True}),
-        ("holiday", {"fundCode": fund, "date": "115/10/04", "specificDate": True}),
-    ]:
-        raw = client.post_json(str(cfg["url"]), body, {"Referer": str(cfg["list_url"])})
-        print(f"SAMPLE etf_uni_{etf}_{name}.json", base64.b64encode(gzip.compress(raw)).decode())

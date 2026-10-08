@@ -574,7 +574,10 @@ def parse_uni(payload: bytes | str, etf: str) -> ParseResult:
         raise ParseError("統一：找不到持股日（pcf.TranDate）")
     amount = {str(r.get("PCFCode")): r.get("Amount") for r in pcf}
     df = frame_from_records(
-        stocks["Details"], _holding_map("DetailCode", "DetailName", "Share", "NavRate"), source="統一 Details", infer_types=False
+        stocks["Details"],
+        _holding_map("DetailCode", "DetailName", "Share", "NavRate"),
+        source="統一 Details",
+        infer_types=False,
     )
     return ParseResult(
         _frame(_tuples(df), etf, d, to_num(amount.get("OUT_UNIT")), to_num(amount.get("NAV"))), response_date=d
@@ -671,7 +674,9 @@ def parse_allianz(payload: bytes | str, etf: str) -> ParseResult:
     d = parse_date(str(e.get("CNavDt") or "")[:10]) if e else None
     if d is None:
         return _empty("安聯：該日無申購買回清單")
-    table = next((t for t in e.get("DynamicTableData") or [] if str(t.get("TableTitle") or "").startswith("股票")), None)
+    table = next(
+        (t for t in e.get("DynamicTableData") or [] if str(t.get("TableTitle") or "").startswith("股票")), None
+    )
     if table is None:
         return _no_stock_table(d, "安聯：無股票持股表")
     rows = [(r[1], r[2], r[3], r[4]) for r in table.get("Rows") or [] if isinstance(r, list) and len(r) >= 5]
@@ -744,7 +749,9 @@ def parse_sinopac(payload: bytes | str, etf: str) -> ParseResult:
     rest = text[m.end() :]
     for rows in _html_tables(rest):
         if rows and "證券代碼" in rows[0] and len(rows) > 1:
-            body = _table_rows(rows, _holding_map("證券代碼", "證券名稱", "股數", "佔基金淨資產之權重(%)"), "永豐持股表")
+            body = _table_rows(
+                rows, _holding_map("證券代碼", "證券名稱", "股數", "佔基金淨資產之權重(%)"), "永豐持股表"
+            )
             if body:
                 head = rest[: rest.find("證券代碼")]
                 units = _label_number(head, "基金在外流通單位數")

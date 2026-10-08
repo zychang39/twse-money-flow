@@ -97,7 +97,67 @@ METHOD_TEXT = (
 )
 
 
-def active_etfs(p: Any) -> list[dict[str, Any]]:
+#: 清單的報酬期間（交易日；ytd＝今年以來、1y＝250 日）；還原價（含息），與個股頁一致
+RETURN_PERIODS: dict[str, int | None] = {"1d": 1, "5d": 5, "20d": 20, "60d": 60, "120d": 120, "ytd": None, "1y": 250}
+
+
+def domestic(h: pd.DataFrame | None) -> pd.DataFrame | None:
+    """只留台股持股（foreign 不為 True）：跨檔排行、個股頁、驗證都只看台股；ETF 詳細頁另用完整持股。
+    2026-10-09 以前存的持股沒有 foreign 欄（當時只存台股）。"""
+    if h is None or h.empty or "foreign" not in h.columns:
+        return h
+    f = h["foreign"].astype(str).str.lower().isin(("true", "1", "1.0"))
+    return h[~f]
+
+
+def _returns(adj: pd.Series, dates: list[Any]) -> dict[str, float | None]:
+    """各期間報酬（%）：最後一個收盤對 N 個交易日前（資料不足＝None）；ytd 以去年最後一個交易日為基準。"""
+    s = adj.dropna()
+    out: dict[str, float | None] = {}
+    if s.empty:
+        return dict.fromkeys(RETURN_PERIODS)
+    last = float(s.iloc[-1])
+    for key, n in RETURN_PERIODS.items():
+        if n is None:
+            year = str(s.index[-1])[:4]
+            before = s[[str(d)[:4] < year for d in s.index]]
+            base = float(before.iloc[-1]) if len(before) else None
+        else:
+            base = float(s.iloc[-1 - n]) if len(s) > n else None
+        out[key] = round((last / base - 1) * 100, 2) if base else None
+    return out
+
+
+def _holdings_info(h: pd.DataFrame | None) -> dict[str, dict[str, Any]]:
+    """ETF → 最新一次揭露的持股日、持股檔數（台股／海外）、受益權單位數、基金淨資產。"""
+    if h is None or h.empty:
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    hh = h.copy()
+    hh["date"] = hh["date"].astype(str)
+    for etf, g in hh.groupby(hh["etf"].astype(str)):
+        d = str(g["date"].max())
+        cur = g[g["date"] == d]
+        f = (
+            cur["foreign"].astype(str).str.lower().isin(("true", "1", "1.0"))
+            if "foreign" in cur
+            else cur["code"] != cur["code"]
+        )
+        aum = pd.to_numeric(cur["aum"], errors="coerce").dropna() if "aum" in cur else pd.Series(dtype=float)
+        out[etf] = {
+            "date": d,
+            "n": len(cur),
+            "n_foreign": int(f.sum()),
+            "units": _units_of(cur),
+            "aum": float(aum.iloc[0]) if len(aum) and aum.iloc[0] > 0 else None,
+        }
+    return out
+
+
+def active_etfs(p: Any, h: pd.DataFrame | None = None) -> list[dict[str, Any]]:
+    """清單列：價格、成交值、市值（受益權單位數 × 收盤價；沒有單位數時用投信揭露的基金淨資產）、各期間報酬、持股摘要。"""
+    info = _holdings_info(h)
+    adj = getattr(p, "adj_close", None)
     out = []
     for code in p.codes:
         if not ACTIVE_RE.match(code):
@@ -107,15 +167,28 @@ def active_etfs(p: Any) -> list[dict[str, Any]]:
             continue
         v = p.value[code].iloc[-20:].mean()
         prev = float(c.iloc[-2]) if len(c) >= 2 else None
+        hi = info.get(code, {})
+        close = float(c.iloc[-1])
+        mcap = hi["units"] * close if hi.get("units") else hi.get("aum")
+        series = adj[code] if adj is not None and code in adj.columns else c
         out.append(
             {
                 "code": code,
                 "name": p.names.get(code, code),
                 "market": p.markets.get(code),
-                "close": float(c.iloc[-1]),
+                "close": close,
                 # 2026-10-02 健檢：每列加漲跌幅（%）
-                "change_pct": round((float(c.iloc[-1]) / prev - 1) * 100, 2) if prev else None,
+                "change_pct": round((close / prev - 1) * 100, 2) if prev else None,
                 "value_million_20d": round(float(v) / 1e6, 1) if v == v else None,
+                # 2026-10-09：市值（億元）、各期間報酬（%）、上市日（第一個有收盤價的交易日；報酬期間超過上市天數為 None）
+                "mcap_yi": round(mcap / 1e8, 2) if mcap else None,
+                "mcap_basis": "units" if hi.get("units") else ("aum" if hi.get("aum") else None),
+                "ret": _returns(series, list(series.index)),
+                "listed": str(c.index[0]),
+                "days": len(c),
+                "holdings_date": hi.get("date"),
+                "holdings_n": hi.get("n"),
+                "holdings_foreign": hi.get("n_foreign"),
             }
         )
     return sorted(out, key=lambda x: -(x["value_million_20d"] or 0))
@@ -599,6 +672,11 @@ def coverage(
         "etf_codes": etfs,
         "implemented_issuers": len(verified),
         "implemented_etfs": len(impl_etfs),
+        "skipped_issuers": sorted(
+            str(v["label"]).removesuffix("投信")
+            for k, v in iss.items()
+            if v.get("status") != "verified" and k in imap.values()
+        ),
         "lagging": lagging,
         "units_missing": units_missing,
     }
@@ -611,10 +689,9 @@ def coverage_text(cov: dict[str, Any]) -> str:
     if cov.get("holdings_date"):
         head += f"（持股日 {cov['holdings_date']}）"
     head += f"，來自 {cov['issuers']} 家投信（{names}）的官網揭露" if cov["issuers"] else ""
-    return (
-        head + f"；已實作 {cov['implemented_issuers']} 家投信、{cov['implemented_etfs']} 檔，"
-        "其餘投信因反爬、導向循環、驗證機制或尚未找到端點而未涵蓋。"
-    )
+    skipped = "、".join(cov.get("skipped_issuers", []))
+    tail = f"{skipped}的官網擋本工具的自動抓取，未涵蓋。" if skipped else "全部投信都已涵蓋。"
+    return head + f"；已實作 {cov['implemented_issuers']} 家投信、{cov['implemented_etfs']} 檔；" + tail
 
 
 # ------------------------------------------------------------------ §7 排序口徑驗證
@@ -808,8 +885,9 @@ def unverified_label(val: dict[str, Any]) -> str | None:
 def market_section(ds: Any, p: Any) -> dict[str, Any]:
     """market.json 的 active_etfs 與 etf_ranking（§7 契約：coverage、items、sort_default、validation、method；
     舊欄位 add／reduce／kinds／covered／total／status 保留給現有前端）。"""
-    h = ds.table("etf_holdings")
-    etfs = active_etfs(p)
+    h_all = ds.table("etf_holdings")
+    h = domestic(h_all)
+    etfs = active_etfs(p, h_all)
     names = dict(p.names)
     mk = Market(p)
     latest = holdings_changes(h)
@@ -845,8 +923,18 @@ def market_section(ds: Any, p: Any) -> dict[str, Any]:
         }
     )
     covered_codes = set(cov["etf_codes"]) | set(map(str, latest["etf"].unique()) if not latest.empty else set())
+    imap = issuer_map(names)
+    iss = _issuers()
     for e in etfs:
-        e["has_holdings"] = e["code"] in covered_codes
+        e["has_holdings"] = e["code"] in covered_codes or bool(e.get("holdings_date"))
+        i = imap.get(e["code"])
+        e["issuer"] = str(iss[i]["label"]) if i else None
+        if not e["has_holdings"]:
+            # 2026-10-09：不只寫「無持股資料」，說明原因
+            if i and iss[i].get("status") != "verified":
+                e["holdings_note"] = f"{iss[i]['label']}官網擋本工具的自動抓取，沒有持股資料"
+            else:
+                e["holdings_note"] = "持股資料累積中（新掛牌或投信尚未公告）"
     if not items:
         rk["status"] = (
             "主動式 ETF 每日持股只由各投信官網個別揭露；"
@@ -866,26 +954,53 @@ def _num(v: Any, digits: int) -> float | None:
     return None if f is None else round(f, digits)
 
 
+def foreign_flags(h: pd.DataFrame) -> pd.Series:
+    """每列是否為海外持股：True／False；2026-10-09 以前存的列沒有這個欄位＝未知（NaN）。"""
+    if "foreign" not in h.columns:
+        return pd.Series(np.nan, index=h.index, dtype=object)
+    f = h["foreign"]
+    known = f.notna() & (f.astype(str).str.strip() != "")
+    return f.astype(str).str.lower().isin(("true", "1", "1.0")).where(known, other=np.nan)
+
+
+def _with_foreign_known(part: pd.DataFrame) -> pd.DataFrame:
+    """有海外持股的 ETF：只留「存檔時已保留海外持股」的持股日（舊資料只有台股，與新資料比較會把海外持股全判成新增）。"""
+    f = foreign_flags(part)
+    if not f.eq(True).any():  # f 含 NaN（未知）
+        return part
+    known_dates = set(part.loc[f.notna(), "date"])
+    return part[part["date"].isin(known_dates)]
+
+
 def detail_payload(h: pd.DataFrame, etf: str, name: str, issuer: str | None = None) -> dict[str, Any] | None:
     """單一檔 ETF 的持股歷史：dates（持股日）、units（受益權單位數）、rows（每檔個股的股數 s 與權重 w，依日期對齊；
-    沒有持有＝null）。前端（lib/etfDetail.ts）以任兩天計算權重變化（百分點）與加碼／減碼分類（與 _pair 同一套判定，
+    沒有持有＝null；海外持股 f＝1，2026-10-09 起保留）。前端（lib/etfDetail.ts）以任兩天計算權重變化（百分點）與加碼／減碼分類（與 _pair 同一套判定，
     golden：tests/fixtures/golden/etf_pair.json）。"""
     part = _norm(h[h["etf"].astype(str) == etf]) if h is not None and not h.empty else None
     if part is None or part.empty:
         return None
+    part = _with_foreign_known(part)
     dates = sorted(part["date"].unique())[-DETAIL_DAYS:]
     part = part[part["date"].isin(dates)].drop_duplicates(["date", "code"], keep="last")
     units = [_units_of(part[part["date"] == d]) for d in dates]
     shares = part.pivot(index="code", columns="date", values="shares").reindex(columns=dates)
     weight = part.pivot(index="code", columns="date", values="weight").reindex(columns=dates)
     names = part.sort_values("date").groupby("code")["name"].last()
+    foreign = (
+        part.groupby("code")["foreign"].last().astype(str).str.lower().isin(("true", "1", "1.0"))
+        if "foreign" in part.columns
+        else pd.Series(False, index=names.index)
+    )
     last_w = weight[dates[-1]].fillna(-1.0)
     order = sorted(shares.index, key=lambda c: (-float(last_w.get(c, -1.0)), c))
     rows = []
     for code in order:
         s = [None if v != v or float(v) <= 0 else round(float(v)) for v in shares.loc[code]]
         w = [None if s[i] is None else _num(v, 2) for i, v in enumerate(weight.loc[code])]
-        rows.append({"c": str(code), "n": str(names.get(code, code)), "s": s, "w": w})
+        row: dict[str, Any] = {"c": str(code), "n": str(names.get(code, code)), "s": s, "w": w}
+        if bool(foreign.get(code, False)):
+            row["f"] = 1  # 海外持股：不連到個股頁
+        rows.append(row)
     return {
         "code": etf,
         "name": name,

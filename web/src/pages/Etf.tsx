@@ -4,11 +4,17 @@
  * 2026-10-08：加碼／減碼與清單同一種排版（只有列間橫線）；清單的列進入 ETF 詳細頁（EtfDetail：持股占比、拉日期看加減碼）。
  * 排序口徑：金額｜佔均額｜佔市值，預設由 pipeline 的 sort_default 決定（驗證未通過時為佔均額）。
  * 判定（扣除受益權單位數變動）、金額門檻 0.3 億與驗證都在 pipeline（derive/etf.py）。
+ * 2026-10-09：清單可依成交值｜市值｜績效排序，績效切期間（1 日～1 年）；每列一條橫條（績效為紅漲綠跌的發散橫條）。
  */
 import { useEffect, useState } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
 import { ErrorState, Loading } from '../components/DataStatus';
-import { EmptyRow, List, Num, PageTitle, Row, Section, Seg, Signed, Table } from '../components/ui';
+import { EmptyRow, List, PageTitle, Row, Section, Seg, Signed, Table, Num } from '../components/ui';
+import { IconChevron } from '../components/Icons';
+import { DivergingBar, Interp, ProgressBar } from '../components/kit';
+import { barMax, LIST_SORTS, metricOf as listMetric, missingRetText, PERIOD_LABEL, PERIODS, periodSummary, rowSub, sortEtfs, type EtfListSort, type EtfPeriod } from '../lib/etfList';
+import type { ActiveEtf } from '../data/types';
+import '../styles/etf.css';
 import { useAsync } from '../hooks';
 import { loadMarket } from '../data/api';
 import { ETF_KINDS, ETF_KIND_LABEL, type EtfCoverage, type EtfItem, type EtfKind, type EtfMove, type EtfSortMetric, type EtfValidation } from '../data/types';
@@ -76,6 +82,68 @@ export function itemSub(x: EtfItem): string {
   return parts.join('・');
 }
 
+const LIST_KEY = 'tmf-etf-list';
+function savedList(): { sort: EtfListSort; period: EtfPeriod } {
+  try {
+    const v = JSON.parse(localStorage.getItem(LIST_KEY) ?? '{}') as { sort?: string; period?: string };
+    return {
+      sort: LIST_SORTS.some(([k]) => k === v.sort) ? (v.sort as EtfListSort) : 'value',
+      period: PERIODS.some(([k]) => k === v.period) ? (v.period as EtfPeriod) : '20d',
+    };
+  } catch {
+    return { sort: 'value', period: '20d' };
+  }
+}
+
+/** 清單列：名稱｜橫條｜數值｜›（與詳細頁同一種橫條列）。 */
+function EtfBarRow({ e, sort, period, max, onOpen }: { e: ActiveEtf; sort: EtfListSort; period: EtfPeriod; max: number; onOpen: () => void }) {
+  const v = listMetric(e, sort, period);
+  const sub = rowSub(e, sort) + (sort === 'ret' && v === null ? `・${missingRetText(e, period)}` : '');
+  const valueText = v === null ? '無資料' : sort === 'ret' ? `${PERIOD_LABEL[period]} ${v > 0 ? '上漲' : v < 0 ? '下跌' : '持平'} ${fmtNum(Math.abs(v), 2)}%` : `${fmtNum(v, 1)} 億`;
+  return (
+    <a class="ui-row ui-tap el-row" href={`#/explore/etf/${e.code}`} data-testid="etf-list-row" onClick={onOpen}
+      aria-label={`${e.name} ${e.code}，${sort === 'value' ? '20 日均成交值' : sort === 'mcap' ? '市值' : '報酬'} ${valueText}，${sub}`}>
+      {/* 清單都是主動式 ETF：畫面上省略名稱前的「主動」（朗讀仍是全名） */}
+      <span class="el-name ui-row-label" aria-hidden="true">{e.name.replace(/^主動/, '')}</span>
+      <span class="el-bar" aria-hidden="true">
+        {sort === 'ret' ? <DivergingBar value={v} max={max} /> : <ProgressBar value={v} max={max} color="var(--d-2)" />}
+      </span>
+      <span class="el-v" aria-hidden="true">
+        {sort === 'ret' ? <Signed v={v} digits={2} unit="%" kind="arrow" /> : <span class="ui-num">{v === null ? '—' : `${fmtNum(v, v >= 100 ? 0 : 1)} 億`}</span>}
+      </span>
+      <span class="el-sub ui-row-sub ui-foot ui-muted" aria-hidden="true">{sub}</span>
+      <span class="el-chev ui-row-chev" aria-hidden="true"><IconChevron /></span>
+    </a>
+  );
+}
+
+function EtfList({ list }: { list: ActiveEtf[] }) {
+  const [state, setState] = useState(savedList);
+  const { sort, period } = state;
+  const save = (next: { sort: EtfListSort; period: EtfPeriod }) => {
+    setState(next);
+    try { localStorage.setItem(LIST_KEY, JSON.stringify(next)); } catch { /* 無痕模式：只在本次有效 */ }
+  };
+  const rows = sortEtfs(list, sort, period);
+  const max = barMax(list, sort, period);
+  const covered = list.filter((e) => e.has_holdings !== false).length;
+  const open = () => setListContext({ name: '主動式 ETF', codes: rows.map((e) => e.code) });
+  return (
+    <Section title="清單" aside={`${list.length} 檔・持股 ${covered}/${list.length} 檔`} testid="etf-list"
+      info={<><p>成交值＝近 20 個交易日平均成交金額；市值＝最新持股日的受益權單位數 × 收盤價（投信沒有揭露單位數時用揭露的基金淨資產）。</p>
+        <p>績效＝還原價（含息）報酬：1 日～60 日、1 年為交易日數，今年＝對去年最後一個交易日；上市未滿期間的不列報酬。</p>
+        <p>橫條：同一張圖用同一個刻度；績效以 0 為中心，紅色＝上漲、綠色＝下跌。</p></>} infoTitle="主動式 ETF 清單">
+      <Interp><Term id="active_etf">主動式 ETF</Term> 每日公布持股；點進去看持股占比與任一段期間的加碼、減碼</Interp>
+      <Seg options={LIST_SORTS} value={sort} onChange={(v) => save({ sort: v, period })} label="清單排序" testid="etf-list-sort" />
+      <Seg options={PERIODS} value={period} onChange={(v) => save({ sort: sort === 'value' || sort === 'mcap' ? 'ret' : sort, period: v })} label="績效期間" testid="etf-period" small />
+      <Interp testid="etf-period-summary">{periodSummary(list, period)}</Interp>
+      <List chev label="主動式 ETF 清單">
+        {rows.length ? rows.map((e) => <EtfBarRow key={e.code} e={e} sort={sort} period={period} max={max} onOpen={open} />) : <EmptyRow>無主動式 ETF</EmptyRow>}
+      </List>
+    </Section>
+  );
+}
+
 const SORT_KEY = 'tmf-etf-sort';
 function savedSort(): EtfSortMetric | null {
   try {
@@ -134,12 +202,12 @@ function EtfInfo({ cov, method, v, kinds }: { cov?: EtfCoverage; method?: string
         <p>
           持股日 {md(cov.holdings_date, '無')} 有持股資料的主動式 ETF {cov.covered} 檔（全部 {cov.total} 檔），
           來自 {cov.issuers} 家投信{cov.issuer_names?.length ? `（${cov.issuer_names.map((n) => n.replace(/投信$/, '')).join('、')}）` : ''}的官網揭露。
-          {cov.implemented_issuers !== undefined && cov.implemented_etfs !== undefined ? `已實作 ${cov.implemented_issuers} 家投信、${cov.implemented_etfs} 檔；` : ''}其餘投信因反爬、導向循環、驗證機制或尚未找到端點而未涵蓋。
+          {cov.implemented_issuers !== undefined && cov.implemented_etfs !== undefined ? `已實作 ${cov.implemented_issuers} 家投信、${cov.implemented_etfs} 檔；` : ''}{cov.skipped_issuers?.length ? `${cov.skipped_issuers.join('、')}的官網擋本工具的自動抓取，未涵蓋。` : ''}
           {cov.lagging?.length ? ` 持股日較晚：${cov.lagging.map((l) => `${l.code} ${md(l.date)}`).join('、')}。` : ''}
         </p>
       ) : null}
       <p>
-        各投信揭露股數與權重；受益權單位數除聯博外都有揭露
+        各投信揭露股數與權重（海外持股也列在詳細頁，跨檔加碼／減碼只算台股）；受益權單位數除聯博外都有揭露
         {cov?.units_missing?.length ? `（本次用持股股數比估計單位數變化：${cov.units_missing.join('、')}）` : ''}。
       </p>
       {method ? <p>{method}</p> : null}
@@ -187,18 +255,7 @@ export default function Etf() {
           </Section>
           <MoveList title="加碼" items={add} testid="etf-add" />
           <MoveList title="減碼" items={reduce} testid="etf-reduce" />
-          <Section title="清單" aside={`${list.length} 檔・依 20 日均成交值`} testid="etf-list">
-            <p class="interp"><Term id="active_etf">主動式 ETF</Term> 每日公布持股；點進去看持股占比與任一段期間的加碼、減碼</p>
-            <List chev>
-              {list.length ? list.map((e) => (
-                <Row key={e.code} href={`#/explore/etf/${e.code}`} testid="etf-list-row"
-                  label={e.name}
-                  sub={`代號 ${e.code}・20 日均 ${e.value_million_20d === null ? '—' : `${fmtNum(e.value_million_20d / 100, 2)} 億`}${e.has_holdings === false ? '・無持股資料' : ''}`}
-                  value={<Num v={e.close} digits={2} />}
-                  value2={e.change_pct === 0 ? '平盤' : <Signed v={e.change_pct ?? null} digits={2} unit="%" kind="arrow" />} />
-              )) : <EmptyRow>無主動式 ETF</EmptyRow>}
-            </List>
-          </Section>
+          <EtfList list={list} />
         </>
       ) : null}
     </div>

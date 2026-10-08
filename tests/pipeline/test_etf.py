@@ -138,8 +138,36 @@ def test_active_etfs_from_codes() -> None:
             "close": 20.5,
             "change_pct": 2.5,
             "value_million_20d": 3000.0,
+            "mcap_yi": None,
+            "mcap_basis": None,
+            "ret": {"1d": 2.5, "5d": None, "20d": None, "60d": None, "120d": None, "ytd": None, "1y": None},
+            "listed": "2026-09-23",
+            "days": 2,
+            "holdings_date": None,
+            "holdings_n": None,
+            "holdings_foreign": None,
         }
     ]
+    # 2026-10-09：市值＝最新持股日的受益權單位數 × 收盤價（沒有單位數用基金淨資產）；今年以來以去年最後收盤為基準
+    h = pd.DataFrame(
+        {
+            "date": ["2026-09-24"] * 3,
+            "etf": ["00981A", "00981A", "00992A"],
+            "code": ["2330", "NVDA US", "2330"],
+            "name": ["台積電", "NVIDIA", "台積電"],
+            "shares": [1000, 10, 5],
+            "weight": [5.0, 1.0, 9.0],
+            "units": [1e9, 1e9, None],
+            "aum": [None, None, 3e9],
+            "foreign": [False, True, False],
+        }
+    )
+    row = etf.active_etfs(p, h)[0]
+    assert row["mcap_yi"] == 205.0 and row["mcap_basis"] == "units"
+    assert (row["holdings_date"], row["holdings_n"], row["holdings_foreign"]) == ("2026-09-24", 2, 1)
+    assert list(etf.domestic(h)["code"]) == ["2330", "2330"]
+    adj = pd.Series([10.0, 11.0, 12.0], index=["2025-12-30", "2025-12-31", "2026-01-02"])
+    assert etf._returns(adj, list(adj.index))["ytd"] == 9.09
 
 
 def test_turnover_series_ratio_uses_previous_20_days() -> None:
@@ -340,3 +368,38 @@ def test_creation_into_cash_is_not_reduce() -> None:
     assert etf.trade_shares(100_000, 110_000, 20_000.0) == 10_000
     assert etf.trade_shares(100_000, 100_000, -5_000.0) == 0.0
     assert etf.trade_shares(100_000, 0, -90_000.0) == -90_000
+
+
+def test_detail_payload_overseas_rows_and_pre_cutover_days() -> None:
+    """2026-10-09：海外持股列標 f＝1；有海外持股的 ETF 不用「存檔時略過海外持股」的舊日子（否則海外持股全變新增）。"""
+    old = pd.DataFrame(
+        {
+            "date": ["2026-10-06"],
+            "etf": ["00990A"],
+            "code": ["2330"],
+            "name": ["台積電"],
+            "shares": [1000.0],
+            "weight": [5.0],
+            "units": [1e8],
+        }
+    )
+    new = pd.DataFrame(
+        {
+            "date": ["2026-10-07", "2026-10-07", "2026-10-08", "2026-10-08"],
+            "etf": ["00990A"] * 4,
+            "code": ["2330", "NVDA US", "2330", "NVDA US"],
+            "name": ["台積電", "NVIDIA", "台積電", "NVIDIA"],
+            "shares": [1000.0, 10.0, 2000.0, 10.0],
+            "weight": [5.0, 3.0, 9.0, 3.0],
+            "units": [1e8] * 4,
+            "aum": [None] * 4,
+            "foreign": [False, True, False, True],
+        }
+    )
+    payload = etf.detail_payload(pd.concat([old, new], ignore_index=True), "00990A", "主動元大AI新經濟")
+    assert payload is not None and payload["dates"] == ["2026-10-07", "2026-10-08"]
+    rows = {r["c"]: r for r in payload["rows"]}
+    assert rows["NVDA US"]["f"] == 1 and "f" not in rows["2330"]
+    # 只有台股的 ETF：舊日子照常保留
+    only_tw = etf.detail_payload(pd.concat([old, new[new["code"] == "2330"]], ignore_index=True), "00990A", "x")
+    assert only_tw is not None and only_tw["dates"] == ["2026-10-06", "2026-10-07", "2026-10-08"]

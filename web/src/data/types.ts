@@ -214,7 +214,7 @@ export const ETF_KINDS: EtfKind[] = ['new', 'add', 'reduce', 'exit'];
 export interface EtfMove { code: string; name: string; etfs: number; net_shares: number; net_value: number | null; detail: string; /** 兩檔以上同向才算跨檔 */ cross?: boolean; /** 同向的 ETF 全是新增 → new、全是剔除 → exit，否則 add／reduce；舊版資料沒有 */ kind?: EtfKind }
 /** §7（etf 2026-10-03）：主動式 ETF 跨檔排行的新契約 */
 export type EtfSortMetric = 'value' | 'pct_avg20' | 'pct_mcap';
-export interface EtfCoverage { covered: number; total: number; holdings_date: string | null; issuers: number; issuer_names?: string[]; etf_codes?: string[]; implemented_issuers?: number; implemented_etfs?: number; lagging?: { code: string; date: string }[]; units_missing?: string[] }
+export interface EtfCoverage { covered: number; total: number; holdings_date: string | null; issuers: number; issuer_names?: string[]; etf_codes?: string[]; implemented_issuers?: number; implemented_etfs?: number; lagging?: { code: string; date: string }[]; units_missing?: string[]; /** 官網擋本工具自動抓取、未涵蓋的投信（2026-10-09） */ skipped_issuers?: string[] }
 export interface EtfItemEtf { code: string; name: string; /** 扣除申購買回後的超額股數 */ d_shares: number | null; d_shares_raw?: number | null; /** 權重變化（百分點） */ d_weight: number | null; kind?: EtfKind; date?: string; value_yi?: number | null }
 /** value_yi／pct_avg20／pct_mcap 帶正負號（減碼為負）；已過濾 |value_yi| < 0.3 */
 export interface EtfItem { code: string; name: string; dir: 'add' | 'reduce'; kind: EtfKind; value_yi: number | null; pct_avg20: number | null; pct_mcap: number | null; etfs_same_dir: number; etfs: EtfItemEtf[] }
@@ -240,7 +240,30 @@ export interface MarketData {
   /** retail：小台（mtx）與微台（tmf）散戶多空比 %；pc_series（M2 2026-10-03）：臺指選擇權 P/C 比 %（pc＝未平倉量比、vol＝成交量比），只呈現不判定 */
   temperature?: { lights: MarketLight[]; retail?: { date: string; mtx: number | null; tmf: number | null }[]; pc_series?: { date: string; pc: number | null; vol: number | null }[] };
   etf_ranking?: { date: string | null; add: EtfMove[]; reduce: EtfMove[]; status?: string; /** §7 起為物件；舊資料為字串 */ coverage?: string | EtfCoverage; coverage_text?: string; covered?: number; total?: number; /** 變動分類筆數（ETF × 股票；M2 2026-10-03；§7 起為扣除申購買回後的判定） */ kinds?: Partial<Record<EtfKind, number>>; /** 修正前（只看股數增減）的筆數 */ kinds_raw?: Partial<Record<EtfKind, number>>; items?: EtfItem[]; sort_default?: EtfSortMetric; validation?: EtfValidation; unverified_label?: string | null; method?: string };
-  active_etfs?: { code: string; name: string; close: number; value_million_20d: number | null; has_holdings?: boolean; change_pct?: number | null }[];
+  active_etfs?: ActiveEtf[];
+}
+
+/** 主動式 ETF 清單列（market.json active_etfs；2026-10-09 加市值、各期間報酬、持股摘要）。 */
+export interface ActiveEtf {
+  code: string;
+  name: string;
+  close: number;
+  value_million_20d: number | null;
+  has_holdings?: boolean;
+  change_pct?: number | null;
+  /** 市值（億元）＝受益權單位數 × 收盤價；沒有單位數時＝投信揭露的基金淨資產 */
+  mcap_yi?: number | null;
+  mcap_basis?: 'units' | 'aum' | null;
+  /** 各期間報酬（%，還原價）：1d 5d 20d 60d 120d ytd 1y；上市天數不足＝null */
+  ret?: Partial<Record<string, number | null>>;
+  listed?: string;
+  days?: number;
+  issuer?: string | null;
+  holdings_date?: string | null;
+  holdings_n?: number | null;
+  holdings_foreign?: number | null;
+  /** 沒有持股資料的原因（投信擋自動抓取、資料累積中） */
+  holdings_note?: string;
 }
 
 // ---------- index.json ----------
