@@ -40,11 +40,12 @@ export function DataStatus({ date, extra, uses, asof }: { date?: string | null; 
   return (
     <>
       <p class="meta-line">
-        {fv.holiday ? <span class="meta-phase" title="休市日不會中斷你的連續天數"><IconMoonRest />今天休市・</span> : null}
-        {!fv.holiday && fv.todayNotUpdated ? <span class="meta-phase" title="預期公布時間已過、資料還沒進來：收盤行情 15:00、三大法人與期貨法人 16:00、融資融券 22:00"><IconClock />今天的資料尚未更新・</span> : null}
-        {meta.data.demo ? <span class="meta-demo w6">示範資料（合成數據）・</span> : null}
-        <a href="#/me/data" class="meta-link" title="資料狀態：每個資料集的來源、最新日、應有日、涵蓋率、回補進度">資料至 {md(d)} 收盤</a>{genText ? `・${genText} 更新` : ''}{extra ? <>・{extra}</> : null}
-        {failed ? <>・<a class="meta-alert" href="#/me/health">{failed} 個資料源異常</a></> : null}
+        {fv.holiday ? <span class="meta-phase" title="休市日不會中斷你的連續天數"><IconMoonRest />今天休市・<wbr /></span> : null}
+        {!fv.holiday && fv.todayNotUpdated ? <span class="meta-phase" title="預期公布時間已過、資料還沒進來：收盤行情 15:00、三大法人與期貨法人 16:00、融資融券 22:00"><IconClock />今天的資料尚未更新・<wbr /></span> : null}
+        {meta.data.demo ? <span class="meta-demo w6">示範資料（合成數據）・<wbr /></span> : null}
+        {/* 2026-10-09：「・」黏在前一段、後面給換行點（keep-all 時會從「・」前斷開，「・」落到行首；休市日的頁首較長） */}
+        <span class="nowrap"><a href="#/me/data" class="meta-link" title="資料狀態：每個資料集的來源、最新日、應有日、涵蓋率、回補進度">資料至 {md(d)} 收盤</a>{genText ? '・' : ''}</span>{genText ? <><wbr />{genText} 更新</> : ''}{extra ? <>・<wbr />{extra}</> : null}
+        {failed ? <>・<wbr /><a class="meta-alert" href="#/me/health">{failed} 個資料源異常</a></> : null}
         {fv.next ? <><br /><span class="meta-next" data-testid="meta-next">{fv.next}</span></> : null}
       </p>
       {asofLine ? <p class="meta-line asof-line" data-testid="asof-line" style={{ marginTop: 0 }}>各資料集：{asofLine}</p> : null}
