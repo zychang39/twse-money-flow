@@ -91,6 +91,7 @@ class PoliteClient:
         data: dict[str, str] | None = None,
         json_body: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
+        missing_ok: bool = False,
     ) -> requests.Response:
         host = urlparse(url).netloc
         if self._failures.get(host, 0) >= self.breaker_threshold:
@@ -118,6 +119,10 @@ class PoliteClient:
                     raise BlockedError(f"被網站拒絕（HTTP 403）：{url}")
                 if resp.status_code in (429, 500, 502, 503, 504):
                     raise FetchError(f"HTTP {resp.status_code}：{url}")
+                if resp.status_code == 404 and missing_ok:
+                    # 該網站以 404 表示「這一天沒有資料」（例：摩根的持股 Excel）：不是失敗，不計入斷路器
+                    self._failures[host] = 0
+                    return resp
                 if resp.status_code >= 400:
                     self._failures[host] = self._failures.get(host, 0) + 1
                     raise FetchError(f"HTTP {resp.status_code}：{url}")
@@ -147,8 +152,10 @@ class PoliteClient:
         self._failures[host] = self._failures.get(host, 0) + 1
         raise FetchError(str(last_error)) from last_error
 
-    def get_bytes(self, url: str, headers: dict[str, str] | None = None) -> bytes:
-        return self.request(url, headers=headers).content
+    def get_bytes(self, url: str, headers: dict[str, str] | None = None, missing_ok: bool = False) -> bytes:
+        """missing_ok：HTTP 404 回傳空內容（b""），不算失敗、不計入斷路器。"""
+        resp = self.request(url, headers=headers, missing_ok=missing_ok)
+        return b"" if resp.status_code == 404 else resp.content
 
     def post_bytes(self, url: str, data: dict[str, str], headers: dict[str, str] | None = None) -> bytes:
         return self.request(url, method="POST", data=data, headers=headers).content

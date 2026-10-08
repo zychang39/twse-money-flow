@@ -14,7 +14,7 @@ import pandas as pd
 
 from pipeline.core import config
 from pipeline.core.dates import month_start, next_month, slash
-from pipeline.core.http import CircuitOpenError, FetchError
+from pipeline.core.http import CircuitOpenError
 from pipeline.registry import build_url
 from pipeline.sources import advanced
 from pipeline.sources.base import ParseError, ParseResult
@@ -690,14 +690,12 @@ class _EtfFetcher:
             trade: dict[str, Any] = {"Type": 1, "Keyword": "", "FundNo": fund, "Date": day.isoformat()}
             return eh.parse_allianz(self.ctx.client.post_json(url, trade, self._allianz_headers()), etf)
         if issuer == "jpmorgan":
-            # date＝持股日；沒有資料回 HTTP 404（視為查無，不停用投信）
+            # date＝持股日；沒有資料回 HTTP 404：視為查無，不計入斷路器（2026-10-09 回補時連續 404 讓斷路器停掉整家投信）
             q = url.format(isin=eh.isin_of(etf), kind="holding_pcf", day=day.isoformat())
-            try:
-                res = eh.parse_jpmorgan(_fetch(self.ctx, q), etf)
-            except FetchError as exc:
-                if "HTTP 404" in str(exc):
-                    return ParseResult(pd.DataFrame(), no_data=True, message=f"摩根：{day} 查無持股")
-                raise
+            raw = self.ctx.client.get_bytes(q, missing_ok=True)
+            if not raw:
+                return ParseResult(pd.DataFrame(), no_data=True, message=f"摩根：{day} 查無持股")
+            res = eh.parse_jpmorgan(raw, etf)
             if not res.df.empty and res.response_date:
                 # 受益權單位數在之後第 units_lag 個交易日公告的現金申購買回清單（m12_pcf；美股型晚 2 日），
                 # 淨值日＝持股日才採用；取不到不影響持股
@@ -707,8 +705,7 @@ class _EtfFetcher:
                 if len(nxt) >= lag and nxt[lag - 1] <= self.ctx.today:
                     try:
                         q = url.format(isin=eh.isin_of(etf), kind="m12_pcf", day=nxt[lag - 1].isoformat())
-                        raw = _fetch(self.ctx, q)
-                        nav_d, units, aum = eh.parse_jpmorgan_units(raw)
+                        nav_d, units, aum = eh.parse_jpmorgan_units(self.ctx.client.get_bytes(q, missing_ok=True))
                     except SOURCE_ERRORS:
                         nav_d, units, aum = None, None, None
                     if nav_d == res.response_date:
@@ -856,7 +853,8 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
     covered = sorted({issuers[i]["label"] for i in targets.values()})
     summary = (
         f"已取得 {len(ok_etfs)}/{len(names)} 檔主動式 ETF 持股（{'、'.join(covered)}）；"
-        f"其餘投信因反爬、導向循環、驗證機制或尚未找到端點而未涵蓋"
+        f"其餘投信（{'、'.join(sorted(str(v['label']) for v in issuers.values() if v.get('status') != 'verified'))}）"
+        "的官網擋本工具的自動抓取，未涵蓋"
     )
     if errors:
         summary += f"；失敗 {len(errors)} 次：" + "；".join(errors[:3])

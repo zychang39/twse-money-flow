@@ -242,3 +242,8 @@ def test_http_403_backs_off_and_retries_like_waf():
     with pytest.raises(FetchError):
         c3.get_bytes("https://example.com/x")
     assert s3.calls == 1
+    # missing_ok（2026-10-09，摩根以 404 表示該日沒有資料）：回空內容、不計入斷路器
+    s4 = FakeSession([FakeResponse(404, b"{}")] * 8)
+    c4 = PoliteClient(delay=(0, 0), max_retries=4, breaker_threshold=5, sleep=lambda s: None, session=s4)  # type: ignore[arg-type]
+    assert [c4.get_bytes("https://am.jpmorgan.com/x", missing_ok=True) for _ in range(8)] == [b""] * 8
+    assert s4.calls == 8

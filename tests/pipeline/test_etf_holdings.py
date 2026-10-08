@@ -229,7 +229,7 @@ class JsonFakeClient:
                 return payload
         return b'{"code":400,"data":null,"message":"not found"}'
 
-    def get_bytes(self, url: str, headers: dict[str, str] | None = None) -> bytes:
+    def get_bytes(self, url: str, headers: dict[str, str] | None = None, missing_ok: bool = False) -> bytes:
         self.headers.append(headers or {})
         return self._hit(url)
 
@@ -480,7 +480,7 @@ def test_fetcher_new_issuers(tmp_path):
         "type=m12_pcf&cusip=TW00000401A1&country=tw&role=twetf&locale=zh-TW&date=2026-10-12": sample(
             "etf_jpmorgan_m12_00401A.xlsx"
         ),
-        "date=2026-10-07": FetchError("HTTP 404：https://am.jpmorgan.com/..."),
+        "date=2026-10-07": b"",  # PoliteClient(missing_ok=True) 把 HTTP 404 轉成空內容
         "SinglePcf/00410A": sample("etf_sinopac_00410A.html"),
     }
     ctx = _ctx(tmp_path, routes, now=datetime(2026, 10, 12, 21, 0, tzinfo=TPE))
