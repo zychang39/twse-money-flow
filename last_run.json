@@ -1,11 +1,15 @@
 {
- "task": "backfill",
- "at": "2026-10-09T03:29:38+08:00",
- "requests": 543,
- "ok": 1,
+ "task": "catchup",
+ "at": "2026-10-09T04:01:46+08:00",
+ "requests": 0,
+ "ok": 0,
  "failed": [],
  "pending": [],
- "remaining": 0,
- "by_source": {},
- "progressed": true
+ "missing_before": [],
+ "missing_after": [],
+ "fixed": [],
+ "attempt": 1,
+ "retry": false,
+ "progressed": false,
+ "kbar_dispatched": true
 }
