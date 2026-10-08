@@ -737,7 +737,7 @@ def _replace_holdings(ctx: RunContext, df: pd.DataFrame) -> None:
         ctx.store.write("etf_holdings", month, part.sort_values(HOLDING_KEYS).reset_index(drop=True))
 
 
-def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = None) -> None:
+def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = None) -> int:
     """抓取已實作投信的主動式 ETF 持股；以「持股日」為單位判斷缺漏。
 
     群益、元大以申購買回清單的公告日查詢，回應的是 lag_days 個交易日之前的持股（config 設定），
@@ -746,6 +746,7 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
     （無法計算加碼／減碼），再往回補到 backfill_days 個交易日內取得第二天為止（之後的每日任務自然累積）。
     回補（days 指定）：逐日抓取缺的持股日（由近到遠，受時間預算限制）。
     同一家投信出現 HTTP 4xx 或斷路器開啟時，本輪不再請求該投信。
+    回傳：時間預算用完時還沒處理完的 ETF 檔數（回補據此接力下一段；2026-10-09 以前回補用完時間也回報 0，不會接力）。
     """
     from pipeline.sources import etf_holdings as eh
 
@@ -754,7 +755,7 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
     names = active_etf_names(ctx)
     if not names:
         ctx.note("active_etf", "failed", data_date=target, message="找不到主動式 ETF 清單（需先有收盤行情）")
-        return
+        return 0
     targets = {
         code: iss
         for code, name in sorted(names.items())
@@ -823,17 +824,26 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
         have.setdefault(etf, set()).add(str(res.df["date"].iloc[0]))
         return True
 
-    for etf, issuer in targets.items():
+    unfinished = 0
+    for n_done, (etf, issuer) in enumerate(targets.items()):
+        if ctx.out_of_time():
+            unfinished = len(targets) - n_done  # 這一檔與之後的都還沒處理（下一段由已存的持股日接著補）
+            break
         first_time = etf not in have
         todo = days if days is not None else recent[:HEAL_DAYS]
         empty_run = 0
         for x in todo:
             if days is not None and empty_run >= BACKFILL_EMPTY_STOP:
                 break  # 回補由近到遠：連續查無代表已早於掛牌（或網站保留期限），不再往前請求
+            if ctx.out_of_time():
+                break
             if x.isoformat() not in have.get(etf, set()):
                 got = attempt(issuer, etf, x)
                 if got is not None:
                     empty_run = 0 if got else empty_run + 1
+        if ctx.out_of_time() and days is not None:
+            unfinished = len(targets) - n_done
+            break
         for x in recent[HEAL_DAYS:lookback] if days is None and first_time else []:
             if len(have.get(etf, set())) >= 2:
                 break
@@ -854,3 +864,4 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
     rows = sum(len(f) for f in frames)
     status = "failed" if errors and not frames else "ok"
     ctx.note("active_etf", status, data_date=date.fromisoformat(latest) if latest else None, rows=rows, message=summary)
+    return unfinished

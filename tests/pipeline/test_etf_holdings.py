@@ -532,3 +532,17 @@ def test_fetcher_uni_request(tmp_path):
     assert f.fetch("uni", "00981A", None).response_date == date(2026, 10, 8)  # 最新一份：未來日＋specificDate False
     assert f.fetch("uni", "00999A", None).no_data  # PCF 頁沒有的代號不請求
     assert len([c for c in ctx.client.calls if c.endswith("ETF/Transaction/PCF")]) == 1  # type: ignore[attr-defined]
+
+
+def test_backfill_reports_unfinished_etfs_for_chaining(tmp_path):
+    """2026-10-09：回補用完時間時回報還沒處理完的 ETF 檔數（tasks.run_backfill 據此接力下一段）；
+    以前回報 0，第一段 40 分鐘後就停在 20/32 檔。"""
+    ctx = _ctx(
+        tmp_path, {"GetFundAssets": sample("etf_nomura_00980A.json"), "etf/items": sample("etf_capital_items.json")}
+    )
+    days = ctx.calendar.trading_days(date(2026, 9, 1), date(2026, 9, 24))[::-1]
+    ctx.deadline = 0.0  # 已超時：一個請求都不發
+    assert tasks_advanced.run_etf_holdings(ctx, days[0], days=days) == 3  # 野村、群益、統一（國泰跳過）
+    assert ctx.client.calls == []  # type: ignore[attr-defined]
+    ctx.deadline = None
+    assert tasks_advanced.run_etf_holdings(ctx, days[0], days=days[:2]) == 0
