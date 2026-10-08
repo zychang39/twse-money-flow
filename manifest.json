@@ -1607,6 +1607,15 @@
   "updated_at": "2026-10-09T05:28+08:00",
   "weeks": 52
  },
+ "holders_backfill_pending": {
+  "deferred_at": "2026-10-08T13:55+08:00",
+  "end": "2026-10-03",
+  "ref": "claude/momentum-strategy-lab-v2",
+  "refresh": false,
+  "source": "",
+  "start": "2023-10-01",
+  "task": "holders_backfill"
+ },
  "kbar": {
   "at": "2026-10-09T04:02+08:00",
   "covered": 2331,
@@ -1949,27 +1958,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-07T23:52:04+08:00",
-   "by_tier": {
-    "1": 0,
-    "2": 0,
-    "3": 0
-   },
-   "covered": 2331,
-   "failed": [],
-   "fetched": 0,
-   "kbar_target": "2026-10-07",
-   "ok": 1,
-   "pending": [],
-   "progressed": false,
-   "pruned": 0,
-   "remaining": 8,
-   "requests": 0,
-   "rows": 0,
-   "task": "kbar",
-   "total": 2368
-  },
   {
    "at": "2026-10-08T04:03:42+08:00",
    "attempt": 1,
@@ -2610,17 +2598,28 @@
    "remaining": 12422,
    "requests": 565,
    "task": "holders_backfill"
+  },
+  {
+   "at": "2026-10-09T06:10:06+08:00",
+   "by_source": {},
+   "failed": [],
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "remaining": 0,
+   "requests": 514,
+   "task": "backfill"
   }
  ],
  "sources": {
   "active_etf": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-09T05:17:51+08:00",
-   "last_message": "已取得 24/32 檔主動式 ETF 持股（中國信託投信、元大投信、凱基投信、台新投信、安聯投信、富邦投信、復華投信、摩根投信、永豐投信、第一金投信、統一投信、群益投信、聯博投信、野村投信）；其餘投信因反爬、導向循環、驗證機制或尚未找到端點而未涵蓋；失敗 17 次：00401A（摩根投信）：斷路器開啟：am.jpmorgan.com 連續失敗 6 次；00405A（富邦投信）：富邦：找不到「資料日期」；00405A（富邦投信）：富邦：找不到「資料日期」",
+   "last_attempt": "2026-10-09T06:10:06+08:00",
+   "last_message": "已取得 25/32 檔主動式 ETF 持股（中國信託投信、元大投信、凱基投信、台新投信、安聯投信、富邦投信、復華投信、摩根投信、永豐投信、第一金投信、統一投信、群益投信、聯博投信、野村投信）；其餘投信因反爬、導向循環、驗證機制或尚未找到端點而未涵蓋；失敗 17 次：00401A（摩根投信）：斷路器開啟：am.jpmorgan.com 連續失敗 6 次；00405A（富邦投信）：富邦：找不到「資料日期」；00405A（富邦投信）：富邦：找不到「資料日期」",
    "last_status": "ok",
    "last_success": "2026-10-08",
-   "last_success_at": "2026-10-09T05:17:51+08:00",
-   "rows": 17784,
+   "last_success_at": "2026-10-09T06:10:06+08:00",
+   "rows": 29053,
    "validation": "ok"
   },
   "cbc_money": {
@@ -3292,6 +3291,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-09T06:09:03+08:00",
+ "updated_at": "2026-10-09T06:10:06+08:00",
  "version": 1
 }
