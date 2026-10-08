@@ -497,11 +497,11 @@ sources:
     publish: "法定期限：Q1 5/15、Q2 8/14、Q3 11/14、年報 3/31"
     status: verified
   active_etf:
-    label: 主動式 ETF 每日持股（各投信官網持股揭露／PCF，部分涵蓋）
+    label: 主動式 ETF 每日持股（各投信官網持股揭露／PCF）
     market: both
     tier: advanced
     frequency: daily
-    status: partial   # 只涵蓋無反爬、無導向循環、無驗證機制的投信；其餘標示狀態與原因（docs/DATA_SOURCES.md）
+    status: partial   # 國泰、兆豐依 User-Agent 擋本工具，未涵蓋；其餘投信皆已實作（docs/DATA_SOURCES.md）
     backfill_days: 20   # 每日任務若某檔 ETF 尚無前一次揭露，最多往回補幾個交易日（計算加碼／減碼需要兩天）
     # keyword：由行情名稱（主動○○…）判定發行投信。status：verified 已實作；skipped 依規則跳過；pending 待處理。
     issuers:
@@ -543,23 +543,38 @@ sources:
       uni:
         label: 統一投信
         keyword: 統一
-        status: skipped
-        reason: 官網（ezmoney.com.tw）導向循環（302 超過 50 次），依規則不繞過
+        status: verified
+        method: 'GET PCF 頁（list_url）取 DataFundList（代號 → sFundCode）並建立工作階段 cookie → POST JSON GetPCF {fundCode, date: 民國 YYY/MM/DD（公告日）, specificDate: true}；未帶日期時以未來日＋specificDate false 取最新一份；pcf.TranDate＝持股日，asset 中 AssetCode＝ST 為股票'
+        lag_days: 1
+        list_url: https://www.ezmoney.com.tw/ETF/Transaction/PCF
+        url: https://www.ezmoney.com.tw/ETF/Transaction/GetPCF
+        note: 2026-10-03 以前記為導向循環（302 超過 50 次）：當時的請求沒有保留網站設定的 cookie；2026-10-09 改用工作階段（保留 cookie，與一般瀏覽器相同；User-Agent 不變）
       mega:
         label: 兆豐投信
         keyword: 兆豐
         status: skipped
-        reason: 官網回應 403（拒絕存取），依規則不繞過
+        reason: 官網（www.megafunds.com.tw/MEGA/etf/trade_pcf.aspx）對本工具的 User-Agent 回 403（2026-10-09 再測仍是），依規則不偽裝瀏覽器繞過
       allianz:
         label: 安聯投信
         keyword: 安聯
-        status: skipped
-        reason: ETF 網站 API 需先取得 AntiForgery 權杖（驗證機制），依規則不繞過
+        status: verified
+        method: 'GET page_url 建立工作階段 cookie → GET token_url 取防偽權杖（ASP.NET AntiForgery，網站發給每位訪客、不需登入）→ 之後的 POST 帶 X-XSRF-TOKEN 標頭；types_url 找「主動式」類別 Id → list_url {TypeId} 取代號 → FundNo；url {Type:1, Keyword:"", FundNo, Date: 公告日 YYYY-MM-DD}；CNavDt＝持股日；DynamicTableData 標題以「股票」開頭的表為持股'
+        lag_days: 1
+        lag_days_by_etf: { "00402A": 2 }   # 美股型：公告日比持股日晚 2 個交易日（2026-10-09 實測：10/08 公告 10/06 持股）
+        page_url: https://etf.allianzgi.com.tw/list-trade
+        token_url: https://etf.allianzgi.com.tw/webapi/api/AntiForgery/GetAntiForgeryToken
+        types_url: https://etf.allianzgi.com.tw/webapi/api/Category/GetFundTypeDropdownOptions
+        list_url: https://etf.allianzgi.com.tw/webapi/api/Category/GetFundDropdownOptions
+        url: https://etf.allianzgi.com.tw/webapi/api/Fund/GetFundTradeInfo
+        note: 2026-10-03 以前因需要防偽權杖而跳過；2026-10-09 改為支援（權杖是一般瀏覽流程的一部分，不是登入或驗證碼；DECISIONS #436）
       sinopac:
         label: 永豐投信
         keyword: 永豐
-        status: pending
-        reason: 2026-10-03：開發環境的對外代理對 www.sinopacfunds.com.tw 的 CONNECT 回 502（2 次，無法建立連線），尚未取得樣本；需在 Actions 或其他網路環境再試
+        status: verified
+        method: 'GET HTML（ETF 代號在網址）；只有最新一份（網址不吃日期）；「資料日期：YYYY/MM/DD」＝持股日；頁面留有全系列 ETF 的空白表格模板，取資料日期之後第一張有資料的「證券代碼／證券名稱／股數／佔基金淨資產之權重(%)」表'
+        latest_only: true
+        url: https://sitc.sinopac.com/SinopacEtfs/Etfs/SinglePcf/{etf}
+        note: 2026-10-03 嘗試的 www.sinopacfunds.com.tw 連不上；ETF 網站在 sitc.sinopac.com（2026-10-09 實測 200）
       taishin:
         label: 台新投信
         keyword: 台新
@@ -570,8 +585,11 @@ sources:
       jpmorgan:
         label: 摩根投信
         keyword: 摩根
-        status: pending
-        reason: 2026-10-03：官網可連（首頁、ETF 專區 twetf、00401A 基金頁與產品頁 …/twetf/products/…tw00000401a1#/pcf），但產品頁為 FundsMarketingHandler 單頁應用（webpack 分塊載入），6 次請求（含 loader 與 pdp-v3 chunk）內未找到持股／PCF 資料端點
+        status: verified
+        method: 'GET xlsx；{isin}＝TW000＋代號＋檢查碼（etf_holdings.isin_of）；kind＝holding_pcf 時 day＝持股日（第 1 張工作表「基金資產 - 股票 (YYYY-MM-DD)」，表頭 股票代碼／股票名稱／股數／金額／權重(%)），沒有資料回 HTTP 404；kind＝m12_pcf（現金申購買回清單公告）day＝公告日（持股日的下一個交易日），取已發行受益權單位總數與基金淨資產價值；locale 與 date 都必填'
+        url: https://am.jpmorgan.com/FundsMarketingHandler/excel?type={kind}&cusip={isin}&country=tw&role=twetf&locale=zh-TW&date={day}
+        units_lag_by_etf: { "00989A": 2 }   # m12_pcf 公告日比淨值日晚幾個交易日（預設 1；美股型 2，2026-10-09 實測：10/08 公告 10/06 淨值）
+        note: 2026-10-03 在產品頁（單頁應用）內未找到資料端點；2026-10-09 找到 Excel 下載端點（本工具 User-Agent 實測 200）
       kgi:
         label: 凱基投信
         keyword: 凱基
@@ -589,8 +607,12 @@ sources:
       ctbc:
         label: 中國信託投信
         keyword: 中信
-        status: skipped
-        reason: 2026-10-03：官網為單頁應用程式（Vue），所有 API（www.ctbcinvestments.com.tw/API/…，含 ETF 申購買回清單 Buyback、持股 ShareHolding）都要先 POST home/AuthToken 取得權杖再以 token 參數請求（驗證機制），依規則不繞過
+        status: verified
+        method: 'POST token_url（body {}）取匿名工作階段權杖（網站發給每位訪客、不需登入）→ 之後的 API 以 ?token= 帶入；list_url 取 ETF_ID → FID；url {FID, StartDate: YYYY/MM/DD} 回該日（含）以前最近一次揭露，FundAssets[0].資料日期＝持股日；FundAssetsDetail 的 Code＝STOCK 為股票（期貨、選擇權、保證金另段）；回應可能是雙層編碼的 JSON 字串'
+        token_url: https://www.ctbcinvestments.com.tw/API/home/AuthToken?token=www.ctbcinvestments.com
+        list_url: https://www.ctbcinvestments.com.tw/API/etf/ETFList
+        url: https://www.ctbcinvestments.com.tw/API/etf/ETFHoldingWeight
+        note: 2026-10-03 以前因需要權杖而跳過；2026-10-09 改為支援（匿名權杖是網站一般瀏覽流程的一部分，不是登入或驗證碼；DECISIONS #436）
       fsitc:
         label: 第一金投信
         keyword: 第一金

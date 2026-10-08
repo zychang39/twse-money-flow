@@ -610,11 +610,15 @@ def cmd_validate_web(args: argparse.Namespace) -> int:
 
 
 def cmd_smoke(args: argparse.Namespace) -> int:
-    from pipeline.smoke import run_smoke, to_markdown
+    from pipeline.smoke import run_smoke, smoke_active_etf, to_markdown
 
     d = _date(args.date) or now_tpe().date()
     sources = [s.strip() for s in (args.source or "").split(",") if s.strip()] or None
-    results = run_smoke(PoliteClient.from_config(), d, sources)
+    client = PoliteClient.from_config()
+    results = run_smoke(client, d, sources)
+    if sources is None or "active_etf" in sources:
+        # 主動式 ETF 各投信（2026-10-09）：日期用今天（投信端點以「最新一份」查詢）
+        results += smoke_active_etf(client, now_tpe().date())
     text = to_markdown(results, d)
     print(text)
     if args.summary:

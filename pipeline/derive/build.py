@@ -375,10 +375,11 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
     written = 0
     active = [c for c in p.codes if pd.notna(p.close[c].iloc[-20:]).any()]  # 近 20 日有交易
     since = p.dates[max(0, len(p.dates) - 260)]
-    etf_changes = etfmod.holdings_changes(ds.table("etf_holdings"))
+    # 2026-10-09：持股含海外（foreign）；個股頁、跨檔排行只看台股，詳細頁用完整持股
+    etf_changes = etfmod.holdings_changes(etfmod.domestic(ds.table("etf_holdings")))
     etf_holders = etfmod.holders_by_stock(etf_changes, p.names)
     # SPEC §5.8／§7：個股頁「主動式 ETF」一列（持有檔數｜近 5 日淨變動金額｜佔 20 日均成交額 %）
-    etf_summary = etfmod.stock_summary(ds.table("etf_holdings"), p)
+    etf_summary = etfmod.stock_summary(etfmod.domestic(ds.table("etf_holdings")), p)
     # 2026-10-08：主動式 ETF 詳細頁（etf/{code}.json：持股權重與股數歷史）
     etf_details = etfmod.write_details(ds.table("etf_holdings"), p, out)
     chip_src = stockdetail.chip_sources(ds)

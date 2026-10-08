@@ -147,12 +147,12 @@ class PoliteClient:
         self._failures[host] = self._failures.get(host, 0) + 1
         raise FetchError(str(last_error)) from last_error
 
-    def get_bytes(self, url: str) -> bytes:
-        return self.request(url).content
+    def get_bytes(self, url: str, headers: dict[str, str] | None = None) -> bytes:
+        return self.request(url, headers=headers).content
 
     def post_bytes(self, url: str, data: dict[str, str], headers: dict[str, str] | None = None) -> bytes:
         return self.request(url, method="POST", data=data, headers=headers).content
 
-    def post_json(self, url: str, body: dict[str, Any]) -> bytes:
-        """POST JSON 本文（部分投信 API 只接受 application/json）。"""
-        return self.request(url, method="POST", json_body=body).content
+    def post_json(self, url: str, body: dict[str, Any], headers: dict[str, str] | None = None) -> bytes:
+        """POST JSON 本文（部分投信 API 只接受 application/json）；headers 例：安聯的防偽權杖 X-XSRF-TOKEN。"""
+        return self.request(url, method="POST", json_body=body, headers=headers).content

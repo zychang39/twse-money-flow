@@ -10,6 +10,7 @@ export interface EtfDetailRow {
   /** 名稱 */ n: string;
   /** 每個持股日的股數（沒有持有＝null） */ s: (number | null)[];
   /** 每個持股日的權重（%） */ w: (number | null)[];
+  /** 海外持股（2026-10-09 起保留）：不連到個股頁 */ f?: 1;
 }
 
 export interface EtfDetail {
@@ -38,6 +39,8 @@ export interface PairRow {
   kind: PairKind;
   /** 計入的股數（實際股數變動與超額股數同號時取絕對值較小者） */
   tradeShares: number | null;
+  /** 海外持股 */
+  foreign?: boolean;
 }
 
 export interface PairResult {
@@ -103,7 +106,7 @@ export function pairChanges(d: EtfDetail, i0: number, i1: number): PairResult {
     const w0 = a > 0 ? r.w[i0] : 0;
     const w1 = b > 0 ? r.w[i1] : 0;
     return {
-      code: r.c, name: r.n, w0, w1,
+      code: r.c, name: r.n, w0, w1, foreign: r.f === 1,
       dWeight: fin(w0) && fin(w1) ? w1 - w0 : null,
       s0: a, s1: b, kind,
       tradeShares: tradeShares(a, b, fin(excess) ? excess : null),
@@ -128,9 +131,11 @@ export function quickRange(n: number, back: number | null): [number, number] {
 }
 
 /** 迄日的持股（依權重由大到小）；沒有權重時依股數。 */
-export function holdingsAt(d: EtfDetail, i: number): { code: string; name: string; weight: number | null; shares: number }[] {
+export interface Holding { code: string; name: string; weight: number | null; shares: number; foreign: boolean }
+
+export function holdingsAt(d: EtfDetail, i: number): Holding[] {
   return d.rows
     .filter((r) => fin(r.s[i]))
-    .map((r) => ({ code: r.c, name: r.n, weight: r.w[i], shares: r.s[i] as number }))
+    .map((r) => ({ code: r.c, name: r.n, weight: r.w[i], shares: r.s[i] as number, foreign: r.f === 1 }))
     .sort((a, b) => (b.weight ?? -1) - (a.weight ?? -1) || b.shares - a.shares);
 }

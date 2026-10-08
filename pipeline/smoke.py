@@ -101,3 +101,61 @@ def to_markdown(results: list[SmokeResult], d: date) -> str:
     bad = [r.source for r in results if r.is_format_problem]
     lines += ["", f"格式變動（需要處理）：{'、'.join(bad) if bad else '無'}"]
     return "\n".join(lines) + "\n"
+
+
+#: 主動式 ETF 各投信的冒煙測試代表檔（2026-10-09）：每家取一檔、查最新一份，檢查能取得持股
+ETF_SMOKE = {
+    "nomura": "00980A",
+    "capital": "00982A",
+    "yuanta": "00990A",
+    "fubon": "00405A",
+    "uni": "00981A",
+    "ctbc": "00406A",
+    "allianz": "00993A",
+    "sinopac": "00410A",
+    "taishin": "00986A",
+    "jpmorgan": "00401A",
+    "kgi": "00407A",
+    "ab": "00404A",
+    "fsitc": "00408A",
+    "fhtrust": "00991A",
+}
+
+
+class _WeekdayCalendar:
+    """冒煙測試沒有交易日曆：以週一到週五近似（只用在摩根的單位數公告日）。"""
+
+    def trading_days(self, a: date, b: date) -> list[date]:
+        return [a + timedelta(days=i) for i in range((b - a).days + 1) if (a + timedelta(days=i)).weekday() < 5]
+
+
+def smoke_active_etf(client: PoliteClient, d: date) -> list[SmokeResult]:
+    """每家已實作的投信抓一檔最新持股（流程與每日任務相同：基金清單、權杖、工作階段 cookie）。"""
+    from types import SimpleNamespace
+
+    from pipeline.core import config
+    from pipeline.tasks_advanced import _EtfFetcher
+
+    issuers = config.source("active_etf")["issuers"]
+    ctx = SimpleNamespace(client=client, today=d, calendar=_WeekdayCalendar())
+    fetcher = _EtfFetcher(ctx, issuers)  # type: ignore[arg-type]
+    out = []
+    for issuer, etf in ETF_SMOKE.items():
+        if issuers.get(issuer, {}).get("status") != "verified":
+            continue
+        sid = f"active_etf.{issuer}"
+        try:
+            res = fetcher.fetch(issuer, etf, None)
+        except FetchError as exc:
+            out.append(SmokeResult(sid, "fetch_error", message=str(exc)[:200]))
+            continue
+        except ParseError as exc:
+            out.append(SmokeResult(sid, "format_error", message=str(exc)[:300]))
+            continue
+        if res.df.empty:
+            out.append(SmokeResult(sid, "no_data", message=res.message))
+            continue
+        units = res.df["units"].iloc[0] if "units" in res.df else None
+        note = f"{etf} 持股日 {res.response_date}、單位數 {'有' if units == units and units else '無'}"
+        out.append(SmokeResult(sid, "ok", len(res.df), message=note))
+    return out
