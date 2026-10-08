@@ -211,6 +211,71 @@ def revenue_metrics(rev: pd.Series) -> dict[str, float | int | bool | str | None
     }
 
 
+def revenue_metrics_prefixes(rev: pd.Series) -> list[dict[str, float | int | bool | str | None]]:
+    """每個前綴 rev.iloc[: i + 1] 的 revenue_metrics（逐月指標）；結果與逐一呼叫 revenue_metrics 相同。
+
+    2026-10-08：原本每檔每個月都把「到該月為止」的整段序列重算一次（O(n²)，部署時約 20 萬次 pandas 呼叫，
+    佔 build-web 約兩成時間）；這裡一次走完：年增率只看去年同月（在前綴內必定已出現），其餘是固定長度的視窗。
+    rev 須已排序、無缺值（revenue_panels 的序列）；否則退回逐一呼叫。
+    """
+    if rev.empty:
+        return []
+    if rev.isna().any() or not rev.index.is_monotonic_increasing or rev.index.has_duplicates:
+        return [dict(revenue_metrics(rev.iloc[: i + 1])) for i in range(len(rev))]
+    months = [str(m) for m in rev.index]
+    vals = rev.to_numpy(dtype=float)
+    pos = {m: i for i, m in enumerate(months)}
+
+    def shift_year(ym: str) -> str:
+        return f"{int(ym[:4]) - 1:04d}-{ym[5:7]}"
+
+    prev_pos = [pos.get(shift_year(m)) for m in months]
+    yoys: list[float | None] = []
+    for i in range(len(months)):
+        j = prev_pos[i]
+        yoys.append(float(vals[i] / vals[j] - 1) * 100 if j is not None and vals[j] > 0 else None)
+    out: list[dict[str, float | int | bool | str | None]] = []
+    growth = 0
+    year_start = 0  # 前綴內同一年的第一個位置
+    for i, latest in enumerate(months):
+        y = yoys[i]
+        growth = growth + 1 if y is not None and y > 0 else 0
+        if i and months[i - 1][:4] != latest[:4]:
+            year_start = i
+        n = i + 1
+        cur = float(vals[i])
+        mom = float(vals[i] / vals[i - 1] - 1) * 100 if n >= 2 and vals[i - 1] > 0 else None
+        last12 = vals[max(0, n - 12) : n]
+        mx = last12.max()
+        is_high = bool(n >= 12 and cur >= mx)
+        high_ratio = float(cur / mx * 100) if n >= 2 and mx > 0 else None
+        valid3 = [v for v in yoys[max(0, n - 3) : n] if v is not None]
+        valid12 = [v for v in yoys[max(0, n - 12) : n] if v is not None]
+        yoy3 = float(np.mean(valid3)) if len(valid3) == 3 else None
+        yoy12 = float(np.mean(valid12)) if len(valid12) >= 6 else None
+        same_year = range(year_start, n)
+        cum = vals[year_start:n].sum()
+        prevs = [prev_pos[k] for k in same_year]
+        cum_prev = vals[[int(k) for k in prevs]].sum() if all(k is not None for k in prevs) else None  # type: ignore[arg-type]
+        cum_yoy = float(cum / cum_prev - 1) * 100 if cum_prev else None
+        out.append(
+            {
+                "ym": latest,
+                "revenue": cur,
+                "yoy": y,
+                "mom": mom,
+                "cum_yoy": cum_yoy,
+                "is_12m_high": is_high,
+                "high_ratio": high_ratio,
+                "yoy_3m": yoy3,
+                "yoy_12m": yoy12,
+                "yoy_trend": (yoy3 - yoy12) if yoy3 is not None and yoy12 is not None else None,
+                "growth_months": growth,
+            }
+        )
+    return out
+
+
 # ------------------------------------------------------------------ 相關性
 def correlation(a: pd.Series, b: pd.Series, window: int, min_obs: int) -> float | None:
     ra, rb = a.pct_change(fill_method=None).iloc[-window:], b.pct_change(fill_method=None).iloc[-window:]

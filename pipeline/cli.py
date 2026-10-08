@@ -469,7 +469,8 @@ def cmd_keepalive(args: argparse.Namespace) -> int:
 def cmd_build_web(args: argparse.Namespace) -> int:
     from pipeline.derive.export import build_web
 
-    report = build_web(Path(args.data_dir), Path(args.out))
+    cache = getattr(args, "evidence_cache", None)
+    report = build_web(Path(args.data_dir), Path(args.out), evidence_cache=Path(cache) if cache else None)
     print(json.dumps(report, ensure_ascii=False, indent=1))
     return 0
 
@@ -681,6 +682,12 @@ def build_parser() -> argparse.ArgumentParser:
     web = sub.add_parser("build-web", help="產生前端用衍生資料")
     web.add_argument("--data-dir", default="data")
     web.add_argument("--out", default="web/public/data")
+    web.add_argument(
+        "--evidence-cache",
+        dest="evidence_cache",
+        default="",
+        help="指標效度評估的快取目錄（輸入、程式、設定都沒變就沿用；deploy.yml 以 actions/cache 保存）",
+    )
     web.set_defaults(func=cmd_build_web)
 
     gd = sub.add_parser("guard", help="部署前守門：新版衍生資料 vs 線上前一版（欄位、日期、筆數）")

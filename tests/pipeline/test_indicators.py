@@ -183,3 +183,34 @@ def test_official_event_during_halt_prevents_double_adjustment():
     assert not explained_by_official(known, "R", "2024-12-31", "2025-01-02")
     assert not explained_by_official(known, "R", "2024-12-18", "2024-12-29")
     assert not explained_by_official({}, "R", "2024-12-18", "2024-12-31")
+
+
+def test_revenue_metrics_prefixes_matches_per_month_calls():
+    """2026-10-08：一次走完的逐月指標與逐一呼叫 revenue_metrics(s.iloc[: i + 1]) 完全相同（含缺月、0 營收、跨年）。"""
+    import random
+
+    from pipeline.derive import indicators as ind
+
+    rng = random.Random(7)
+    for trial in range(60):
+        months = []
+        y, m = 2018 + rng.randrange(3), 1 + rng.randrange(12)
+        for _ in range(rng.randrange(1, 70)):
+            if rng.random() > 0.08:  # 偶爾缺月
+                months.append(f"{y:04d}-{m:02d}")
+            m += 1
+            if m > 12:
+                y, m = y + 1, 1
+        vals = [0.0 if rng.random() < 0.03 else rng.uniform(1e6, 5e9) for _ in months]
+        s = pd.Series(vals, index=months, dtype=float)
+        got = ind.revenue_metrics_prefixes(s)
+        want = [ind.revenue_metrics(s.iloc[: i + 1]) for i in range(len(s))]
+        assert got == want, trial
+
+
+def test_revenue_metrics_prefixes_falls_back_when_unsorted():
+    from pipeline.derive import indicators as ind
+
+    s = pd.Series([3.0, 1.0, 2.0], index=["2026-03", "2026-01", "2026-02"])
+    assert ind.revenue_metrics_prefixes(s) == [ind.revenue_metrics(s.iloc[: i + 1]) for i in range(3)]
+    assert ind.revenue_metrics_prefixes(pd.Series(dtype=float)) == []

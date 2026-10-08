@@ -80,12 +80,7 @@ def num_text(value: Any, default: str = "—") -> str:
     return f"{v:g}" if math.isfinite(v) else default
 
 
-def sanitize(obj: Any) -> Any:
-    """遞迴清理輸出物件：NaN／inf／NaT → None、numpy 型別 → Python 型別（不改變精度）。
-
-    E-01：個股檔的 dict 欄位（例：short_halt.reason）可能含 NaN，json.dumps 會寫成字面上的 NaN，
-    瀏覽器的 JSON.parse 無法解析。write_json 一律先經過這裡，並以 allow_nan=False 在 build 時就失敗。
-    """
+def _sanitize_slow(obj: Any) -> Any:
     if obj is None or isinstance(obj, bool | str | int):
         return obj
     if isinstance(obj, dict):
@@ -106,6 +101,56 @@ def sanitize(obj: Any) -> Any:
     if isinstance(obj, pd.Timestamp):
         return obj.date().isoformat() if obj == obj.normalize() else obj.isoformat()
     return obj
+
+
+_PLAIN = (str, int, bool, type(None))
+
+
+def _seq(items: Any) -> list[Any]:
+    """list／tuple 的元素：最常見的 float／int／str／None 直接處理，其餘遞迴（避免每個元素一次函式呼叫）。"""
+    isfinite = math.isfinite
+    out: list[Any] = []
+    append = out.append
+    for v in items:
+        t = type(v)
+        if t is float:
+            append(v if isfinite(v) else None)
+        elif t in _PLAIN:
+            append(v)
+        else:
+            append(sanitize(v))
+    return out
+
+
+def sanitize(obj: Any) -> Any:
+    """遞迴清理輸出物件：NaN／inf／NaT → None、numpy 型別 → Python 型別（不改變精度）。
+
+    E-01：個股檔的 dict 欄位（例：short_halt.reason）可能含 NaN，json.dumps 會寫成字面上的 NaN，
+    瀏覽器的 JSON.parse 無法解析。write_json 一律先經過這裡，並以 allow_nan=False 在 build 時就失敗。
+    2026-10-08：先判斷確切型別走快速路徑（部署時約 1 億次呼叫）；其他型別（numpy、子類別、時間）走 _sanitize_slow，結果相同。
+    """
+    t = type(obj)
+    if t is float:
+        return obj if math.isfinite(obj) else None
+    if t in _PLAIN:
+        return obj
+    if t is list or t is tuple:
+        return _seq(obj)
+    if t is dict:
+        isfinite = math.isfinite
+        d = {}
+        for k, v in obj.items():
+            tv = type(v)
+            if tv is float:
+                d[str(k)] = v if isfinite(v) else None
+            elif tv in _PLAIN:
+                d[str(k)] = v
+            else:
+                d[str(k)] = sanitize(v)
+        return d
+    if t is np.ndarray:
+        return _seq(obj.tolist())
+    return _sanitize_slow(obj)
 
 
 def write_json(path: Path, obj: Any) -> int:
@@ -250,7 +295,7 @@ def publish_summary(rows: list[dict[str, str]], last: int = 20) -> dict[str, Any
 
 
 # ------------------------------------------------------------------ 主流程
-def build_web(data_dir: Path, out: Path, *, demo: bool = False) -> dict[str, Any]:
+def build_web(data_dir: Path, out: Path, *, demo: bool = False, evidence_cache: Path | None = None) -> dict[str, Any]:
     store = DataStore(data_dir)
     if out.exists():
         shutil.rmtree(out)
@@ -287,7 +332,7 @@ def build_web(data_dir: Path, out: Path, *, demo: bool = False) -> dict[str, Any
     from pipeline.derive.build import build_all
 
     # M1：指標效度評估用全期間資料（在截衍生計算視窗之前）；每次部署重算，資料補齊後自動移除「樣本範圍受限」
-    evidence = build_evidence(ds, out)
+    evidence = build_evidence(ds, out, evidence_cache)
     # v3：衍生計算只用最近一段（約 4.5 年）；更早的收盤另存長歷史檔（stocks/{code}.hist.json）
     full_quotes = history.trim_window(ds)
     report = build_all(ds, out, meta)
@@ -319,13 +364,14 @@ def build_web(data_dir: Path, out: Path, *, demo: bool = False) -> dict[str, Any
     return {k: v for k, v in report.items() if k != "meta"}
 
 
-def build_evidence(ds: Dataset, out: Path) -> dict[str, Any]:
-    """指標效度評估（M1）→ evidence.json、evidence/{id}.json、evidence_today.json。失敗時寫出空表並記錄原因，不中斷部署。"""
+def build_evidence(ds: Dataset, out: Path, cache_dir: Path | None = None) -> dict[str, Any]:
+    """指標效度評估（M1）→ evidence.json、evidence/{id}.json、evidence_today.json。失敗時寫出空表並記錄原因，不中斷部署。
+    cache_dir：輸入資料、程式、設定都沒變時沿用上一次的輸出（derive/evcache.py；2026-10-08）。"""
     try:
+        from pipeline.derive.evcache import run_cached
         from pipeline.evidence import data as evdata
-        from pipeline.evidence.run import run_and_write
 
-        return run_and_write(evdata.from_dataset(ds), out, None)
+        return run_cached(evdata.from_dataset(ds), out, cache_dir)
     except Exception as exc:  # 評估失敗不影響其他頁面
         log.exception("指標效度評估失敗")
         write_json(out / "evidence.json", {"meta": {"error": f"{type(exc).__name__}: {exc}"[:300]}, "rows": []})
