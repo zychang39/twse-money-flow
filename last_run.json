@@ -1,41 +1,22 @@
 {
- "task": "catchup",
- "at": "2026-10-08T19:25:26+08:00",
- "requests": 88,
- "ok": 46,
+ "task": "kbar",
+ "at": "2026-10-08T19:59:37+08:00",
+ "requests": 0,
+ "ok": 1,
  "failed": [],
- "pending": [
-  "twse_qfii",
-  "twse_qfii"
- ],
- "format_warnings": [
-  "twse_fulldelivery"
- ],
- "missing_before": [
-  "quotes",
-  "index",
-  "intraday",
-  "insti",
-  "insti_amount",
-  "taifex",
-  "valuation",
-  "qfii"
- ],
- "missing_after": [
-  "qfii"
- ],
- "fixed": [
-  "index",
-  "insti",
-  "insti_amount",
-  "intraday",
-  "quotes",
-  "taifex",
-  "valuation"
- ],
- "attempt": 1,
- "retry": true,
+ "pending": [],
+ "kbar_target": "2026-10-08",
+ "fetched": 2362,
+ "rows": 380490,
+ "covered": 2331,
+ "total": 2369,
+ "remaining": 7,
  "progressed": true,
- "relay": "2026-10-08T20:17+08:00",
- "kbar_dispatched": true
+ "pruned": 0,
+ "by_tier": {
+  "1": 500,
+  "2": 415,
+  "3": 1447
+ },
+ "chained": true
 }
