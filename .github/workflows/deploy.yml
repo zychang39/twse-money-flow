@@ -1,5 +1,5 @@
-# 部署：main 的 CI 通過後（Q-01：workflow_run，不再在 push 時直接部署）或被 data.yml 呼叫時，
-# 產生衍生資料、嚴格檢查全部 JSON（E-01）、build、部署 GitHub Pages。
+# 部署：main 的 CI 通過後（Q-01：workflow_run，不再在 push 時直接部署）或被 data.yml 觸發時（2026-10-08 起以
+# workflow_dispatch 觸發，data.yml 不再等部署完成），產生衍生資料、嚴格檢查全部 JSON（E-01）、build、部署 GitHub Pages。
 name: Deploy
 on:
   workflow_run:
@@ -13,6 +13,11 @@ on:
         type: string
         default: "false"
   workflow_dispatch:
+    inputs:
+      digest:
+        description: "部署後推播 Telegram 盤後日報"
+        type: string
+        default: "false"
 
 permissions:
   contents: read

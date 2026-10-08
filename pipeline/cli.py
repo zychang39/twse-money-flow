@@ -57,6 +57,13 @@ HOLDERS_LANES = 2
 HOLDERS_STALL_HOURS = 3
 
 
+def kbar_should_deploy(extra: dict[str, object]) -> bool:
+    """個股 5 分 K 分段：有前進且是最後一段（沒有剩餘，或下一段沒有接上）才部署。"""
+    if not extra.get("progressed"):
+        return False
+    return not extra.get("remaining") or not extra.get("chained")
+
+
 def in_quiet_window(now: datetime, calendar: Any) -> bool:
     """交易日的 13:30（含）–22:30（不含）不開始新的回補分段。"""
     if not calendar.is_trading_day(now.date()):
@@ -122,14 +129,15 @@ def cmd_run(args: argparse.Namespace) -> int:
             from pipeline import tasks_kbar
 
             extra = tasks_kbar.run_kbar(ctx)
-            # 涵蓋率有前進就部署（前端 1D／1W 立即可用）；還有剩餘且有前進 → 觸發下一段接續
-            deploy = "true" if extra.get("progressed") else "false"
+            # 還有剩餘且有前進 → 觸發下一段接續。2026-10-08：只在最後一段（或接續觸發失敗）部署——
+            # 原本每段都部署（一天 3～4 次、每次 20～30 分鐘），佔住部署佇列，補抓的資料要排在後面
             if extra.get("remaining") and extra.get("progressed") and args.chain:
                 from pipeline.notify.github import dispatch_workflow
 
                 extra["chained"] = dispatch_workflow(
                     "data.yml", {"task": "kbar"}, ref=os.environ.get("GITHUB_REF_NAME", "main")
                 )
+            deploy = "true" if kbar_should_deploy(extra) else "false"
         elif task == "periodic":
             tasks.task_periodic(ctx, sources)
             deploy = "true"

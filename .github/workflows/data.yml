@@ -116,9 +116,6 @@ jobs:
     if: github.event.schedule != '*/15 1-5 * * 1-5' && inputs.task != 'alerts'
     runs-on: ubuntu-24.04
     timeout-minutes: 350
-    outputs:
-      deploy: ${{ steps.run.outputs.deploy }}
-      digest: ${{ steps.run.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -152,12 +149,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python -m pipeline keepalive
-
-  deploy:
-    needs: data
-    # 只有 main 會部署 GitHub Pages：在開發分支執行的回補（v3 M5 的 10 年股價）只寫入 data 分支，不發布開發中的前端
-    if: always() && needs.data.outputs.deploy == 'true' && github.ref_name == 'main'
-    uses: ./.github/workflows/deploy.yml
-    with:
-      digest: ${{ needs.data.outputs.digest }}
-    secrets: inherit
+      # 只有 main 會部署 GitHub Pages：在開發分支執行的回補（v3 M5 的 10 年股價）只寫入 data 分支，不發布開發中的前端。
+      # 2026-10-08：改成觸發 deploy.yml 就結束（原本以 reusable workflow 在同一個 run 裡等部署跑完 20～30 分鐘，
+      # 這段期間佔住自己的 concurrency 群組，5 分 K 下一段、補抓接力都要等）。部署在 pages 群組排隊，
+      # 同時只保留最新一個等待中的部署，連續幾次資料更新只會部署一次最新的。
+      - if: always() && steps.run.outputs.deploy == 'true' && github.ref_name == 'main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run deploy.yml --ref main -f digest="${{ steps.run.outputs.digest || 'false' }}"
