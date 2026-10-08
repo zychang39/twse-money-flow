@@ -854,3 +854,64 @@ def market_section(ds: Any, p: Any) -> dict[str, Any]:
             + "累積兩天以上的揭露後才顯示跨檔加碼／減碼。"
         )
     return {"active_etfs": etfs, "etf_ranking": rk}
+
+
+# ------------------------------------------------------------------ etf/{code}.json（2026-10-08：ETF 詳細頁）
+#: 詳細頁保留最近幾次揭露（持股日）；每檔 ETF 約 50 檔持股 × 60 天，壓縮後遠低於 300KB
+DETAIL_DAYS = 60
+
+
+def _num(v: Any, digits: int) -> float | None:
+    f = _finite(v) if v is not None and v == v else None
+    return None if f is None else round(f, digits)
+
+
+def detail_payload(h: pd.DataFrame, etf: str, name: str, issuer: str | None = None) -> dict[str, Any] | None:
+    """單一檔 ETF 的持股歷史：dates（持股日）、units（受益權單位數）、rows（每檔個股的股數 s 與權重 w，依日期對齊；
+    沒有持有＝null）。前端（lib/etfDetail.ts）以任兩天計算權重變化（百分點）與加碼／減碼分類（與 _pair 同一套判定，
+    golden：tests/fixtures/golden/etf_pair.json）。"""
+    part = _norm(h[h["etf"].astype(str) == etf]) if h is not None and not h.empty else None
+    if part is None or part.empty:
+        return None
+    dates = sorted(part["date"].unique())[-DETAIL_DAYS:]
+    part = part[part["date"].isin(dates)].drop_duplicates(["date", "code"], keep="last")
+    units = [_units_of(part[part["date"] == d]) for d in dates]
+    shares = part.pivot(index="code", columns="date", values="shares").reindex(columns=dates)
+    weight = part.pivot(index="code", columns="date", values="weight").reindex(columns=dates)
+    names = part.sort_values("date").groupby("code")["name"].last()
+    last_w = weight[dates[-1]].fillna(-1.0)
+    order = sorted(shares.index, key=lambda c: (-float(last_w.get(c, -1.0)), c))
+    rows = []
+    for code in order:
+        s = [None if v != v or float(v) <= 0 else round(float(v)) for v in shares.loc[code]]
+        w = [None if s[i] is None else _num(v, 2) for i, v in enumerate(weight.loc[code])]
+        rows.append({"c": str(code), "n": str(names.get(code, code)), "s": s, "w": w})
+    return {
+        "code": etf,
+        "name": name,
+        "issuer": issuer,
+        "dates": list(map(str, dates)),
+        "units": [_num(u, 0) for u in units],
+        "rows": rows,
+        "thresholds": {"min_lot": MIN_LOT, "flow_tol": FLOW_TOL, "implied_min_common": IMPLIED_MIN_COMMON},
+        "method": METHOD_TEXT,
+    }
+
+
+def write_details(h: pd.DataFrame, p: Any, out: Any) -> int:
+    """每檔有持股資料的主動式 ETF 寫一個 etf/{code}.json；回傳檔數。"""
+    from pipeline.derive.export import write_json
+
+    if h is None or h.empty:
+        return 0
+    names = dict(p.names)
+    issuers = issuer_map(names)
+    labels = {k: str(v.get("label", k)) for k, v in _issuers().items()}
+    n = 0
+    for etf in sorted(map(str, h["etf"].unique())):
+        iss = issuers.get(etf)
+        payload = detail_payload(h, etf, names.get(etf, etf), labels.get(iss) if iss else None)
+        if payload:
+            write_json(out / "etf" / f"{etf}.json", payload)
+            n += 1
+    return n

@@ -23,6 +23,7 @@ const ScreenerCustom = lazy(() => import('./pages/ScreenerCustom'));
 const Backtest = lazy(() => import('./pages/Backtest'));
 const Sectors = lazy(() => import('./pages/Sectors'));
 const Etf = lazy(() => import('./pages/Etf'));
+const EtfDetail = lazy(() => import('./pages/EtfDetail'));
 const MarketTemp = lazy(() => import('./pages/MarketTemp'));
 const CalendarPage = lazy(() => import('./pages/Calendar'));
 const Disposition = lazy(() => import('./pages/Disposition'));
@@ -82,7 +83,7 @@ function Page({ parts }: { parts: string[] }) {
         case 'screener': return c === 'custom' ? <ScreenerCustom /> : <Screener />;
         case 'backtest': return <Backtest />;
         case 'sectors': return <Sectors industry={c} />;
-        case 'etf': return <Etf />;
+        case 'etf': return c ? <EtfDetail code={normCode(c)} /> : <Etf />;
         case 'market': return <MarketTemp />;
         case 'calendar': return <CalendarPage />;
         case 'disposition': return <Disposition />;

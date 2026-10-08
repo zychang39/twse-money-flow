@@ -1,0 +1,17 @@
+/* 主動式 ETF 詳細頁（2026-10-08）：橫條列＝名稱｜橫條｜數值｜›；與其他列表一樣只有列間橫線（.ui-row + .ui-row）。 */
+.ui-row.eb-row {
+  grid-template-columns: minmax(0, 1fr) minmax(4.5rem, 32%) 5rem var(--chevcol, 0px);
+  align-items: center;
+}
+.eb-bar { display: block; padding-left: var(--row-gap); }
+.eb-v { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-1); }
+
+/* 期間：兩個滑桿（起日、迄日），一格＝一次持股揭露；點擊區域至少 44pt */
+.eb-sliders { display: grid; gap: var(--s-1); margin-top: var(--s-3); }
+.eb-slider { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) 3.25rem; align-items: center; column-gap: var(--s-2); min-height: var(--tap); }
+.eb-slider input { width: 100%; height: var(--tap); margin: 0; accent-color: var(--brand); }
+.eb-slider input:disabled { opacity: 0.4; }
+.eb-slider-v { text-align: right; color: var(--text-1); }
+.ui-sec > .ui-seg + .interp { margin-top: var(--s-2); }
+.ui-sec > .interp + .ui-list { margin-top: var(--s-2); }
+.ui-sec > .ui-list + .ui-btn { margin-top: var(--s-3); }

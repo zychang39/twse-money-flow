@@ -1,13 +1,14 @@
 /**
  * 主動式 ETF（SPEC §7，2026-10 改版）：頁首一列「涵蓋 16/32 檔・持股日 10/2」，其餘說明（投信、欄位、判定方法、
  * 排序口徑驗證）進 ⓘ；加碼／減碼兩個區塊，每列 名稱 代號｜金額（億）｜佔 20 日均成交額 %，副資訊 幾檔同向・佔市值 %。
+ * 2026-10-08：加碼／減碼與清單同一種排版（只有列間橫線）；清單的列進入 ETF 詳細頁（EtfDetail：持股占比、拉日期看加減碼）。
  * 排序口徑：金額｜佔均額｜佔市值，預設由 pipeline 的 sort_default 決定（驗證未通過時為佔均額）。
  * 判定（扣除受益權單位數變動）、金額門檻 0.3 億與驗證都在 pipeline（derive/etf.py）。
  */
 import { useEffect, useState } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
 import { ErrorState, Loading } from '../components/DataStatus';
-import { Card, CardLabel, EmptyRow, List, Num, PageTitle, Row, Section, Seg, Signed, Table } from '../components/ui';
+import { EmptyRow, List, Num, PageTitle, Row, Section, Seg, Signed, Table } from '../components/ui';
 import { useAsync } from '../hooks';
 import { loadMarket } from '../data/api';
 import { ETF_KINDS, ETF_KIND_LABEL, type EtfCoverage, type EtfItem, type EtfKind, type EtfMove, type EtfSortMetric, type EtfValidation } from '../data/types';
@@ -89,21 +90,19 @@ function MoveList({ title, items, testid }: { title: string; items: EtfItem[]; t
   // 無資料的區塊不顯示（M4：不留空卡片）
   if (!items.length) return null;
   return (
-    <Section title={title} aside={`${items.length} 檔`} testid={testid}>
-      <Card>
-        <CardLabel aside="金額｜佔均額">名稱｜同向・佔市值</CardLabel>
-        <List extra chev>
-          {items.map((x) => (
-            <Row key={x.code} testid="etf-item" href={`#/stock/${x.code}`}
-              onClick={() => setListContext({ name: '主動式 ETF 持股變動', codes: items.map((i) => i.code) })}
-              label={<>{x.name} <span class="ui-muted">{x.code}</span></>}
-              sub={itemSub(x)}
-              value={<Signed v={x.value_yi} digits={2} unit="億" kind="sign" label={x.dir === 'add' ? '加碼金額' : '減碼金額'} />}
-              value2={itemKind(x) ? <span class="ui-muted" data-testid="etf-kind">{itemKind(x)}</span> : undefined}
-              extra={<span class="ui-v ui-foot"><Num v={x.pct_avg20 === null ? null : Math.abs(x.pct_avg20)} digits={1} unit="%" /></span>} />
-          ))}
-        </List>
-      </Card>
+    <Section title={title} aside={`${items.length} 檔・金額｜佔均額`} testid={testid}>
+      {/* 2026-10-08：與下方「清單」同一種排版（列與列之間只有橫線，不再包一層卡片與欄名列） */}
+      <List extra chev>
+        {items.map((x) => (
+          <Row key={x.code} testid="etf-item" href={`#/stock/${x.code}`}
+            onClick={() => setListContext({ name: '主動式 ETF 持股變動', codes: items.map((i) => i.code) })}
+            label={<>{x.name} <span class="ui-muted">{x.code}</span></>}
+            sub={itemSub(x)}
+            value={<Signed v={x.value_yi} digits={2} unit="億" kind="sign" label={x.dir === 'add' ? '加碼金額' : '減碼金額'} />}
+            value2={itemKind(x) ? <span class="ui-muted" data-testid="etf-kind">{itemKind(x)}</span> : undefined}
+            extra={<span class="ui-v ui-foot"><Num v={x.pct_avg20 === null ? null : Math.abs(x.pct_avg20)} digits={1} unit="%" /></span>} />
+        ))}
+      </List>
     </Section>
   );
 }
@@ -189,11 +188,10 @@ export default function Etf() {
           <MoveList title="加碼" items={add} testid="etf-add" />
           <MoveList title="減碼" items={reduce} testid="etf-reduce" />
           <Section title="清單" aside={`${list.length} 檔・依 20 日均成交值`} testid="etf-list">
-            <p class="interp"><Term id="active_etf">主動式 ETF</Term> 每日公布持股；加碼與減碼以股數變化計</p>
+            <p class="interp"><Term id="active_etf">主動式 ETF</Term> 每日公布持股；點進去看持股占比與任一段期間的加碼、減碼</p>
             <List chev>
               {list.length ? list.map((e) => (
-                <Row key={e.code} href={`#/stock/${e.code}`}
-                  onClick={() => setListContext({ name: '主動式 ETF', codes: list.map((x) => x.code) })}
+                <Row key={e.code} href={`#/explore/etf/${e.code}`} testid="etf-list-row"
                   label={e.name}
                   sub={`代號 ${e.code}・20 日均 ${e.value_million_20d === null ? '—' : `${fmtNum(e.value_million_20d / 100, 2)} 億`}${e.has_holdings === false ? '・無持股資料' : ''}`}
                   value={<Num v={e.close} digits={2} />}

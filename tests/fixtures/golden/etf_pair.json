@@ -1,0 +1,430 @@
+{
+ "detail": {
+  "code": "00999A",
+  "name": "主動測試",
+  "issuer": "測試投信",
+  "dates": [
+   "2026-10-01",
+   "2026-10-02",
+   "2026-10-05",
+   "2026-10-06"
+  ],
+  "units": [
+   1000.0,
+   1100.0,
+   null,
+   null
+  ],
+  "rows": [
+   {
+    "c": "2330",
+    "n": "股2330",
+    "s": [
+     50000,
+     80000,
+     80000,
+     88000
+    ],
+    "w": [
+     15.0,
+     21.0,
+     21.2,
+     21.0
+    ]
+   },
+   {
+    "c": "1101",
+    "n": "股1101",
+    "s": [
+     100000,
+     110000,
+     110000,
+     121000
+    ],
+    "w": [
+     20.0,
+     19.5,
+     19.8,
+     20.1
+    ]
+   },
+   {
+    "c": "2317",
+    "n": "股2317",
+    "s": [
+     60000,
+     30000,
+     30000,
+     33000
+    ],
+    "w": [
+     12.0,
+     6.5,
+     6.4,
+     6.6
+    ]
+   },
+   {
+    "c": "3008",
+    "n": "股3008",
+    "s": [
+     10000,
+     11000,
+     15000,
+     16500
+    ],
+    "w": [
+     5.0,
+     5.0,
+     6.5,
+     6.6
+    ]
+   },
+   {
+    "c": "2454",
+    "n": "股2454",
+    "s": [
+     null,
+     20000,
+     20000,
+     22000
+    ],
+    "w": [
+     null,
+     4.0,
+     4.1,
+     4.0
+    ]
+   },
+   {
+    "c": "6505",
+    "n": "股6505",
+    "s": [
+     30000,
+     33000,
+     20000,
+     22000
+    ],
+    "w": [
+     6.0,
+     6.0,
+     4.0,
+     4.0
+    ]
+   },
+   {
+    "c": "2882",
+    "n": "股2882",
+    "s": [
+     5000,
+     5500,
+     5500,
+     6050
+    ],
+    "w": [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   {
+    "c": "2412",
+    "n": "股2412",
+    "s": [
+     40000,
+     null,
+     null,
+     null
+    ],
+    "w": [
+     8.0,
+     null,
+     null,
+     null
+    ]
+   }
+  ],
+  "thresholds": {
+   "min_lot": 1000.0,
+   "flow_tol": 0.01,
+   "implied_min_common": 5
+  },
+  "method": "加減碼判定：申購買回會讓每檔持股等比例增減，所以先扣除受益權單位數的變動。超額股數＝本次股數 − 前次股數 ×（本次單位數 ÷ 前次單位數）；股數實際同方向變動、超額股數至少 1 張且每單位持股數變化至少 1% 才算加碼或減碼（申購時股數不變的持股不算減碼），前次沒有、本次有＝新增，前次有、本次沒有＝剔除。投信沒有揭露單位數時（聯博），以兩次都持有的個股股數比的中位數估計單位數變化。金額＝計入股數 × 持股日成交均價（估），計入股數＝實際股數變動與超額股數中絕對值較小者，0.3 億元以下不列入；佔 20 日均成交額＝金額 ÷ 持股日（含）前 20 個交易日平均成交金額；佔市值＝金額 ÷（發行股數 × 持股日收盤價）。幾檔同向＝同一天往同一方向調整的 ETF 檔數。"
+ },
+ "pairs": [
+  {
+   "i0": 0,
+   "i1": 1,
+   "basis": "units",
+   "flow": 1.1,
+   "rows": {
+    "1101": {
+     "kind": "hold",
+     "d_weight": -0.5,
+     "trade_shares": 0.0
+    },
+    "2317": {
+     "kind": "reduce",
+     "d_weight": -5.5,
+     "trade_shares": -30000.0
+    },
+    "2330": {
+     "kind": "add",
+     "d_weight": 6.0,
+     "trade_shares": 24999.999999999993
+    },
+    "2412": {
+     "kind": "exit",
+     "d_weight": -8.0,
+     "trade_shares": -40000.0
+    },
+    "2454": {
+     "kind": "new",
+     "d_weight": 4.0,
+     "trade_shares": 20000.0
+    },
+    "2882": {
+     "kind": "hold",
+     "d_weight": 0.0,
+     "trade_shares": 0.0
+    },
+    "3008": {
+     "kind": "hold",
+     "d_weight": 0.0,
+     "trade_shares": 0.0
+    },
+    "6505": {
+     "kind": "hold",
+     "d_weight": 0.0,
+     "trade_shares": 0.0
+    }
+   }
+  },
+  {
+   "i0": 0,
+   "i1": 2,
+   "basis": "implied",
+   "flow": 1.1,
+   "rows": {
+    "1101": {
+     "kind": "hold",
+     "d_weight": -0.2,
+     "trade_shares": 0.0
+    },
+    "2317": {
+     "kind": "reduce",
+     "d_weight": -5.6,
+     "trade_shares": -30000.0
+    },
+    "2330": {
+     "kind": "add",
+     "d_weight": 6.2,
+     "trade_shares": 24999.999999999993
+    },
+    "2412": {
+     "kind": "exit",
+     "d_weight": -8.0,
+     "trade_shares": -40000.0
+    },
+    "2454": {
+     "kind": "new",
+     "d_weight": 4.1,
+     "trade_shares": 20000.0
+    },
+    "2882": {
+     "kind": "hold",
+     "d_weight": 0.0,
+     "trade_shares": 0.0
+    },
+    "3008": {
+     "kind": "add",
+     "d_weight": 1.5,
+     "trade_shares": 4000.0
+    },
+    "6505": {
+     "kind": "reduce",
+     "d_weight": -2.0,
+     "trade_shares": -10000.0
+    }
+   }
+  },
+  {
+   "i0": 0,
+   "i1": 3,
+   "basis": "implied",
+   "flow": 1.21,
+   "rows": {
+    "1101": {
+     "kind": "hold",
+     "d_weight": 0.1,
+     "trade_shares": 0.0
+    },
+    "2317": {
+     "kind": "reduce",
+     "d_weight": -5.4,
+     "trade_shares": -27000.0
+    },
+    "2330": {
+     "kind": "add",
+     "d_weight": 6.0,
+     "trade_shares": 27500.0
+    },
+    "2412": {
+     "kind": "exit",
+     "d_weight": -8.0,
+     "trade_shares": -40000.0
+    },
+    "2454": {
+     "kind": "new",
+     "d_weight": 4.0,
+     "trade_shares": 22000.0
+    },
+    "2882": {
+     "kind": "hold",
+     "d_weight": 0.0,
+     "trade_shares": 0.0
+    },
+    "3008": {
+     "kind": "add",
+     "d_weight": 1.6,
+     "trade_shares": 4400.0
+    },
+    "6505": {
+     "kind": "reduce",
+     "d_weight": -2.0,
+     "trade_shares": -8000.0
+    }
+   }
+  },
+  {
+   "i0": 1,
+   "i1": 2,
+   "basis": "implied",
+   "flow": 1.0,
+   "rows": {
+    "1101": {
+     "kind": "hold",
+     "d_weight": 0.3,
+     "trade_shares": 0.0
+    },
+    "2317": {
+     "kind": "hold",
+     "d_weight": -0.1,
+     "trade_shares": 0.0
+    },
+    "2330": {
+     "kind": "hold",
+     "d_weight": 0.2,
+     "trade_shares": 0.0
+    },
+    "2454": {
+     "kind": "hold",
+     "d_weight": 0.1,
+     "trade_shares": 0.0
+    },
+    "2882": {
+     "kind": "hold",
+     "d_weight": 0.0,
+     "trade_shares": 0.0
+    },
+    "3008": {
+     "kind": "add",
+     "d_weight": 1.5,
+     "trade_shares": 4000.0
+    },
+    "6505": {
+     "kind": "reduce",
+     "d_weight": -2.0,
+     "trade_shares": -13000.0
+    }
+   }
+  },
+  {
+   "i0": 1,
+   "i1": 3,
+   "basis": "implied",
+   "flow": 1.1,
+   "rows": {
+    "1101": {
+     "kind": "hold",
+     "d_weight": 0.6,
+     "trade_shares": 0.0
+    },
+    "2317": {
+     "kind": "hold",
+     "d_weight": 0.1,
+     "trade_shares": 0.0
+    },
+    "2330": {
+     "kind": "hold",
+     "d_weight": 0.0,
+     "trade_shares": 0.0
+    },
+    "2454": {
+     "kind": "hold",
+     "d_weight": 0.0,
+     "trade_shares": 0.0
+    },
+    "2882": {
+     "kind": "hold",
+     "d_weight": 0.0,
+     "trade_shares": 0.0
+    },
+    "3008": {
+     "kind": "add",
+     "d_weight": 1.6,
+     "trade_shares": 4399.999999999998
+    },
+    "6505": {
+     "kind": "reduce",
+     "d_weight": -2.0,
+     "trade_shares": -11000.0
+    }
+   }
+  },
+  {
+   "i0": 2,
+   "i1": 3,
+   "basis": "implied",
+   "flow": 1.1,
+   "rows": {
+    "1101": {
+     "kind": "hold",
+     "d_weight": 0.3,
+     "trade_shares": 0.0
+    },
+    "2317": {
+     "kind": "hold",
+     "d_weight": 0.2,
+     "trade_shares": 0.0
+    },
+    "2330": {
+     "kind": "hold",
+     "d_weight": -0.2,
+     "trade_shares": 0.0
+    },
+    "2454": {
+     "kind": "hold",
+     "d_weight": -0.1,
+     "trade_shares": 0.0
+    },
+    "2882": {
+     "kind": "hold",
+     "d_weight": 0.0,
+     "trade_shares": 0.0
+    },
+    "3008": {
+     "kind": "hold",
+     "d_weight": 0.1,
+     "trade_shares": 0.0
+    },
+    "6505": {
+     "kind": "hold",
+     "d_weight": 0.0,
+     "trade_shares": 0.0
+    }
+   }
+  }
+ ]
+}
