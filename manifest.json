@@ -960,11 +960,11 @@
   }
  },
  "daily_extras": {
-  "at": "2026-10-09T19:16+08:00"
+  "at": "2026-10-08T22:02+08:00"
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-09T19:16+08:00",
+  "at": "2026-10-09T04:01+08:00",
   "attempt": 1,
   "fixed": [],
   "missing": [],
@@ -1677,7 +1677,7 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-10-09T19:21+08:00",
+  "at": "2026-10-09T04:02+08:00",
   "covered": 2331,
   "empty": [
    "00682U",
@@ -2018,21 +2018,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-09T04:01:46+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [],
-   "kbar_dispatched": true,
-   "missing_after": [],
-   "missing_before": [],
-   "ok": 0,
-   "pending": [],
-   "progressed": false,
-   "requests": 0,
-   "retry": false,
-   "task": "catchup"
-  },
   {
    "at": "2026-10-09T04:02:38+08:00",
    "by_tier": {
@@ -2597,17 +2582,31 @@
    "rows": 0,
    "task": "kbar",
    "total": 2369
+  },
+  {
+   "at": "2026-10-09T19:29:19+08:00",
+   "by_source": {
+    "active_etf": 7
+   },
+   "chained": true,
+   "failed": [],
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "remaining": 7,
+   "requests": 504,
+   "task": "backfill"
   }
  ],
  "sources": {
   "active_etf": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-09T19:21:08+08:00",
-   "last_message": "已取得 30/32 檔主動式 ETF 持股（中國信託投信、元大投信、凱基投信、台新投信、安聯投信、富邦投信、復華投信、摩根投信、永豐投信、第一金投信、統一投信、群益投信、聯博投信、野村投信）；其餘投信（兆豐投信、國泰投信）的官網擋本工具的自動抓取，未涵蓋",
+   "last_attempt": "2026-10-09T19:29:18+08:00",
+   "last_message": "已取得 30/32 檔主動式 ETF 持股（中國信託投信、元大投信、凱基投信、台新投信、安聯投信、富邦投信、復華投信、摩根投信、永豐投信、第一金投信、統一投信、群益投信、聯博投信、野村投信）；其餘投信（兆豐投信、國泰投信）的官網擋本工具的自動抓取，未涵蓋；失敗 16 次：00407A（凱基投信）：HTTP 500：https://www.kgifund.com.tw/Fund/RedemptionVC；00407A（凱基投信）：HTTP 500：https://www.kgifund.com.tw/Fund/RedemptionVC；00407A（凱基投信）：HTTP 500：https://www.kgifund.com.tw/Fund/RedemptionVC",
    "last_status": "ok",
    "last_success": "2026-10-08",
-   "last_success_at": "2026-10-09T19:21:08+08:00",
-   "rows": 519,
+   "last_success_at": "2026-10-09T19:29:18+08:00",
+   "rows": 12165,
    "validation": "ok"
   },
   "cbc_money": {
@@ -2852,7 +2851,7 @@
    "last_status": "ok",
    "last_success": "2026-10-08",
    "last_success_at": "2026-10-09T19:18:42+08:00",
-   "rows": 4,
+   "rows": 0,
    "validation": "ok"
   },
   "tpex_insti": {
@@ -2942,7 +2941,7 @@
    "last_status": "ok",
    "last_success": "2026-10-08",
    "last_success_at": "2026-10-09T19:18:33+08:00",
-   "rows": 61,
+   "rows": 62,
    "validation": "ok"
   },
   "tpex_valuation": {
@@ -3117,7 +3116,7 @@
    "last_status": "ok",
    "last_success": "2026-10-08",
    "last_success_at": "2026-10-09T19:18:37+08:00",
-   "rows": 6,
+   "rows": 1,
    "validation": "ok"
   },
   "twse_insti": {
@@ -3279,6 +3278,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-09T19:22:01+08:00",
+ "updated_at": "2026-10-09T19:29:19+08:00",
  "version": 1
 }
