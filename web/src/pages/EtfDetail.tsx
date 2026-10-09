@@ -5,20 +5,23 @@
  *   每列標分類（新增／加碼／減碼／剔除，§7：扣除申購買回的等比例變動，與主頁同一套判定）與股數變化。
  * - 持股占比：迄日的權重，由大到小。
  * 2026-10-09：海外持股（f＝1）也列出，但不連到個股頁（不是台股），股數以「股」表示。
+ * 2026-10-09（下午）：加碼／減碼與持股占比改用密集橫條列（components/BarRows.tsx，每列 44pt、沒有 › 欄）；
+ *   頁首下方新增「策略」區塊（config/active_etf.yml 的標籤、一句摘要與依據）。
  * 資料：etf/{code}.json（pipeline/derive/etf.py detail_payload）；計算：lib/etfDetail.ts。
  */
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
 import { ErrorState, Loading, PageStale } from '../components/DataStatus';
-import { IconChevron } from '../components/Icons';
-import { DivergingBar, Interp, ProgressBar, Term } from '../components/kit';
+import { BarRow } from '../components/BarRows';
+import { EtfTagPills, TagDefs } from '../components/EtfTags';
+import { Interp, Term } from '../components/kit';
 import { Button, EmptyRow, List, NavRow, PageTitle, Section, Seg, Signed } from '../components/ui';
 import { loadEtfDetail } from '../data/api';
 import { ETF_KIND_LABEL, type EtfKind } from '../data/types';
 import { useAsync } from '../hooks';
 import { holdingsAt, pairChanges, quickRange, sortByChange, TRADED, type EtfDetail as Detail, type Holding, type PairRow } from '../lib/etfDetail';
 import { loadMarket } from '../data/api';
-import type { JSX } from 'preact';
+import { etfStrategy, sourceHost } from '../lib/etfTags';
 import { fmtNum, md } from '../lib/format';
 import { setListContext } from '../lib/listContext';
 import '../styles/etf.css';
@@ -78,47 +81,51 @@ function goStock(codes: string[], name: string) {
   setListContext({ name, codes });
 }
 
-/** 台股列連到個股頁；海外持股不是台股，只呈現（不可點）。 */
-function BarRow({ foreign, code, codes, listName, label, testid, children }: {
-  foreign: boolean; code: string; codes: string[]; listName: string; label: string; testid: string; children: JSX.Element[];
-}) {
-  if (foreign) return <div class="ui-row eb-row eb-static" data-testid={testid} aria-label={`${label}（海外持股）`}>{children}</div>;
-  return (
-    <a class="ui-row ui-tap eb-row" href={`#/stock/${code}`} data-testid={testid} onClick={() => goStock(codes, listName)} aria-label={label}>
-      {children}
-    </a>
-  );
+/** 密集列的副資訊（代號後面）：「+1,200 張」「新增 20 張」「剔除 20 張」「股數不變」「申購買回 +5 張」。 */
+export function changeSubShort(r: PairRow): string {
+  const raw = r.s1 - r.s0;
+  const signed = `${raw > 0 ? '+' : raw < 0 ? '−' : ''}${qty(Math.abs(raw), r.foreign)}`;
+  if (r.kind === 'new') return `新增 ${qty(r.s1, r.foreign)}`;
+  if (r.kind === 'exit') return `剔除 ${qty(r.s0, r.foreign)}`;
+  if (r.kind === 'add' || r.kind === 'reduce') return signed;
+  if (r.kind === 'hold') return raw === 0 ? '股數不變' : `申購買回 ${signed}`;
+  return `無法判定 ${signed}`;
 }
 
+/** 台股列連到個股頁；海外持股不是台股，只呈現（不可點）。密集橫條列（components/BarRows.tsx）。 */
 function ChangeRow({ r, max, codes, listName }: { r: PairRow; max: number; codes: string[]; listName: string }) {
   const pp = r.dWeight;
   const word = pp === null ? '無資料' : `${pp > 0 ? '增加' : pp < 0 ? '減少' : '持平'} ${fmtNum(Math.abs(pp), 2)} 個百分點`;
   return (
-    <BarRow foreign={!!r.foreign} code={r.code} codes={codes} listName={listName} testid="etf-change-row"
-      label={`${r.name} ${r.code}，權重${word}，${changeSub(r)}`}>
-      <span class="ui-row-main">
-        <span class="ui-row-label">{r.name} <span class="ui-muted">{r.code}</span></span>
-        <span class="ui-row-sub ui-foot ui-muted">{changeSub(r)}</span>
-      </span>
-      <span class="eb-bar" aria-hidden="true"><DivergingBar value={pp} max={max} /></span>
-      <span class="eb-v" aria-hidden="true"><Signed v={pp} digits={2} unit="pp" /></span>
-      <span class="ui-row-chev" aria-hidden="true">{r.foreign ? null : <IconChevron />}</span>
-    </BarRow>
+    <BarRow name={r.name} sub={`${r.code}・${changeSubShort(r)}${r.foreign ? '・海外' : ''}`} testid="etf-change-row"
+      bar={{ kind: 'diverging', value: pp, max }} value={<Signed v={pp} digits={2} unit="pp" />}
+      href={r.foreign ? undefined : `#/stock/${r.code}`} onClick={() => goStock(codes, listName)}
+      label={`${r.name} ${r.code}，權重${word}，${changeSub(r)}${r.foreign ? '（海外持股）' : ''}`} />
   );
 }
 
 function WeightRow({ h, max, codes, listName }: { h: Holding; max: number; codes: string[]; listName: string }) {
   return (
-    <BarRow foreign={h.foreign} code={h.code} codes={codes} listName={listName} testid="etf-weight-row"
-      label={`${h.name} ${h.code}，權重 ${h.weight === null ? '無資料' : `${fmtNum(h.weight, 2)}%`}，持股 ${qty(h.shares, h.foreign)}`}>
-      <span class="ui-row-main">
-        <span class="ui-row-label">{h.name} <span class="ui-muted">{h.code}</span></span>
-        <span class="ui-row-sub ui-foot ui-muted">持股 {qty(h.shares, h.foreign)}{h.foreign ? '・海外' : ''}</span>
-      </span>
-      <span class="eb-bar" aria-hidden="true"><ProgressBar value={h.weight} max={max} color="var(--d-2)" /></span>
-      <span class="eb-v ui-num" aria-hidden="true">{h.weight === null ? '—' : `${fmtNum(h.weight, 2)}%`}</span>
-      <span class="ui-row-chev" aria-hidden="true">{h.foreign ? null : <IconChevron />}</span>
-    </BarRow>
+    <BarRow name={h.name} sub={`${h.code}・${qty(h.shares, h.foreign)}${h.foreign ? '・海外' : ''}`} testid="etf-weight-row"
+      bar={{ kind: 'progress', value: h.weight, max }} value={h.weight === null ? '—' : `${fmtNum(h.weight, 2)}%`}
+      href={h.foreign ? undefined : `#/stock/${h.code}`} onClick={() => goStock(codes, listName)}
+      label={`${h.name} ${h.code}，權重 ${h.weight === null ? '無資料' : `${fmtNum(h.weight, 2)}%`}，持股 ${qty(h.shares, h.foreign)}${h.foreign ? '（海外持股）' : ''}`} />
+  );
+}
+
+/** 策略（2026-10-09）：config/active_etf.yml 的標籤、一句摘要與依據；沒有設定的 ETF 不顯示。 */
+function StrategySection({ code }: { code: string }) {
+  const s = etfStrategy(code);
+  if (!s) return null;
+  return (
+    <Section title="策略" testid="etf-strategy" infoTitle="策略標籤"
+      info={<><p>標籤與摘要依各投信官網、公開說明書或證交所 ETF 資訊站的投資策略文字歸納（config/active_etf.yml），只描述選股方式與範圍；依規則整理、非推薦，實際持股以下方揭露為準。</p><TagDefs /></>}>
+      <div class="ui-card etf-strategy">
+        <EtfTagPills code={code} testid="etf-strategy-tags" />
+        <p class="etf-strategy-text">{s.strategy}</p>
+        <a class="etf-strategy-src ui-foot" href={s.source} target="_blank" rel="noopener noreferrer" data-testid="etf-strategy-src">依據：{s.source_kind}（{sourceHost(s.source)}）›</a>
+      </div>
+    </Section>
   );
 }
 
@@ -162,6 +169,7 @@ function Body({ d }: { d: Detail }) {
   const span = `${md(d.dates[i0])} → ${md(d.dates[i1])}`;
   return (
     <>
+      <StrategySection code={d.code} />
       <Section title="期間" aside={n >= 2 ? `${span}・${i1 - i0} 次揭露` : undefined} testid="etf-range">
         {n < 2 ? (
           <Interp>資料累積中：目前只有 {n} 次持股揭露（{md(d.dates[0])}），需要兩次才能比較加碼與減碼。</Interp>
@@ -229,10 +237,13 @@ export default function EtfDetail({ code }: { code: string }) {
       {st.error ? <ErrorState error={st.error} /> : null}
       {st.loading ? <Loading /> : null}
       {!st.loading && !st.error && !d ? (
-        <Section title="持股">
-          <Interp testid="etf-detail-missing"><Term id="active_etf">主動式 ETF</Term> 的持股來自各投信官網：{note ?? '這一檔的持股資料累積中（新掛牌或投信尚未公告）'}。</Interp>
-          <List chev><NavRow title="股價與成交" sub={`${code} 個股頁`} href={`#/stock/${code}`} /></List>
-        </Section>
+        <>
+          <StrategySection code={code} />
+          <Section title="持股">
+            <Interp testid="etf-detail-missing"><Term id="active_etf">主動式 ETF</Term> 的持股來自各投信官網：{note ?? '這一檔的持股資料累積中（新掛牌或投信尚未公告）'}。</Interp>
+            <List chev><NavRow title="股價與成交" sub={`${code} 個股頁`} href={`#/stock/${code}`} /></List>
+          </Section>
+        </>
       ) : null}
       {d ? <Body d={d} /> : null}
     </div>

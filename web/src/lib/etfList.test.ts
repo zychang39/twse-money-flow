@@ -34,8 +34,8 @@ describe('主動式 ETF 清單（2026-10-09）', () => {
   });
 
   it('副資訊：沒有持股時寫原因（不寫「無持股資料」），海外持股標檔數', () => {
-    expect(rowSub(list[0], 'value')).toBe('A・市值 2,910 億・持股 50 檔');
-    expect(rowSub(list[1], 'ret')).toBe('B・均額 6.6 億・市值 —・國泰投信官網擋本工具的自動抓取，沒有持股資料');
-    expect(rowSub(list[2], 'mcap')).toBe('C・均額 —・持股 67 檔（海外 67）');
+    expect(rowSub(list[0], 'value')).toBe('市值 2,910 億・持股 50 檔');
+    expect(rowSub(list[1], 'ret')).toBe('均額 6.6 億・市值 —・國泰投信官網擋本工具的自動抓取，沒有持股資料');
+    expect(rowSub(list[2], 'mcap')).toBe('均額 —・持股 67 檔（海外 67）');
   });
 });

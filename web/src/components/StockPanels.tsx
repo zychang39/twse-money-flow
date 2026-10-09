@@ -29,6 +29,8 @@ export function mdw(iso: string | null | undefined): string {
 const md = (iso: string | null | undefined) => (iso ? `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}` : '—');
 const price = (v: N) => <Num v={ok(v) ? fmtPrice(v) : null} />;
 const pctPlain = (v: N, digits = 2) => <Signed v={v} digits={digits} unit="%" tone="plain" />;
+/** 本益比超過這個倍數＝獲利接近零，不畫在估值圖上（2026-10-09：一個 6,400 倍的極端值把近 3 年壓成貼底的線） */
+export const PE_CAP = 500;
 
 /** 風險試算（§5【動能】）：不足一張自動零股、部位佔本金、停損價相對一日跌停價；底部「帶入檢查表」。 */
 export function RiskCalcSection({ h, prefs, atr, price: ref }: { h: StockHistory; prefs: PortfolioSettings; atr: N; price: N }) {
@@ -91,7 +93,9 @@ export function FundamentalPanel({ h, asof }: { h: StockHistory; asof: (d: strin
   const revRows = ((h.revenue as { ym: string; revenue: number; yoy: N; mom: N }[] | undefined) ?? []).slice().reverse();
   const yi = (v: N) => (ok(v) ? v / 1e5 : null);
   const n750 = Math.min(756, h.d.length);
-  const pe = h.pe.slice(-n750).map((v) => (ok(v) && v > 0 ? v : null));
+  const peRaw = h.pe.slice(-n750).map((v) => (ok(v) && v > 0 ? v : null));
+  const peOver = peRaw.filter((v) => v !== null && v > PE_CAP).length;
+  const pe = peRaw.map((v) => (v !== null && v > PE_CAP ? null : v));
   const revInterp = rev.latest
     ? [rev.newHigh ? '創 12 個月新高' : null, rev.growthMonths > 0 ? `連續 ${rev.growthMonths} 個月年增` : '最新一月年減', ok(rev.yoy3m) ? `近 3 月平均 ${sgn(rev.yoy3m)}` : null].filter(Boolean).join('，')
     : null;
@@ -142,9 +146,13 @@ export function FundamentalPanel({ h, asof }: { h: StockHistory; asof: (d: strin
         <Conclusion>{ok(val.pe) ? <>本益比 {fmtNum(val.pe, 1)}<span class="key-unit"> 倍</span></> : '本益比：虧損或未公布'}</Conclusion>
         <Interp>{ok(val.pePct3y) ? `位於自身近 3 年的第 ${Math.round(val.pePct3y)} 百分位` : null}</Interp>
         {pe.filter((v) => v !== null).length >= 2 ? (
-          <SeriesChart dates={h.d.slice(-n750)} axisKey="pe" height={140} label="近 3 年本益比" testid="pe-chart" format={(v) => fmtNum(v, 1)}
-            dateFormat={(d) => `${d.slice(2, 4)}/${Number(d.slice(5, 7))}`}
-            series={[{ id: 'pe', name: '本益比', color: 'var(--d-1)', values: pe, main: true }]} />
+          <>
+            {/* 對數軸：本益比是比值，30 → 300 與 3 → 30 是同樣的倍數；線性軸會被少數極端值壓扁 */}
+            <SeriesChart dates={h.d.slice(-n750)} axisKey="pe" log height={140} label="近 3 年本益比" testid="pe-chart" format={(v) => fmtNum(v, 1)}
+              tickFormat={(v) => fmtNum(v, v >= 10 ? 0 : 1)} dateFormat={(d) => `${d.slice(2, 4)}/${Number(d.slice(5, 7))}`}
+              series={[{ id: 'pe', name: '本益比', color: 'var(--d-1)', values: pe, main: true }]} />
+            {peOver ? <p class="sc2-note ui-foot ui-muted" data-testid="pe-over">{peOver} 日本益比超過 {PE_CAP} 倍（獲利接近零），未畫出</p> : null}
+          </>
         ) : null}
         <List>
           <Row label={<Term id="pe">本益比</Term>} sub={`3 年百分位 ${ok(val.pePct3y) ? Math.round(val.pePct3y) : '—'}`} value={<Num v={val.pe} digits={2} unit="倍" fallback="虧損或未公布" />} />

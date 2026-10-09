@@ -9,6 +9,7 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { axisPos, lerpAxis, linearAxis, logAxis, spreadLabels, type Axis } from '../lib/axis';
 import { smoothD } from '../lib/chartMath';
+import { textWidth } from '../lib/chartLabels';
 import { reduceMotion } from './kit';
 
 export interface Series {
@@ -45,9 +46,9 @@ export function Swatch({ color, dash, kind = 'line', main = false }: { color: st
 
 export interface Band { lo: (number | null)[]; hi: (number | null)[]; color: string; name: string }
 
-const PAD_TOP = 8;
+const PAD_TOP = 18; // 最上面的刻度文字（11px）畫在格線上方：8px 時文字被切掉一半（2026-10-09）
 const PAD_BOTTOM = 22;
-const END_W = 92; // 線尾標籤欄寬
+const END_W_MIN = 92; // 線尾標籤欄最小寬；依最長的「名稱＋期末值」加寬（固定 92px 時「融資餘額 16,218」在 375pt 超出右緣）
 const LONG_PRESS = 500;
 
 export function SeriesChart({
@@ -126,7 +127,10 @@ export function SeriesChart({
     return () => cancelAnimationFrame(raf);
   }, [target]);
 
-  const plotW = Math.max(120, w - END_W);
+  const lastIdx = (vals: (number | null)[]) => { for (let i = vals.length - 1; i >= 0; i--) if (vals[i] !== null && Number.isFinite(vals[i] as number)) return i; return -1; };
+  const endLabelW = Math.max(0, ...series.filter((s) => !s.noEnd).map((s) => { const i = lastIdx(s.values); return i < 0 ? 0 : textWidth(`${s.name} ${format(s.values[i] as number)}`, 11); }));
+  const endW = Math.min(Math.max(END_W_MIN, endLabelW + 10), Math.round(w * 0.45));
+  const plotW = Math.max(120, w - endW);
   const n = dates.length;
   const x = (i: number) => (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
   const y = (v: number) => PAD_TOP + (1 - axisPos(v, ax)) * (height - PAD_TOP - PAD_BOTTOM);
@@ -140,7 +144,6 @@ export function SeriesChart({
     if (cur.length) segs.push(cur);
     return segs.map((s) => smoothD(s)).join('');
   };
-  const lastIdx = (vals: (number | null)[]) => { for (let i = vals.length - 1; i >= 0; i--) if (vals[i] !== null && Number.isFinite(vals[i] as number)) return i; return -1; };
 
   const visible = series.filter((s) => !hidden.has(s.id));
   // 線尾標籤：名稱＋期末值；避免重疊

@@ -36,6 +36,11 @@ test('ETF 詳細頁：預設前一次揭露，拉起日看整段期間的加碼�
   await expect(rows).toHaveCount(8);
   // 持股占比：迄日依權重排序
   await expect(page.getByTestId('etf-weight-row').first()).toContainText('2330');
+  // 密集橫條列：每列 44pt 以上、沒有 › 欄；策略區塊（config/active_etf.yml）
+  const box = await rows.first().boundingBox();
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await expect(page.getByTestId('etf-strategy-tags')).toContainText('高息');
+  await expect(page.getByTestId('etf-strategy-src')).toHaveAttribute('href', /twse\.com\.tw/);
   // 列進入個股頁
   await rows.first().click();
   await expect(page).toHaveURL(/#\/stock\/2330/);
@@ -56,6 +61,7 @@ test('ETF 詳細頁：拖迄日時起日跟著往前；375 寬不需要左右滑
 test('沒有持股檔的 ETF 說明原因（清單上的 holdings_note）並連到個股頁', async ({ page }) => {
   await page.goto('#/explore/etf/00981A');
   await expect(page.getByTestId('etf-detail-missing')).toContainText('持股資料累積中');
+  await expect(page.getByTestId('etf-strategy-tags')).toContainText('大型股');
   await expect(page.getByRole('link', { name: /股價與成交/ })).toHaveAttribute('href', '#/stock/00981A');
 });
 
@@ -78,6 +84,7 @@ test('ETF 清單（2026-10-09）：依成交值／市值／績效排序，切期
   const rows = list.getByTestId('etf-list-row');
   await expect(rows.first()).toBeVisible();
   await expect(list).not.toContainText('無持股資料');
+  await expect(rows.first().locator('.etf-tag').first()).toHaveText('大型股'); // 策略標籤
   await expect(rows.first().locator('.pbar')).toBeVisible(); // 預設成交值：長條
   await list.getByTestId('etf-list-sort').getByRole('button', { name: '績效' }).click();
   await expect(rows.first().locator('.dbar')).toBeVisible(); // 績效：以 0 為中心的發散橫條
@@ -103,4 +110,42 @@ test('ETF 清單（2026-10-09）：依成交值／市值／績效排序，切期
   await expect(list).toContainText('國泰投信官網擋本工具的自動抓取');
   await rows.first().click();
   await expect(page).toHaveURL(/#\/explore\/etf\/00981A/);
+});
+
+/** 持股變動（2026-10-09）：一張圖，加碼在上、減碼在下；預設各前 10 檔。 */
+const MOVES = [
+  ...Array.from({ length: 12 }, (_, i) => ({ code: `${2300 + i}`, name: `加碼股${i}`, dir: 'add', kind: i === 0 ? 'new' : 'add', value_yi: 12 - i, pct_avg20: 12 - i, pct_mcap: 0.1, etfs_same_dir: 1, etfs: [] })),
+  ...[5, 3, 1].map((v, i) => ({ code: `${2400 + i}`, name: `減碼股${i}`, dir: 'reduce', kind: 'reduce', value_yi: -v, pct_avg20: -v, pct_mcap: -0.1, etfs_same_dir: 2, etfs: [] })),
+];
+
+test('ETF 總覽持股變動：加碼在上、減碼在下的發散橫條，預設各前 10 檔、顯示全部展開', async ({ page }) => {
+  await page.route('**/data/market.json', async (route) => {
+    const res = await route.fetch();
+    const json = { ...(await res.json()), active_etfs: LIST, etf_ranking: { date: '2026-10-08', add: [], reduce: [], items: MOVES, sort_default: 'value', coverage: { covered: 30, total: 32, holdings_date: '2026-10-08', issuers: 14 } } };
+    await route.fulfill({ response: res, json });
+  });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('#/explore/etf');
+  const sec = page.getByTestId('etf-moves');
+  await expect(sec.getByTestId('etf-moves-summary')).toHaveText('加碼 12 檔・減碼 3 檔（橫條＝金額）');
+  const rows = sec.getByTestId('etf-item');
+  await expect(rows).toHaveCount(13); // 加碼前 10 ＋ 減碼 3
+  await expect(rows.first()).toContainText('加碼股0');
+  await expect(rows.first().locator('.sv.up')).toBeVisible();
+  await expect(rows.first()).toContainText('新增');
+  await expect(rows.nth(1)).toContainText('佔均額 11.0%');
+  await expect(rows.last()).toContainText('減碼股0'); // 最大的減碼在最底
+  await expect(rows.last().locator('.sv.down')).toBeVisible();
+  await expect(sec.locator('.ui-row-chev')).toHaveCount(0);
+  const more = sec.getByTestId('etf-moves-more');
+  await expect(more).toHaveText('顯示全部 15 檔（加碼 12・減碼 3）');
+  await more.click();
+  await expect(rows).toHaveCount(15);
+  await expect(more).toHaveText('只看加碼、減碼各前 10 檔');
+  // 口徑切到佔均額：數值下方改列金額
+  await sec.getByTestId('etf-sort').getByRole('button', { name: '佔均額' }).click();
+  await expect(rows.nth(1)).toContainText('11.00 億');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await rows.first().click();
+  await expect(page).toHaveURL(/#\/stock\/2300/);
 });
