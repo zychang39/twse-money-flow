@@ -5,8 +5,11 @@
 .mf-tri.na, .mf-tri.ok { color: var(--text-2); }
 .mf-tri.fail { color: var(--text-1); }
 .mf-tri.hit { color: var(--risk); }
-.mf-chips { display: flex; flex-wrap: wrap; gap: var(--s-1); padding: var(--s-2) 0 var(--s-3); }
-.mf-chip { display: inline-flex; align-items: center; min-height: 2rem; padding: 0 var(--s-3); border-radius: var(--r-pill); background: var(--surface-2); color: var(--text-1); font-size: var(--fs-foot); text-decoration: none; }
+/* 漏斗明細：等寬網格，每格「代號（固定 4 字寬、等寬數字）＋名稱（過長以刪節號）」，左緣與欄位都對齊 */
+.mf-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.25rem, 1fr)); gap: var(--s-1); padding: var(--s-2) 0 var(--s-3); }
+.mf-chip { display: flex; align-items: center; gap: var(--s-2); min-width: 0; min-height: var(--tap); padding: 0 var(--s-2); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-1); font-size: var(--fs-foot); line-height: var(--lh-foot); text-decoration: none; }
+.mf-chip-code { flex: none; min-width: 4ch; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.mf-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mf-detail { padding: 0 0 var(--s-2); }
 .mf-detail .ui-table { margin-top: var(--s-2); }
 .mf-funnel-bar { display: block; height: 0.375rem; border-radius: var(--r-pill); background: var(--track); overflow: hidden; margin-top: var(--s-1); }
@@ -17,3 +20,6 @@
 .mf-k-head { display: flex; align-items: center; gap: var(--s-1); }
 /* 窄表格（大盤每日數據、逐年、濾網效度）：小一級字級，375pt 五欄不換行 */
 .mf-dense .ui-table td, .mf-dense .ui-table th { font-size: var(--fs-foot); line-height: var(--lh-foot); }
+/* 研究表格：|t| ≥ 2 的數字加粗（不另用顏色，琥珀只代表風險） */
+.mf-sig { font-weight: var(--fw-semibold); }
+.mf-unit { text-align: right; margin-top: var(--s-1); }

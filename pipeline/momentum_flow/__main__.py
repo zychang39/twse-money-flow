@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from pipeline.momentum_flow import backtest, candidates, data, market_state, signals, snapshots, web_out
+from pipeline.momentum_flow import backtest, candidates, data, market_state, regime, signals, snapshots, web_out
 from pipeline.momentum_flow import checklist as ck
 from pipeline.momentum_flow.params import PARAMS
 
@@ -60,6 +60,14 @@ def run_update(data_dir: Path, out: Path, years: int, max_minutes: float, refres
         )
         written += 1
     latest = web_out.latest_payload(fd, P, sig, mk, T)
+    research: dict[str, Any] | None = None
+    try:
+        res = regime.research(fd, P, mk["_eff"])
+        latest["regime"] = regime.current(res["_flags"], T, fd.dates)
+        research = {k: v for k, v in res.items() if not k.startswith("_")}
+        log.info("動能環境研究完成（%.0f 秒）：目前 %s", time.monotonic() - t0, latest["regime"]["label"])
+    except Exception:  # 研究失敗不影響快照、latest 的其他內容與規格回測
+        log.exception("動能環境研究失敗")
     web_out.write_json(out, "latest.json", latest)
     web_out.write_json(out, "history.json", {"date": fd.dates[T], "cols": mk["history_cols"], "rows": mk["history"]})
     bt_ok = False
@@ -67,6 +75,8 @@ def run_update(data_dir: Path, out: Path, years: int, max_minutes: float, refres
         first = next(i for i, d in enumerate(fd.dates) if d >= start)
         bt = backtest.run(fd, P, mk["_eff"], first, T)
         bt["generated"] = latest["generated"]
+        if research is not None:
+            bt["research"] = research
         web_out.write_json(out, "backtest.json", bt)
         bt_ok = True
         log.info("回測完成（%.0f 秒）：%s", time.monotonic() - t0, bt["summary"])

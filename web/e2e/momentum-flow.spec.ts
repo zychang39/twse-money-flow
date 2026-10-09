@@ -52,8 +52,17 @@ test('候選：漏斗可點看被濾掉的股票；三個清單；點開一列�
   await page.getByTestId('mf-funnel-K3').click();
   const detail = page.getByTestId('mf-funnel-K3-detail');
   await expect(detail).toBeVisible();
-  await expect(detail.locator('.mf-chip', { hasText: '2221' })).toHaveCount(1);
-  await expect(detail.locator('.mf-chip').first()).toHaveAttribute('href', /#\/stock\//);
+  // 代號在前、名稱在後、依代號排序；預設 24 檔，可顯示全部
+  const chips = page.getByTestId('mf-chips-K3-fail').locator('.mf-chip');
+  await expect(chips).toHaveCount(24);
+  await expect(chips.first().locator('.mf-chip-code')).toHaveText(/^\d{4}$/);
+  await expect(chips.first().locator('.mf-chip-name')).not.toBeEmpty();
+  const codes = await chips.locator('.mf-chip-code').allTextContents();
+  expect(codes).toEqual([...codes].sort());
+  await expect(chips.first()).toHaveAttribute('href', /#\/stock\/\d{4}$/);
+  await page.getByTestId('mf-chips-K3-fail-more').click();
+  await expect(chips).toHaveCount(244);
+  await expect(detail.locator('.mf-chip', { hasText: '2221' })).toContainText('大甲');
   // 篩出 16 檔，第一列 A 級晶豪科 6／6
   const list = page.getByTestId('mf-list');
   await expect(list.locator('.ui-row')).toHaveCount(16);
@@ -134,6 +143,7 @@ test('紀錄：回測摘要、累加／逐年、年份篩選、濾網效度（�
   await page.getByTestId('mf-bt-year').getByRole('button', { name: '2025' }).click();
   await expect(page.getByTestId('mf-bt-yearly').locator('tbody tr')).toHaveCount(1);
   await expect(page.getByTestId('mf-bt-yearly')).toContainText('+20.8%');
+  await page.getByTestId('mf-rec-tabs').getByRole('button', { name: '濾網', exact: true }).click();
   const filters = page.getByTestId('mf-filters-table');
   await expect(filters.locator('tbody tr')).toHaveCount(6);
   await expect(filters.locator('tbody tr').nth(1)).toContainText('樣本不足'); // K2 只有 27 期
@@ -150,4 +160,66 @@ test('資料讀取失敗：只影響本頁（錯誤狀態可重試）；入口�
   await page.goto('#/explore/momentum/market');
   await expect(page.getByTestId('mf-state-root')).toContainText('動能流程資料暫時無法取得');
   await expect(page.getByTestId('mf-basis')).toContainText('資料基準日 —');
+});
+
+test('大盤：動能環境（三項主要條件＋三項參考）', async ({ page }) => {
+  await mock(page);
+  await page.goto('#/explore/momentum/market');
+  await expect(page.getByTestId('mf-regime-concl')).toHaveText('中性（2／3）');
+  await expect(page.getByTestId('mf-regime-primary').locator('.ui-row')).toHaveCount(3);
+  await expect(page.getByTestId('mf-regime-diag').locator('.ui-row')).toHaveCount(3);
+  await expect(page.getByTestId('mf-regime-F3')).toContainText('未符合');
+  await expect(page.getByTestId('mf-regime-F3')).toContainText('門檻');
+  await expect(page.getByTestId('mf-regime-year')).toHaveText('近一年：順風 86 日・中性 118 日・逆風 46 日');
+  await expect(page.getByTestId('mf-regime')).toContainText('若兩者取低，曝險上限是 60%');
+  await expect(page.locator('.page')).not.toContainText(FORBIDDEN);
+});
+
+test('紀錄：分解｜環境｜變體｜槓桿（長期研究）', async ({ page }) => {
+  await mock(page);
+  await page.goto('#/explore/momentum/records');
+  const tabs = page.getByTestId('mf-rec-tabs');
+  await tabs.getByRole('button', { name: '分解', exact: true }).click();
+  await expect(page.getByTestId('mf-decomp-concl')).toHaveText('選股 +11.5%・權值股 −7.4%・現金 −11.6%（每年）');
+  await expect(page.getByTestId('mf-decomp-table').locator('tbody tr')).toHaveCount(4);
+  await expect(page.getByTestId('mf-idle-concl')).toHaveText('年化 +30.2%・0050 +27.8%');
+  await page.getByTestId('mf-decomp-base').getByRole('button', { name: '＋動能環境' }).click();
+  await expect(page.getByTestId('mf-decomp-concl')).not.toHaveText('選股 +11.5%・權值股 −7.4%・現金 −11.6%（每年）');
+
+  await tabs.getByRole('button', { name: '環境', exact: true }).click();
+  await expect(page.getByTestId('mf-cond-concl')).toHaveText('沒有條件在前後兩段都達到 |t| ≥ 2');
+  await expect(page.getByTestId('mf-cond-table').locator('tbody tr')).toHaveCount(7);
+  await expect(page.getByTestId('mf-cond-levels').locator('tbody tr')).toHaveCount(3);
+  await page.getByTestId('mf-cond-period').getByRole('button', { name: '前段' }).click();
+  await expect(page.getByTestId('mf-cond-table').locator('tbody tr').nth(2)).toContainText('t −1.97');
+  await expect(page.getByTestId('mf-cond-table').locator('tbody tr').nth(2).locator('.mf-sig')).toHaveCount(0); // |t| < 2
+
+  await tabs.getByRole('button', { name: '變體', exact: true }).click();
+  await expect(page.getByTestId('mf-variants-concl')).toHaveText('狀態機：最大回撤 −32.8% → −22.7%，年化 +21.2% → +18.2%');
+  await expect(page.getByTestId('mf-variants-table').locator('tbody tr')).toHaveCount(6);
+  await expect(page.getByTestId('mf-variants-yearly').locator('tbody tr')).toHaveCount(9);
+  await expect(page.getByTestId('mf-variants-chart')).toBeVisible();
+
+  await tabs.getByRole('button', { name: '槓桿', exact: true }).click();
+  await expect(page.getByTestId('mf-lev-concl')).toHaveText('1 倍回撤 −22.7%・2 倍 −42.2%（年化 +31.2%）');
+  await expect(page.getByTestId('mf-lev-table').locator('tbody tr')).toHaveCount(8);
+  await expect(page.getByTestId('mf-lev')).toContainText('沒有任何一列觸發追繳');
+  await expect(page.locator('.page')).not.toContainText(FORBIDDEN);
+});
+
+test('舊資料沒有研究與動能環境：顯示累積中，不出錯', async ({ page }) => {
+  await page.route(isMomentum, (route) => {
+    const name = new URL(route.request().url()).pathname.split('/').pop()!.replace('.json', '');
+    const body = JSON.parse(fx(name)) as Record<string, unknown>;
+    delete body.research;
+    delete body.regime;
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
+  });
+  await page.goto('#/explore/momentum/market');
+  await expect(page.getByTestId('mf-regime-empty')).toBeVisible();
+  await page.goto('#/explore/momentum/records');
+  await page.getByTestId('mf-rec-tabs').getByRole('button', { name: '槓桿', exact: true }).click();
+  await expect(page.getByTestId('mf-research-empty')).toBeVisible();
+  await page.getByTestId('mf-rec-tabs').getByRole('button', { name: '回測', exact: true }).click();
+  await expect(page.getByTestId('mf-bt-concl')).toBeVisible();
 });
