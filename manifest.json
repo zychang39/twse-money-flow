@@ -972,8 +972,8 @@
  },
  "holders_backfill": {
   "codes": 1991,
-  "done": 98614,
-  "eta": "2026-10-09T21:27+08:00",
+  "done": 99167,
+  "eta": "2026-10-09T21:10+08:00",
   "nodata": {
    "1103": [
     "20260522"
@@ -1295,7 +1295,8 @@
     "20260828",
     "20260904",
     "20260911",
-    "20260918"
+    "20260918",
+    "20261008"
    ],
    "4174": [
     "20260130"
@@ -1381,7 +1382,8 @@
     "20260828",
     "20260904",
     "20260911",
-    "20260918"
+    "20260918",
+    "20261008"
    ],
    "5201": [
     "20260327"
@@ -1536,7 +1538,8 @@
     "20260828",
     "20260904",
     "20260911",
-    "20260918"
+    "20260918",
+    "20261008"
    ],
    "6789": [
     "20260508"
@@ -1672,14 +1675,14 @@
    ]
   },
   "oldest_week": "20251009",
-  "per_query_sec": 4.22,
+  "per_query_sec": 4.32,
   "ref": "claude/momentum-strategy-lab-v2",
-  "remaining": 941,
-  "runtime_hours_left": 1.1,
-  "segments": 185,
+  "remaining": 388,
+  "runtime_hours_left": 0.5,
+  "segments": 186,
   "started_at": "2026-09-29T23:44+08:00",
   "total": 99555,
-  "updated_at": "2026-10-09T19:47+08:00",
+  "updated_at": "2026-10-09T20:28+08:00",
   "weeks": 52
  },
  "kbar": {
@@ -2024,17 +2027,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-09T05:17:51+08:00",
-   "by_source": {},
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 0,
-   "requests": 396,
-   "task": "backfill"
-  },
   {
    "at": "2026-10-09T05:27:58+08:00",
    "by_source": {
@@ -2595,6 +2587,20 @@
    "remaining": 941,
    "requests": 568,
    "task": "holders_backfill"
+  },
+  {
+   "at": "2026-10-09T21:08:20+08:00",
+   "by_source": {
+    "tdcc_full": 388
+   },
+   "chained": true,
+   "failed": [],
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "remaining": 388,
+   "requests": 554,
+   "task": "holders_backfill"
   }
  ],
  "sources": {
@@ -2690,10 +2696,10 @@
   },
   "tdcc_history": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-09T20:27:20+08:00",
-   "last_message": "全市場 1991 檔 × 52 週：本段 567 次查詢；剩餘 941 次",
+   "last_attempt": "2026-10-09T21:08:18+08:00",
+   "last_message": "全市場 1991 檔 × 52 週：本段 553 次查詢；剩餘 388 次",
    "last_status": "ok",
-   "last_success_at": "2026-10-09T20:27:20+08:00",
+   "last_success_at": "2026-10-09T21:08:18+08:00",
    "validation": "ok"
   },
   "tdcc_holders": {
@@ -3277,6 +3283,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-09T20:27:22+08:00",
+ "updated_at": "2026-10-09T21:08:20+08:00",
  "version": 1
 }
