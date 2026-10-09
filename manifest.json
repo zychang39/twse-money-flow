@@ -2004,34 +2004,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-08T22:06:56+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [
-    "credit",
-    "daytrade",
-    "margin_total",
-    "sbl"
-   ],
-   "format_warnings": [
-    "twse_fulldelivery"
-   ],
-   "kbar_dispatched": true,
-   "missing_after": [],
-   "missing_before": [
-    "credit",
-    "margin_total",
-    "sbl",
-    "daytrade"
-   ],
-   "ok": 40,
-   "pending": [],
-   "progressed": true,
-   "requests": 59,
-   "retry": false,
-   "task": "catchup"
-  },
-  {
    "at": "2026-10-08T22:07:51+08:00",
    "by_tier": {
     "1": 0,
@@ -2602,17 +2574,31 @@
    "remaining": 3704,
    "requests": 546,
    "task": "holders_backfill"
+  },
+  {
+   "at": "2026-10-09T17:26:22+08:00",
+   "by_source": {
+    "active_etf": 22
+   },
+   "chained": true,
+   "failed": [],
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "remaining": 22,
+   "requests": 555,
+   "task": "backfill"
   }
  ],
  "sources": {
   "active_etf": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-09T16:56:51+08:00",
+   "last_attempt": "2026-10-09T17:26:21+08:00",
    "last_message": "已取得 30/32 檔主動式 ETF 持股（中國信託投信、元大投信、凱基投信、台新投信、安聯投信、富邦投信、復華投信、摩根投信、永豐投信、第一金投信、統一投信、群益投信、聯博投信、野村投信）；其餘投信（兆豐投信、國泰投信）的官網擋本工具的自動抓取，未涵蓋",
    "last_status": "ok",
    "last_success": "2026-10-08",
-   "last_success_at": "2026-10-09T16:56:51+08:00",
-   "rows": 17784,
+   "last_success_at": "2026-10-09T17:26:21+08:00",
+   "rows": 21519,
    "validation": "ok"
   },
   "cbc_money": {
@@ -3284,6 +3270,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-09T17:02:30+08:00",
+ "updated_at": "2026-10-09T17:26:22+08:00",
  "version": 1
 }
