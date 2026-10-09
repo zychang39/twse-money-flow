@@ -964,7 +964,7 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-09T22:20+08:00",
+  "at": "2026-10-09T23:26+08:00",
   "attempt": 1,
   "fixed": [],
   "missing": [],
@@ -2032,17 +2032,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-09T07:03:26+08:00",
-   "by_source": {},
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 0,
-   "requests": 538,
-   "task": "backfill"
-  },
-  {
    "at": "2026-10-09T07:30:48+08:00",
    "by_source": {
     "tdcc_full": 11320
@@ -2625,6 +2614,21 @@
    "rows": 0,
    "task": "kbar",
    "total": 2369
+  },
+  {
+   "at": "2026-10-09T23:26:16+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "kbar_dispatched": true,
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "progressed": false,
+   "requests": 0,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3307,6 +3311,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-09T22:26:14+08:00",
+ "updated_at": "2026-10-09T23:26:16+08:00",
  "version": 1
 }
