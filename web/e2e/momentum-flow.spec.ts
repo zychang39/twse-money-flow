@@ -21,7 +21,7 @@ async function mock(page: Page, fail = false): Promise<void> {
 
 const FORBIDDEN = /買進|賣出|推薦|建議/;
 
-test('探索入口卡片：第一次開頁前不發請求顯示「—」，開過之後摘要一行；點進去頁首有資料基準日', async ({ page }) => {
+test('探索入口卡片：自動化環境第一次開頁前不發請求顯示「—」，開過之後摘要一行；點進去頁首有資料基準日', async ({ page }) => {
   await mock(page);
   const requests: string[] = [];
   page.on('request', (r) => { if (r.url().includes('raw.githubusercontent.com')) requests.push(r.url()); });
@@ -70,6 +70,24 @@ test('候選：漏斗可點看被濾掉的股票；三個清單；點開一列�
   await page.getByTestId('mf-list-seg').getByRole('button', { name: /新觸發/ }).click();
   await expect(list.locator('.ui-row')).toHaveCount(6);
   await expect(page.locator('.page')).not.toContainText(FORBIDDEN);
+});
+
+test('基準日的注意／處置名單還沒公布：漏斗下方說明 K5 暫判資料不足', async ({ page }) => {
+  await page.route(isMomentum, (route) => {
+    const name = new URL(route.request().url()).pathname.split('/').pop()!.replace('.json', '');
+    const body = JSON.parse(fx(name)) as Record<string, unknown>;
+    if (name === 'latest') body.lists_through = '2026-10-07';
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
+  });
+  await page.goto('#/explore/momentum/candidates');
+  await expect(page.getByTestId('mf-lists-pending')).toHaveText('注意／處置名單約 17:00 公布，目前取得到 10/7；基準日 10/8 的 K5 暫判資料不足，名單取得後自動更新。');
+});
+
+test('名單已取得（lists_through ≥ 基準日）：不顯示說明', async ({ page }) => {
+  await mock(page);
+  await page.goto('#/explore/momentum/candidates');
+  await expect(page.getByTestId('mf-funnel-concl')).toBeVisible();
+  await expect(page.getByTestId('mf-lists-pending')).toHaveCount(0);
 });
 
 test('組合試算：總資金存 localStorage、名額 8／9／10、族群上限、現金列', async ({ page }) => {

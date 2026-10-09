@@ -19,6 +19,8 @@ export interface Latest {
   k_names: string[]; k_labels: Record<string, string>; k_cols: Record<string, string[]>;
   params: { k: string; v: string; n: string }[]; signals: Record<string, number>;
   review: { R: string; next: string; day: number }; lists_from: string | null;
+  /** 注意／處置名單已取得到這一天（約 17:00 公布）；早於 date 時基準日的 K5 為資料不足 */
+  lists_through?: string | null;
   stock_cols: string[]; stocks: Record<string, (number | string | null)[]>; groups: Record<string, string>;
 }
 export interface History { date: string; cols: string[]; rows: [string, number | null, number | null, number | null, number | null, number | null][] }
@@ -47,9 +49,9 @@ export async function fetchMomentum<T>(name: string, base = MOMENTUM_BASE): Prom
 }
 
 /**
- * 探索頁不替本功能發任何外部請求，直到使用者第一次成功開過動能流程頁（localStorage 旗標）：
- * 資料分支還沒有 momentum_flow/ 時 raw.githubusercontent.com 會回 404，瀏覽器會記一筆 console error，
- * 既有冒煙測試（smoke.spec：每頁不得有 console error）會失敗；旗標也讓探索頁在離線或 CI 環境保持無網路請求。
+ * 探索卡片的摘要：一般瀏覽器一律讀取（資料分支已有 momentum_flow/）。自動化測試（navigator.webdriver）在第一次成功開過
+ * 動能流程頁之前（localStorage 旗標）不發外部請求：既有冒煙測試要求每頁沒有 console error，也不應依賴外部網路與資料分支。
+ * （2026-10-09：原本對所有瀏覽器都等旗標，使用者第一次看到的卡片一律是「—」，改成只限自動化環境。）
  */
 export const SEEN_KEY = 'tmf-momentum-seen';
 export function markSeen(): void {
@@ -63,9 +65,15 @@ export const loadLatest = () => fetchMomentum<Latest>('latest.json').then((l) =>
 export const loadHistory = () => fetchMomentum<History>('history.json');
 export const loadBacktest = () => fetchMomentum<BacktestFile>('backtest.json');
 
-/** 探索入口卡片的一行：「狀態 N・曝險 X%・篩出 n 檔」；還沒開過本頁或讀取失敗回 null（卡片顯示「—」）。 */
+/** 自動化環境、而且還沒成功開過本頁 → 探索卡片不讀摘要。 */
+export function skipSummary(seen: boolean, webdriver: boolean): boolean {
+  return webdriver && !seen;
+}
+const isAutomation = () => typeof navigator !== 'undefined' && navigator.webdriver === true;
+
+/** 探索入口卡片的一行：「狀態 N・曝險 X%・篩出 n 檔」；讀取失敗（或自動化環境還沒開過本頁）回 null（卡片顯示「—」）。 */
 export async function loadSummary(): Promise<string | null> {
-  if (!hasSeen()) return null;
+  if (skipSummary(hasSeen(), isAutomation())) return null;
   try {
     const l = await loadLatest();
     const m = l.market;

@@ -128,13 +128,21 @@ function Chips({ codes, names }: { codes: string[]; names: Map<string, string> }
   );
 }
 
+/** 基準日的注意／處置名單還沒取得（約 17:00 公布）時的說明；已取得回 null */
+function listsPending(l: Latest): string | null {
+  if (!l.lists_through || l.lists_through >= l.date) return null;
+  return `注意／處置名單約 17:00 公布，目前取得到 ${md(l.lists_through)}；基準日 ${md(l.date)} 的 K5 暫判資料不足，名單取得後自動更新。`;
+}
+
 function Funnel({ latest, names }: { latest: Latest; names: Map<string, string> }) {
   const [open, setOpen] = useState<string | null>(null);
   const f = latest.funnel;
   const total = Math.max(1, f.candidates);
+  const pending = listsPending(latest);
   return (
     <Section title="漏斗" aside={`候選 ${f.candidates} 檔`} testid="mf-funnel" info={<><p>候選池 → 各項通過數 → 全通過。點任一項可看被該項濾掉（未符合或資料不足）的股票。</p><p>{HELP.level.what}</p><p>{HELP.level.why}</p></>} infoTitle="漏斗與候選等級">
       <Conclusion testid="mf-funnel-concl">候選 {f.candidates} 檔 → 全通過 {f.pass} 檔</Conclusion>
+      {pending ? <Interp testid="mf-lists-pending">{pending}</Interp> : null}
       <List label="漏斗">
         {latest.k_names.map((k) => {
           const x = f.k[k];
