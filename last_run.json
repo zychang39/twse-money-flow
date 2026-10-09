@@ -1,14 +1,18 @@
 {
- "task": "holders_backfill",
- "at": "2026-10-09T13:38:26+08:00",
- "requests": 545,
- "ok": 1,
+ "task": "catchup",
+ "at": "2026-10-09T14:02:13+08:00",
+ "requests": 57,
+ "ok": 30,
  "failed": [],
  "pending": [],
- "remaining": 6485,
+ "format_warnings": [
+  "twse_fulldelivery"
+ ],
+ "missing_before": [],
+ "missing_after": [],
+ "fixed": [],
+ "attempt": 1,
+ "retry": false,
  "progressed": true,
- "by_source": {
-  "tdcc_full": 6485
- },
- "chained": true
+ "kbar_dispatched": true
 }
