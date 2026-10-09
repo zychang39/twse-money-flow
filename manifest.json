@@ -1660,7 +1660,7 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-10-09T04:02+08:00",
+  "at": "2026-10-09T16:57+08:00",
   "covered": 2331,
   "empty": [
    "00682U",
@@ -2001,25 +2001,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-08T21:17:07+08:00",
-   "attempt": 3,
-   "failed": [],
-   "fixed": [
-    "qfii"
-   ],
-   "missing_after": [],
-   "missing_before": [
-    "qfii"
-   ],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "relay": "2026-10-08T22:02+08:00",
-   "requests": 1,
-   "retry": false,
-   "task": "catchup"
-  },
   {
    "at": "2026-10-08T22:04:55+08:00",
    "by_tier": {
@@ -2605,6 +2586,27 @@
    "requests": 56,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-09T16:57:39+08:00",
+   "by_tier": {
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "covered": 2331,
+   "failed": [],
+   "fetched": 0,
+   "kbar_target": "2026-10-08",
+   "ok": 1,
+   "pending": [],
+   "progressed": false,
+   "pruned": 0,
+   "remaining": 7,
+   "requests": 0,
+   "rows": 0,
+   "task": "kbar",
+   "total": 2369
   }
  ],
  "sources": {
@@ -3260,11 +3262,11 @@
   },
   "yahoo_kbar": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-09T14:03:05+08:00",
+   "last_attempt": "2026-10-09T16:57:39+08:00",
    "last_message": "涵蓋 2331/2369 檔；本次 0 檔請求、失敗 7、查無 31",
    "last_status": "ok",
    "last_success": "2026-10-08",
-   "last_success_at": "2026-10-09T14:03:05+08:00",
+   "last_success_at": "2026-10-09T16:57:39+08:00",
    "rows": 2331,
    "validation": "ok"
   }
@@ -3287,6 +3289,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-09T16:56:53+08:00",
+ "updated_at": "2026-10-09T16:57:39+08:00",
  "version": 1
 }
