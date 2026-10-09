@@ -101,6 +101,7 @@ def latest_payload(fd: FlowData, P: Panels, sig: dict[str, Any], mk: dict[str, A
         "funnel": candidates.funnel(rows),
         "lists": candidates.lists(rows),
         "candidates": len(rows),
+        "names": {r["code"]: r["name"] for r in rows},  # 漏斗晶片顯示名稱（全部候選）
         "k_names": K_NAMES,
         "k_labels": K_LABELS,
         "k_cols": candidates.K_COLS,

@@ -64,11 +64,32 @@ def _fin(x: float) -> bool:
     return bool(np.isfinite(x))
 
 
+def caps_from_eff(eff: np.ndarray, params: dict[str, Any] | None = None) -> np.ndarray:
+    """生效狀態 → 曝險上限（1／2／3 → 100／60／30%；0＝資料不足 → 0）。"""
+    p = params or PARAMS
+    out = np.zeros(len(eff), dtype=float)
+    for st, cap in p["exposure"].items():
+        out[np.asarray(eff) == int(st)] = float(cap)
+    return out
+
+
 class Simulator:
+    """caps：每個交易日的曝險上限（0–1）；可用名額＝floor(名額 × caps[t])。狀態機是 caps_from_eff(eff)，
+    研究用的變體（不控制、加動能環境）傳別的序列。rows_cache：同一組面板的候選列可在多個模擬間共用（只讀）。"""
+
     def __init__(
-        self, fd: FlowData, P: Panels, eff: np.ndarray, start: int, end: int, params: dict[str, Any] | None = None
+        self,
+        fd: FlowData,
+        P: Panels,
+        caps: np.ndarray,
+        start: int,
+        end: int,
+        params: dict[str, Any] | None = None,
+        rows_cache: dict[int, list[dict[str, Any]]] | None = None,
     ):
-        self.fd, self.P, self.eff = fd, P, eff
+        self.fd, self.P = fd, P
+        self.caps = np.nan_to_num(np.asarray(caps, dtype=float), nan=0.0)
+        self.rows_cache = rows_cache if rows_cache is not None else {}
         self.p = params or PARAMS
         self.start, self.end = start, end
         self.n = int(self.p["slots_default"])
@@ -84,6 +105,7 @@ class Simulator:
         self.pos: dict[str, Position] = {}
         self.orders: list[Order] = []
         self.nav: list[float] = []
+        self.cash_hist: list[float] = []  # 每日收盤後現金（研究：投入比例、槓桿疊加）
         self.sold: list[float] = []  # 每日出場金額
         self.costs: list[float] = []  # 每日成本（手續費＋稅）
         self.trades: list[dict[str, Any]] = []
@@ -91,9 +113,12 @@ class Simulator:
 
     # ------------------------------------------------------------ 工具
     def usable(self, t: int) -> int:
-        st = int(self.eff[t])
-        cap = self.p["exposure"].get(st) if st else None
-        return 0 if cap is None else math.floor(self.n * float(cap))
+        return math.floor(self.n * float(self.caps[t]) + 1e-9)
+
+    def rows(self, t: int) -> list[dict[str, Any]]:
+        if t not in self.rows_cache:
+            self.rows_cache[t] = candidates.day_rows(self.fd, self.P, t, self.p)
+        return self.rows_cache[t]
 
     def mark(self, t: int) -> float:
         return self.cash + sum(p.value(self.close_ff[t, p.c]) for p in self.pos.values())
@@ -241,7 +266,7 @@ class Simulator:
                 g_count[g] = g_count.get(g, 0) + 1
                 g_amt[g] = g_amt.get(g, 0.0) + o.amount
         pos = {c: i for i, c in enumerate(fd.codes)}
-        for r in candidates.day_rows(fd, self.P, t, self.p):
+        for r in self.rows(t):
             if empty <= 0:
                 break
             if not r["pass"] or r["code"] in taken:
@@ -266,6 +291,7 @@ class Simulator:
             self.costs.append(costs)
             self.decide(t)
             self.nav.append(self.mark(t))
+            self.cash_hist.append(self.cash)
 
 
 # ---------------------------------------------------------------- 指標
@@ -405,7 +431,7 @@ def run(
     p = params or PARAMS
     end = fd.T - 1 if end is None else end
     start = max(start, 1)
-    sim = Simulator(fd, P, eff, start, end, p)
+    sim = Simulator(fd, P, caps_from_eff(eff, p), start, end, p)
     sim.run()
     nav = np.asarray(sim.nav)
     etf = (getattr(fd.ev, "etf", None) or {}).get(BENCH_CODE)

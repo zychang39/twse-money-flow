@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { TopBar } from '../../components/Chrome';
-import { PageTitle, Seg, Section, List, Row, EmptyRow, Table, StatGrid, Button, Info, NavRow } from '../../components/ui';
+import { PageTitle, Seg, Section, List, Row, EmptyRow, Table, StatGrid, Button, NavRow } from '../../components/ui';
 import { Conclusion, Interp, DataState } from '../../components/kit';
 import { SeriesChart } from '../../components/SeriesChart';
 import { useAsync } from '../../hooks';
@@ -14,7 +14,11 @@ import { navigate } from '../../router';
 import { fmtNum, md } from '../../lib/format';
 import { listTrades } from '../../db/db';
 import { loadStock } from '../../data/api';
-import { loadBacktest, loadHistory, loadLatest, STATE_DESC, type CandidateRow, type History, type Latest, type Tri } from '../data';
+import { loadHistory, loadLatest, STATE_DESC, type CandidateRow, type History, type Latest, type Tri } from '../data';
+import { Help, TriText } from '../components';
+import { intText, pctText, ymd } from '../fmt';
+import { RecordsTab } from './Records';
+import { RegimeSection } from './Regime';
 import { HELP } from '../help';
 import { loadFund, plan, saveFund, type Pick } from '../lib/portfolio';
 import { factorAt, parseVals, report, type Holding, type HoldingReport } from '../lib/holdings';
@@ -22,24 +26,6 @@ import '../styles/momentum.css';
 
 const TABS = [['market', '大盤'], ['candidates', '候選'], ['holdings', '持股'], ['records', '紀錄']] as const;
 type Tab = (typeof TABS)[number][0];
-const TRI_TEXT: Record<Tri, string> = { 1: '符合', 0: '未符合', '-1': '資料不足' };
-const TRI_CLASS: Record<Tri, string> = { 1: 'pass', 0: 'fail', '-1': 'na' };
-const ymd = (d: string) => `${d.slice(0, 4)}/${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
-/** 整數、不加千分位（窄表格用） */
-const intText = (v: number | null | undefined) => (v === null || v === undefined || !Number.isFinite(v) ? '—' : String(Math.round(v)));
-/** 金額以萬元表示（圖軸與線尾標籤） */
-const wanText = (v: number) => `${fmtNum(v / 10000, 0)} 萬`;
-const pctText = (v: number | null | undefined, d = 1) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmtNum(Math.abs(v), d)}%`);
-
-function Help({ id }: { id: string }) {
-  const h = HELP[id];
-  if (!h) return null;
-  return <Info title={h.title}><p><strong>定義</strong>：{h.what}</p><p><strong>為什麼檢查</strong>：{h.why}</p></Info>;
-}
-
-function TriText({ v }: { v: Tri }) {
-  return <span class={`mf-tri ${TRI_CLASS[v]}`}>{TRI_TEXT[v]}</span>;
-}
 
 /** K1–K6 的數值、門檻、判定（candidates.day_rows 的 k 欄位） */
 function kDetail(l: Latest, r: CandidateRow): { k: string; label: string; value: string; thr: string; res: Tri }[] {
@@ -89,6 +75,7 @@ function MarketTab({ latest }: { latest: Latest }) {
           { label: '升級倒數', value: m.countdown === null ? '—' : `${m.countdown} 日` },
         ]} />
       </Section>
+      <RegimeSection latest={latest} />
       <Section title="近一年狀態" testid="mf-timeline" info={<p>{HELP.state.what}</p>} infoTitle="狀態時間軸">
         <DataState phase={hist.loading ? 'loading' : hist.error ? 'error' : rows.length ? 'ok' : 'empty'} reason={hist.error ? '狀態歷史暫時無法取得' : '狀態歷史累積中'} testid="mf-timeline-state">
           {rows.length ? (
@@ -119,12 +106,27 @@ function MarketTab({ latest }: { latest: Latest }) {
 }
 
 // ---------------------------------------------------------------- 候選
-function Chips({ codes, names }: { codes: string[]; names: Map<string, string> }) {
+/** 漏斗明細：代號在前、名稱在後的等寬網格（依代號排序），預設顯示前 24 檔。 */
+const CHIP_LIMIT = 24;
+function Chips({ codes, names, testid }: { codes: string[]; names: Map<string, string>; testid?: string }) {
+  const [all, setAll] = useState(false);
   if (!codes.length) return <p class="ui-foot ui-muted mf-note">無</p>;
+  const sorted = [...codes].sort();
+  const shown = all ? sorted : sorted.slice(0, CHIP_LIMIT);
   return (
-    <div class="mf-chips">
-      {codes.map((c) => <a key={c} class="mf-chip" href={`#/stock/${c}`}>{names.get(c) ?? c} {c}</a>)}
-    </div>
+    <>
+      <div class="mf-chips" role="list" data-testid={testid}>
+        {shown.map((c) => (
+          <a key={c} role="listitem" class="mf-chip" href={`#/stock/${c}`} aria-label={`${c} ${names.get(c) ?? ''}`}>
+            <span class="mf-chip-code">{c}</span>
+            <span class="mf-chip-name">{names.get(c) ?? ''}</span>
+          </a>
+        ))}
+      </div>
+      {sorted.length > CHIP_LIMIT ? (
+        <Button block onClick={() => setAll(!all)} testid={testid ? `${testid}-more` : undefined}>{all ? '收起' : `顯示全部 ${sorted.length} 檔`}</Button>
+      ) : null}
+    </>
   );
 }
 
@@ -153,8 +155,8 @@ function Funnel({ latest, names }: { latest: Latest; names: Map<string, string> 
                 value={`${x.pass}／${f.candidates}`} onClick={() => setOpen(on ? null : k)} expanded={on} noChev testid={`mf-funnel-${k}`} />
               {on ? (
                 <div class="mf-detail" data-testid={`mf-funnel-${k}-detail`}>
-                  <p class="ui-foot ui-muted">未符合</p><Chips codes={x.fail} names={names} />
-                  <p class="ui-foot ui-muted">資料不足</p><Chips codes={x.na} names={names} />
+                  <p class="ui-foot ui-muted">未符合（依代號排序）</p><Chips codes={x.fail} names={names} testid={`mf-chips-${k}-fail`} />
+                  <p class="ui-foot ui-muted">資料不足</p><Chips codes={x.na} names={names} testid={`mf-chips-${k}-na`} />
                 </div>
               ) : null}
             </div>
@@ -200,7 +202,7 @@ function PlanSection({ latest }: { latest: Latest }) {
   const p = plan(picks, fund.total, fund.slots, cap);
   const slotOpts = [['8', '8 名額'], ['9', '9 名額'], ['10', '10 名額']] as const;
   return (
-    <Section title="組合試算" aside={`可用 ${p.usable}／${fund.slots} 名額`} testid="mf-plan" info={<><p>{HELP.plan.what}</p><p>{HELP.plan.why}</p><p>總資金只存在這台裝置的瀏覽器。部位試算不是下單，也不是建議。</p></>} infoTitle="組合試算">
+    <Section title="組合試算" aside={`可用 ${p.usable}／${fund.slots} 名額`} testid="mf-plan" info={<><p>{HELP.plan.what}</p><p>{HELP.plan.why}</p><p>總資金只存在這台裝置的瀏覽器。部位試算只是計算，不會送出任何委託。</p></>} infoTitle="組合試算">
       <div class="mf-inputs">
         <label class="ui-foot ui-muted">總資金（元）
           <input class="mf-input" type="number" inputMode="numeric" min={1} step={1} value={draft} data-testid="mf-fund"
@@ -229,7 +231,7 @@ function CandidatesTab({ latest }: { latest: Latest }) {
   const [which, setWhich] = useState<'pass' | 'new' | 'near'>('pass');
   const [open, setOpen] = useState<string | null>(null);
   const names = useMemo(() => {
-    const m = new Map<string, string>();
+    const m = new Map<string, string>(Object.entries(latest.names ?? {}));
     for (const k of ['pass', 'new', 'near'] as const) for (const r of latest.lists[k]) m.set(r.code, r.name);
     return m;
   }, [latest]);
@@ -298,85 +300,6 @@ function HoldingsTab({ latest }: { latest: Latest }) {
           </Section>
         ))}
       </DataState>
-    </>
-  );
-}
-
-// ---------------------------------------------------------------- 紀錄
-function RecordsTab() {
-  const bt = useAsync(loadBacktest, []);
-  const [view, setView] = useState<'cum' | 'yearly'>('cum');
-  const [year, setYear] = useState<string>('all');
-  const d = bt.data;
-  const phase = bt.loading ? 'loading' : bt.error ? 'error' : d ? 'ok' : 'empty';
-  const s = d?.summary ?? {};
-  const num = (k: string) => (s[k] === null || s[k] === undefined ? null : (s[k] as number));
-  const pct = (k: string) => pctText(num(k) === null ? null : (num(k) as number) * 100, 2);
-  // 依年份篩選：累加檢視把該年第一個點重設為 1,000,000；「全部」顯示整段
-  const curve = useMemo(() => {
-    if (!d) return null;
-    const idx = d.curve.dates.map((_, i) => i).filter((i) => year === 'all' || d.curve.dates[i].startsWith(year));
-    if (!idx.length) return null;
-    const rebase = (arr: (number | null)[]) => {
-      const b = arr[idx[0]];
-      return idx.map((i) => (arr[i] === null || b === null || b === 0 ? null : (arr[i] as number) / b * 1_000_000));
-    };
-    return { dates: idx.map((i) => d.curve.dates[i]), nav: rebase(d.curve.nav), bench: rebase(d.curve.bench), ew: rebase(d.curve.ew) };
-  }, [d, year]);
-  const yearOpts = [['all', '全部'], ...(d?.years ?? []).map((y) => [y, y] as [string, string])] as readonly [string, string][];
-  const yearly = d ? (year === 'all' ? d.yearly : d.yearly.filter((r) => r.year === year)) : [];
-  return (
-    <>
-      <Section title="流程回測" aside={d ? `${md(d.period[0])}–${md(d.period[1])}` : undefined} testid="mf-backtest" info={<><p>{HELP.backtest.what}</p><p>{HELP.backtest.why}</p>{d?.notes.map((n) => <p key={n}>{n}</p>)}</>} infoTitle="流程回測">
-        <DataState phase={phase} reason={bt.error ? '回測結果累積中（每日排程計算後出現）' : '回測結果累積中'} testid="mf-backtest-state">
-          {d && curve ? (
-            <>
-              <Conclusion testid="mf-bt-concl">{d.period[0].slice(0, 4)}–{d.period[1].slice(0, 4)} 年化 {pct('cagr')}・相對 0050 {pct('excess_vs_0050')}</Conclusion>
-              <Interp>{`扣除手續費與證交稅後的淨值；0050 含息、等權股票池不扣成本。月超額報酬（相對 0050）${num('excess_months') ?? 0} 個月。`}</Interp>
-              <StatGrid testid="mf-bt-grid" items={[
-                { label: '年化報酬', value: pct('cagr') }, { label: '年化波動', value: pct('vol') }, { label: '最大回撤', value: pct('mdd') },
-                { label: '年換手率', value: num('turnover') === null ? '—' : `${fmtNum(num('turnover') as number, 2)} 倍` },
-                { label: '成本侵蝕（年）', value: pct('cost_drag') },
-                { label: '月超額平均', value: `${pct('excess_mean')}（t ${num('excess_t') === null ? '—' : fmtNum(num('excess_t') as number, 2)}）` },
-              ]} />
-              <Seg options={[['cum', '累加'], ['yearly', '逐年']] as const} value={view} onChange={setView} label="檢視" testid="mf-bt-view" small />
-              {yearOpts.length > 2 ? <Seg options={yearOpts} value={year} onChange={setYear} label="年份" testid="mf-bt-year" small /> : null}
-              {view === 'cum' ? (
-                <SeriesChart dates={curve.dates} axisKey="bt" height={200} label="淨值相對 0050 與等權股票池（萬元）" testid="mf-bt-chart" format={wanText} dateFormat={ymd}
-                  series={[
-                    { id: 'nav', name: '流程', color: 'var(--d-1)', values: curve.nav, main: true },
-                    { id: 'b', name: '0050', color: 'var(--d-2)', values: curve.bench, dash: 'dash' },
-                    { id: 'ew', name: '等權', color: 'var(--d-3)', values: curve.ew, dash: 'dot' },
-                  ]} />
-              ) : (
-                <div class="ui-card mf-dense">
-                  <Table caption="逐年" testid="mf-bt-yearly" rowKey={(r) => r.year} rows={yearly} cols={[
-                    { key: 'y', label: '年', width: '3rem', render: (r) => r.year },
-                    { key: 'r', label: '流程', align: 'r', render: (r) => pctText(r.ret === null ? null : r.ret * 100) },
-                    { key: 'b', label: '0050', align: 'r', render: (r) => pctText(r.bench === null ? null : r.bench * 100) },
-                    { key: 'e', label: '等權', align: 'r', render: (r) => pctText(r.ew === null ? null : r.ew * 100) },
-                    { key: 'd', label: '回撤', align: 'r', render: (r) => <>{pctText(r.mdd === null ? null : r.mdd * 100)}<span class="cell-sub">{r.trades} 筆</span></> },
-                  ]} />
-                </div>
-              )}
-            </>
-          ) : null}
-        </DataState>
-      </Section>
-      <Section title="濾網效度" testid="mf-filters" info={<><p>{HELP.filters.what}</p><p>{HELP.filters.why}</p></>} infoTitle="濾網效度">
-        <DataState phase={phase} reason="回測結果累積中" testid="mf-filters-state">
-          {d ? (
-            <div class="ui-card mf-dense">
-              <Table caption="各項門檻的前瞻報酬差" testid="mf-filters-table" rowKey={(r) => r.k} rows={d.filters} cols={[
-                { key: 'k', label: '項目', width: '5.5rem', render: (r) => `${r.k} ${r.label}` },
-                { key: 'm', label: '差（P − F）', align: 'r', render: (r) => <>{pctText(r.mean_diff === null ? null : r.mean_diff * 100, 2)}<span class="cell-sub">t {r.t === null ? '—' : fmtNum(r.t, 2)}</span></> },
-                { key: 'n', label: '期數', align: 'r', width: '4rem', render: (r) => <>{r.periods}{!r.enough ? <span class="cell-sub">樣本不足</span> : null}</> },
-                { key: 'a', label: '檔數 P／F', align: 'r', width: '4.5rem', render: (r) => `${intText(r.avg_p)}／${intText(r.avg_f)}` },
-              ]} />
-            </div>
-          ) : null}
-        </DataState>
-      </Section>
     </>
   );
 }
