@@ -1,13 +1,14 @@
 {
- "task": "backfill",
- "at": "2026-10-09T17:26:22+08:00",
- "requests": 555,
+ "task": "holders_backfill",
+ "at": "2026-10-09T17:43:21+08:00",
+ "requests": 561,
  "ok": 1,
  "failed": [],
  "pending": [],
- "remaining": 22,
+ "remaining": 3144,
+ "progressed": true,
  "by_source": {
-  "active_etf": 22
+  "tdcc_full": 3144
  },
  "progressed": true,
  "chained": true
