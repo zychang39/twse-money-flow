@@ -822,7 +822,12 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
         return True
 
     unfinished = 0
-    for n_done, (etf, issuer) in enumerate(targets.items()):
+    order = list(targets.items())
+    if days is not None:
+        # 回補：已存持股日最少的 ETF 先做（每段 40 分鐘；依代號排序時前面的 ETF 每段都要先把掛牌前的空白日重問一輪，
+        # 後面還沒有資料的 ETF 一直輪不到，2026-10-09 回補 8 段後停在 26/32 檔）
+        order.sort(key=lambda kv: (len(have.get(kv[0], set())), kv[0]))
+    for n_done, (etf, issuer) in enumerate(order):
         if ctx.out_of_time():
             unfinished = len(targets) - n_done  # 這一檔與之後的都還沒處理（下一段由已存的持股日接著補）
             break

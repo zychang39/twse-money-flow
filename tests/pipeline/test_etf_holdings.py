@@ -546,3 +546,21 @@ def test_backfill_reports_unfinished_etfs_for_chaining(tmp_path):
     assert ctx.client.calls == []  # type: ignore[attr-defined]
     ctx.deadline = None
     assert tasks_advanced.run_etf_holdings(ctx, days[0], days=days[:2]) == 0
+
+
+def test_backfill_starts_with_etfs_that_have_least_data(tmp_path):
+    """回補：已存持股日最少的 ETF 先做（時間用完時，還沒有資料的 ETF 不會一直輪不到）。"""
+    ctx = _ctx(
+        tmp_path, {"GetFundAssets": sample("etf_nomura_nodata.json"), "etf/items": sample("etf_capital_items.json")}
+    )
+    stored = pd.DataFrame(
+        [["2026-09-2" + str(i), "00980A", "2330", "台積電", 1000.0, 5.0, 1e8, None, False] for i in range(1, 4)],
+        columns=COLS,
+    )
+    ctx.store.write("etf_holdings", date(2026, 9, 1), stored)
+    days = ctx.calendar.trading_days(date(2026, 9, 1), date(2026, 9, 24))[::-1]
+    tasks_advanced.run_etf_holdings(ctx, days[0], days=days[:1])
+    calls = ctx.client.calls  # type: ignore[attr-defined]
+    first_capital = next(i for i, c in enumerate(calls) if "capitalfund" in c)
+    first_nomura = next(i for i, c in enumerate(calls) if "GetFundAssets" in c)
+    assert first_capital < first_nomura  # 群益 00982A 沒有資料，排在已有 3 天的野村 00980A 之前
