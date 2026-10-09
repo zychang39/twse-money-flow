@@ -20,6 +20,8 @@ import { moodOf, useAmbient } from '../lib/ambient';
 import { todayTpe } from '../lib/dates';
 import '../styles/explore.css';
 import { PageStale } from '../components/DataStatus';
+import { IconMomentum } from '../momentum/Icon';
+import { loadSummary as loadMomentumSummary } from '../momentum/data';
 
 /** 指數格：名稱｜收盤｜當日漲跌幅（▲▼） */
 function IndexTile({ name, short, values, pending }: { name: string; short: string; values: (number | null)[] | undefined; pending?: ComponentChildren }) {
@@ -54,6 +56,7 @@ export default function Explore() {
   const ev = useAsync(() => loadJson<EvidenceFile>('evidence.json').catch(() => null), []);
   const st = useAsync(() => loadJson<StrategiesFile>('strategies.json').catch(() => null), []);
   const cal = useAsync(() => loadJson<{ events?: { date: string }[] }>('calendar.json').catch(() => null), []);
+  const mf = useAsync(() => loadMomentumSummary().catch(() => null), []);
   const lab = labStatus(ev.data ?? null, st.data?.strategies ?? null);
   const vc = verdictCounts(ev.data?.rows);
   const env = envInfo(market.data?.env?.lights);
@@ -86,6 +89,7 @@ export default function Explore() {
         <Tile icon={<IconBriefcase />} title="主動式 ETF" href="#/explore/etf" testid="ex-etf" value={rk?.total !== undefined ? `${rk.covered ?? 0}/${rk.total} 檔有持股` : market.data?.active_etfs ? `${market.data.active_etfs.length} 檔` : pending(market)} />
         <Tile icon={<IconCalendar />} title="行事曆" href="#/explore/calendar" testid="ex-calendar" value={cal.data ? `即將 ${upcoming} 件` : '除權息・營收・法說'} />
         <Tile icon={<IconAlert />} title="處置與注意" href="#/explore/disposition" testid="ex-disposition" value={disp.data ? `處置 ${disp.data.disposition.length}・注意 ${disp.data.watch.filter((w) => w.in10 > 0).length}` : pending(disp)} />
+        <Tile icon={<IconMomentum />} title="動能流程" href="#/explore/momentum" testid="ex-momentum" value={mf.loading ? pending(mf) : mf.data ?? '—'} />
       </nav>
     </div>
   );

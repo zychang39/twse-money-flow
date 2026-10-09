@@ -132,9 +132,9 @@ test('選股：策略膠囊（含全部）→ 新觸發｜篩出 → 第一個�
   await expect(page.locator('.scr-row').first()).not.toContainText(/買進|賣出|推薦/);
 });
 
-test('探索：不捲動就看得到 9 個功能格；格內數值來自資料', async ({ page }) => {
+test('探索：不捲動就看得到 10 個功能格；格內數值來自資料', async ({ page }) => {
   await page.goto('#/explore');
-  await expect(page.locator('.ex-tile')).toHaveCount(9);
+  await expect(page.locator('.ex-tile')).toHaveCount(10);
   await expect(page.getByTestId('ex-sectors')).toContainText(/第 1 名|—/);
   await page.getByTestId('ex-sectors').click();
   await expect(page).toHaveURL(/#\/explore\/sectors/);
