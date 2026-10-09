@@ -8,7 +8,7 @@
 ## 隔離
 - 既有程式碼、資料格式、樣式一律唯讀；只改兩處既有檔案：探索頁入口卡片＋路由（只新增），`data.yml` 在既有步驟之後追加一個
   `continue-on-error` 的計算步驟（`python -m pipeline.momentum_flow update`）。
-- 前端任何錯誤只影響本頁（`DataState`）；入口卡片在摘要失敗時顯示「—」。
+- 前端任何錯誤只影響本頁（`DataState`）；入口卡片在摘要失敗時顯示「—」。探索頁在使用者第一次成功開過本頁之前（localStorage `tmf-momentum-seen`）不替本功能發任何外部請求（資料還沒產生時的 404 會讓既有冒煙測試失敗；離線與 CI 環境也保持無請求）。
 - 輸出路徑：`momentum_flow/snapshots/{YYYY}/{YYYYMMDD}.json.gz`（每日快照）、`momentum_flow/web/*.json`（前端）、`status.json`。
 
 ## 共同定義（實際使用的公式）

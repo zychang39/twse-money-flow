@@ -46,12 +46,26 @@ export async function fetchMomentum<T>(name: string, base = MOMENTUM_BASE): Prom
   return p;
 }
 
-export const loadLatest = () => fetchMomentum<Latest>('latest.json');
+/**
+ * 探索頁不替本功能發任何外部請求，直到使用者第一次成功開過動能流程頁（localStorage 旗標）：
+ * 資料分支還沒有 momentum_flow/ 時 raw.githubusercontent.com 會回 404，瀏覽器會記一筆 console error，
+ * 既有冒煙測試（smoke.spec：每頁不得有 console error）會失敗；旗標也讓探索頁在離線或 CI 環境保持無網路請求。
+ */
+export const SEEN_KEY = 'tmf-momentum-seen';
+export function markSeen(): void {
+  try { localStorage.setItem(SEEN_KEY, '1'); } catch { /* 隱私模式等 */ }
+}
+export function hasSeen(): boolean {
+  try { return localStorage.getItem(SEEN_KEY) === '1'; } catch { return false; }
+}
+
+export const loadLatest = () => fetchMomentum<Latest>('latest.json').then((l) => { markSeen(); return l; });
 export const loadHistory = () => fetchMomentum<History>('history.json');
 export const loadBacktest = () => fetchMomentum<BacktestFile>('backtest.json');
 
-/** 探索入口卡片的一行：「狀態 N・曝險 X%・篩出 n 檔」；讀取失敗回 null（卡片顯示「—」）。 */
+/** 探索入口卡片的一行：「狀態 N・曝險 X%・篩出 n 檔」；還沒開過本頁或讀取失敗回 null（卡片顯示「—」）。 */
 export async function loadSummary(): Promise<string | null> {
+  if (!hasSeen()) return null;
   try {
     const l = await loadLatest();
     const m = l.market;

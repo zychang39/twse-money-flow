@@ -21,10 +21,17 @@ async function mock(page: Page, fail = false): Promise<void> {
 
 const FORBIDDEN = /買進|賣出|推薦|建議/;
 
-test('探索入口卡片：摘要一行；點進去頁首有資料基準日', async ({ page }) => {
+test('探索入口卡片：第一次開頁前不發請求顯示「—」，開過之後摘要一行；點進去頁首有資料基準日', async ({ page }) => {
   await mock(page);
+  const requests: string[] = [];
+  page.on('request', (r) => { if (r.url().includes('raw.githubusercontent.com')) requests.push(r.url()); });
   await page.goto('#/explore');
   const tile = page.getByTestId('ex-momentum');
+  await expect(tile).toContainText('—');
+  expect(requests).toEqual([]); // 探索頁不替本功能發外部請求（smoke.spec 不得有 console error）
+  await page.goto('#/explore/momentum/market');
+  await expect(page.getByTestId('mf-state-concl')).toBeVisible();
+  await page.goto('#/explore');
   await expect(tile).toContainText('狀態 1・曝險 100%・篩出 16 檔');
   await tile.click();
   await expect(page).toHaveURL(/#\/explore\/momentum\/market/);
@@ -118,6 +125,7 @@ test('紀錄：回測摘要、累加／逐年、年份篩選、濾網效度（�
 
 test('資料讀取失敗：只影響本頁（錯誤狀態可重試）；入口卡片顯示「—」', async ({ page }) => {
   await mock(page, true);
+  await page.addInitScript(() => localStorage.setItem('tmf-momentum-seen', '1')); // 開過本頁 → 探索卡片會去讀摘要
   await page.goto('#/explore');
   await expect(page.getByTestId('ex-momentum')).toContainText('—');
   await expect(page.getByTestId('ex-screener')).not.toContainText('讀取失敗');
