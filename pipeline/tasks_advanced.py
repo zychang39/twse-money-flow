@@ -14,7 +14,7 @@ import pandas as pd
 
 from pipeline.core import config
 from pipeline.core.dates import month_start, next_month, slash
-from pipeline.core.http import CircuitOpenError, FetchError
+from pipeline.core.http import CircuitOpenError
 from pipeline.registry import build_url
 from pipeline.sources import advanced
 from pipeline.sources.base import ParseError, ParseResult
@@ -690,14 +690,12 @@ class _EtfFetcher:
             trade: dict[str, Any] = {"Type": 1, "Keyword": "", "FundNo": fund, "Date": day.isoformat()}
             return eh.parse_allianz(self.ctx.client.post_json(url, trade, self._allianz_headers()), etf)
         if issuer == "jpmorgan":
-            # date＝持股日；沒有資料回 HTTP 404（視為查無，不停用投信）
+            # date＝持股日；沒有資料回 HTTP 404：視為查無，不計入斷路器（2026-10-09 回補時連續 404 讓斷路器停掉整家投信）
             q = url.format(isin=eh.isin_of(etf), kind="holding_pcf", day=day.isoformat())
-            try:
-                res = eh.parse_jpmorgan(_fetch(self.ctx, q), etf)
-            except FetchError as exc:
-                if "HTTP 404" in str(exc):
-                    return ParseResult(pd.DataFrame(), no_data=True, message=f"摩根：{day} 查無持股")
-                raise
+            raw = self.ctx.client.get_bytes(q, missing_ok=True)
+            if not raw:
+                return ParseResult(pd.DataFrame(), no_data=True, message=f"摩根：{day} 查無持股")
+            res = eh.parse_jpmorgan(raw, etf)
             if not res.df.empty and res.response_date:
                 # 受益權單位數在之後第 units_lag 個交易日公告的現金申購買回清單（m12_pcf；美股型晚 2 日），
                 # 淨值日＝持股日才採用；取不到不影響持股
@@ -707,8 +705,7 @@ class _EtfFetcher:
                 if len(nxt) >= lag and nxt[lag - 1] <= self.ctx.today:
                     try:
                         q = url.format(isin=eh.isin_of(etf), kind="m12_pcf", day=nxt[lag - 1].isoformat())
-                        raw = _fetch(self.ctx, q)
-                        nav_d, units, aum = eh.parse_jpmorgan_units(raw)
+                        nav_d, units, aum = eh.parse_jpmorgan_units(self.ctx.client.get_bytes(q, missing_ok=True))
                     except SOURCE_ERRORS:
                         nav_d, units, aum = None, None, None
                     if nav_d == res.response_date:
@@ -737,7 +734,7 @@ def _replace_holdings(ctx: RunContext, df: pd.DataFrame) -> None:
         ctx.store.write("etf_holdings", month, part.sort_values(HOLDING_KEYS).reset_index(drop=True))
 
 
-def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = None) -> None:
+def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = None) -> int:
     """抓取已實作投信的主動式 ETF 持股；以「持股日」為單位判斷缺漏。
 
     群益、元大以申購買回清單的公告日查詢，回應的是 lag_days 個交易日之前的持股（config 設定），
@@ -746,6 +743,7 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
     （無法計算加碼／減碼），再往回補到 backfill_days 個交易日內取得第二天為止（之後的每日任務自然累積）。
     回補（days 指定）：逐日抓取缺的持股日（由近到遠，受時間預算限制）。
     同一家投信出現 HTTP 4xx 或斷路器開啟時，本輪不再請求該投信。
+    回傳：時間預算用完時還沒處理完的 ETF 檔數（回補據此接力下一段；2026-10-09 以前回補用完時間也回報 0，不會接力）。
     """
     from pipeline.sources import etf_holdings as eh
 
@@ -754,7 +752,7 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
     names = active_etf_names(ctx)
     if not names:
         ctx.note("active_etf", "failed", data_date=target, message="找不到主動式 ETF 清單（需先有收盤行情）")
-        return
+        return 0
     targets = {
         code: iss
         for code, name in sorted(names.items())
@@ -823,17 +821,31 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
         have.setdefault(etf, set()).add(str(res.df["date"].iloc[0]))
         return True
 
-    for etf, issuer in targets.items():
+    unfinished = 0
+    order = list(targets.items())
+    if days is not None:
+        # 回補：已存持股日最少的 ETF 先做（每段 40 分鐘；依代號排序時前面的 ETF 每段都要先把掛牌前的空白日重問一輪，
+        # 後面還沒有資料的 ETF 一直輪不到，2026-10-09 回補 8 段後停在 26/32 檔）
+        order.sort(key=lambda kv: (len(have.get(kv[0], set())), kv[0]))
+    for n_done, (etf, issuer) in enumerate(order):
+        if ctx.out_of_time():
+            unfinished = len(targets) - n_done  # 這一檔與之後的都還沒處理（下一段由已存的持股日接著補）
+            break
         first_time = etf not in have
         todo = days if days is not None else recent[:HEAL_DAYS]
         empty_run = 0
         for x in todo:
             if days is not None and empty_run >= BACKFILL_EMPTY_STOP:
                 break  # 回補由近到遠：連續查無代表已早於掛牌（或網站保留期限），不再往前請求
+            if ctx.out_of_time():
+                break
             if x.isoformat() not in have.get(etf, set()):
                 got = attempt(issuer, etf, x)
                 if got is not None:
                     empty_run = 0 if got else empty_run + 1
+        if ctx.out_of_time() and days is not None:
+            unfinished = len(targets) - n_done
+            break
         for x in recent[HEAL_DAYS:lookback] if days is None and first_time else []:
             if len(have.get(etf, set())) >= 2:
                 break
@@ -846,7 +858,8 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
     covered = sorted({issuers[i]["label"] for i in targets.values()})
     summary = (
         f"已取得 {len(ok_etfs)}/{len(names)} 檔主動式 ETF 持股（{'、'.join(covered)}）；"
-        f"其餘投信因反爬、導向循環、驗證機制或尚未找到端點而未涵蓋"
+        f"其餘投信（{'、'.join(sorted(str(v['label']) for v in issuers.values() if v.get('status') != 'verified'))}）"
+        "的官網擋本工具的自動抓取，未涵蓋"
     )
     if errors:
         summary += f"；失敗 {len(errors)} 次：" + "；".join(errors[:3])
@@ -854,3 +867,4 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
     rows = sum(len(f) for f in frames)
     status = "failed" if errors and not frames else "ok"
     ctx.note("active_etf", status, data_date=date.fromisoformat(latest) if latest else None, rows=rows, message=summary)
+    return unfinished

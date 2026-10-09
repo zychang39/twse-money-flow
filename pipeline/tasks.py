@@ -571,7 +571,9 @@ def task_backfill(
                     _mark_month(ctx, "investor_conference", m, before)
         if "active_etf" in custom and not ctx.out_of_time():
             days = ctx.calendar.trading_days(start, min(end, ctx.today))[::-1]
-            tasks_advanced.run_etf_holdings(ctx, days[0] if days else end, days=days)
+            left = tasks_advanced.run_etf_holdings(ctx, days[0] if days else end, days=days)
+            if left:
+                remaining["active_etf"] = left  # 時間用完：接力下一段（已存的持股日不再請求）
     # 1) 非每日型（區間、月查詢、MOPS 月營收）：以月為單位，由近到遠
     # 不在 registry 的來源（例：由 run_taifex 順帶抓的 taifex_pc）不是每日型也沒有自己的回補流程：記一筆失敗、不要 KeyError
     for sid in [s for s in sources if s != "mops_revenue" and s not in SPECS and s not in custom]:

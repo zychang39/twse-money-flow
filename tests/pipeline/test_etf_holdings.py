@@ -229,7 +229,7 @@ class JsonFakeClient:
                 return payload
         return b'{"code":400,"data":null,"message":"not found"}'
 
-    def get_bytes(self, url: str, headers: dict[str, str] | None = None) -> bytes:
+    def get_bytes(self, url: str, headers: dict[str, str] | None = None, missing_ok: bool = False) -> bytes:
         self.headers.append(headers or {})
         return self._hit(url)
 
@@ -480,7 +480,7 @@ def test_fetcher_new_issuers(tmp_path):
         "type=m12_pcf&cusip=TW00000401A1&country=tw&role=twetf&locale=zh-TW&date=2026-10-12": sample(
             "etf_jpmorgan_m12_00401A.xlsx"
         ),
-        "date=2026-10-07": FetchError("HTTP 404：https://am.jpmorgan.com/..."),
+        "date=2026-10-07": b"",  # PoliteClient(missing_ok=True) 把 HTTP 404 轉成空內容
         "SinglePcf/00410A": sample("etf_sinopac_00410A.html"),
     }
     ctx = _ctx(tmp_path, routes, now=datetime(2026, 10, 12, 21, 0, tzinfo=TPE))
@@ -532,3 +532,35 @@ def test_fetcher_uni_request(tmp_path):
     assert f.fetch("uni", "00981A", None).response_date == date(2026, 10, 8)  # 最新一份：未來日＋specificDate False
     assert f.fetch("uni", "00999A", None).no_data  # PCF 頁沒有的代號不請求
     assert len([c for c in ctx.client.calls if c.endswith("ETF/Transaction/PCF")]) == 1  # type: ignore[attr-defined]
+
+
+def test_backfill_reports_unfinished_etfs_for_chaining(tmp_path):
+    """2026-10-09：回補用完時間時回報還沒處理完的 ETF 檔數（tasks.run_backfill 據此接力下一段）；
+    以前回報 0，第一段 40 分鐘後就停在 20/32 檔。"""
+    ctx = _ctx(
+        tmp_path, {"GetFundAssets": sample("etf_nomura_00980A.json"), "etf/items": sample("etf_capital_items.json")}
+    )
+    days = ctx.calendar.trading_days(date(2026, 9, 1), date(2026, 9, 24))[::-1]
+    ctx.deadline = 0.0  # 已超時：一個請求都不發
+    assert tasks_advanced.run_etf_holdings(ctx, days[0], days=days) == 3  # 野村、群益、統一（國泰跳過）
+    assert ctx.client.calls == []  # type: ignore[attr-defined]
+    ctx.deadline = None
+    assert tasks_advanced.run_etf_holdings(ctx, days[0], days=days[:2]) == 0
+
+
+def test_backfill_starts_with_etfs_that_have_least_data(tmp_path):
+    """回補：已存持股日最少的 ETF 先做（時間用完時，還沒有資料的 ETF 不會一直輪不到）。"""
+    ctx = _ctx(
+        tmp_path, {"GetFundAssets": sample("etf_nomura_nodata.json"), "etf/items": sample("etf_capital_items.json")}
+    )
+    stored = pd.DataFrame(
+        [["2026-09-2" + str(i), "00980A", "2330", "台積電", 1000.0, 5.0, 1e8, None, False] for i in range(1, 4)],
+        columns=COLS,
+    )
+    ctx.store.write("etf_holdings", date(2026, 9, 1), stored)
+    days = ctx.calendar.trading_days(date(2026, 9, 1), date(2026, 9, 24))[::-1]
+    tasks_advanced.run_etf_holdings(ctx, days[0], days=days[:1])
+    calls = ctx.client.calls  # type: ignore[attr-defined]
+    first_capital = next(i for i, c in enumerate(calls) if "capitalfund" in c)
+    first_nomura = next(i for i, c in enumerate(calls) if "GetFundAssets" in c)
+    assert first_capital < first_nomura  # 群益 00982A 沒有資料，排在已有 3 天的野村 00980A 之前
