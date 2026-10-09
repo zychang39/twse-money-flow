@@ -1,11 +1,15 @@
 {
- "task": "daily",
- "at": "2026-10-10T01:58:44+08:00",
- "requests": 71,
- "ok": 39,
+ "task": "catchup",
+ "at": "2026-10-10T03:36:49+08:00",
+ "requests": 0,
+ "ok": 0,
  "failed": [],
  "pending": [],
- "format_warnings": [
-  "twse_fulldelivery"
- ]
+ "missing_before": [],
+ "missing_after": [],
+ "fixed": [],
+ "attempt": 1,
+ "retry": false,
+ "progressed": false,
+ "kbar_dispatched": true
 }
