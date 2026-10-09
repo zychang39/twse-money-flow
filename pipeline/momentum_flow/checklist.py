@@ -131,6 +131,8 @@ def compute(fd: FlowData, sig: dict[str, Any], params: dict[str, Any] | None = N
     lists_ok = np.zeros(T, dtype=bool)
     if fd.lists_from:
         lists_ok = np.asarray(fd.dates) >= fd.lists_from
+        if fd.lists_through:  # 當日名單還沒公布（約 17:00）→ 該日 K5 資料不足，不用前一日名單代替
+            lists_ok &= np.asarray(fd.dates) <= fd.lists_through
     listed_ok = fd.listed >= int(p["listed_min_days"])
     lo = np.where(level == 1, float(p["k1_rs_min_a"]), float(p["k1_rs_min"]))
     with np.errstate(invalid="ignore"):

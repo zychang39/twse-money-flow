@@ -2,7 +2,7 @@
 
 每日排程在既有步驟之後追加呼叫（data.yml，continue-on-error）；失敗只影響本功能的輸出。
 - update：載入資料（唯讀）、計算全部面板，補寫缺少的快照（最近 --years 年）、寫 web/latest.json 與 web/history.json。
-  --max-minutes 到了就停（下一次接著補）；--refresh 重寫已存在的快照。
+  --max-minutes 到了就停（下一次接著補）；--refresh 重寫已存在的快照；最近 rewrite_recent_days 個交易日每次都重算。
 """
 
 from __future__ import annotations
@@ -22,6 +22,12 @@ log = logging.getLogger("pipeline.momentum_flow")
 OUT_DIR = "momentum_flow"
 
 
+def days_to_write(dates: list[str], have: set[str], start: str, recent_n: int) -> list[int]:
+    """要寫的快照：窗口內還沒有的日子，加上最近 recent_n 個交易日（收盤後陸續補進的資料，每次重算）。"""
+    recent = set(dates[-recent_n:]) if recent_n > 0 else set()
+    return [i for i, d in enumerate(dates) if d >= start and (d not in have or d in recent)]
+
+
 def run_update(data_dir: Path, out: Path, years: int, max_minutes: float, refresh: bool) -> dict[str, Any]:
     t0 = time.monotonic()
     fd = data.load(data_dir)
@@ -33,7 +39,7 @@ def run_update(data_dir: Path, out: Path, years: int, max_minutes: float, refres
     log.info("面板計算完成（%.0f 秒）；T＝%s 狀態 %s", time.monotonic() - t0, fd.dates[T], mk["state"])
     have = set() if refresh else snapshots.existing_days(out)
     start = f"{int(fd.dates[T][:4]) - years}{fd.dates[T][4:]}"
-    todo = [i for i, d in enumerate(fd.dates) if d >= start and d not in have]
+    todo = days_to_write(fd.dates, have, start, int(PARAMS["rewrite_recent_days"]))
     written = 0
     stopped = False
     for i in todo:

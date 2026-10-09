@@ -269,3 +269,71 @@ def test_group_medians_min_members() -> None:
     assert np.allclose(ck.group_medians(fd, r63, 3), [[0.2, 0.2, np.nan]], equal_nan=True)
     fd.members = {"g": ["A", "B"]}
     assert np.isnan(ck.group_medians(fd, r63, 3)).all()  # 成員少於 3 檔無值
+
+
+# ---------------------------------------------------------------- 每日流程（2026-10-09 補）
+def test_lists_through_by_extras_time() -> None:
+    from pipeline.momentum_flow.data import lists_through
+
+    assert lists_through(None, "17:00") is None
+    assert lists_through({}, "17:00") is None
+    # 15:02 那一棒：當日名單還沒公布 → 只到前一天
+    assert lists_through({"daily_extras": {"at": "2026-10-08T15:02+08:00"}}, "17:00") == "2026-10-07"
+    # 17:02、22:02 那一棒 → 當天
+    assert lists_through({"daily_extras": {"at": "2026-10-08T17:02+08:00"}}, "17:00") == "2026-10-08"
+    assert lists_through({"daily_extras": {"at": "2026-10-08T22:02+08:00"}}, "17:00") == "2026-10-08"
+    # 隔天早上 08:05 → 前一天的名單已取得
+    assert lists_through({"daily_extras": {"at": "2026-10-09T08:05+08:00"}}, "17:00") == "2026-10-08"
+    assert lists_through({"daily_extras": {"at": "not-a-date"}}, "17:00") is None
+
+
+def test_days_to_write_rewrites_recent_days() -> None:
+    from pipeline.momentum_flow.__main__ import days_to_write
+
+    dates = ["2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08"]
+    have = set(dates)
+    assert days_to_write(dates, have, "2026-10-01", 2) == [4, 5]  # 已有的只重算最近 2 天
+    assert days_to_write(dates, {"2026-10-01"}, "2026-10-02", 0) == [1, 2, 3, 4, 5]  # 窗口外的不寫
+    assert days_to_write(dates, set(), "2026-10-06", 5) == [3, 4, 5]
+
+
+def test_snapshot_bytes_are_deterministic_and_atomic(tmp_path) -> None:
+    from pipeline.momentum_flow import snapshots
+
+    payload = {"date": "2026-10-08", "state": 1, "rows": [{"code": "2330"}]}
+    p1 = snapshots.write_snapshot(tmp_path, payload)
+    b1 = p1.read_bytes()
+    p2 = snapshots.write_snapshot(tmp_path, payload)
+    assert p1 == p2 and p2.read_bytes() == b1  # gzip 時間戳固定：內容相同 → 位元相同
+    assert snapshots.read_snapshot(tmp_path, "2026-10-08") == payload
+    assert not list(tmp_path.rglob("*.tmp"))  # 沒有殘留暫存檔
+
+
+def test_k5_insufficient_after_lists_through() -> None:
+    """當日注意／處置名單還沒公布 → 該日 K5 資料不足（不用前一日名單代替）；之前的日子照常判定。"""
+    import pandas as pd
+
+    from pipeline.momentum_flow import checklist as ck2
+
+    T, codes = 300, ["A", "B", "C"]
+    fd = _fd(T, codes)
+    fd.dates = [str(d.date()) for d in pd.bdate_range("2025-08-01", periods=T)]
+    fd.lists_from = fd.dates[0]
+    fd.lists_through = fd.dates[-2]
+    rng = np.random.default_rng(0)
+    fd.close = np.cumprod(1 + rng.normal(0, 0.01, (T, len(codes))), axis=0)
+    fd.raw_close = fd.close.copy()
+    fd.high = fd.close.copy()
+    fd.value = np.full((T, len(codes)), 1e9)
+    fd.members = {"g1": codes}
+    fd.group_of = dict.fromkeys(codes, "g1")
+    sig = {
+        "a": np.zeros((T, 3), dtype=bool),
+        "b": np.zeros((T, 3), dtype=bool),
+        "ref": np.zeros((T, 3), dtype=bool),
+        "rev_features": pd.DataFrame(columns=["code", "ym", "row", "yoy", "yoy1", "yoy2"]),
+    }
+    P = ck2.compute(fd, sig)
+    k5 = P.k[4]
+    assert (k5[-1] == ck2.NA).all()  # 基準日：名單未到 → 資料不足
+    assert (k5[-2] != ck2.NA).all()  # 前一天：名單已取得 → 可判定

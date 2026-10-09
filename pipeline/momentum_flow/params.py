@@ -51,6 +51,11 @@ PARAMS: dict[str, Any] = {
     "rs_weights": [0.4, 0.2, 0.2, 0.2],
     "revenue_max_age": 45,
     "group_min_members": 3,
+    # 每日流程（2026-10-09 補）：注意／處置名單約 17:00 公布（docs/DATA_SOURCES.md）；
+    # 每日任務的其他來源在 17:00 這個時段之後跑過，才把當日名單視為已取得
+    "lists_publish_time": "17:00",
+    # 每次執行都重算最近幾個交易日的快照：法人、注意／處置名單在收盤後陸續補進，第一次寫的快照不是最終值
+    "rewrite_recent_days": 5,
 }
 
 
@@ -84,6 +89,11 @@ def table() -> list[dict[str, Any]]:
         {"k": "M2", "v": f"{p['m2_drop_pp']} 個百分點", "n": "最新年增 ≤ 前 3 月平均 − 門檻，或年增 < 0"},
         {"k": "權重提示", "v": f"{p['weight_alert']:.0%}", "n": "單檔市值 ÷ 持股總市值"},
         {"k": "緩衝區", "v": f"RS {p['buffer_rs'][0]}–{p['buffer_rs'][1]}", "n": "不觸發條件"},
+        {
+            "k": "注意／處置名單",
+            "v": f"{p['lists_publish_time']} 公布",
+            "n": "每日任務在這之後取得當日名單前，K5 當日判資料不足",
+        },
         {"k": "手續費折扣", "v": f"{p['fee_discount']}", "n": f"費率 {p['fee_rate']:.4%}，進出雙邊；不計最低手續費"},
         {"k": "證交稅", "v": f"{p['tax_rate']:.1%}", "n": "只在出場時收"},
     ]

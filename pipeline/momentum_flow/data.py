@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,7 @@ from pipeline.derive import sectors
 from pipeline.derive.dataset import industry_map
 from pipeline.evidence import data as evdata
 from pipeline.evidence import universe as evuni
+from pipeline.momentum_flow.params import PARAMS
 
 
 @dataclass
@@ -53,6 +55,7 @@ class FlowData:
     revenue: pd.DataFrame  # evidence.data.revenue_table：code, ym, revenue, yoy, row
     ev_universe: np.ndarray  # (T, C) 指標效度評估的 universe（策略庫訊號用）
     ev: Any = field(repr=False, default=None)
+    lists_through: str | None = None  # 注意／處置名單已取得到這一天（含）；None＝不設上限
 
     @property
     def T(self) -> int:
@@ -122,6 +125,21 @@ def lists_masks(ds: Any, dates: list[str], codes: list[str]) -> tuple[np.ndarray
     return disp, attn, lists_from
 
 
+def lists_through(manifest: dict[str, Any] | None, publish_hm: str) -> str | None:
+    """名單已取得到哪一天：每日任務的其他來源（含注意／處置）最後一次執行的時間（manifest daily_extras.at，台北時間）
+    在當天 publish_hm 之後 → 當天；之前 → 前一天。沒有紀錄 → None（不設上限）。"""
+    at = ((manifest or {}).get("daily_extras") or {}).get("at")
+    if not at:
+        return None
+    try:
+        t = datetime.fromisoformat(str(at))
+    except ValueError:
+        return None
+    h, m = (int(x) for x in str(publish_hm).split(":"))
+    day = t.date() if (t.hour, t.minute) >= (h, m) else t.date() - timedelta(days=1)
+    return day.isoformat()
+
+
 def from_dataset(ds: Any) -> FlowData:
     ev = evdata.from_dataset(ds)
     layers = sectors.build_layers(ev.codes, ev.names, industry_map(ds))
@@ -159,6 +177,7 @@ def from_dataset(ds: Any) -> FlowData:
         revenue=ev.revenue,
         ev_universe=evuni.build(ev, dict(config.load("evidence")["universe"])),
         ev=ev,
+        lists_through=lists_through(getattr(ds, "manifest", None), str(PARAMS["lists_publish_time"])),
     )
 
 

@@ -1,13 +1,17 @@
 """每日快照（規格第七節）：資料分支 momentum_flow/snapshots/{YYYY}/{YYYYMMDD}.json.gz，每個交易日一個檔。
 
 內容：資料基準日 T、eff、raw、曝險上限、候選池每檔的等級、K1–K6 數值與判定、PR1M、主族群（candidates.day_rows 的列）。
-回補以時點正確的方式計算（面板只用 t 日（含）以前的資料）；既有檔案不重寫（--refresh 才重寫）。
+回補以時點正確的方式計算（面板只用 t 日（含）以前的資料）；既有檔案不重寫（--refresh 才重寫），
+但最近 rewrite_recent_days 個交易日每次都重算（收盤後陸續補進的法人、注意／處置名單）。
+寫入是原子的（暫存檔＋改名），gzip 時間戳固定為 0：內容相同時位元相同。
 """
 
 from __future__ import annotations
 
 import gzip
+import io
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -30,11 +34,25 @@ def existing_days(root: Path) -> set[str]:
     return out
 
 
+def atomic_write(path: Path, data: bytes) -> None:
+    """暫存檔寫完再改名：執行中被中斷（逾時、取消）不會留下半個檔案被提交。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_bytes(data)
+    os.replace(tmp, path)
+
+
+def gzip_json(payload: dict[str, Any]) -> bytes:
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    buf = io.BytesIO()
+    with gzip.GzipFile(fileobj=buf, mode="wb", mtime=0) as gz:
+        gz.write(raw)
+    return buf.getvalue()
+
+
 def write_snapshot(root: Path, payload: dict[str, Any]) -> Path:
     path = snapshot_path(root, str(payload["date"]))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with gzip.open(path, "wt", encoding="utf-8") as fh:
-        json.dump(payload, fh, ensure_ascii=False, separators=(",", ":"))
+    atomic_write(path, gzip_json(payload))
     return path
 
 

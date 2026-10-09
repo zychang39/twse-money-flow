@@ -138,14 +138,18 @@ jobs:
           --refresh "${{ inputs.refresh }}" --stage "${{ inputs.stage }}"
           --attempt "${{ inputs.attempt }}" --not-before "${{ inputs.not_before }}"
       # 2026-10-09 探索 › 動能流程：在既有步驟之後追加，失敗不影響既有輸出（continue-on-error）。
-      # 只在每日任務（daily／catchup，含接力）且這一棒有新資料（deploy=true）時執行；回補、5 分 K、接續回補不跑。
-      # 輸出寫到資料分支 momentum_flow/，由下一步 commit-data 一併提交；前端直接讀 raw.githubusercontent.com 的 data 分支（deploy.yml 不動）。
+      # 這一棒有新資料（deploy=true）才執行：每日任務（daily／catchup，含接力）與排程的週期任務（週六集保、11 日月營收）；
+      # 手動回補、5 分 K、接續回補不跑。輸出寫到資料分支 momentum_flow/，由下一步 commit-data 一併提交；
+      # 前端直接讀 raw.githubusercontent.com 的 data 分支（deploy.yml 不動）。
+      # timeout-minutes：逾時只會中止這一步（continue-on-error），commit-data 照常執行；
+      # 加上 run 的上限 320 分鐘仍在 job 的 350 分鐘內，不會讓既有資料因整個 job 逾時而沒提交。
       - if: >-
           always() && steps.prepare.outcome == 'success' && steps.run.outcome == 'success' && steps.run.outputs.deploy == 'true'
           && (!inputs.task || inputs.task == 'daily' || inputs.task == 'catchup')
           && github.event.schedule != '45 6 * * 1-5' && github.event.schedule != '40 14 * * 1-5'
         continue-on-error: true
-        run: python -m pipeline.momentum_flow update --data-dir data --max-minutes 25
+        timeout-minutes: 20
+        run: python -m pipeline.momentum_flow update --data-dir data --max-minutes 15
       - if: always() && steps.prepare.outcome == 'success'
         run: python -m pipeline commit-data --data-dir data
       # resume（22:40）只觸發延後的回補，不抓資料、沒有執行摘要，不回報；

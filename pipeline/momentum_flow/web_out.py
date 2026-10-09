@@ -108,6 +108,7 @@ def latest_payload(fd: FlowData, P: Panels, sig: dict[str, Any], mk: dict[str, A
         "signals": sig.get("params", {}),
         "review": {"R": fd.dates[r], "next": next_review_calendar(fd.dates[t], day), "day": day},
         "lists_from": fd.lists_from,
+        "lists_through": fd.lists_through,
         "stock_cols": [
             "rs",
             "rs_R",
@@ -128,7 +129,8 @@ def latest_payload(fd: FlowData, P: Panels, sig: dict[str, Any], mk: dict[str, A
 
 
 def write_json(root: Path, name: str, payload: dict[str, Any]) -> Path:
+    from pipeline.momentum_flow.snapshots import atomic_write
+
     path = root / WEB_DIR / name
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    atomic_write(path, json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
     return path
