@@ -1,170 +1,259 @@
-# twse-money-flow
+<div align="center">
 
-台股投資**決策輔助**網頁 App（PWA，部署在 GitHub Pages）：
-<https://zychang39.github.io/twse-money-flow/>
+# 台股資金流向 twse-money-flow
 
-每天收盤後自動抓取證交所、櫃買中心、集保、期交所、公開資訊觀測站等官方開放資料，計算籌碼、動能、基本面、評價四類分數，並附上每個分數的因子明細與依據。
+台股盤後**決策輔助** PWA：每天收盤後用官方公開資料算出分數，並附上每個分數的因子明細與依據。
 
-> 僅供研究參考，非投資建議。本 App 不使用「買進／賣出」字眼，一律以分數加上依據呈現。
+[![CI](https://github.com/zychang39/twse-money-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/zychang39/twse-money-flow/actions/workflows/ci.yml)
+[![Deploy](https://github.com/zychang39/twse-money-flow/actions/workflows/deploy.yml/badge.svg)](https://github.com/zychang39/twse-money-flow/actions/workflows/deploy.yml)
+[![Data](https://github.com/zychang39/twse-money-flow/actions/workflows/data.yml/badge.svg)](https://github.com/zychang39/twse-money-flow/actions/workflows/data.yml)
+![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![Node 22](https://img.shields.io/badge/Node-22-5FA04E?logo=nodedotjs&logoColor=white)
+![Preact](https://img.shields.io/badge/Preact-10-673AB8?logo=preact&logoColor=white)
+
+**[開啟 App](https://zychang39.github.io/twse-money-flow/)** · [方法說明](docs/METHODOLOGY.md) · [資料來源](docs/DATA_SOURCES.md) · [決策紀錄](docs/DECISIONS.md)
+
+</div>
+
+> [!IMPORTANT]
+> **僅供研究參考，非投資建議。** App 一律以「分數＋依據」呈現，不使用「買進／賣出」字眼，不推薦個股，也不串接券商下單。系統產生的清單都標示「依規則產生，非推薦」。
+
+<p align="center">
+  <img src="docs/images/readme/brief.jpg" width="200" alt="盤後簡報：加權指數主數字、近 3 個月發光走勢與期間切換">
+  <img src="docs/images/readme/stock.jpg" width="200" alt="個股頁：台積電還原收盤價、近 1 年走勢與四環分數">
+  <img src="docs/images/readme/etf.jpg" width="200" alt="主動式 ETF：各檔持股變動的發散橫條圖">
+  <img src="docs/images/readme/momentum.jpg" width="200" alt="動能流程：候選池到全通過的漏斗">
+</p>
+<p align="center"><sub>iPhone 393 × 852、深色模式、正式站真實資料（2026-10-08 收盤）</sub></p>
+
+## 目錄
+
+- [功能](#功能)
+- [運作方式](#運作方式)
+- [快速開始](#快速開始)
+- [部署自己的一份](#部署自己的一份)
+- [自動排程](#自動排程)
+- [專案結構](#專案結構)
+- [開發與測試](#開發與測試)
+- [資料來源與授權](#資料來源與授權)
+- [已知限制](#已知限制)
+- [文件](#文件)
 
 ## 功能
 
-App 的核心是「每晚 5 分鐘的決策儀式」，依序回答四個問題。底部導覽是一條膠囊內 5 格：今晚、我的股票、探索、搜尋（第 4 格）、紀律（往下捲動時縮小）：
+App 的核心是「每晚 5 分鐘的盤後流程」。底部導覽有 5 個分頁：
 
-| Tab | 回答的問題 | 內容 |
+| 分頁 | 內容 |
+|---|---|
+| **簡報** | 一句話結論、加權指數主數字與走勢（1D～ALL）；「總覽｜市場｜資金｜我的」四段：市場環境燈號、法人與資金、持股警示、自選的新變化 |
+| **我的股票** | 「自選｜持股」；個股頁有還原／原始價走勢、四環分數（籌碼、動能、基本面、估值）與資料完整度，分成「總覽｜動能｜籌碼｜基本面｜事件」；在頁首左右滑動即可換股 |
+| **探索** | 選股（三方同買、營收創新高、近高點放量、低本益高息，可自訂條件）、策略庫、指標效度表、回測、市場溫度、族群輪動、主動式 ETF（持股變動與策略標籤）、行事曆、處置與注意、[動能流程](docs/MOMENTUM_FLOW.md) |
+| **搜尋** | 輸入框在螢幕底部、結果由下往上排；可用代號或名稱比對，左滑即加入自選 |
+| **流程** | 今日流程（每日與每週步驟）、交易日誌、進場前檢查表、個人統計（以 R 計）、徽章、週報、名詞圖鑑 |
+
+右上角齒輪進入設定、備份、資料健康、資料狀態與方法說明。
+
+**設計原則**
+
+- **手機優先**：以 iPhone 393 × 852 與 375pt 驗收，表格不需要左右滑動，點擊區域至少 44pt。
+- **顏色有固定語意**：紅漲綠跌並加 ▲▼；琥珀只代表風險；電光藍只給可互動元素。介面只有深色模式（DECISIONS #304）。
+- **無障礙**：文字對比符合 WCAG AA，支援 VoiceOver 與「減少動態效果」。
+- **資料只在你的裝置**：自選、日誌、持倉、設定存在瀏覽器 IndexedDB，可匯出成單一 JSON 備份。
+- **可離線開啟**：PWA 有 service worker。在 iPhone Safari 選「分享 → 加入主畫面」即可安裝。
+- **資料不足時說明原因**：休市、停牌、資料累積中都有對應說明，不留空白圖表。
+- **遊戲化只獎勵紀律**：經驗值與徽章只來自完成流程與檢討，不因交易次數或獲利給獎勵，也可以關閉。
+
+## 運作方式
+
+```mermaid
+flowchart TD
+  src["官方公開資料<br/>證交所・櫃買・集保<br/>期交所・觀測站・投信官網"]
+  run["data.yml<br/>pipeline run<br/>抓取 → 正規化 → 驗證"]
+  mf["動能流程<br/>pipeline.momentum_flow"]
+  branch[("data 分支<br/>raw/*.csv.gz<br/>manifest.json")]
+  deploy["deploy.yml<br/>pipeline build-web<br/>還原價・指標・分數・回測"]
+  pages["GitHub Pages<br/>Vite + Preact PWA"]
+  user["手機瀏覽器<br/>本機資料存在 IndexedDB"]
+
+  src -->|"禮貌爬取<br/>3–5 秒間隔"| run
+  run --> branch
+  run --> mf --> branch
+  branch --> deploy -->|"衍生 JSON"| pages --> user
+  branch -.->|"動能流程 JSON<br/>raw.githubusercontent.com"| user
+```
+
+1. **抓取**：每個資料源一個模組，先 `fetch()` 取回原始回應，再 `parse()` 轉成標準欄位。請求間隔 3–5 秒並加隨機延遲，失敗時指數退避，連續失敗就暫停該網站。不繞過任何驗證碼。
+2. **正規化與驗證**：民國年轉西元、去千分位、「--」轉空值。日期、筆數、重複列、關鍵欄位任一項驗證失敗就不覆蓋舊資料。
+3. **儲存**：原始資料寫進孤兒分支 `data`（`raw/{來源}/{YYYY}/{YYYYMMDD}.csv.gz`），每月 squash 一次。
+4. **衍生**：部署時才由 `build-web` 產生還原價、指標、分數、選股、回測等前端 JSON。這些衍生資料不進版控。
+5. **前端**：Vite + TypeScript + Preact，使用 hash 路由。設計 tokens 集中在 `web/src/styles/tokens.css`。
+6. **失敗處理**：資料源失敗時會自動開一個標籤為 `data-failure` 的 Issue，恢復後自動關閉。每個資料集的狀態可在 App 的「資料健康」頁查看。
+
+## 快速開始
+
+需要 **Python 3.12**、**Node 22** 與 git。
+
+```bash
+git clone https://github.com/zychang39/twse-money-flow.git
+cd twse-money-flow
+
+# Python 環境
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r pipeline/requirements.txt -r pipeline/requirements-dev.txt
+
+# 用測試樣本產生示範資料，啟動前端
+python -m pipeline demo-data --out web/public/data
+cd web && npm ci && npm run dev    # http://localhost:5173/twse-money-flow/
+```
+
+<details>
+<summary>改用真實資料（data 分支）</summary>
+
+```bash
+python -m pipeline prepare-data --data-dir data                     # 把 data 分支掛到 ./data
+python -m pipeline build-web --data-dir data --out web/public/data  # 產生全部前端 JSON（約 25 分鐘、8 GB 記憶體）
+cd web && npm run dev
+```
+
+</details>
+
+## 部署自己的一份
+
+1. Fork 這個 repo。
+2. **Settings → Pages → Build and deployment → Source** 選「GitHub Actions」。
+3. 在 **Actions** 頁啟用 workflows。
+4. 執行 **Actions → Data → Run workflow**，task 選 `backfill`，其他欄位留白，預設回補近 3 年。回補會分段執行，每段最多 40 分鐘，並自動接續下一段。
+5. 回補完成後，Data 會觸發 **Deploy**。綠勾出現後就能開啟 `https://<你的帳號>.github.io/twse-money-flow/`。
+
+選配的 secrets 與 variables（**Settings → Secrets and variables → Actions**）：
+
+| 名稱 | 類型 | 用途 |
 |---|---|---|
-| 今晚 | 大盤能不能積極？持股有沒有出事？自選有什麼新變化？該記錄或檢討什麼？ | 一句話結論與資金環境燈號；加權指數主角數字（下方固定為今日漲跌）與走勢（預設 3M，區間漲跌標在圖上方）；持股警示（觸及／接近停損、新風險旗標）；自上次查看以來超過門檻的自選變化；今晚的紀律三環（有設定時另顯示「AI 生成」摘要） |
-| 我的股票 | 自選有什麼新變化？持股有沒有出事？ | 「自選｜持股」分段（自選預設）；個股頁「每日籌碼」（法人｜信用｜借券當沖三種檢視，手機不需左右滑動，點列看當天完整資料）；系統清單「熱門動能」（依規則產生，非推薦，可複製成自己的群組或挑幾檔加入）；新用戶歡迎卡（範例自選可一鍵清除）；持股組合走勢、依變化排序的清單（左滑移除／移群組／平倉、長按預覽）；個股頁：主角數字＋期間選擇器（可拖曳查看）、一句話健檢、四環分數與資料完整度、法人／籌碼／營收／估值、在頁首（股票名稱或頂列「自選 1／3」）左右滑動或點 ‹ › 切換、「還原價／原始價」切換（主角數字、走勢、區間報酬一起切換）、「進階」K 線（還原權息、法人成本線〔估〕） |
-| 探索 | 大盤環境與自選以外的新變化 | 選股、回測（Web Worker，標示樣本數與可信度）、產業資金輪動、主動式 ETF、市場溫度、行事曆、處置預警 |
-| 紀律 | 我該記錄或檢討什麼？ | 交易日誌、新增持倉前檢查表（事實頁、1–5 自動帶出與說明頁、可選「檢查後決定不進場」）、個人統計與組合分析、成就徽章、週報 |
-| 搜尋（第 4 格） | — | 輸入框在底部、結果由下往上（最相關的最靠近拇指）；代號、名稱、名稱部分比對；空白時顯示最近搜尋、自選股、熱門動能前 5 名；結果左滑或按＋直接加入自選 |
-| 右上角頭像 | — | 設定（環境光、遊戲化、權重、交易成本、提醒匯出）、備份、資料健康、方法說明 |
+| `TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID` | Secret | 推播盤後日報與盤中到價提醒；要提醒的股票與價位寫在 `config/alerts.yml`（App「設定 → 盤中到價提醒」可匯出） |
+| `ANTHROPIC_API_KEY` | Secret | 部署時產生盤後條列摘要，App 會標示「AI 生成」。沒設定就完全不呼叫 |
+| `ANTHROPIC_MODEL` | Variable | 指定摘要用的模型；不設定時使用預設值 |
 
-- 資料存在手機本機（IndexedDB），可匯出／匯入單一 JSON 備份（含紀律紀錄），並會定期提醒備份。
-- 離線可開啟（service worker），每頁顯示資料日期；休市、尚未更新、過期、資料累積中都有對應的提示。
-- 紅漲綠跌並以 ▲▼ 標示；琥珀只代表風險；支援 VoiceOver、深色與淺色模式。遊戲化只獎勵紀律（不因交易次數或獲利給獎勵），可關閉。
-- 設計文件：[docs/design/](docs/design/README.md)（資訊架構對照、驗收截圖、儀式走查）。
+<details>
+<summary>Telegram bot 設定步驟</summary>
 
-## 第一次使用：手動步驟（依序）
+1. 在 Telegram 找 **@BotFather**，傳送 `/newbot`，依指示取名後取得 bot token。
+2. 對新建立的 bot 傳任意一則訊息。
+3. 開啟 `https://api.telegram.org/bot<token>/getUpdates`，`"chat":{"id":…}` 裡的數字就是 chat id。
+4. 把兩個值分別存成 `TELEGRAM_BOT_TOKEN` 與 `TELEGRAM_CHAT_ID`。
 
-1. **Workflow 位置**：不需要搬移。開發時已實測可直接推送 `.github/workflows/`，所有 workflow 已在正確位置。
-2. **開啟 GitHub Pages**：repo → Settings → Pages → Build and deployment → Source 選「**GitHub Actions**」。
-3. **合併 PR**：把開發分支的 PR 合併到 `main`。合併後 `CI` 會在 main 上執行，通過後 `Deploy` workflow 自動部署（CI 失敗不會部署）。
-4. **執行回補**：repo → Actions → **Data** → Run workflow → task 選 `backfill`，其他欄位留白（預設回補近 3 年），按 Run。
-   - 留白＝完整回補：除權息／減資／分割／注意／處置、櫃買指數、月營收、期交所與匯率、美債、季財報、央行 M1B／M2，以及每日行情／法人／融資融券／本益比（3 年）與借券／外資持股／當沖（近一年）。
-   - 回補分段執行：每段最多 40 分鐘，結束時保存進度並自動觸發下一段（已存在的日期、已完成的月份會略過，可隨時重跑）。交易日 16:30–22:30 不開始新的一段（讓每日任務先跑），22:40 自動接續。回補與每日任務使用不同的佇列，不會把每日任務擠掉。
-   - 開發期間已用 Actions 預先回補了大部分資料到 `data` 分支，因此這一步通常較快完成。
-   - 只想補特定來源時，在 source 填來源 id（逗號分隔，見 `config/sources.yml`），例如 `taifex,financials`。
-5. **設定 Telegram 推播（選配）**：
-   1. 在 Telegram 搜尋 **@BotFather** → 傳送 `/newbot` → 依指示取名 → 取得 **bot token**。
-   2. 對新建立的 bot 傳任意一則訊息。
-   3. 用瀏覽器開啟 `https://api.telegram.org/bot<你的token>/getUpdates`，找到 `"chat":{"id":…}` 的數字，就是 **chat id**。
-   4. repo → Settings → Secrets and variables → Actions → New repository secret，新增 `TELEGRAM_BOT_TOKEN` 與 `TELEGRAM_CHAT_ID`。
-   5. 在 App「右上角頭像 → 設定 → 盤中到價提醒」設定價格，按「匯出提醒設定（複製）」，到 GitHub 網頁版編輯 `config/alerts.yml`，整份貼上後 Commit。這份設定同時決定盤後日報要列出哪些自選股與持股。
-6. **AI 摘要（選配）**：新增 secret `ANTHROPIC_API_KEY` 後，每次部署會產生當日盤後條列摘要（標示「AI 生成」）。預設使用最新可用模型；要指定模型可新增 Actions variable `ANTHROPIC_MODEL`。沒有設定則完全不呼叫。
-7. **確認部署**：Actions → **Deploy** 顯示綠色勾勾後，開啟 <https://zychang39.github.io/twse-money-flow/>。iPhone 可用 Safari「分享 → 加入主畫面」安裝成 App。
-   - 每頁的資料日期列與「頭像 → 資料健康」會顯示資料狀態與每個資料來源的最後成功日期；資料源失敗時會自動開一個標籤為 `data-failure` 的 Issue，恢復後自動關閉。
+</details>
 
-## 手動驗收清單（iPhone 真機）
+> [!NOTE]
+> 動能流程的前端直接讀 data 分支的 `raw.githubusercontent.com` 網址。Fork 後要把 `web/src/momentum/data.ts` 的 `MOMENTUM_BASE` 改成自己的 repo。
 
-自動化測試（Chromium）無法模擬 iOS 鍵盤、Safari 網址列與 Home 指示條，以下請在 iPhone 上各做一次，**Safari 瀏覽器模式**與**加入主畫面（standalone）**都要：
+## 自動排程
 
-1. **底部導覽**
-   - [ ] 一條膠囊內有 5 格（今晚、我的股票、探索、搜尋、紀律）；Safari 模式下緊貼網址列上方、沒有多餘空隙；加入主畫面後浮在 Home 指示條上方，距離約等於指示條區域。
-   - [ ] 往下捲動時導覽列縮小，往上捲或手指停下約 1 秒後恢復；縮小時 5 格仍可點。
-   - [ ] 捲到頁面最底，頁尾「僅供研究參考，非投資建議」完整露出、不被導覽列遮住（今晚、我的股票、探索、紀律各試一次）。
-   - [ ] 加入主畫面後，內容往上捲到狀態列底下時，時間與電量仍清楚（有背景漸層）。
-2. **搜尋鍵盤行為**
-   - [ ] 點導覽列第 4 格的搜尋：直接進入搜尋頁且**鍵盤自動彈出**（不需要再點一次輸入框）；鍵盤開啟時導覽列淡出，收起鍵盤後導覽列回到搜尋框下方。
-   - [ ] 鍵盤開啟時，輸入框貼在鍵盤正上方、沒有被鍵盤蓋住，也沒有和鍵盤之間留一段空白。
-   - [ ] 輸入「台積」：台積電出現在最靠近輸入框的位置；往上滑可以捲動結果，頁面本身不會跟著上下晃動。
-   - [ ] 鍵盤開啟狀態下旋轉成橫向再轉回直向、或切換中文／英文鍵盤（高度不同）：輸入框仍貼在鍵盤上方。
-   - [ ] 按鍵盤上的「搜尋」鍵：開啟第一個（最相關）結果。
-   - [ ] 在結果列上**左滑**：出現「加入自選」，滑過一半放開即加入（列尾變成 ✓）；列尾的＋也能直接加入。
-   - [ ] 點「取消」回到上一頁，鍵盤收起；再進搜尋頁，「最近搜尋」有剛才開過的股票。
-   - [ ] 輸入框聚焦時的藍色外框四邊完整（上緣沒有被切掉）。
-3. **我的股票**
-   - [ ] 分段控制是「自選｜持股」，一打開就是自選。
-   - [ ] 清除網站資料（或用無痕視窗）後打開：看到歡迎卡；「加入範例自選」後清單出現並標示範例，「清除範例」後回到歡迎卡；「從熱門動能挑選」可勾選幾檔加入。
-   - [ ] 已有自選的舊資料：更新到這個版本後自選、群組、持倉、日誌都還在。
-4. **今晚與排版**
-   - [ ] 今晚頁主角數字下方是「今日」漲跌；切換 1W／1Y 只改變走勢圖與圖上方的區間漲跌。
-   - [ ] 今晚、我的股票的結論句最多兩行，沒有「化，」這類單字加標點落到下一行。
-5. **資料健康**：頁首只有在該頁資料受影響時才出現琥珀色的「N 個資料源異常」；資料健康頁先看到白話說明，點「詳細資訊」才看到技術訊息。
-6. **個股頁「每日籌碼」**
-   - [ ] 一打開就是展開的；收合後關掉 App 再開，仍是收合。
-   - [ ] iPhone 直向（375／393pt）完全不需要左右滑動；切換「法人｜信用｜借券當沖」、單位（系統選單）與期間都一樣。
-   - [ ] 設定 → 輔助使用 → 顯示與文字大小 → 更大的文字：調大 2 級以上回到 App，明細改為每天一張卡片（2×2）；調回預設後恢復表格。
-   - [ ] 橫放 iPhone：同時顯示全部欄位（法人、信用、借券當沖），不需要切換檢視，也沒有被瀏海或圓角切到。
-   - [ ] VoiceOver：在一列上會唸「9 月 24 日，外資賣超 … 張，投信 …，三大法人合計 …；收盤 … 元，下跌 …%」；點兩下開啟當天完整資料。
-   - [ ] 單位選單顯示「佔成交量 %」（不是「估」）。
-7. **新版本提示**（第三輪）：部署後回到 App（切到別的 App 再切回來）約數秒內，底部導覽上方出現「新版本已就緒」；按「重新載入」後每日籌碼是展開的新版；按 ✕ 可以稍後再說。
-8. **法人買賣超報表**（個股頁「法人」區塊 → 法人買賣超報表）
-   - [ ] 區間合計一次列出外資、投信、自營商、三大法人的買張、賣張、買賣超、佔量；點其中一列，下方的走勢圖與明細切換到該法人。
-   - [ ] Tab「外資｜投信｜自營商｜三大法人」與期間「1／2／3 個月」切換時，375／393pt 直向都不需要左右滑動、數字沒有被截斷。
-   - [ ] 走勢圖手指拖曳時出現十字線與提示框（日期、收盤、買張、賣張、買賣超、累計）；放開後消失。
-   - [ ] 點明細的一列開啟當天完整籌碼，最上方有四個法人的買張／賣張／買賣超。
-   - [ ] 「⋯ → 複製為 CSV」貼到試算表：四個法人各有買張、賣張、買賣超三欄，第一列為區間合計。
-9. **大戶與散戶持股**（個股頁「大戶在增加還是減少？」區塊 → 大戶與散戶持股）
-   - [ ] 一句話結論、四段堆疊比例條（散戶／中實戶／大戶／千張大戶）與週變化；分級定義固定（v3 起不再提供可拖曳的門檻圓鈕）。
-   - [ ] 「查看趨勢」在底部面板切換「比例｜人數｜人均張數」與期間，走勢圖跟著變。
-10. **多空對照**（個股頁「整體狀態如何？」區塊內的多空比例條 → 多空對照）：四個面向各一張卡，多方在左、空方在右並排；「中性與資料不足」可展開看每一項目前的數值；文字沒有買進／賣出等建議字眼。
-11. **研究參考**（v3 起併入個股頁「最近有什麼事件？」區塊）：近一年法說會列出主辦／邀請券商；公開資訊觀測站連結開啟法說會一覽表；第三方連結（Google 新聞、鉅亨網、Yahoo 股市）另開新頁。
-12. **底部導覽的動畫與質感**（第四輪）
-   - [ ] 點不同分頁：較亮的選取膠囊從原位置滑到新分頁（中途略拉長再回彈），頁面內容直接換，導覽列本身不跟著頁面滑動。
-   - [ ] 手指按住導覽列左右拖曳：膠囊放大並跟著手指，放開時切到手指下方的分頁。
-   - [ ] 深色與淺色：導覽列是半透明玻璃（底下的內容模糊透出）、有細邊框與陰影；整體質感接近 Instagram 的底部導覽。
-   - [ ] 設定 → 輔助使用 → 動態效果 → 減少動態效果：切換分頁時膠囊直接跳到新位置。
-13. **個股頁左右換股**（從自選或持股清單進入個股頁）
-   - [ ] 在股票名稱（頁首）上左右拖曳：頂列與下方內容不動，中間的主角區跟著手指移動，後一檔（或前一檔）同時被帶出；放開後吸附換股，沒有黑屏、沒有載入骨架。在頂列「自選 n / N」那一列左右滑動也會換股。
-   - [ ] 拖一點點就放開：彈回原本這一檔；第一檔往右、最後一檔往左有橡皮筋阻尼。
-   - [ ] 在走勢圖上：單指左右滑動是查價（十字線與日期）、兩指或按住約半秒再拖曳是選區間；都不會換股。上下滑動仍可捲動頁面。
-   - [ ] 頂列的 ‹ ›：同樣的滑動動畫；換股後「自選 n / N」更新。
-
-## 自動排程（`.github/workflows/data.yml`，台北時間）
+`.github/workflows/data.yml`，以下都是台北時間：
 
 | 時間 | 任務 |
 |---|---|
-| 交易日 17:30、21:30 | 每日任務：行情、法人、融資融券、本益比、借券、外資持股、當沖、注意／處置、除權息、期交所、匯率、美債；21:30 那次完成後推播 Telegram 日報（休市日不推播）。上一次被取消或失敗時，自動補抓漏掉的交易日 |
-| 交易日 22:40 | 接續在 16:30–22:30 延後的回補分段（沒有待續的回補時不做事） |
-| 交易日 09:00–13:45 每 15 分鐘 | 盤中到價提醒（只讀即時報價、不寫資料） |
+| 交易日 08:05、10:05、12:05 | 補抓起跑點：補前一交易日的缺漏，並預約當天的接力 |
+| 交易日 15:02 → 16:02 → 17:02 → 22:02 | 接力補抓，依序取得：收盤行情與指數 → 三大法人、本益比 → 外資持股、注意／處置名單 → 融資融券、借券、當沖。有新資料時會重算動能流程並部署；三大法人補齊那次部署後推播 Telegram 日報 |
+| 交易日 15:15、16:30、22:30 | 備援排程，在接力沒接上時補位 |
+| 交易日 14:45 | 個股 5 分 K（Yahoo，非官方），跑不完會自動接續 |
+| 交易日 09:00–13:45，每 15 分鐘 | 盤中到價提醒，只讀即時報價、不寫資料 |
+| 交易日 22:40 | 接續白天延後的回補分段 |
 | 每週六 10:00 | 集保股權分散表、央行 M1B／M2、法說會 |
-| 每月 11 日 | 月營收彙總 |
-| 5/16、8/16、11/16、4/1 | 季報（法定期限 5/15、8/14、11/14 後）／年報（3/31 後） |
+| 每月 11 日 | 月營收 |
+| 4/1、5/16、8/16、11/16 | 年報與季報（法定期限後） |
 
-每次執行都會呼叫 GitHub API 保持排程啟用，避免 60 天無活動被停用。資料寫入孤兒分支 `data`（每月 squash 一次）；衍生資料在部署時產生、不進版控。
+GitHub 的排程常會延遲數小時，所以每次補抓結束時都會以 `workflow_dispatch` 預約下一次（接力）。每次執行也會呼叫 API，避免排程因 60 天沒有活動而被停用。各資料集的預期公布時間設定在 `config/schedule.yml`。
+
+## 專案結構
+
+```text
+.
+├── pipeline/              Python 3.12，python -m pipeline <command>
+│   ├── core/              禮貌爬取 HTTP、交易日曆、正規化、儲存、驗證、manifest
+│   ├── sources/           每個資料源一個模組：fetch() → parse()
+│   ├── derive/            還原價、指標、分數、選股、回測、前端 JSON
+│   ├── evidence/          指標效度評估（事件研究、隨機對照）
+│   ├── momentum_flow/     動能流程（獨立模組）
+│   └── notify/            Telegram、GitHub Issue
+├── web/                   Vite + TypeScript + Preact PWA
+│   ├── src/pages/         頁面
+│   ├── src/lib/           純函式（有單元測試）
+│   ├── src/momentum/      動能流程頁面（獨立模組）
+│   ├── src/styles/        設計 tokens 與樣式
+│   └── e2e/               Playwright 測試
+├── config/                單一事實來源：權重、門檻、交易成本、資料源、產業、介面參數
+├── tests/                 pytest；fixtures/raw 為真實樣本，golden 為 pytest 與 vitest 共用的比對檔
+├── docs/                  方法、資料源、決策、設計文件
+└── .github/workflows/     ci、data、deploy、smoke-test、capture-fixtures
+```
+
+## 開發與測試
+
+送 PR 前在本機跑與 CI 相同的檢查：
+
+```bash
+# Python
+ruff check pipeline tests && ruff format --check pipeline tests
+mypy pipeline
+pytest -q
+
+# 前端（在 web/）
+npm run lint && npm run typecheck && npm test && npm run build
+npm run e2e                  # Playwright 冒煙測試（需先 build）
+python3 scripts/contrast.py  # 設計 tokens 的 WCAG AA 對比
+```
+
+常用 pipeline 指令：
+
+| 指令 | 用途 |
+|---|---|
+| `python -m pipeline daily --data-dir data` | 每日任務 |
+| `python -m pipeline backfill --data-dir data --source twse_quotes --start 2023-10-01` | 回補指定來源與區間 |
+| `python -m pipeline build-web --data-dir data --out web/public/data` | 產生前端 JSON |
+| `python -m pipeline demo-data --out web/public/data` | 用測試樣本產生示範資料 |
+| `python -m pipeline smoke --date 2026-09-24` | 資料源冒煙測試：檢查各來源的必要欄位 |
+| `python -m pipeline.momentum_flow update --data-dir data` | 動能流程：快照、前端 JSON、回測 |
+
+開發守則（依賴版本鎖定、不放密鑰、新資料源先抓真實樣本、決策寫進 `docs/DECISIONS.md`）見 [CLAUDE.md](CLAUDE.md)。iPhone 真機的手動驗收見 [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md)。
 
 ## 資料來源與授權
 
-資料來自臺灣證券交易所、證券櫃檯買賣中心、臺灣集中保管結算所、臺灣期貨交易所、公開資訊觀測站、中央銀行、美國財政部等官方公開資訊（主動式 ETF 持股取自各發行投信官網的公開揭露），依「政府資料開放授權條款－第 1 版」及各網站使用規範使用，並於 App 頁尾標示來源。抓取時每次請求間隔 3–5 秒並加上隨機延遲，失敗會退避重試、連續失敗會暫停該網站；不繞過任何驗證碼或防護機制。詳見 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md)。
+| 來源 | 資料 |
+|---|---|
+| 臺灣證券交易所、證券櫃檯買賣中心 | 行情、指數、三大法人、融資融券、借券、當沖、本益比、注意／處置、除權息 |
+| 臺灣集中保管結算所 | 集保股權分散表 |
+| 臺灣期貨交易所 | 期貨法人、未平倉 |
+| 公開資訊觀測站 | 月營收、季財報、法說會 |
+| 中央銀行、美國財政部 | M1B／M2、美債殖利率 |
+| 各發行投信官網 | 主動式 ETF 每日持股（公開揭露） |
+| Yahoo Finance（非官方） | 個股 5 分 K，只用於個股頁 1D／1W |
+
+政府資料依「[政府資料開放授權條款－第 1 版](https://data.gov.tw/license)」及各網站使用規範使用，App 頁尾標示來源。每個端點、實測結果與狀態見 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md)。
+
+本 repo 目前沒有附開源授權條款（LICENSE），程式碼保留所有權利。
 
 ## 已知限制
 
-- **主動式 ETF 每日持股（部分涵蓋）**：只在各投信官網個別揭露，沒有集中來源。目前實作野村、群益、元大、富邦 4 家投信（8／32 檔）；國泰、統一、兆豐、安聯因反爬、導向循環或驗證機制跳過，其餘待處理（各家狀態見 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md)）。
-- **分點券商進出**：官方查詢系統需驗證碼，依規則不實作。**八大行庫**：v3 起不採用（只有付費來源、決策價值有限，DECISIONS #84）。
-- **券商研究報告、目標價**：沒有官方免費來源，只提供標示「第三方」的連結；「研究參考」只整理官方法說會公告。
-- **法人買賣張數**：外資、投信的買張／賣張一直都有；自營商（與三大法人合計）的買張／賣張從 2026-09-27 起保存，較早的日子需執行 `backfill --source twse_insti,tpex_insti --refresh true` 補齊（買賣超不受影響）。
-- **大戶與散戶持股的歷史**：集保開放資料每週只有最新一週，逐週累積；過去一年要執行 `backfill --source tdcc_history`（只對關注清單，約 1.5 小時）。
-- **FRED 美元指數**：Actions 連線失敗，不納入。
-- **櫃買面額變更**：找不到官方端點，以價格跳空推估（±35%），推估事件列在「資料健康」頁供檢查。
-- **月營收公布日**：回補的歷史資料取不到實際公布日，保守假設次月 10 日收盤後生效；之後每日抓取會記錄實際首次出現日期。
-- **現金股利**：證交所除權息結果只有權值＋息值合計，「權息」事件在無預告資料時以合計近似（UI 標示）。
-- **法人成本線**、**合理價**皆為估算值；分數參數為事前設定的透明規則，不做資料最佳化。
-- 盤中提醒每 15 分鐘檢查一次，GitHub 排程可能延遲數分鐘；以當日最高／最低判斷是否曾經到價。
-- 證交所網站會封鎖部分雲端 IP；若 Actions 也被擋，對應來源會標示失敗並開 Issue，其他來源不受影響。
+- **主動式 ETF 持股**：只在各投信官網個別揭露，沒有集中來源。目前實作 14 家投信、涵蓋 30／32 檔（國泰、兆豐會擋本工具），每日實際涵蓋數顯示在頁首。
+- **分點券商進出**：官方查詢需要驗證碼，依規則不實作。券商研究報告與目標價沒有官方免費來源，只提供標示「第三方」的連結。
+- **月營收公布日**：歷史資料取不到實際公布日，保守假設次月 10 日生效。
+- **估算值**：法人成本線、合理價、櫃買面額變更（以價格跳空推估）都是估算，App 上有標示。
+- **動能流程**：注意名單自 2023-06 起才有資料，回測從 2023-10 開始；族群用的是目前的產業分類，沒有歷史分類。
+- **雲端 IP 封鎖**：證交所會封鎖部分雲端 IP。Actions 被擋時，該來源會標示失敗並開 Issue，其他來源不受影響。
+
+完整清單與每個來源的狀態見 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md)。
 
 ## 文件
 
-- [CLAUDE.md](CLAUDE.md)：架構與開發規則
-- [docs/METHODOLOGY.md](docs/METHODOLOGY.md)：所有指標、分數、回測、推播的計算定義
-- [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md)：資料來源、端點、實測結果
-- [docs/DECISIONS.md](docs/DECISIONS.md)：開發過程中的決策紀錄
-
-## 開發
-
-```bash
-# Python 3.12
-python -m venv .venv && . .venv/bin/activate
-pip install -r pipeline/requirements.txt -r pipeline/requirements-dev.txt
-ruff check pipeline tests && ruff format --check pipeline tests && mypy && pytest
-
-# 產生示範資料並啟動前端
-python -m pipeline demo-data --out web/public/data
-cd web && npm ci && npm run dev
-npm run lint && npm run typecheck && npm test && npm run build && npm run e2e
-python3 scripts/contrast.py   # 設計 tokens 的 WCAG AA 對比檢查
-
-# 設計驗收截圖與儀式走查（用真實資料：先 build-web 到 dist/data，再 vite preview）
-python scripts/make-seed.py <衍生資料目錄> > seed.json
-node scripts/screens.mjs --base http://localhost:4173/twse-money-flow/ --out ../docs/design/screens/after --pages scripts/pages-after.json --seed seed.json --format jpeg
-node scripts/walkthrough.mjs --base http://localhost:4173/twse-money-flow/ --seed seed.json --out ../docs/design/walkthrough
-# 行動體驗修正的前後截圖（瀏覽器模式／standalone × 深淺色）
-# 截圖用中文字型（雲端環境的文泉驛正黑「佔」「估」幾乎同形）：CJK_FONT_DIR=<@fontsource/noto-sans-tc 目錄>
-node scripts/ux-shots.mjs --base http://localhost:4173/twse-money-flow/ --out ../docs/design/ux-fixes/after --seed ../docs/design/screens/seed.json --variant after
-node scripts/chip-shots.mjs --base http://localhost:4173/twse-money-flow/ --out ../docs/design/ux-fixes/chips --variant after
-node scripts/ux-compare.mjs --dir ../docs/design/ux-fixes
-```
-
-資料源冒煙測試（檢查每個來源的必要欄位，提早發現格式變動）：`python -m pipeline smoke --date 2026-09-24`。
-
-常用 pipeline 指令：`python -m pipeline daily`、`python -m pipeline backfill --start 2023-09-01`、`python -m pipeline build-web --data-dir data`、`python -m pipeline alerts`。
+| 文件 | 內容 |
+|---|---|
+| [docs/METHODOLOGY.md](docs/METHODOLOGY.md) | 指標、分數、回測、推播的計算定義 |
+| [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) | 資料來源、端點、實測結果與狀態 |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | 開發過程中的決策紀錄 |
+| [docs/MOMENTUM_FLOW.md](docs/MOMENTUM_FLOW.md) | 動能流程的公式、每日更新時間表、資料不足範圍 |
+| [docs/INDICATOR_EVIDENCE.md](docs/INDICATOR_EVIDENCE.md) | 指標效度評估 |
+| [docs/UI_GUIDE.md](docs/UI_GUIDE.md) | 介面規範 |
+| [docs/design/](docs/design/README.md) | 設計方向、資訊架構、驗收截圖 |
+| [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md) | iPhone 真機手動驗收清單 |
+| [docs/BACKLOG.md](docs/BACKLOG.md) | 待辦與產品原則 |
+| [CLAUDE.md](CLAUDE.md) | 架構與開發守則 |
