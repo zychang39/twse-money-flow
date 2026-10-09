@@ -81,7 +81,7 @@ function MarketTab({ latest }: { latest: Latest }) {
     <>
       <Section title="狀態" aside={`基準日 ${md(latest.date)}`} testid="mf-state" info={<><p>{HELP.state.what}</p><p>{HELP.state.why}</p><p>{HELP.exposure.what} {HELP.countdown.what}</p></>} infoTitle="大盤狀態機">
         <Conclusion testid="mf-state-concl">{m.state === null ? '狀態資料不足' : `狀態 ${m.state}・曝險上限 ${Math.round((m.exposure ?? 0) * 100)}%`}</Conclusion>
-        <Interp>{desc}{m.raw !== null && m.state !== null && m.raw !== m.state ? `；原始狀態 ${m.raw}，${m.raw < m.state ? `升級倒數 ${m.countdown ?? '—'} 日` : ''}` : ''}</Interp>
+        <Interp>{desc}{m.raw !== null && m.state !== null && m.raw !== m.state ? `；原始狀態 ${m.raw}${m.raw < m.state && m.countdown !== null ? `，升級倒數 ${m.countdown} 日` : ''}` : ''}</Interp>
         <StatGrid testid="mf-state-grid" items={[
           { label: '生效狀態', value: m.state === null ? '資料不足' : `狀態 ${m.state}` },
           { label: '曝險上限', value: m.exposure === null ? '—' : `${Math.round(m.exposure * 100)}%` },
