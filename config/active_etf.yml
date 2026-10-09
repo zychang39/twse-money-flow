@@ -1,0 +1,182 @@
+# 主動式 ETF 的投資策略標籤（2026-10-09）
+# 依各投信官網、公開說明書或證交所 ETF 資訊站（ETFortune）的投資策略文字歸納；只描述選股方式與範圍，不是推薦。
+# web 直接讀這個檔（web/src/lib/etfTags.ts）：清單列顯示標籤，詳細頁顯示標籤、一句摘要與依據網址。
+# 新 ETF 掛牌後在 etfs 補一筆；沒有資料的 ETF 清單上不顯示標籤。
+# tags：1～3 個，第一個為主要特徵，詞彙限 tags 區塊（vitest etfTags.test.ts 檢查）；strategy：一句摘要（最多 60 字）；
+# source：依據網址；source_kind：官網｜公開說明書｜證交所｜其他。
+version: 1
+tags:
+  大型股: 以市值前 N 大（50／150／200／300 大）的股票為主要選股池
+  動能: 依價格、營收或獲利的動能與產業強弱勢汰弱擇強
+  成長: 以獲利或營收的成長潛力選股
+  高息: 以股息收益為核心（高股息篩選或配息設計）
+  量化: 以量化或多因子模型選股、最佳化權重
+  品質: 以財務體質、競爭力、產業地位（龍頭、護城河）篩選
+  權利金: 以掩護性買權策略收取權利金作為配息來源
+  科技: 以科技產業為主
+  AI: 以 AI 產業鏈為主題
+  創新: 以創新企業為主題
+  金融: 以金融產業為主
+  美股: 投資美國股票
+  全球: 投資全球股票（沒有區域標籤＝台股）
+etfs:
+  00980A:
+    tags: [量化, 成長, 動能]
+    strategy: "計量模組選出台股中具競爭優勢與趨勢成長動能的公司，至少七成投資具長期成長性與穩定配息能力的股票"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00980A
+    source_kind: 證交所
+  00981A:
+    tags: [大型股, 成長, 創新]
+    strategy: "市值前 300 大為選股池，至少六成配置大型股，精選具創新力、高成長性與獲利潛力的企業"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00981A
+    source_kind: 證交所
+  00982A:
+    tags: [量化, 動能]
+    strategy: "量化模組嚴選強勢科技動能股，搭配質化 3M 選股放眼全產業，不限大型股"
+    source: https://www.capitalfund.com.tw/etf/product/detail/399
+    source_kind: 官網
+  00983A:
+    tags: [創新, 美股]
+    strategy: "顛覆式創新主題（AI、區塊鏈、能源儲存、基因定序、機器人），ARK 擔任投資顧問，以美國企業為主、不集中大型股"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00983A
+    source_kind: 證交所
+  00984A:
+    tags: [高息, 成長]
+    strategy: "核心股息策略篩選高股息股票，再以多個子策略加入具成長潛力的股票（持股 100 檔以上）"
+    source: https://tw.allianzgi.com/active-etf-1
+    source_kind: 官網
+  00985A:
+    tags: [大型股, 量化]
+    strategy: "市值前 150 大中以計量模組精選 50 檔大型龍頭股，績效指標為臺灣 50 報酬指數"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00985A
+    source_kind: 證交所
+  00986A:
+    tags: [全球, 大型股, 成長]
+    strategy: "全球龍頭成長企業：量化成長性因子篩選後由經理人精選，外國有價證券至少六成"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00986A
+    source_kind: 證交所
+  00987A:
+    tags: [成長, 品質]
+    strategy: "聚焦成長性較高的台股優質企業，先看總經與政策方向，再以流動性、評價、技術面靈活操作"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00987A
+    source_kind: 證交所
+  00988A:
+    tags: [全球, 創新, 成長]
+    strategy: "全球創新企業：以全新技術或思維創造新價值的公司，橫跨多個產業"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00988A
+    source_kind: 證交所
+  00989A:
+    tags: [美股, 科技, 成長]
+    strategy: "美國科技與運用科技驅動成長的公司，以基本面挑選價格尚未反映價值、具創新能力的企業"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00989A
+    source_kind: 證交所
+  00990A:
+    tags: [全球, AI, 品質]
+    strategy: "全球 AI 產業鏈（AI 基礎建設與應用），以財務體質、技術護城河、獲利與成長潛力等品質條件遴選"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00990A
+    source_kind: 證交所
+  00991A:
+    tags: [大型股, 成長]
+    strategy: "市值前 150 大為選股池，精選 50 檔未來市值排名有望居前的股票"
+    source: https://www.fhtrust.com.tw/ETF/etf_detail/ETF23
+    source_kind: 官網
+  00992A:
+    tags: [科技, AI, 量化]
+    strategy: "台股 AI 科技趨勢：量化模組部位加質化精選部位，側重科技創新事業"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00992A
+    source_kind: 證交所
+  00993A:
+    tags: [量化, 成長]
+    strategy: "安聯台股團隊選股（百餘檔），輔以計量模型最佳化投資組合，目標超越大盤"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00993A
+    source_kind: 證交所
+  00994A:
+    tags: [動能, 量化]
+    strategy: "量化模型篩選強勢產業，經理人基本面汰弱擇強，市值前 500 大為股票池；績效指標為臺灣 50 指數"
+    source: https://www.fsitc.com.tw/FundDetail.aspx?ID=182
+    source_kind: 官網
+  00995A:
+    tags: [量化, 動能, 成長]
+    strategy: "依動能、波動度、價值、獲利能力綜合評分加上股利成長篩選，再由經理人質化精選"
+    source: https://investoredu.twse.com.tw/FileSystem/FileUpload/da41c532-a2a6-481a-b448-474fc6063a61.pdf
+    source_kind: 證交所
+  00996A:
+    tags: [品質, 大型股, 量化]
+    strategy: "上市市值前 150 大、上櫃前 50 大中的豐收型企業（市佔率高、現金流穩定），量化輔助精選並以期貨避險"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00996A
+    source_kind: 證交所
+  00997A:
+    tags: [美股, 成長, 量化]
+    strategy: "美股全產業增長股：創新增長因子量化篩選加質化精選，聚焦七巨頭、NASDAQ 增長股與潛力股"
+    source: https://www.capitalfund.com.tw/etf/product/detail/502
+    source_kind: 官網
+  00998A:
+    tags: [全球, 金融, 高息]
+    strategy: "全球金融股（市值 100 億美元以上），以歐洲為主、美日為輔，追求股息收益"
+    source: https://www.fhtrust.com.tw/Event/EC/2026_finance/00998A.html
+    source_kind: 官網
+  00999A:
+    tags: [高息, 成長, 量化]
+    strategy: "高股息策略加上具成長潛力的策略價值股，以多因子評分模型選股"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00999A
+    source_kind: 證交所
+  00400A:
+    tags: [動能, 高息]
+    strategy: "市值前 40%、近四季 EPS 為正、配息居前半的高股息或成長動能股，合計至少六成"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00400A
+    source_kind: 證交所
+  00401A:
+    tags: [權利金]
+    strategy: "台股由下而上選股、不特定產業或風格，以掩護性買權策略收取權利金納入配息，月配"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00401A
+    source_kind: 證交所
+  00402A:
+    tags: [美股, 科技]
+    strategy: "美國科技領航產業，由上而下的基本面分析加由下而上的個股評估"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00402A
+    source_kind: 證交所
+  00403A:
+    tags: [大型股, 成長]
+    strategy: "市值前 50 大為核心、51～200 大為增強選股池，汰弱增強，原則上持有 50 檔"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00403A
+    source_kind: 證交所
+  00404A:
+    tags: [動能, 權利金, 量化]
+    strategy: "系統性多因子量化選股掌握動能變化（50 檔核心持股），並以台指買權的掩護性買權策略收取權利金納入配息"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00404A
+    source_kind: 證交所
+  00405A:
+    tags: [成長, 品質]
+    strategy: "台灣趨勢產業中引領成長的龍頭企業（高稀缺、高壁壘、高成長），依市況動態調整"
+    source: https://websys.fsit.com.tw/FubonETF/Fund/Profile.aspx?stkId=00405A
+    source_kind: 官網
+  00406A:
+    tags: [權利金, 高息, 成長]
+    strategy: "收益與成長雙軌：掌握台股股息優勢並以掩護性買權策略收取權利金，挑選具上升動能的標的，月配"
+    source: https://www.twse.com.tw/zh/ETFortune/etfInfo/00406A
+    source_kind: 證交所
+  00407A:
+    tags: [成長, 量化]
+    strategy: "成長選股（產業競爭力與獲利成長）加動態量化因子篩選；收益不分配"
+    source: https://www.kgifund.com.tw/Upload/Files/ManageFileUploadProspectus/J024.pdf
+    source_kind: 公開說明書
+  00408A:
+    tags: [高息, 動能]
+    strategy: "市值前 500 大中，產業強弱勢篩選出趨勢產業個股，再取股利收益與股利成長特徵的交集"
+    source: https://www.fsitc.com.tw/FundDetail.aspx?ID=183
+    source_kind: 官網
+  00409A:
+    tags: [全球, 成長, 科技]
+    strategy: "全球 50 檔獲利成長股，以受惠 AI 浪潮的科技成長領導者為主"
+    source: https://www.fhtrust.com.tw/ETF/etf_detail/ETF26
+    source_kind: 官網
+  00410A:
+    tags: [科技, 成長]
+    strategy: "台股科技事業中具獲利與業績成長潛力的公司，負向排除、質化精選加量化篩選"
+    source: https://sitc.sinopac.com/newweb/sitcFund/page.do?stock_id=E5
+    source_kind: 官網
+  00411A:
+    tags: [全球, 科技, 成長]
+    strategy: "全球前沿科技（AI 基建、能源基建、太空、量子、機器人等），美國為主，雙線布局巨頭與獨角獸"
+    source: https://www.moneydj.com/ETF/X/Basic/Basic0004.xdjhtm?etfid=00411A.TW
+    source_kind: 其他

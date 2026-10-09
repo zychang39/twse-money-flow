@@ -65,12 +65,22 @@ export function periodSummary(list: ActiveEtf[], period: EtfPeriod): string {
   return `${PERIOD_LABEL[period]}：上漲 ${up} 檔・下跌 ${down} 檔・中位數 ${sign}${fmtNum(Math.abs(med), 2)}%${lack ? `（${lack} 檔上市未滿期間）` : ''}`;
 }
 
-/** 副資訊：「00981A・均額 46.1 億・市值 1,520 億・持股 52 檔」；沒有持股時改寫原因。 */
+/** 第三行資訊：「均額 46.1 億・市值 1,520 億・持股 52 檔」（代號與策略標籤在第二行）；沒有持股時改寫原因。 */
 export function rowSub(e: ActiveEtf, sort: EtfListSort): string {
-  const parts = [e.code];
+  const parts: string[] = [];
   if (sort !== 'value') parts.push(`均額 ${fin(e.value_million_20d) ? `${fmtNum(e.value_million_20d / 100, 1)} 億` : '—'}`);
   if (sort !== 'mcap') parts.push(`市值 ${fin(e.mcap_yi) ? `${fmtNum(e.mcap_yi, e.mcap_yi >= 100 ? 0 : 1)} 億` : '—'}`);
   if (e.has_holdings === false) parts.push(e.holdings_note ?? '持股資料累積中');
   else if (fin(e.holdings_n)) parts.push(`持股 ${e.holdings_n} 檔${e.holdings_foreign ? `（海外 ${e.holdings_foreign}）` : ''}`);
   return parts.join('・');
+}
+
+/**
+ * 持股變動一張圖（2026-10-09）：加碼在上（大到小）、減碼在下（最大的減碼在最底）；add、reduce 都已依口徑絕對值由大到小排序。
+ * all＝false 時加碼、減碼各只列前 n 檔；folded＝沒列出的檔數。
+ */
+export function mergeMoves<T>(add: T[], reduce: T[], n: number, all: boolean): { rows: T[]; folded: number } {
+  const a = all ? add : add.slice(0, n);
+  const r = all ? reduce : reduce.slice(0, n);
+  return { rows: [...a, ...r.slice().reverse()], folded: add.length - a.length + (reduce.length - r.length) };
 }

@@ -157,13 +157,17 @@ export function restoreScroll(y: number, timeout = RESTORE_TIMEOUT): () => void 
     for (const ev of ['wheel', 'touchstart', 'keydown'] as const) window.removeEventListener(ev, stop);
     if (cancelRestore === stop) cancelRestore = null;
   };
+  // 2026-10-09：捲動只做在「第一次高度足夠」與「之後頁面又長高」時，最多 3 次。原本位置沒對上就每一格再 scrollTo 一次（最長 10 秒）；
+  // iOS 26 加到主畫面的 App 在更新後重新載入時，這種連續的程式捲動疑似讓 WebKit 的固定定位失效（底部導覽跟著頁面捲走）
+  let tries = 0;
+  let triedAt = -1;
   const attempt = () => {
     if (done) return;
     const max = document.documentElement.scrollHeight - window.innerHeight;
     if (max >= y - 1) {
-      window.scrollTo(0, y);
+      if (tries === 0 || (max > triedAt && tries < 3)) { window.scrollTo(0, y); tries += 1; triedAt = max; }
       // 捲到之後再確認一次（圖表或字型晚一步撐開高度時可能被夾住）
-      if (Math.abs(window.scrollY - y) <= 1 || expired()) { stop(); return; }
+      if (Math.abs(window.scrollY - y) <= 1 || expired() || tries >= 3) { stop(); return; }
     } else if (expired()) {
       window.scrollTo(0, Math.max(0, max));
       stop();
@@ -177,6 +181,17 @@ export function restoreScroll(y: number, timeout = RESTORE_TIMEOUT): () => void 
   cancelRestore = stop;
   attempt();
   return stop;
+}
+
+/**
+ * App 更新前（lib/swUpdate 重新載入前）呼叫：不記住目前的捲動位置，重新載入後從頁首開始、不做程式捲動。
+ * 2026-10-09：iOS 26 加到主畫面的 App 用「有新版本，點此更新」更新後，底部導覽不再固定在畫面底部；
+ * 重新載入後立刻把頁面捲回原位置是最可疑的觸發點（瀏覽器模式與冷啟動都沒有這個步驟）。
+ */
+export function forgetScroll(): void {
+  paused = true;
+  const id = currentId();
+  if (id) writeEntry(id, { y: 0 });
 }
 
 /** 是否正在等待還原捲動位置（頁面應盡快畫出全部內容，高度才夠） */

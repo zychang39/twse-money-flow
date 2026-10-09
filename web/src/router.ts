@@ -113,7 +113,7 @@ function boot(): void {
   booted = true;
   installScrollRestore();
   const saved = enterEntry(entryPath());
-  if (saved !== null) restoreScroll(saved); // 重新整理後還原
+  if (saved !== null && saved > 0) restoreScroll(saved); // 重新整理後還原（0 不需要捲動；更新後重新載入時 forgetScroll 已寫成 0）
   current = parseHash(location.hash);
   window.addEventListener('hashchange', onHashChange);
   const redirect = legacyRedirect(current.path, current.query.toString());

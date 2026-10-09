@@ -200,6 +200,11 @@
 - 實測（2026-10-03，真實網站，本工具 User-Agent、每家 2–8 次請求、不繞過任何機制）：台新 7、凱基 6、聯博 6、第一金 8、復華 8 次（含找端點），各取得 1–2 個持股日並確認歷史查詢與查無資料的回應；樣本 `etf_taishin_*`、`etf_kgi_*`、`etf_ab_*`、`etf_fsitc_*`、`etf_fhtrust_*`。
 - 限制：涵蓋 9 家投信、17／32 檔（野村 3、群益 3、元大 1、富邦 1、台新 2、凱基 1、聯博 1、第一金 2、復華 3），跨檔加碼／減碼排行只反映這些投信，市場頁與個股頁都標示「部分涵蓋」。
 
+### 主動式 ETF 策略標籤（config/active_etf.yml；2026-10-09）
+- 32 檔各 1～3 個標籤（大型股、動能、成長、高息、量化、品質、權利金、科技、AI、創新、金融、美股、全球）、一句摘要與依據網址，依各投信官網、公開說明書或證交所 ETF 資訊站（ETFortune，`https://www.twse.com.tw/zh/ETFortune/etfInfo/{code}`）的「投資策略」文字歸納；只描述選股方式與範圍，依規則整理、非推薦（DECISIONS #443）。
+- 不是抓取的資料：人工整理後存在 config，web 直接讀（`web/src/lib/etfTags.ts`），pipeline 不處理；vitest `etfTags.test.ts` 檢查詞彙、字數與來源格式。新掛牌的 ETF 要補一筆，否則清單不顯示標籤。
+- 無法連線的官網（國泰、兆豐、統一、野村、中信、台新）改以證交所 ETF 資訊站或公開說明書轉載頁為依據（`source_kind` 標明）。
+
 ### 集保個股歷史（tdcc_history）
 - 開放資料 1-5 只有最新一週；集保官網「股權分散表查詢」可逐檔查過去一年（無驗證碼）。頁面上也註明多檔需求請用開放資料，因此**只對關注清單回補一次**，之後每週的新資料一律由開放資料取得，不排入排程。
 - 流程：GET 查詢頁取得 `SYNCHRONIZER_TOKEN` 與可查詢的週別（`scaDate` 選單，新到舊）→ 逐檔逐週 POST（`method=submit&firDate={最新週}&scaDate={週}&sqlMethod=StockNo&stockNo={代號}`，附 Referer／Origin），每次回應會帶下一次用的新 token；token 失效時重新 GET。

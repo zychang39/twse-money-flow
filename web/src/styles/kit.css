@@ -221,6 +221,8 @@ button.ring2 { cursor: pointer; }
 .breadth-line .mini { width: 100%; }
 .ui-card > .ui-seg { margin-top: var(--s-3); }
 .ui-card > .sc2 { margin-top: var(--s-3); }
+/* 圖下的一行說明（例：未畫出的極端值） */
+.sc2-note { margin-top: var(--s-2); }
 
 /* 頁首狀態列的連結：44pt 點擊區域（行內上下內距，負邊距抵銷） */
 .meta-line .meta-link, .meta-line .meta-alert { display: inline-block; padding: calc((var(--tap) - 1lh) / 2) 0; margin: calc((var(--tap) - 1lh) / -2) 0; }

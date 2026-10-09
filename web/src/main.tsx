@@ -2,6 +2,7 @@ import { render } from 'preact';
 import { App } from './app';
 import './styles/global.css';
 import { createUpdater, domBusy, getUpdater, publishState, setUpdater } from './lib/swUpdate';
+import { forgetScroll } from './lib/scrollRestore';
 
 /**
  * 顯示模式：加入主畫面（standalone）與 Safari 瀏覽器模式的 safe-area 處理不同（見 global.css）。
@@ -33,7 +34,8 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
       container,
       now: () => performance.now(),
       isBusy: () => domBusy(),
-      reload: () => location.reload(),
+      // 更新後從頁首開始（不還原捲動位置）：見 lib/scrollRestore.forgetScroll
+      reload: () => { forgetScroll(); location.reload(); },
       onState: publishState,
       startedAt: bootAt,
       interacted, // 建立前就點擊過：建立時已有新版在等待也只提示

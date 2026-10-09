@@ -1,10 +1,19 @@
-/* 主動式 ETF 詳細頁（2026-10-08）：橫條列＝名稱｜橫條｜數值｜›；與其他列表一樣只有列間橫線（.ui-row + .ui-row）。 */
-.ui-row.eb-row {
-  grid-template-columns: minmax(0, 1fr) minmax(4.5rem, 32%) 5rem var(--chevcol, 0px);
-  align-items: center;
+/* 主動式 ETF（2026-10-08／10-09）：密集橫條列、期間滑桿、清單列、策略標籤。 */
+
+/* 密集橫條列（components/BarRows.tsx）：名稱｜橫條｜數值，每列 44pt；第二行在名稱與數值各自下方 */
+.ui-row.br-row {
+  grid-template-columns: 6.5em minmax(3rem, 1fr) auto; /* 名稱欄固定寬：每列橫條的 0 軸對齊 */
+  align-items: center; column-gap: var(--row-gap);
+  min-height: var(--tap); padding: var(--s-1) 0;
 }
-.eb-bar { display: block; padding-left: var(--row-gap); }
-.eb-v { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-1); }
+.br-name, .br-v { display: flex; flex-direction: column; min-width: 0; }
+.br-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-1); }
+.br-sub { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.br-v { align-items: flex-end; text-align: right; white-space: nowrap; color: var(--text-1); font-variant-numeric: tabular-nums; }
+.br-bar { display: block; }
+.br-bar .dbar, .br-bar .pbar { height: 0.75rem; } /* 密集列的橫條粗一點（12px），長短一眼可比 */
+.br-bar .dbar-mid { top: -0.25rem; bottom: -0.25rem; }
+.ui-row.br-static { cursor: default; }
 
 /* 期間：兩個滑桿（起日、迄日），一格＝一次持股揭露；點擊區域至少 44pt */
 .eb-sliders { display: grid; gap: var(--s-1); margin-top: var(--s-3); }
@@ -14,20 +23,29 @@
 .eb-slider-v { text-align: right; color: var(--text-1); }
 .ui-sec > .ui-seg + .interp { margin-top: var(--s-2); }
 .ui-sec > .interp + .ui-list { margin-top: var(--s-2); }
-.ui-sec > .ui-list + .ui-btn { margin-top: var(--s-3); }
-/* 2026-10-09：海外持股列（不連到個股頁）：同樣的橫條排版，沒有點擊效果與 › */
-.ui-row.eb-static { cursor: default; }
+
 /* 清單（2026-10-09）：說明 → 排序 → 期間 → 期間摘要 → 橫條列 */
 .ui-sec > .interp + .ui-seg { margin-top: var(--s-3); }
 .ui-sec > .ui-seg + .ui-seg { margin-top: var(--s-2); }
-/* 清單列：第一行 名稱｜橫條｜數值，第二行副資訊跨整列（名稱不被擠成兩行；393／375pt 驗收） */
+/* 清單列：第一行 名稱｜橫條｜數值，第二行 策略標籤＋代號、第三行 均額／市值／持股（都跨整列；名稱不被擠成兩行；393／375pt 驗收） */
 .ui-row.el-row {
   grid-template-columns: 6.5em minmax(3rem, 1fr) 4.75rem var(--chevcol, 0px); /* 名稱欄固定寬：每列橫條的 0 軸對齊 */
-  grid-template-areas: 'name bar val chev' 'sub sub sub chev';
+  grid-template-areas: 'name bar val chev' 'sub sub sub chev' 'info info info chev';
   align-items: center; row-gap: var(--s-1);
 }
 .el-name { grid-area: name; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .el-bar { grid-area: bar; display: block; padding: 0 var(--s-2) 0 var(--row-gap); }
 .el-v { grid-area: val; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-1); }
-.el-sub { grid-area: sub; }
+.el-sub { grid-area: sub; display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--s-2); row-gap: var(--s-1); }
+.el-sub .etf-tags { margin-right: 0; }
+.el-info { grid-area: info; }
 .el-chev { grid-area: chev; }
+
+/* 策略標籤（components/EtfTags.tsx）：清單副資訊前的小膠囊；詳細頁「策略」區塊放大一號 */
+.etf-tags { display: inline-flex; flex-wrap: wrap; gap: var(--s-1); vertical-align: baseline; margin-right: var(--s-2); }
+.etf-tag { display: inline-block; font-size: var(--fs-micro); line-height: 1rem; padding: 0 0.375rem; border-radius: var(--r-pill); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line); white-space: nowrap; }
+.etf-strategy { display: grid; gap: var(--s-2); justify-items: start; }
+.etf-strategy .etf-tags { margin: 0; }
+.etf-strategy .etf-tag { font-size: var(--fs-foot); line-height: var(--lh-foot); padding: 0 var(--s-2); color: var(--text-1); }
+.etf-strategy-text { color: var(--text-1); word-break: keep-all; overflow-wrap: anywhere; line-break: strict; }
+.etf-strategy-src { display: inline-flex; align-items: center; min-height: var(--tap); color: var(--brand); }
