@@ -52,6 +52,7 @@ const Strategies = lazy(() => import('./pages/Strategies'));
 const Leverage = lazy(() => import('./pages/Leverage'));
 const Glossary = lazy(() => import('./pages/Glossary'));
 const Gallery = lazy(() => import('./pages/Gallery'));
+const MomentumFlow = lazy(() => import('./momentum/pages/MomentumFlow'));
 
 function Page({ parts }: { parts: string[] }) {
   const [a, b, c, d] = parts;
@@ -90,6 +91,7 @@ function Page({ parts }: { parts: string[] }) {
         case 'evidence': return <Evidence />;
         case 'strategies': return <Strategies id={c} />;
         case 'leverage': return <Leverage />;
+        case 'momentum': return <MomentumFlow tab={c} />;
         default: return <Placeholder title="找不到頁面" back="/explore" />;
       }
     case 'discipline':

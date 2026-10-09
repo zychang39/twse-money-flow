@@ -84,22 +84,23 @@ for (const width of [375, 393]) {
       expect(await sub.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('normal');
     });
 
-    test('U-06（M4）：探索頁不捲動就看得到全部 9 個功能格與 3 個指數格；每格的即時數值一行', async ({ page }) => {
+    test('U-06（M4）：探索頁不捲動就看得到全部 10 個功能格與 3 個指數格；每格的即時數值一行', async ({ page }) => {
       await page.goto('#/explore');
       const tiles = page.locator('.ex-tile');
-      await expect(tiles).toHaveCount(9);
+      await expect(tiles).toHaveCount(10);
       await expect(page.locator('.ex-index')).toHaveCount(3);
       await page.waitForTimeout(600);
       const info = await tiles.evaluateAll((els) => els.map((el) => {
         const r = el.getBoundingClientRect();
         const v = el.querySelector('.ex-tile-v') as HTMLElement;
         const lh = parseFloat(getComputedStyle(v).lineHeight);
-        return { bottom: r.bottom, lines: Math.round(v.getBoundingClientRect().height / lh), text: v.textContent };
+        return { bottom: r.bottom, lines: Math.round(v.getBoundingClientRect().height / lh), text: v.textContent, id: (el as HTMLElement).dataset.testid };
       }));
       const dockTop = await page.locator('.dock').evaluate((el) => el.getBoundingClientRect().top);
       for (const t of info) {
         expect(t.bottom, t.text ?? '').toBeLessThanOrEqual(dockTop);
-        expect(t.lines, t.text ?? '').toBe(1);
+        // 2026-10-09 動能流程卡片的副標依規格固定三項（狀態・曝險・篩出），允許兩行；其他格仍須一行
+        expect(t.lines, t.text ?? '').toBeLessThanOrEqual(t.id === 'ex-momentum' ? 2 : 1);
       }
     });
   });
