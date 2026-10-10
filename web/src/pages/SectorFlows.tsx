@@ -60,8 +60,11 @@ function useFitRows(ref: { current: HTMLElement | null }, deps: unknown[]): numb
       setRows(Math.max(MIN_ROWS, Math.min(MAX_ROWS, n)));
     };
     fit();
+    // 清單上方的內容晚一點才出現（例：「資料落後」橫幅）時重算
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
+    ro?.observe(document.body);
     window.addEventListener('resize', fit);
-    return () => window.removeEventListener('resize', fit);
+    return () => { ro?.disconnect(); window.removeEventListener('resize', fit); };
   }, deps);
   return rows;
 }
