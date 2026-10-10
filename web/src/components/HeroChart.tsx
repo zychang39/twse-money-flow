@@ -8,8 +8,11 @@
  *   期間選擇器只改變走勢圖，區間漲跌標示在圖表上方（chart-range）。
  * heroChange='both'（個股頁）：主角數字下方兩行：「今日漲跌」與「所選期間漲跌」（拖曳時為該日漲跌、期間起點到該日）。
  * 只有 1 個資料點：畫單點標記，說明「資料累積中：目前只有 1 個交易日…」。
- * 兩指區間報酬（range，仿 Apple 股市）：兩指同時按在圖上 → 兩條垂直標線、上方顯示兩個日期、漲跌金額、報酬率與相隔交易日數，
- *   手指移動時即時更新；放開後保留 2 秒再淡出。單指仍是查單點。桌機：按住拖曳選出區間。
+ * 兩指區間報酬（range，仿 Apple 股市）：兩指同時按在圖上 → 兩條垂直標線，手指移動時即時更新；放開後保留 2 秒再淡出。
+ *   2026-10-10：不再用浮框（會蓋住走勢線）。區間結果寫在原本「期間漲跌」那一列（同字級、紅漲綠跌）：
+ *   個股頁＝主角數字下方第二列、今晚頁＝圖表上方那一列、其他＝第一列，說明改成「區間 N 個交易日」；
+ *   兩端日期標在圖下緣、各自的標線下方（取代起訖日期，太近時左右推開）。主角數字不變（區間不是查價）。
+ *   單指仍是查單點。桌機：按住拖曳選出區間。
  *   觸控另可「按住約 0.45 秒不動、再拖曳」選出區間（單指）。
  * 價格基準（M5）：由頁面決定 win 是還原價或原始價，主角數字、走勢線、今日／期間漲跌、區間報酬全部用同一組數字；
  *   onBasis 存在時顯示「還原價／原始價」切換，主角數字旁標示目前的基準（basis）。
@@ -23,7 +26,7 @@ import { areaD, extent, lerpPts, nearestIndex, points, resample, smoothD, spring
 import { Term } from './kit';
 import { arrow, fmtNum, md } from '../lib/format';
 import { windowCoverageNote } from '../lib/series';
-import { RANGE_BASIS_NAME, RANGE_HOLD_MS, type RangeBasis, countDatesBetween, rangeReturn, shortDate } from '../lib/rangeReturn';
+import { RANGE_BASIS_NAME, RANGE_HOLD_MS, type RangeBasis, type RangeResult, countDatesBetween, rangeReturn, shortDate } from '../lib/rangeReturn';
 import { makeCalendar } from '../lib/tradingCalendar';
 import { loadMeta } from '../data/api';
 import { useAsync } from '../hooks';
@@ -75,6 +78,36 @@ function multiDay(dates: string[]): boolean {
 /** 圖下方兩端的標籤：日資料 M/D；盤中資料 HH:MM */
 function axisLabel(iso: string): string {
   return iso.length > 10 ? iso.slice(11, 16) : shortDate(iso);
+}
+
+/** 區間兩端的日期標籤：日資料 2026/5/8；盤中多日 10/8 09:05；盤中單日 09:05 */
+function rangeEndLabel(iso: string, dates: string[]): string {
+  if (iso.length <= 10) return shortDate(iso);
+  return multiDay(dates) ? `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))} ${iso.slice(11, 16)}` : iso.slice(11, 16);
+}
+
+/**
+ * 區間兩端日期標籤的位置（文字中心 x）：各自在標線正下方；靠邊時往內收，兩個標籤太近時從中點左右推開。
+ * 兩端是同一點時只回傳一個。
+ */
+export function rangeLabelXs(x0: number, x1: number, w0: number, w1: number, left: number, right: number, gap = 6): number[] {
+  const clamp = (c: number, hw: number) => Math.max(left + hw, Math.min(right - hw, c));
+  if (Math.abs(x1 - x0) < 0.5) return [clamp(x0, w0 / 2)];
+  let a = clamp(x0, w0 / 2);
+  let b = clamp(x1, w1 / 2);
+  if (a + w0 / 2 + gap > b - w1 / 2) {
+    const mid = (x0 + x1) / 2;
+    a = mid - gap / 2 - w0 / 2;
+    b = mid + gap / 2 + w1 / 2;
+    if (a - w0 / 2 < left) { b += left - (a - w0 / 2); a = left + w0 / 2; }
+    if (b + w1 / 2 > right) { a -= b + w1 / 2 - right; b = right - w1 / 2; }
+  }
+  return [a, b];
+}
+
+/** 區間結果的說明文字：日資料「區間 88 個交易日」；盤中「區間」 */
+function rangeCaption(rr: RangeResult, intraday: boolean): string {
+  return intraday ? '區間' : `區間 ${rr.days} 個交易日`;
 }
 
 export function PeriodSelector({ value, onChange, label = '期間', periods = PERIODS, testid }: { value: Period; onChange: (p: Period) => void; label?: string; periods?: Period[]; testid?: string }) {
@@ -458,6 +491,15 @@ export function HeroChart({
   // 區間報酬與主角數字、走勢線用同一組數字（win 由頁面依價格基準提供）
   const rr = sel && win ? rangeReturn(win.dates, win.values, sel.a, sel.b, tradingDays) : null;
   const rangePts = rr && geo ? [geo.pts[rr.from], geo.pts[rr.to]] : null;
+  // 區間結果寫在哪一列：個股頁（both）＝第二列（1D 沒有第二列 → 第一列）、今晚頁（daily）＝圖表上方那一列、其他＝第一列
+  const rangeAt: 'first' | 'second' | 'chart' | null = !rr ? null : both ? (period !== '1D' ? 'second' : 'first') : daily ? 'chart' : 'first';
+  const intraday = !!win && win.dates[0].length > 10;
+  const rangeWord = rr ? (rr.dir === 'up' ? '上漲' : rr.dir === 'down' ? '下跌' : '持平') : '';
+  const rangePct = rr ? (rr.pct === null ? '—' : `${Math.abs(rr.pct).toFixed(2)}%`) : '';
+  const rangeChg = rr ? (
+    <span class={rr.dir} data-testid="range-change">{arrow(rr.abs)} {fd(Math.abs(rr.abs))} ({rangePct})</span>
+  ) : null;
+  const rangeCap = rr ? <span class="caption" data-testid="range-caption">{rangeCaption(rr, intraday)}</span> : null;
   const scrubPt = geo && scrub !== null ? geo.pts[scrub] : null;
   const endPt = geo ? geo.pts[geo.pts.length - 1] : null;
   // M1-9：圖內的最高／最低數值標籤（靠近該點；靠邊時改變對齊方向，不超出圖外）與起訖日期（下緣）
@@ -512,8 +554,8 @@ export function HeroChart({
         <div class="hero" aria-live="off" data-testid={heroTestid}>{heroText}</div>
         {basis ? <span class="basis-tag" data-testid="basis-tag" title={RANGE_BASIS_NAME[basis]}>{basis === 'adj' ? '還原' : '原始'}</span> : null}
       </div>
-      <div class="hero-change" data-testid={heroTestid ? 'hero-change' : undefined}>
-        {chg && win ? (
+      <div class={`hero-change ${rangeAt === 'first' ? 'range' : ''}`} data-testid={rangeAt === 'first' ? 'range-readout' : heroTestid ? 'hero-change' : undefined}>
+        {rangeAt === 'first' ? <>{rangeChg}{rangeCap}</> : chg && win ? (
           <>
             <span class={chg.dir} role="img" aria-label={`${chg.dir === 'up' ? '上漲' : chg.dir === 'down' ? '下跌' : '持平'} ${fd(Math.abs(chg.abs))}`}>
                 <span aria-hidden="true">{arrow(chg.abs)} {fd(Math.abs(chg.abs))} ({chg.pct === null ? '—' : `${Math.abs(chg.pct).toFixed(2)}%`})</span>
@@ -533,8 +575,8 @@ export function HeroChart({
         ) : <span class="caption">{emptyText}</span>}
       </div>
       {both && win && period !== '1D' ? (
-        <div class="hero-change second" data-testid="hero-period-change">
-          {periodChg ? (
+        <div class={`hero-change second ${rangeAt === 'second' ? 'range' : ''}`} data-testid={rangeAt === 'second' ? 'range-readout' : 'hero-period-change'}>
+          {rangeAt === 'second' ? <>{rangeChg}{rangeCap}</> : periodChg ? (
             <>
               <span class={periodChg.dir} role="img" aria-label={`${PERIOD_LABEL[period]}${periodChg.dir === 'up' ? '上漲' : periodChg.dir === 'down' ? '下跌' : '持平'} ${fd(Math.abs(periodChg.abs))}`}>
                 <span aria-hidden="true">{arrow(periodChg.abs)} {fd(Math.abs(periodChg.abs))} ({periodChg.pct === null ? '—' : `${Math.abs(periodChg.pct).toFixed(2)}%`})</span>
@@ -545,11 +587,17 @@ export function HeroChart({
         </div>
       ) : null}
       {daily && range && win ? (
-        <div class="chart-range">
-          <span>{PERIOD_LABEL[period]}</span>
-          <span class={range.dir} role="img" aria-label={`${PERIOD_LABEL[period]}區間${range.dir === 'up' ? '上漲' : range.dir === 'down' ? '下跌' : '持平'} ${fd(Math.abs(range.abs))}`}>
+        <div class="chart-range" data-testid={rangeAt === 'chart' ? 'range-readout' : undefined}>
+          {rangeAt === 'chart' && rr ? (
+            <><span data-testid="range-caption">{rangeCaption(rr, intraday)}</span>{rangeChg}</>
+          ) : (
+            <>
+              <span>{PERIOD_LABEL[period]}</span>
+              <span class={range.dir} role="img" aria-label={`${PERIOD_LABEL[period]}區間${range.dir === 'up' ? '上漲' : range.dir === 'down' ? '下跌' : '持平'} ${fd(Math.abs(range.abs))}`}>
                 <span aria-hidden="true">{arrow(range.abs)} {fd(Math.abs(range.abs))} ({range.pct === null ? '—' : `${Math.abs(range.pct).toFixed(2)}%`})</span>
               </span>
+            </>
+          )}
         </div>
       ) : null}
       <div ref={wrapRef} class="chart-wrap bleed" style={{ height: `${svgH / 16}rem` }} data-points={win?.values.length ?? 0} data-from={win?.dates[0]}
@@ -580,9 +628,18 @@ export function HeroChart({
             ) : null}
             {win && win.dates.length >= 2 ? (
               <g class="chart-dates" data-testid="chart-dates" style={LABEL_STYLE}>
-                {/* 盤中多日（1W）：兩端標日期；單日（1D）標時間 */}
-                <text x={frame.padX} y={svgH - 3} text-anchor="start">{multiDay(win.dates) ? shortDate(win.dates[0].slice(0, 10)) : axisLabel(win.dates[0])}</text>
-                <text x={w - frame.padX} y={svgH - 3} text-anchor="end">{multiDay(win.dates) ? shortDate(win.dates[last].slice(0, 10)) : axisLabel(win.dates[last])}</text>
+                {rr && rangePts ? (() => {
+                  // 區間：兩端日期標在各自的標線下方（取代起訖日期）
+                  const t = [rangeEndLabel(rr.fromDate, win.dates), rangeEndLabel(rr.toDate, win.dates)];
+                  const xs = rangeLabelXs(rangePts[0][0], rangePts[1][0], textWidth(t[0], 13), textWidth(t[1], 13), frame.padX, w - frame.padX);
+                  return xs.map((x, k) => <text key={k} x={x} y={svgH - 3} text-anchor="middle" data-testid="range-date">{t[xs.length === 1 ? 0 : k]}</text>);
+                })() : (
+                  <>
+                    {/* 盤中多日（1W）：兩端標日期；單日（1D）標時間 */}
+                    <text x={frame.padX} y={svgH - 3} text-anchor="start">{multiDay(win.dates) ? shortDate(win.dates[0].slice(0, 10)) : axisLabel(win.dates[0])}</text>
+                    <text x={w - frame.padX} y={svgH - 3} text-anchor="end">{multiDay(win.dates) ? shortDate(win.dates[last].slice(0, 10)) : axisLabel(win.dates[last])}</text>
+                  </>
+                )}
               </g>
             ) : null}
             {rangePts && rr ? (
@@ -618,20 +675,12 @@ export function HeroChart({
             </Term>
           </span>
         ) : null}
-        {rr ? (
-          // M1-9：提示框固定在圖表上緣內側（不蓋住主角數字）
-          <div class={`range-tip ${sel?.fading ? 'fading' : ''}`} data-testid="range-tip" role="status" style={{ top: 'var(--s-1)', transform: 'translateX(-50%)' }}>
-            <span class="range-dates">{shortDate(rr.fromDate)} – {shortDate(rr.toDate)}<span class="range-days">・{rr.days} 個交易日</span></span>
-            <span class={`range-chg ${rr.dir}`}>
-              {arrow(rr.abs)} {fd(Math.abs(rr.abs))} ({rr.pct === null ? '—' : `${rr.pct > 0 ? '+' : rr.pct < 0 ? '−' : ''}${Math.abs(rr.pct).toFixed(2)}%`})
-            </span>
-            <span class="range-basis-label">{basis ? RANGE_BASIS_NAME[basis] : ''}</span>
-          </div>
-        ) : null}
       </div>
       {caption || win?.truncated ? (
         <div class="chart-caption" data-testid="hero-coverage">{win?.truncated ? `${windowCoverageNote(win)}。` : ''}{caption}</div>
       ) : null}
+      {/* 區間結果的朗讀（畫面上寫在期間漲跌那一列） */}
+      <p class="sr-only" aria-live="polite">{rr ? `區間 ${rangeEndLabel(rr.fromDate, win!.dates)} 到 ${rangeEndLabel(rr.toDate, win!.dates)}，${intraday ? '' : `${rr.days} 個交易日，`}${rangeWord} ${fd(Math.abs(rr.abs))}，報酬率 ${rangePct}${basis ? `（${RANGE_BASIS_NAME[basis]}）` : ''}` : ''}</p>
       <PeriodSelector value={period} onChange={onPeriod} label={periodsLabel ?? '走勢期間'} periods={periods} testid={periodsTestid} />
       {onBasis && basis ? (
         <div class="range-basis" data-testid="range-basis">

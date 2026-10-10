@@ -230,15 +230,16 @@ describe('共用版面樣式（styles/*.css）', () => {
     expect(empty).toContain('text-align: left');
     expect(rule(global, '.empty.compact .ico')).toContain('width: 1.25rem');
   });
-  it('日期工程師要的小修：資料日列緊接狀態列、階段前綴主色、走勢圖 SVG 文字 13px（2026-10 改版：最小字級 12、每頁 4 種字級）；區間提示框不再往上翻（HeroChart 以 inline top 定位）', () => {
+  it('日期工程師要的小修：資料日列緊接狀態列、階段前綴主色、走勢圖 SVG 文字 13px（2026-10 改版：最小字級 12、每頁 4 種字級）；區間結果不用浮框（2026-10-10）', () => {
     expect(rule(global, '.asof-line')).toContain('margin-top: 0');
     expect(rule(global, '.stage-prefix')).toContain('color: var(--text-1)');
     const svgText = rule(global, '.chart-hilo text, .chart-dates text');
     expect(svgText).toContain('font-size: 13px');
     expect(svgText).toContain('fill: var(--text-2)');
-    const tip = rule(global, '.range-tip');
-    expect(tip).not.toContain('-100%');
-    expect(tip).not.toMatch(/top: calc\(-1/);
+    expect(global).not.toContain('.range-tip');
+    expect(rule(global, '.hero-change.range')).toContain('flex-wrap: nowrap');
+    const hero = readFileSync(new URL('../components/HeroChart.tsx', import.meta.url), 'utf8');
+    expect(hero).not.toContain('range-tip');
     // 卡片容器用 clip：hidden 會讓裡面的 sticky 表頭黏不住（與 .ev-list、.cd-wrap 同一個做法）
     expect(global).toContain('.card.flush { overflow: clip; }');
   });

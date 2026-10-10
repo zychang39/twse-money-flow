@@ -89,7 +89,7 @@ test.describe('M5-2 手勢：電腦版', () => {
     await page.mouse.move(b.x + b.width * 0.8, y);
     await page.mouse.down();
     await page.mouse.move(b.x + b.width * 0.2, y, { steps: 10 });
-    await expect(page.getByTestId('range-tip')).toBeVisible();
+    await expect(page.getByTestId('range-readout')).toBeVisible();
     await page.mouse.up();
     await page.waitForTimeout(500);
     await expect(page).toHaveURL(/#\/stock\/2317$/);
@@ -153,7 +153,7 @@ test.describe('M5-2 手勢：手機', () => {
     const p1 = { x: b.x + b.width * 0.2, y }, p2 = { x: b.x + b.width * 0.7, y };
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...p1, id: 1 }, { ...p2, id: 2 }] });
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...p1, id: 1 }, { x: p2.x + 10, y, id: 2 }] });
-    await expect(page.getByTestId('range-tip')).toBeVisible();
+    await expect(page.getByTestId('range-readout')).toBeVisible();
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await cdp.detach();
     await page.waitForTimeout(600);

@@ -79,6 +79,15 @@ def check_sectors(out: Path) -> list[str]:
     fines = [set((stocks.get(c) or [[]])[0]) for c in IC_SUBSTRATE if c in stocks]
     if len(fines) == len(IC_SUBSTRATE) and not set.intersection(*fines):
         errs.append("欣興、南電、景碩沒有共同的細產業（IC 載板）")
+    flow_p = out / "sector_flows.json"
+    if flow_p.exists():
+        flows = _load(flow_p)
+        n = len(flows.get("weeks") or []) - 1
+        for layer in ("official", "fine"):
+            for gid, g in (flows.get(layer) or {}).items():
+                if len(g.get("f") or []) != n or len(g.get("n") or []) != n:
+                    errs.append(f"sector_flows.json {layer}/{gid} 週數 {len(g.get('f') or [])}（應為 {n}）")
+                    break
     return errs
 
 

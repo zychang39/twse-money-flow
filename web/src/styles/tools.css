@@ -27,15 +27,13 @@
 .sc-point.dashed, .sc-point.faint { fill: var(--text-2); }
 .sc-dot { fill: var(--surface-1); stroke: var(--text-1); stroke-width: 2; }
 .sc-cross { stroke: var(--text-2); stroke-width: 1; stroke-dasharray: 2 3; }
-.sc-tip {
-  position: absolute; top: 0; z-index: 2; transform: translateX(var(--s-2)); min-width: 9rem; max-width: 13rem;
-  padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); background: var(--surface-3); box-shadow: var(--shadow-float);
-  pointer-events: none; /* M3：數字不放在半透明玻璃上 */
-  font-size: var(--fs-caption); line-height: var(--lh-caption);
-}
-.sc-tip.left { transform: translateX(calc(-100% - var(--s-2))); }
-.sc-tip-row { display: flex; justify-content: space-between; gap: var(--s-3); white-space: nowrap; }
-.sc-tip-row .num { font-weight: var(--fw-medium); }
+/* 讀值（2026-10-10）：不用浮框，查看時面板標題列換成該日數值（同字級）；.sc-tip 只屬於個股 K 線圖（stock.css），這裡不再定義 */
+.sc-read { fill: var(--text-1); font-size: var(--fs-caption); font-variant-numeric: tabular-nums; }
+.sc-read-date { font-weight: var(--fw-semibold); }
+.sc-read-label { fill: var(--text-2); }
+.sc-read-v { font-weight: var(--fw-semibold); }
+.sc-read-v.up { fill: var(--up); }
+.sc-read-v.down { fill: var(--down); }
 
 /* ---------- 法人買賣超報表 ---------- */
 .tool-page .page-head .title { text-wrap: balance; }

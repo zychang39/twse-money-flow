@@ -14,6 +14,8 @@
 .br-bar .dbar, .br-bar .pbar { height: 0.75rem; } /* 密集列的橫條粗一點（12px），長短一眼可比 */
 .br-bar .dbar-mid { top: -0.25rem; bottom: -0.25rem; }
 .ui-row.br-static { cursor: default; }
+/* 只開面板的列（族群大戶流向）：按鈕外觀與連結列相同 */
+.ui-row.br-btn { width: 100%; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 
 /* 期間：兩個滑桿（起日、迄日），一格＝一次持股揭露；點擊區域至少 44pt */
 .eb-sliders { display: grid; gap: var(--s-1); margin-top: var(--s-3); }

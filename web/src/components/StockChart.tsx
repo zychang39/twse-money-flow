@@ -4,6 +4,7 @@
  * - Y 軸依資料範圍自動縮放、整數刻度，標籤在圖右側的軸欄（不壓線）；X 軸只標起訖日期。
  * - 手勢：觸控長按（0.3 秒）顯示十字線讀值（開高低收、量），手指移動跟著走；兩指＝區間報酬（兩點的漲跌與報酬率）。
  *   滑鼠：移動＝十字線；按住拖曳＝區間報酬。鍵盤：左右鍵逐根、Esc 恢復。放開後區間結果保留 2 秒再淡出。
+ *   2026-10-10：區間結果不用浮框，寫在「所選期間漲跌」那一列（1D 沒有這一列 → 當日漲跌列），兩端日期標在標線下方（與折線圖一致）。
  * - prefers-reduced-motion：不做任何動畫（本元件本來就沒有路徑變形動畫）。
  */
 import type { ComponentChildren } from 'preact';
@@ -14,7 +15,11 @@ import { type ChartSeries, barChange, niceTicks, periodChangeAt, priceExtent } f
 import { RANGE_HOLD_MS, countDatesBetween, rangeReturn, shortDate } from '../lib/rangeReturn';
 import { fmtLotsUnit, fmtPrice, md, numberFormat } from '../lib/format';
 import { Signed } from './ui';
-import { PeriodSelector } from './HeroChart';
+import { PeriodSelector, rangeLabelXs } from './HeroChart';
+import { textWidth } from '../lib/chartLabels';
+import { makeCalendar } from '../lib/tradingCalendar';
+import { loadMeta } from '../data/api';
+import { useAsync } from '../hooks';
 
 const KIND_NAME: Record<ChartSeries['kind'], string> = { daily: '日 K', weekly: '週 K', monthly: '月 K', quarterly: '季 K', close: '收盤折線', intraday: '5 分 K' };
 const PRICE_H = 192;
@@ -58,6 +63,8 @@ export function StockChart({ series, candle, period, onPeriod, periods, adjLabel
   today?: { abs: number; pct: number | null; date: string; close?: number } | null;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const meta = useAsync(loadMeta, []);
+  const calendar = useMemo(() => (meta.data ? makeCalendar(meta.data.calendar) : null), [meta.data]);
   const [w, setW] = useState(370);
   const [scrub, setScrub] = useState<number | null>(null);
   const [sel, setSel] = useState<{ a: number; b: number; live: boolean; fading: boolean } | null>(null);
@@ -216,8 +223,19 @@ export function StockChart({ series, candle, period, onPeriod, periods, adjLabel
     } else if (e.key === 'Escape' || e.key === 'Enter') setScrub(null);
   };
 
+  // 相隔交易日數：日 K、盤中數 K 棒的日期；週 K 以上用交易日曆（2026-10-10 修正：週 K 的 K 棒數是週數，不是交易日數）
+  const perBar = series?.kind === 'daily' || series?.kind === 'intraday';
   const rr = sel && series ? rangeReturn(series.bars.map((b) => b.t), series.bars.map((b) => b.c), sel.a, sel.b,
-    (a, b) => countDatesBetween([...new Set(series.bars.map((x) => x.t.slice(0, 10)))], a.slice(0, 10), b.slice(0, 10)) || 0) : null;
+    (a, b) => (!perBar && calendar ? calendar.tradingDaysBetween(a.slice(0, 10), b.slice(0, 10))
+      : countDatesBetween([...new Set(series.bars.map((x) => x.t.slice(0, 10)))], a.slice(0, 10), b.slice(0, 10)) || 0)) : null;
+
+  // 區間結果（寫在期間漲跌那一列；朗讀用下方的 aria-live）
+  const rangeRow = rr ? (
+    <>
+      <Signed v={rr.abs} digits={priceDigits(rr.toValue)} kind="arrow" pct={rr.pct} />
+      <span class="caption" data-testid="range-caption">{intraday ? '區間' : `區間 ${rr.days} 個交易日`}</span>
+    </>
+  ) : null;
 
   // ---------- 繪圖
   const priceText = bar ? fmtPrice(bar.c) : today?.close !== undefined ? fmtPrice(today.close) : '—';
@@ -231,13 +249,21 @@ export function StockChart({ series, candle, period, onPeriod, periods, adjLabel
         <span class="hero" aria-live="off" data-testid="stock-price">{priceText}</span>
         {adjLabel ? <span class="basis-tag" data-testid="basis-tag">還原</span> : null}
       </div>
-      <div class="hero-change" data-testid="hero-change">
-        {dayChg ? <Signed v={dayChg.abs} digits={priceDigits(bar?.c ?? 0)} kind="arrow" pct={dayChg.pct} /> : <span>—</span>}
-        <span class="caption" data-testid="hero-change-date">{scrub === null && today && series?.kind !== 'intraday' ? md(today.date) : bar ? label(bar.t) : ''}</span>
+      <div class={`hero-change ${rr && period === '1D' ? 'range' : ''}`} data-testid={rr && period === '1D' ? 'range-readout' : 'hero-change'}>
+        {rr && period === '1D' ? rangeRow : (
+          <>
+            {dayChg ? <Signed v={dayChg.abs} digits={priceDigits(bar?.c ?? 0)} kind="arrow" pct={dayChg.pct} /> : <span>—</span>}
+            <span class="caption" data-testid="hero-change-date">{scrub === null && today && series?.kind !== 'intraday' ? md(today.date) : bar ? label(bar.t) : ''}</span>
+          </>
+        )}
       </div>
-      {period === '1D' ? null : <div class="hero-change second" data-testid="hero-period-change">
-        {perChg ? <Signed v={perChg.abs} digits={priceDigits(bar?.c ?? 0)} kind="arrow" pct={perChg.pct} /> : <span>—</span>}
-        <span class="caption">{PERIOD_LABEL[period]}{scrub !== null && bar ? `至 ${axisLabel(bar.t, intraday)}` : ''}</span>
+      {period === '1D' ? null : <div class={`hero-change second ${rr ? 'range' : ''}`} data-testid={rr ? 'range-readout' : 'hero-period-change'}>
+        {rr ? rangeRow : (
+          <>
+            {perChg ? <Signed v={perChg.abs} digits={priceDigits(bar?.c ?? 0)} kind="arrow" pct={perChg.pct} /> : <span>—</span>}
+            <span class="caption">{PERIOD_LABEL[period]}{scrub !== null && bar ? `至 ${axisLabel(bar.t, intraday)}` : ''}</span>
+          </>
+        )}
       </div>}
       <div ref={wrapRef} class="sc-wrap chart-wrap" style={{ height: `${svgH / 16}rem` }} tabIndex={n ? 0 : -1} role="img"
         aria-label={`${summary}。長按或用左右鍵查看每根的開高低收。`} data-points={n} data-from={series?.bars[0]?.t}
@@ -283,8 +309,17 @@ export function StockChart({ series, candle, period, onPeriod, periods, adjLabel
               const hgt = Math.max(1, (b.v / geo.vmax) * VOL_H);
               return <rect key={`v${i}`} x={geo.x(i) - Math.max(0.5, geo.slot * 0.32)} y={volTop + VOL_H - hgt} width={Math.max(1, geo.slot * 0.64)} height={hgt} class={`sc-vol ${b.c >= (b.o ?? b.prev ?? b.c) ? 'up' : 'down'} ${i === (scrub ?? last) ? 'cur' : ''}`} />;
             }) : null}
-            <text x={0} y={dateY} text-anchor="start" class="sc-axis">{axisLabel(series.bars[0].t, intraday, oneDay)}</text>
-            <text x={plotW} y={dateY} text-anchor="end" class="sc-axis">{axisLabel(series.bars[last].t, intraday, oneDay)}</text>
+            {rr ? (() => {
+              // 區間：兩端日期標在各自的標線下方（取代起訖日期；太近時左右推開）
+              const t = [axisLabel(rr.fromDate, intraday, oneDay), axisLabel(rr.toDate, intraday, oneDay)];
+              const xs = rangeLabelXs(geo.x(rr.from), geo.x(rr.to), textWidth(t[0], 13), textWidth(t[1], 13), 0, plotW);
+              return xs.map((x, k) => <text key={k} x={x} y={dateY} text-anchor="middle" class="sc-axis" data-testid="range-date">{t[xs.length === 1 ? 0 : k]}</text>);
+            })() : (
+              <>
+                <text x={0} y={dateY} text-anchor="start" class="sc-axis">{axisLabel(series.bars[0].t, intraday, oneDay)}</text>
+                <text x={plotW} y={dateY} text-anchor="end" class="sc-axis">{axisLabel(series.bars[last].t, intraday, oneDay)}</text>
+              </>
+            )}
             {rr ? (
               <g class={sel?.fading ? 'sc-fade' : ''} data-testid="range-marks">
                 <rect x={geo.x(rr.from)} y={0} width={Math.max(0, geo.x(rr.to) - geo.x(rr.from))} height={PRICE_H} class="range-band" />
@@ -307,12 +342,6 @@ export function StockChart({ series, candle, period, onPeriod, periods, adjLabel
             {bar.o !== null && bar.h !== null && bar.l !== null ? <span>開 {fmtPrice(bar.o)}  高 {fmtPrice(bar.h)}  低 {fmtPrice(bar.l)}  收 {fmtPrice(bar.c)}</span> : <span>收 {fmtPrice(bar.c)}</span>}
           </div>
         ) : null}
-        {rr ? (
-          <div class={`sc-tip ui-foot ${sel?.fading ? 'sc-fade' : ''}`} role="status" data-testid="range-tip">
-            <span>{axisLabel(rr.fromDate, intraday)} – {axisLabel(rr.toDate, intraday)}{intraday ? '' : `・${rr.days} 個交易日`}</span>
-            <span><Signed v={rr.abs} digits={priceDigits(rr.toValue)} kind="arrow" />  <Signed v={rr.pct} digits={2} unit="%" /></span>
-          </div>
-        ) : null}
       </div>
       {series && (series.ma20.some((v) => v !== null) || series.baseLine) ? (
         <div class="sc-legend ui-foot ui-muted" aria-hidden="true">
@@ -321,6 +350,7 @@ export function StockChart({ series, candle, period, onPeriod, periods, adjLabel
           <span>{KIND_NAME[series.kind]}</span>
         </div>
       ) : null}
+      <p class="sr-only" aria-live="polite">{rr ? `區間 ${axisLabel(rr.fromDate, intraday)} 到 ${axisLabel(rr.toDate, intraday)}，${intraday ? '' : `${rr.days} 個交易日，`}${rr.abs > 0 ? '上漲' : rr.abs < 0 ? '下跌' : '持平'} ${fmtPrice(Math.abs(rr.abs))}${rr.pct === null ? '' : `，報酬率 ${Math.abs(rr.pct).toFixed(2)}%`}` : ''}</p>
       <PeriodSelector value={period} onChange={onPeriod} label="股價走勢期間" periods={periods} testid="stock-periods" />
       {footnote ? <div class="sc-foot ui-foot ui-muted" data-testid="data-time">{footnote}</div> : null}
     </div>

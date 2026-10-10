@@ -20,7 +20,7 @@ export interface BarRowProps {
   value: ComponentChildren;
   /** 數值下方一行（例：「新增」「佔均額 4.8%」） */
   valueSub?: ComponentChildren;
-  /** 有 href 才可點（海外持股不連到個股頁） */
+  /** 有 href 才是連結（海外持股不連到個股頁）；只有 onClick 時是按鈕（開面板） */
   href?: string;
   onClick?: () => void;
   /** 整列的朗讀文字 */
@@ -47,5 +47,7 @@ export function BarRow({ name, sub, bar, value, valueSub, href, onClick, label, 
     </>
   );
   if (href) return <a class="ui-row ui-tap br-row" href={href} onClick={onClick} data-testid={testid} aria-label={label}>{inner}</a>;
+  // 沒有連結、只開面板（族群大戶流向的列）：按鈕
+  if (onClick) return <button type="button" class="ui-row ui-tap br-row br-btn" onClick={onClick} data-testid={testid} aria-label={label}>{inner}</button>;
   return <div class="ui-row br-row br-static" data-testid={testid} aria-label={label}>{inner}</div>;
 }

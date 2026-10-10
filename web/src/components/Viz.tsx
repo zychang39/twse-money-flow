@@ -90,7 +90,7 @@ export function ScoreRing({ value, size = 64, stroke = 4, label, className = '',
 
 /** 法人淨買賣超柱狀圖：淨買超紅、淨賣超綠（台股慣例）；最近 5 日不透明，其餘略淡。
  * 座標軸與數值標籤都帶單位（預設張，完整的千分位整數）；下方是日期軸（首末日期 M/D）。
- * 手指拖曳、滑鼠移動或方向鍵可逐日查看日期與數值；手指放開後讀值保留 3 秒。
+ * 手指拖曳、滑鼠移動或方向鍵可逐日查看日期與數值（顯示在圖下方的說明列，不用浮框）；手指放開後讀值保留 3 秒。
  * 全部數值 ≥ 0（例：營收年增率、EPS 都是正的）時 y 軸從 0 開始；有負值才上下對稱。 */
 export function NetBars({ values, dates, label, height = 120, unit = '張', format = fmtLotsUnit, caption, words = ['淨買超', '淨賣超'], emphasizeRecent = true, minZero, neutral = false }: {
   values: (number | null)[];
@@ -162,14 +162,6 @@ export function NetBars({ values, dates, label, height = 120, unit = '張', form
             return <rect key={i} x={(i + off) * 6 + 1} y={v >= 0 ? zeroY - bh : zeroY} width={4} height={bh} rx={1.5} fill={neutral ? 'var(--text-2)' : dirColor(v)} opacity={hover === null ? (!emphasizeRecent || i >= n - 5 ? 1 : 0.7) : i === hover ? 1 : 0.45} />;
           })}
         </svg>
-        {hover !== null ? (
-          <div class={`nb-tip ${hover > n / 2 ? 'left' : ''}`} style={{ left: `${((hover + off + 0.5) / slots) * 100}%` }} role="status">
-            <span class="caption muted">{dates?.[hover] ?? `第 ${hover + 1} 日`}</span>
-            <span class={`num ${neutral ? '' : dirClass(hv)}`}>
-              {hv === null || hv === undefined ? '無資料' : neutral ? format(hv, false) : `${hv > 0 ? `▲ ${words[0]} ` : hv < 0 ? `▼ ${words[1]} ` : ''}${format(hv, false)}`}
-            </span>
-          </div>
-        ) : null}
       </div>
       {dates?.length ? (
         <div class="nb-dates" aria-hidden="true">
@@ -178,8 +170,16 @@ export function NetBars({ values, dates, label, height = 120, unit = '張', form
         </div>
       ) : null}
       </div>
-      <figcaption class="row between wrap caption muted" style={{ marginTop: 'var(--s-1)', gap: '0 var(--s-3)' }}>
-        <span>{caption ?? `${n} 個交易日`}</span>
+      <figcaption class="row between wrap caption muted" style={{ marginTop: 'var(--s-1)', gap: '0 var(--s-3)' }} aria-live="polite">
+        {/* 讀值（2026-10-10）：不用浮框，查看時說明列換成該日的日期與數值 */}
+        {hover !== null ? (
+          <span data-testid="nb-read">
+            {dates?.[hover] ?? `第 ${hover + 1} 日`}{' '}
+            <span class={`num ${neutral ? '' : dirClass(hv)}`}>
+              {hv === null || hv === undefined ? '無資料' : neutral ? format(hv, false) : `${hv > 0 ? `▲ ${words[0]} ` : hv < 0 ? `▼ ${words[1]} ` : ''}${format(hv, false)}`}
+            </span>
+          </span>
+        ) : <span>{caption ?? `${n} 個交易日`}</span>}
         {neutral ? null : <span style={{ whiteSpace: 'nowrap' }}><span class="up" aria-hidden="true">■</span> 紅色＝{words[0]}{' '}<span class="down" aria-hidden="true">■</span> 綠色＝{words[1]}</span>}
       </figcaption>
     </figure>
