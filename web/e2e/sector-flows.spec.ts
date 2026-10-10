@@ -26,8 +26,11 @@ test('大戶流向：分頁切換、一頁看完（清單與「全部」按鈕�
   const more = page.getByTestId('flow-all');
   const lastBox = (await ((await more.count()) ? more : rows.last()).boundingBox())!;
   expect(lastBox.y + lastBox.height).toBeLessThanOrEqual(dockTop + 1);
-  // 流出分頁
-  await page.getByTestId('flow-dir').getByRole('button', { name: /流出/ }).click();
+  // 流出分頁（allTextContents 不會等待：先等分頁切換、第一列換成流出，再讀全部）
+  const outBtn = page.getByTestId('flow-dir').getByRole('button', { name: /流出/ });
+  await outBtn.click();
+  await expect(outBtn).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('flow-list').getByTestId('flow-row').first().locator('.fl-v')).toHaveText(/^−/);
   const outs = await page.getByTestId('flow-list').getByTestId('flow-row').locator('.fl-v').allTextContents();
   for (const v of outs) expect(v).toMatch(/^−[\d,.]+ 億$/);
   // 4 週：比較區間跟著變
