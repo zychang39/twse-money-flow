@@ -2032,20 +2032,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-09T09:33:16+08:00",
-   "by_source": {
-    "tdcc_full": 9675
-   },
-   "chained": true,
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 9675,
-   "requests": 542,
-   "task": "holders_backfill"
-  },
-  {
    "at": "2026-10-09T09:40:26+08:00",
    "by_source": {},
    "failed": [],
@@ -2644,6 +2630,14 @@
    "rows": 0,
    "task": "kbar",
    "total": 2369
+  },
+  {
+   "at": "2026-10-10T16:03:44+08:00",
+   "failed": [],
+   "ok": 5,
+   "pending": [],
+   "requests": 30,
+   "task": "periodic"
   }
  ],
  "sources": {
@@ -2659,11 +2653,11 @@
   },
   "cbc_money": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T15:30:52+08:00",
-   "last_message": null,
+   "last_attempt": "2026-10-10T16:01:37+08:00",
+   "last_message": "本月已存在",
    "last_status": "ok",
    "last_success": "2026-08-01",
-   "last_success_at": "2026-10-03T15:30:52+08:00",
+   "last_success_at": "2026-10-10T16:01:37+08:00",
    "rows": 472,
    "validation": "ok"
   },
@@ -2689,12 +2683,12 @@
   },
   "investor_conference": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T15:31:53+08:00",
+   "last_attempt": "2026-10-10T16:03:44+08:00",
    "last_message": null,
    "last_status": "ok",
    "last_success": "2026-11-01",
-   "last_success_at": "2026-10-03T15:31:53+08:00",
-   "rows": 3,
+   "last_success_at": "2026-10-10T16:03:44+08:00",
+   "rows": 5,
    "validation": "ok"
   },
   "mops_revenue": {
@@ -2747,12 +2741,12 @@
   },
   "tdcc_holders": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-03T15:30:47+08:00",
+   "last_attempt": "2026-10-10T16:01:31+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-02",
-   "last_success_at": "2026-10-03T15:30:47+08:00",
-   "rows": 57205,
+   "last_success": "2026-10-08",
+   "last_success_at": "2026-10-10T16:01:31+08:00",
+   "rows": 57307,
    "validation": "ok"
   },
   "tpex_attention": {
@@ -2826,11 +2820,12 @@
    "validation": "ok"
   },
   "tpex_delisted": {
-   "consecutive_failures": 1,
-   "last_attempt": "2026-10-03T15:31:35+08:00",
-   "last_message": "HTTP 520：https://www.tpex.org.tw/www/zh-tw/company/deListed?date=2015&reason=-1&response=json",
-   "last_status": "failed",
-   "validation": "failed"
+   "consecutive_failures": 0,
+   "last_attempt": "2026-10-10T16:03:23+08:00",
+   "last_message": null,
+   "last_status": "ok",
+   "last_success_at": "2026-10-10T16:03:23+08:00",
+   "validation": "ok"
   },
   "tpex_disposition": {
    "consecutive_failures": 0,
@@ -3326,6 +3321,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-10T03:37:41+08:00",
+ "updated_at": "2026-10-10T16:03:44+08:00",
  "version": 1
 }
