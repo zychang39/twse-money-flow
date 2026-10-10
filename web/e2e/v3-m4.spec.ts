@@ -18,7 +18,7 @@ async function chartBox(page: Page, sel = '.chart-wrap') {
   return (await chart.boundingBox())!;
 }
 
-test('兩指：兩條垂直標線＋上方兩個日期、漲跌、報酬率、交易日數；手指移動即時更新；放開保留約 2 秒再淡出', async ({ page }) => {
+test('兩指：兩條垂直標線＋標線下方兩個日期；漲跌、報酬率、交易日數寫在期間漲跌那一列（2026-10-10：不用浮框）；手指移動即時更新；放開保留約 2 秒再淡出', async ({ page }) => {
   await page.goto('#/stock/2330');
   const b = await chartBox(page);
   const y = b.y + b.height / 2;
@@ -27,11 +27,19 @@ test('兩指：兩條垂直標線＋上方兩個日期、漲跌、報酬率、�
   let f2 = { x: b.x + b.width * 0.6, y, id: 2 };
   await touch(cdp, 'touchStart', [f1]);
   await touch(cdp, 'touchStart', [f1, f2]);
-  const tip = page.getByTestId('range-tip');
+  const tip = page.getByTestId('range-readout');
   await expect(tip).toBeVisible();
   await expect(page.locator('[data-testid="range-marks"] line')).toHaveCount(2);
-  await expect(tip).toContainText(/\d+\/\d+ – [\d/]+・\d+ 個交易日/);
-  await expect(tip).toContainText(/[▲▼]\s?[\d,.]+.*[+−]?[\d.]+%/);
+  // 圖上沒有浮框；兩端日期在標線下方（取代起訖日期）
+  await expect(page.locator('.range-tip')).toHaveCount(0);
+  await expect(page.getByTestId('range-date')).toHaveCount(2);
+  await expect(page.getByTestId('range-date').first()).toHaveText(/^\d{4}\/\d+\/\d+$/);
+  // 個股頁：區間結果在主角數字下方第二列（原本的所選期間漲跌）
+  await expect(page.getByTestId('hero-period-change')).toHaveCount(0);
+  await expect(tip).toContainText(/區間 \d+ 個交易日/);
+  await expect(tip).toContainText(/[▲▼]\s?[\d,.]+ \([\d.]+%\)/);
+  const tipBox = (await tip.boundingBox())!;
+  expect(tipBox.y + tipBox.height).toBeLessThanOrEqual(b.y + 1); // 在圖表上方，不蓋住走勢線
   const dateBefore = await page.getByTestId('hero-change-date').first().textContent();
   const first = await tip.textContent();
   const days1 = Number(first!.match(/(\d+) 個交易日/)![1]);
@@ -62,7 +70,7 @@ test('單指長按是查價（沒有區間；M3：折線長按 0.2 秒，主角�
   await touch(cdp, 'touchMove', [{ ...p, x: p.x + 3 }]);
   await page.waitForTimeout(80);
   await expect(page.getByTestId('hero-change').first()).toContainText(/\d{4}\/\d+\/\d+/);
-  await expect(page.getByTestId('range-tip')).toHaveCount(0);
+  await expect(page.getByTestId('range-readout')).toHaveCount(0);
   await touch(cdp, 'touchEnd', []);
   await cdp.detach();
 });
@@ -84,7 +92,7 @@ test('在可換股的清單中，兩指左右移動不會換股', async ({ page 
     f2 = { ...f2, x: f2.x + 12 };
     await touch(cdp, 'touchMove', [f1, f2]);
   }
-  await expect(page.getByTestId('range-tip')).toBeVisible();
+  await expect(page.getByTestId('range-readout')).toBeVisible();
   await touch(cdp, 'touchEnd', []);
   await page.waitForTimeout(700);
   await expect(page).toHaveURL(/#\/stock\/2317$/);
@@ -98,7 +106,7 @@ test('桌機：按住拖曳選出區間；價格基準在 ⋯ 切換（記住；
   await page.mouse.move(b.x + b.width * 0.1, y);
   await page.mouse.down();
   await page.mouse.move(b.x + b.width * 0.5, y, { steps: 6 });
-  const tip = page.getByTestId('range-tip');
+  const tip = page.getByTestId('range-readout');
   await expect(tip).toBeVisible();
   await page.mouse.up();
   await expect(tip).toBeVisible();

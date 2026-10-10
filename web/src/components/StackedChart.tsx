@@ -3,14 +3,16 @@
  * - 面板種類：bars（有正負的柱狀：紅＝正／買超、綠＝負／賣超）、lines（一條或多條線；多條時以實線／虛線區分，
  *   面板標題列右側有圖例，不靠顏色辨識）。
  * - 座標軸刻度取整（1、2、2.5、5 × 10ⁿ）；柱狀圖上下對稱、以 0 為中線。
- * - 互動：手指拖曳、滑鼠移動或左右方向鍵移動十字線，上方提示框列出該日所有面板的數值；Esc／移開恢復。
+ * - 互動：手指拖曳、滑鼠移動或左右方向鍵移動十字線；Esc／移開恢復。讀值不用浮框（2026-10-10：浮框蓋住上方面板、
+ *   文字超出框外）：查看時每個面板的標題列換成「該日的數值」（同一列、同字級），第一個面板前面加日期；放開後換回標題。
+ * - 月份刻度：相鄰兩個標籤太近（1 年週資料）時隔月標示，不擠在一起。
  * - 無障礙：整張圖是一個可聚焦的 role=img，說明文字含期間與各面板名稱；逐日數值請看下方的表格。
  * - 資料不足：前後都缺值的孤立點（含整張只有 1 點）畫成單點標記，只有 1 點時在下方標出日期；說明文字由頁面提供。
  */
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { niceScale } from '../lib/scale';
 import { segments } from '../lib/series';
-import { dirClass } from '../lib/format';
+import { textWidth } from '../lib/chartLabels';
 import { useReadout } from './Viz';
 
 export interface ChartSeries {
@@ -41,13 +43,40 @@ export interface ChartPanel {
 const AXIS_W = 44; // 左側座標軸寬度
 const PAD_R = 8;
 const GAP = 34; // 面板之間：標題列＋間距
+const FS = 13; // 標題列與刻度的字級（--fs-foot）
+const TICK_GAP = 8; // 月份標籤之間至少留的空白
 
-function monthTicks(dates: string[]): { i: number; label: string }[] {
+/** 月份刻度；x 為標籤中心。相鄰標籤會重疊時略過後面那個（1 年週資料約隔月標示）。 */
+export function monthTicks(dates: string[], xAt: (i: number) => number = (i) => i, minX = -Infinity, maxX = Infinity): { i: number; label: string }[] {
   const out: { i: number; label: string }[] = [];
+  let right = -Infinity;
   for (let i = 1; i < dates.length; i++) {
-    if (dates[i].slice(5, 7) !== dates[i - 1].slice(5, 7)) out.push({ i, label: `${Number(dates[i].slice(5, 7))}月` });
+    if (dates[i].slice(5, 7) === dates[i - 1].slice(5, 7)) continue;
+    const label = `${Number(dates[i].slice(5, 7))}月`;
+    const half = textWidth(label, FS) / 2;
+    const x = xAt(i);
+    if (x - half < Math.max(minX, right + TICK_GAP) || x + half > maxX) continue;
+    out.push({ i, label });
+    right = x + half;
   }
   return out;
+}
+
+const WEEKDAY = '日一二三四五六';
+/** 讀值列的日期：2026/4/10（五） */
+export function readDate(iso: string): string {
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`);
+  return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}（${WEEKDAY[d.getUTCDay()]}）`;
+}
+
+/** 查看某一天時，面板標題列換成的文字：各線「名稱 數值」，第一個面板前面加日期 */
+export function readoutParts(p: ChartPanel, i: number): { label: string; text: string; dir: 'up' | 'down' | '' }[] {
+  const f = p.tipFormat ?? p.format;
+  return p.series.map((s) => {
+    const v = s.values[i];
+    const ok = v !== null && v !== undefined && Number.isFinite(v);
+    return { label: s.label, text: ok ? f(v) : '—', dir: p.kind === 'bars' && ok ? (v > 0 ? 'up' : v < 0 ? 'down' : '') : '' };
+  });
 }
 
 export function StackedChart({ dates, panels, label }: { dates: string[]; panels: ChartPanel[]; label: string }) {
@@ -95,7 +124,6 @@ export function StackedChart({ dates, panels, label }: { dates: string[]; panels
     } else if (e.key === 'Escape') read.clear();
   };
 
-  const months = monthTicks(dates);
   return (
     <figure class="stacked">
       <div ref={wrapRef} class="stacked-plot" tabIndex={0} role="img"
@@ -110,8 +138,18 @@ export function StackedChart({ dates, panels, label }: { dates: string[]; panels
             const yOf = (v: number) => top + p.height - ((v - lo) / (hi - lo || 1)) * p.height;
             return (
               <g key={p.id}>
-                <text class="sc-title" x={AXIS_W} y={top - 12}>{p.title}</text>
-                {p.series.length > 1 ? (
+                {hover !== null ? (
+                  // 查看中：標題列換成該日的數值（第一個面板前面加日期），不另開浮框
+                  <text class="sc-read" x={AXIS_W} y={top - 12} data-testid="sc-read">
+                    {pi === 0 ? <tspan class="sc-read-date">{readDate(dates[hover])}</tspan> : null}
+                    {readoutParts(p, hover).map((r, k) => (
+                      <tspan key={k} dx={pi === 0 && k === 0 ? 10 : undefined}>
+                        {k ? '・' : ''}<tspan class="sc-read-label">{r.label} </tspan><tspan class={`sc-read-v ${r.dir}`}>{r.text}</tspan>
+                      </tspan>
+                    ))}
+                  </text>
+                ) : <text class="sc-title" x={AXIS_W} y={top - 12}>{p.title}</text>}
+                {p.series.length > 1 && hover === null ? (
                   // 圖例：標題列右側，以線條樣式區分（由右往左排）
                   <g class="sc-legend">
                     {p.series.slice().reverse().map((s, k) => {
@@ -155,25 +193,11 @@ export function StackedChart({ dates, panels, label }: { dates: string[]; panels
               </g>
             );
           })}
-          {hover !== null ? <line class="sc-cross" x1={xOf(hover)} x2={xOf(hover)} y1={tops[0] - 4} y2={y} /> : null}
-          {months.map((t) => <text key={t.i} class="sc-tick" x={AXIS_W + step * t.i} y={y + 16} text-anchor="middle">{t.label}</text>)}
+          {/* 十字線分段畫在每個面板內，不穿過標題列的讀值文字 */}
+          {hover !== null ? panels.map((p, pi) => <line key={p.id} class="sc-cross" x1={xOf(hover)} x2={xOf(hover)} y1={tops[pi] - 2} y2={tops[pi] + p.height + 2} />) : null}
+          {monthTicks(dates, (i) => AXIS_W + step * i, 0, w).map((t) => <text key={t.i} class="sc-tick" x={AXIS_W + step * t.i} y={y + 16} text-anchor="middle">{t.label}</text>)}
           {n === 1 ? <text class="sc-tick" x={xOf(0)} y={y + 16} text-anchor="middle">{`${Number(dates[0].slice(5, 7))}/${Number(dates[0].slice(8, 10))}`}</text> : null}
         </svg>
-        {hover !== null ? (
-          <div class={`sc-tip ${xOf(hover) > w / 2 ? 'left' : ''}`} style={{ left: `${xOf(hover)}px` }}>
-            <span class="caption muted">{dates[hover]}</span>
-            {panels.flatMap((p) => p.series.map((s) => {
-              const v = s.values[hover];
-              const f = p.tipFormat ?? p.format;
-              return (
-                <span key={`${p.id}-${s.key}`} class="sc-tip-row">
-                  <span class="muted">{s.label}</span>
-                  <span class={`num ${p.kind === 'bars' ? dirClass(v) : ''}`}>{v === null || !Number.isFinite(v) ? '—' : f(v)}</span>
-                </span>
-              );
-            }))}
-          </div>
-        ) : null}
       </div>
       {/* 鍵盤逐日移動時，讀出該日各面板的數值（圖本身是 role=img） */}
       <p class="sr-only" aria-live="polite">

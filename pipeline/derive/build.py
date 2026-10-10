@@ -482,6 +482,10 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
         written += 1
     summary = {"date": last_date, "columns": cols, "rows": rows}
     sector_report = sectormod.write_outputs(p, sec_res, out)
+    # 2026-10-10：族群大戶週流向（持股市值 ≥ 5,000 萬；探索 › 族群輪動 › 大戶流向）
+    from pipeline.derive import whaleflow
+
+    sector_report.update(whaleflow.write_output(p, ds.table("tdcc"), sec_layers, out))
     inferred = p.events[p.events["source"] == "inferred"] if not p.events.empty else p.events
     meta_extra = {
         "adjust_events": len(p.events),

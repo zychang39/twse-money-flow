@@ -163,6 +163,12 @@ holders:
     big_min: 400
     whale_min: 1000
   weeks: 52                 # 個股檔輸出的週數
+  # 族群大戶週流向（2026-10-10，探索 › 族群輪動 › 大戶流向；METHODOLOGY §4.7.7）
+  # 大戶＝持股市值 ≥ min_value 的集保戶；門檻以前一週收盤換算成股數，前後兩週用同一個門檻（不因股價漲跌升降級）
+  value_whale:
+    min_value: 50000000     # 5,000 萬元
+    weeks: 13               # 輸出最近幾週的流向（約一季）
+    max_share_change: 0.03  # 集保總股數單週變動超過 3%（除權、增資、減資）的那一週不計
   # 集保個股歷史查詢（backfill --source tdcc_history）：官方保存一年；逐檔逐週查詢，每次執行有請求上限
   history:
     codes: []               # 額外指定的股票

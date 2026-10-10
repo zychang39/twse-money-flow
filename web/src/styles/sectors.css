@@ -30,3 +30,28 @@
 .grp-edit-name { min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
 .grp-edit-seg { min-height: var(--tap); }
 .grp-edit-empty { padding: var(--s-3) var(--s-4); margin: 0; }
+
+/* 族群大戶流向（2026-10-10，SectorFlows.tsx）：一頁看完——層級＋期間同一列、流入／流出分頁、列數依螢幕高度 */
+.flow-ctrl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s-2); }
+.flow-ctrl .ui-seg { margin: 0; }
+[data-testid='flow-body'] { margin-top: var(--s-2); }
+[data-testid='flow-list'] { margin-top: var(--s-2); }
+/* 族群列：兩行（名稱｜流向；橫條｜另一個期間），數值欄固定寬 → 每列橫條軌道等長、同刻度 */
+.ui-row.fl-row {
+  grid-template-columns: minmax(0, 1fr) 5.75em; grid-template-areas: 'name v' 'bar sub';
+  align-items: center; column-gap: var(--row-gap); row-gap: 0.125rem;
+  width: 100%; min-height: var(--tap); padding: 0.375rem 0;
+  border: 0; background: none; color: inherit; font: inherit; text-align: left;
+}
+.fl-name { grid-area: name; min-width: 0; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fl-v { grid-area: v; justify-self: end; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text-1); }
+.fl-v.up { color: var(--up); }
+.fl-v.down { color: var(--down); }
+.fl-bar { grid-area: bar; display: block; }
+.fl-bar .pbar { height: 0.625rem; }
+.fl-sub { grid-area: sub; justify-self: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.flow-none { margin: 0; padding: var(--s-3) 0; }
+.flow-detail .netbars { margin-top: var(--s-3); }
+.flow-h3 { margin-top: var(--s-5); }
+.flow-detail .ui-list { margin-top: var(--s-2); }
+.flow-detail .ui-btn.block { margin-top: var(--s-4); }

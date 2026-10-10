@@ -336,8 +336,7 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 .nb-dates { grid-column: 2; position: relative; height: var(--lh-micro); margin-top: var(--s-1); font-size: var(--fs-micro); line-height: var(--lh-micro); color: var(--text-2); font-variant-numeric: tabular-nums; }
 .nb-dates span { position: absolute; top: 0; white-space: nowrap; }
 .nb-bars:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
-.nb-tip { position: absolute; top: 0; transform: translateX(0.5rem); display: flex; flex-direction: column; gap: 0.125rem; padding: var(--s-1) var(--s-2); border-radius: var(--r-sm); background: var(--surface-3); box-shadow: var(--shadow-card); font-size: var(--fs-caption); white-space: nowrap; pointer-events: none; z-index: 2; }
-.nb-tip.left { transform: translateX(calc(-100% - 0.5rem)); }
+[data-testid="nb-read"] .num { font-weight: var(--fw-medium); }
 .chart-wrap svg { display: block; width: 100%; overflow: visible; }
 .chart-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; transition: stroke var(--dur-slow) var(--ease-out); }
 .chart-glow { fill: none; stroke-width: 5; stroke-linejoin: round; opacity: var(--line-glow-opacity); transition: stroke var(--dur-slow) var(--ease-out); }
@@ -893,18 +892,16 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 /* 兩指區間報酬（v3 M4） */
 .range-band { fill: var(--text-1); opacity: 0.06; }
 .range-marks { transition: opacity var(--dur-slow) var(--ease-out, ease-out); }
-.range-marks.fading, .range-tip.fading { opacity: 0; }
-/* M1-9：提示框固定在圖表上緣內側（HeroChart 以 inline style 指定 top），不再往上翻到主角數字上（舊的 translateY(-100%) 已移除） */
-.range-tip { position: absolute; left: 50%; top: var(--s-1); transform: translateX(-50%); z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 0.125rem; min-width: 12rem; padding: var(--s-2) var(--s-3); border-radius: var(--r-md); background: var(--surface-3); box-shadow: var(--shadow-float); pointer-events: none; transition: opacity 0.3s ease-out; font-variant-numeric: tabular-nums; }
-.range-dates { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-1); white-space: nowrap; }
-.range-days { color: var(--text-2); }
-.range-chg { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); white-space: nowrap; }
-.range-chg.flat { color: var(--text-1); }
-.range-basis-label { font-size: var(--fs-micro); line-height: var(--lh-micro); color: var(--text-2); }
+.range-marks.fading { opacity: 0; }
+/* 2026-10-10：區間結果不再用浮框（蓋住走勢線），改寫在期間漲跌那一列；該列在區間中不換行（版面不跳動），說明過長以 … 截斷 */
+.hero-change.range { flex-wrap: nowrap; }
+.hero-change.range > span:first-child { flex: none; white-space: nowrap; }
+.hero-change.range .caption { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chart-range [data-testid="range-change"] { white-space: nowrap; }
 .range-basis { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-1) var(--s-2); margin-top: var(--s-2); }
 .range-seg { flex: none; }
 .range-seg button { min-height: 2rem; padding: 0 var(--s-3); font-size: var(--fs-caption); }
-@media (prefers-reduced-motion: reduce) { .range-tip, .range-marks { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .range-marks { transition: none; } }
 
 /* M5：價格基準標示（主角數字旁）與換股手勢區域 */
 .hero-row { display: flex; align-items: baseline; gap: var(--s-2); }

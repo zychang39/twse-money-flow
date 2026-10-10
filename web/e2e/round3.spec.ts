@@ -93,10 +93,14 @@ test('M2：點一列打開當天完整籌碼（含四個法人的買張、賣張
   const chart = page.getByRole('img', { name: /外資買賣超走勢/ });
   await chart.focus();
   await page.keyboard.press('ArrowLeft');
-  await expect(page.locator('.sc-tip')).toBeVisible();
-  await expect(page.locator('.sc-tip')).toContainText('買賣超');
-  await page.keyboard.press('Escape');
+  // 2026-10-10：讀值不用浮框，面板標題列換成該日數值（第一列前面加日期）；Esc 換回標題
+  const read = page.getByTestId('sc-read');
+  await expect(read.first()).toContainText(/\d{4}\/\d+\/\d+（.）/);
+  await expect(read.filter({ hasText: '買賣超' })).toHaveCount(1);
   await expect(page.locator('.sc-tip')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(read).toHaveCount(0);
+  await expect(page.locator('.sc-title', { hasText: '每日買賣超（張）' })).toHaveCount(1);
 });
 
 // ---------------------------------------------------------------- M3 籌碼結構（v3：全站統一分級，移除可調門檻）

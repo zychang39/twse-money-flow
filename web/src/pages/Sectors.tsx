@@ -3,6 +3,7 @@
  * 每列＝名稱｜成員數｜3 個月中位數｜名次與 20 日名次變化｜站上 60 日線比例條｜新觸發檔數，點列進族群頁。
  * 右上「＋」建立自訂族群（存在本機 IndexedDB，可備份還原）。細產業約 500 個族群，用虛擬捲動。
  * 舊網址 #/explore/sectors/{產業名稱} 由 SectorGroup 轉成族群 id。
+ * 2026-10-10：頁首分頁「報酬名次｜大戶流向」；大戶流向（持股市值 ≥ 5,000 萬的集保戶每週淨增減）在 SectorFlows.tsx，一頁看完。
  */
 import { useMemo, useState } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
@@ -19,9 +20,12 @@ import { navigate } from '../router';
 import SectorGroup from './SectorGroup';
 import '../styles/sectors.css';
 import { PageStale } from '../components/DataStatus';
+import { FlowView } from './SectorFlows';
 
 const LAYERS = ['official', 'fine', 'theme'] as const;
 const SORTS = ['rank', 'r1m', 'insti'] as const;
+const VIEWS = ['rank', 'flow'] as const;
+const VIEW_NAME = { rank: '報酬名次', flow: '大戶流向' } as const;
 type N = number | null;
 const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
@@ -53,6 +57,7 @@ function GroupRow({ r, sort }: { r: GroupListRow; sort: GroupSort }) {
 export function SectorsList() {
   const idx = useAsync(loadSectors, []);
   const custom = useDb(listGroups, []) ?? [];
+  const [view, setView] = useSegParam<(typeof VIEWS)[number]>(VIEWS, 'rank', 'view', 'sectors-view');
   const [layer, setLayer] = useSegParam<GroupLayer>(LAYERS, 'fine', 'layer', 'sectors-layer');
   const [sort, setSort] = useSegParam<GroupSort>(SORTS, 'rank', 'sort', 'sectors-sort');
   const [adding, setAdding] = useState(false);
@@ -80,8 +85,10 @@ export function SectorsList() {
   return (
     <div class="page">
       <TopBar back="/explore" actions={<button class="icon-btn" aria-label="建立自訂族群" onClick={() => setAdding(true)} data-testid="add-group"><IconPlus /></button>} />
-      <PageTitle title="族群輪動" sub={idx.data ? `資料至 ${md(idx.data.date)}・名次依成員近 3 個月報酬中位數（成員 ≥ ${idx.data.min_ranked} 檔）` : ' '} />
+      <PageTitle title="族群輪動" sub={view === 'flow' ? '大戶＝集保持股市值 ≥ 5,000 萬・單位億元' : idx.data ? `資料至 ${md(idx.data.date)}・名次依成員近 3 個月報酬中位數（成員 ≥ ${idx.data.min_ranked} 檔）` : ' '} />
       <PageStale />
+      <Seg options={VIEWS.map((v) => [v, VIEW_NAME[v]] as const)} value={view} onChange={setView} label="檢視" testid="sectors-view" />
+      {view === 'flow' ? <FlowView /> : <>
       <Seg options={LAYERS.map((l) => [l, LAYER_NAME[l]] as const)} value={layer} onChange={setLayer} label="層級" testid="layer-seg" />
       <Section title={LAYER_NAME[layer]} testid="groups-sec" info={
         <>
@@ -105,6 +112,7 @@ export function SectorsList() {
           <Button variant="plain" block onClick={() => setAdding(true)} testid="add-group-row">建立自訂族群</Button>
         ) : null}
       </Section>
+      </>}
       <Sheet open={adding} onClose={() => setAdding(false)} title="建立自訂族群">
         <form class="grp-form" onSubmit={(e) => { e.preventDefault(); void create(); }}>
           <label class="field">

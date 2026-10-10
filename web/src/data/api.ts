@@ -91,6 +91,8 @@ export const loadStockIntraday = (code: string) => getJson<import('./types').Sto
 
 /** M1.2 族群三層：清單與統計（含每檔的細產業、題材與報酬，自訂族群在前端計算）。 */
 export const loadSectors = () => getJson<import('./types').SectorsIndex>('sectors.json');
+/** 2026-10-10：族群大戶週流向（族群輪動 › 大戶流向） */
+export const loadSectorFlows = () => getJson<import('../lib/sectorFlows').SectorFlows>('sector_flows.json');
 export const loadSector = (id: string) => getJson<import('./types').SectorDetail>(`sectors/${encodeURIComponent(id)}.json`);
 /** M1.5 策略期間檢視（逐筆訊號、期間判定與組合、篩出與新觸發）。 */
 export const loadStrategyPack = (id: string) => getJson<import('./types').StrategyPack>(`strategy/${encodeURIComponent(id)}.json`);
