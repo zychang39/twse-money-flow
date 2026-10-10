@@ -403,3 +403,66 @@ def test_detail_payload_overseas_rows_and_pre_cutover_days() -> None:
     # 只有台股的 ETF：舊日子照常保留
     only_tw = etf.detail_payload(pd.concat([old, new[new["code"] == "2330"]], ignore_index=True), "00990A", "x")
     assert only_tw is not None and only_tw["dates"] == ["2026-10-06", "2026-10-07", "2026-10-08"]
+
+
+def _days(rows_by_day: dict[str, list[tuple[str, float]]], etf_code: str = "00981A") -> pd.DataFrame:
+    """一檔 ETF 多個持股日（單位數不變）：{日期: [(代號, 股數)]}。"""
+    names = {"2330": "台積電", "2317": "鴻海", "2454": "聯發科"}
+    return pd.DataFrame(
+        [
+            {"date": d, "etf": etf_code, "code": c, "name": names[c], "shares": s, "weight": 1.0, "units": U}
+            for d, rows in rows_by_day.items()
+            for c, s in rows
+        ]
+    )
+
+
+def test_flow_periods_window_nets_within_etf_and_counts_distinct_etfs() -> None:
+    """資金流向圖（2026-10-10）：1 日＝最新一次揭露；N 日＝持股日在最近 N 個交易日內的變動加總，同一檔 ETF 期間內先抵銷。"""
+    h = pd.concat(
+        [
+            # 00981A：2330 9/18 +100 張、9/22 +100 張、9/24 −50 張；2317 9/24 −300 張
+            _days(
+                {
+                    "2026-09-17": [("2330", 100_000), ("2317", 400_000)],
+                    "2026-09-18": [("2330", 200_000), ("2317", 400_000)],
+                    "2026-09-22": [("2330", 300_000), ("2317", 400_000)],
+                    "2026-09-24": [("2330", 250_000), ("2317", 100_000)],
+                }
+            ),
+            # 00982A：2330 9/23 +80 張
+            _days({"2026-09-22": [("2330", 10_000)], "2026-09-23": [("2330", 90_000)]}, "00982A"),
+        ],
+        ignore_index=True,
+    )
+    p = _panel()
+    mk = etf.Market(p)
+    allp = etf.pair_changes(h)
+    snap, d_star, _ = etf.latest_changes(etf.holdings_changes(h), mk)
+    out = etf.flow_periods(snap, allp, mk, p.names, d_star)
+    assert out["date"] == "2026-09-24" and set(out["periods"]) == set(etf.FLOW_PERIODS)
+    one = {x["code"]: x for x in out["periods"]["1d"]["items"]}
+    # 1 日：00981A 9/24 的 2330 −50 張與 00982A 9/23 的 +80 張（兩檔都在 3 個交易日內）→ +30 張 × 1,000 元
+    assert one["2330"]["value_yi"] == 0.3 and one["2330"]["etfs_same_dir"] == 1
+    assert one["2317"]["value_yi"] == -0.6
+    week = out["periods"]["1w"]  # 面板的交易日是 9/1～9/24 每天：最近 5 個＝9/20～9/24
+    assert week["from"] == "2026-09-20" and week["days"] == 5
+    w = {x["code"]: x for x in week["items"]}
+    # 2330：00981A 9/22 +100、9/24 −50 先抵銷＝+50；00982A 9/23 +80 → +130 張 × 1,000 元
+    assert w["2330"]["value_yi"] == 1.3 and w["2330"]["etfs_same_dir"] == 2
+    assert w["2330"]["pct_avg20"] == round(1.3e8 / (100e8 * 5) * 100, 2)  # 佔期間成交額
+    assert week["n_add"] == 1 and week["n_reduce"] == 1 and week["add_yi"] == 1.3 and week["reduce_yi"] == -0.6
+    assert week["etfs"] == 2
+    assert [x["dir"] for x in week["items"]] == ["add", "reduce"]
+    # 2 週（9/15～9/24）多含 9/18 的 +100 張
+    two = {x["code"]: x for x in out["periods"]["2w"]["items"]}
+    assert two["2330"]["value_yi"] == 2.3
+
+
+def test_rows_with_placeholder_date_are_ignored() -> None:
+    """投信頁面沒有日期時曾存成 0001-01-01：不能當成前一次揭露（否則整份持股變成新增）。"""
+    h = _days({"0001-01-01": [("2330", 100_000)], "2026-09-24": [("2330", 500_000)]})
+    ch = etf.pair_changes(h)
+    assert ch.empty or set(ch["date"]) == set()  # 只剩一天，沒有相鄰的兩次揭露
+    latest = etf.holdings_changes(h)
+    assert latest["kind"].isna().all()
