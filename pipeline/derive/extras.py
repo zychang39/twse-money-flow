@@ -758,6 +758,9 @@ def market_file(ds: Any, p: Any, mp: Any, out: Path) -> dict[str, Any]:
         **market_env(ds, p, taiex),
         **active_etf_section(ds, p),
     }
+    flows = data.pop("etf_flows", None)
+    if flows is not None:
+        write_json(out / "etf_flows.json", flows)
     write_json(out / "market.json", data)
     return data
 

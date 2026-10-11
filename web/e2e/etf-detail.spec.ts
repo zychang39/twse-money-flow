@@ -127,7 +127,7 @@ test('ETF 總覽持股變動：加碼在上、減碼在下的發散橫條，預�
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('#/explore/etf');
   const sec = page.getByTestId('etf-moves');
-  await expect(sec.getByTestId('etf-moves-summary')).toHaveText('加碼 12 檔・減碼 3 檔（橫條＝金額）');
+  await expect(sec.getByTestId('etf-moves-summary')).toHaveText('1 日・加碼 12 檔・減碼 3 檔（橫條＝金額）'); // 2026-10-10：明細跟著資金流向圖的期間
   const rows = sec.getByTestId('etf-item');
   await expect(rows).toHaveCount(13); // 加碼前 10 ＋ 減碼 3
   await expect(rows.first()).toContainText('加碼股0');

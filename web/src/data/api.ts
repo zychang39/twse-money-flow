@@ -90,6 +90,8 @@ export const loadStockIntradayIndex = () => getJson<import('./types').StockIntra
 export const loadStockIntraday = (code: string) => getJson<import('./types').StockIntraday>(`intraday/${encodeURIComponent(code)}.json`).catch(() => null);
 
 /** M1.2 族群三層：清單與統計（含每檔的細產業、題材與報酬，自訂族群在前端計算）。 */
+/** 2026-10-10：主動式 ETF 資金流向（1 日～1 季；只有主動式 ETF 頁載入） */
+export const loadEtfFlows = () => getJson<import('../lib/etfFlows').EtfFlows>('etf_flows.json');
 export const loadSectors = () => getJson<import('./types').SectorsIndex>('sectors.json');
 /** 2026-10-10：族群大戶週流向（族群輪動 › 大戶流向） */
 export const loadSectorFlows = () => getJson<import('../lib/sectorFlows').SectorFlows>('sector_flows.json');

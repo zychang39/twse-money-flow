@@ -97,6 +97,12 @@ METHOD_TEXT = (
 )
 
 
+#: 資金流向圖的期間（交易日；2026-10-10）：1d＝各 ETF 最新一次揭露（與排行相同）；其餘＝持股日落在最近 N 個交易日內的
+#: 每一次揭露的變動加總（同一檔 ETF 期間內的加碼、減碼先互相抵銷，再跨 ETF 加總）
+FLOW_PERIODS: dict[str, int] = {"1d": 1, "1w": 5, "2w": 10, "1m": 20, "1q": 60}
+#: 存檔日期早於此的持股列不使用（投信頁面沒有日期時曾存成 0001-01-01，會被當成「前一次揭露」，整份持股變成新增）
+MIN_DATE = "2000-01-01"
+
 #: 清單的報酬期間（交易日；ytd＝今年以來、1y＝250 日）；還原價（含息），與個股頁一致
 RETURN_PERIODS: dict[str, int | None] = {"1d": 1, "5d": 5, "20d": 20, "60d": 60, "120d": 120, "ytd": None, "1y": 250}
 
@@ -254,6 +260,7 @@ def _units_of(g: pd.DataFrame) -> float | None:
 def _norm(h: pd.DataFrame) -> pd.DataFrame:
     h = h.copy()
     h["date"] = h["date"].astype(str)
+    h = h[h["date"] >= MIN_DATE]
     h["etf"] = h["etf"].astype(str)
     h["code"] = h["code"].astype(str)
     h["shares"] = pd.to_numeric(h["shares"], errors="coerce").fillna(0.0)
@@ -520,6 +527,83 @@ def sort_items(items: list[dict[str, Any]], metric: str = DEFAULT_METRIC) -> lis
         return (0 if x["dir"] == "add" else 1, -(abs(v) if v is not None else -1.0))
 
     return sorted(items, key=key)
+
+
+def period_items(
+    rows: pd.DataFrame, mk: Market, names: dict[str, str], asof: str, days: int, min_value: float = MIN_VALUE_YI
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """期間內每檔股票的跨檔淨變動（資金流向圖）：先依 ETF 加總（同一檔 ETF 期間內的加碼、減碼互相抵銷），再跨 ETF 加總。
+
+    金額＝Σ 計入股數 × 各持股日成交均價（估）；佔均額＝金額 ÷（asof 的 20 日均成交額 × 期間交易日數），即佔期間成交額；
+    佔市值＝金額 ÷ asof 市值；同向檔數＝期間淨額與該股合計同方向的 ETF 檔數。|金額| < min_value 億不列入 items，
+    但計入 totals（加碼、減碼合計與檔數用全部股票）。
+    """
+    totals: dict[str, Any] = {"add_yi": 0.0, "reduce_yi": 0.0, "n_add": 0, "n_reduce": 0, "etfs": 0}
+    if rows is None or rows.empty:
+        return [], totals
+    act = rows[rows["kind"].isin(ACTIVE_KINDS)]
+    totals["etfs"] = int(rows["etf"].nunique())
+    out: list[dict[str, Any]] = []
+    for code, part in act.groupby("code"):
+        code = str(code)
+        per_etf: dict[str, float] = {}
+        kinds: dict[str, list[str]] = {}
+        for r in part.itertuples():
+            px = mk.price(code, str(r.date))
+            ts = float(r.trade_shares)
+            if px is None or not math.isfinite(ts):
+                continue
+            e = str(r.etf)
+            per_etf[e] = per_etf.get(e, 0.0) + ts * px
+            kinds.setdefault(e, []).append(str(r.kind))
+        net = sum(per_etf.values())
+        if not per_etf or net == 0:
+            continue
+        positive = net > 0
+        totals["add_yi" if positive else "reduce_yi"] += net / 1e8
+        totals["n_add" if positive else "n_reduce"] += 1
+        if abs(net) / 1e8 < min_value:
+            continue
+        same = [e for e, v in per_etf.items() if v != 0 and (v > 0) == positive]
+        avg = mk.avg_value(code, asof)
+        cap = mk.mcap(code, asof)
+        out.append(
+            {
+                "code": code,
+                "name": names.get(code) or str(part["name"].dropna().iloc[0] if part["name"].notna().any() else code),
+                "dir": "add" if positive else "reduce",
+                "kind": _dominant_kind([k for e in same for k in kinds[e]], positive),
+                "value_yi": _r(net / 1e8, 2),
+                "pct_avg20": _r(net / (avg * days) * 100, 2) if avg else None,
+                "pct_mcap": _r(net / cap * 100, 4) if cap else None,
+                "etfs_same_dir": len(same),
+            }
+        )
+    totals["add_yi"] = _r(totals["add_yi"], 2)
+    totals["reduce_yi"] = _r(totals["reduce_yi"], 2)
+    return sort_items(out, "value"), totals
+
+
+def flow_periods(
+    snap: pd.DataFrame, allp: pd.DataFrame, mk: Market, names: dict[str, str], d_star: str | None
+) -> dict[str, Any]:
+    """etf_flows.json：1 日／1 週／2 週／1 個月／1 季的跨檔資金流向（FLOW_PERIODS）。"""
+    if not d_star:
+        return {"date": None, "periods": {}}
+    end = mk.row(d_star)
+    periods: dict[str, Any] = {}
+    for key, k in FLOW_PERIODS.items():
+        if key == "1d":
+            rows, start = snap, None
+        else:
+            if end is None:
+                continue
+            start = mk.dates[max(0, end - k + 1)]
+            d = allp["date"].astype(str) if not allp.empty else pd.Series(dtype=str)
+            rows = allp[(d >= start) & (d <= d_star)] if not allp.empty else allp
+        items, totals = period_items(rows, mk, names, d_star, k)
+        periods[key] = {"from": start, "to": d_star, "days": k, **totals, "items": items}
+    return {"date": d_star, "min_value": MIN_VALUE_YI, "periods": periods}
 
 
 def latest_changes(changes: pd.DataFrame, mk: Market) -> tuple[pd.DataFrame, str | None, list[dict[str, str]]]:
@@ -941,7 +1025,8 @@ def market_section(ds: Any, p: Any) -> dict[str, Any]:
             + coverage_text(cov)
             + "累積兩天以上的揭露後才顯示跨檔加碼／減碼。"
         )
-    return {"active_etfs": etfs, "etf_ranking": rk}
+    # 2026-10-10：資金流向圖的多期間彙總（另存 etf_flows.json，只有主動式 ETF 頁載入）
+    return {"active_etfs": etfs, "etf_ranking": rk, "etf_flows": flow_periods(snap, allp, mk, names, d_star)}
 
 
 # ------------------------------------------------------------------ etf/{code}.json（2026-10-08：ETF 詳細頁）

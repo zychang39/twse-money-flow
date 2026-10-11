@@ -6,21 +6,26 @@
  * 排序口徑：金額｜佔均額｜佔市值，預設由 pipeline 的 sort_default 決定（驗證未通過時為佔均額）。
  * 判定（扣除受益權單位數變動）、金額門檻 0.3 億與驗證都在 pipeline（derive/etf.py）。
  * 2026-10-09：清單可依成交值｜市值｜績效排序，績效切期間（1 日～1 年）；每列一條橫條（績效為紅漲綠跌的發散橫條）。
+ * 2026-10-10：首屏改成「資金流向」一張圖（components/EtfFlowChart：加碼在上、減碼在下，列數依螢幕高度，一眼看完），
+ *   期間 1 日｜1 週｜2 週｜1 個月｜1 季（etf_flows.json）；原本的持股變動列表改名「明細」放在圖下方、跟著期間切換，
+ *   「排序口徑未驗證」移到明細區塊；清單在最下面。
  */
 import { useEffect, useState } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
 import { ErrorState, Loading } from '../components/DataStatus';
 import { Button, EmptyRow, List, PageTitle, Section, Seg, Signed, Table } from '../components/ui';
 import { IconChevron } from '../components/Icons';
-import { DivergingBar, Interp, ProgressBar } from '../components/kit';
+import { DataState, DivergingBar, Interp, ProgressBar } from '../components/kit';
 import { BarRow } from '../components/BarRows';
 import { EtfTagPills, TagDefs } from '../components/EtfTags';
 import { etfTags } from '../lib/etfTags';
 import { barMax, LIST_SORTS, mergeMoves, metricOf as listMetric, missingRetText, PERIOD_LABEL, PERIODS, periodSummary, rowSub, sortEtfs, type EtfListSort, type EtfPeriod } from '../lib/etfList';
 import type { ActiveEtf } from '../data/types';
 import '../styles/etf.css';
-import { useAsync } from '../hooks';
-import { loadMarket } from '../data/api';
+import { useAsync, useSegParam } from '../hooks';
+import { loadEtfFlows, loadMarket } from '../data/api';
+import { EtfFlowChart } from '../components/EtfFlowChart';
+import { FLOW_PERIOD_KEYS, FLOW_PERIOD_LABEL, FLOW_PERIODS, type FlowPeriodKey, flowSummary, periodData, periodItems, spanLabel } from '../lib/etfFlows';
 import { ETF_KINDS, ETF_KIND_LABEL, type EtfCoverage, type EtfItem, type EtfKind, type EtfMove, type EtfSortMetric, type EtfValidation } from '../data/types';
 import { setListContext } from '../lib/listContext';
 import { fmtNum, md } from '../lib/format';
@@ -266,37 +271,62 @@ function EtfInfo({ cov, method, v, kinds }: { cov?: EtfCoverage; method?: string
   );
 }
 
+/** 資金流向圖的 ⓘ */
+function FlowInfo({ days }: { days?: number }) {
+  return (
+    <>
+      <p>資金流向＝主動式 ETF 依每日持股揭露算出的跨檔加碼、減碼金額（已扣除申購買回造成的等比例增減；判定方法見「明細」的 ⓘ）。</p>
+      <p>1 日＝各 ETF 最新一次揭露；1 週、2 週、1 個月、1 季＝持股日落在最近 5、10、20、60 個交易日內的每一次揭露加總，同一檔 ETF 在期間內的加碼與減碼先互相抵銷。{days && days > 1 ? `目前期間 ${days} 個交易日。` : ''}</p>
+      <p>圖：加碼在上（紅）、減碼在下（綠），以中線為 0、同一個刻度，數字單位億元；列數依螢幕高度，完整清單在下方「明細」。未達 0.3 億的股票不畫在圖上，但計入上方的合計與檔數。</p>
+      <p>只涵蓋官網揭露持股的 ETF；新掛牌的 ETF 只計入掛牌之後。依規則整理、非推薦。</p>
+    </>
+  );
+}
+
 export default function Etf() {
   const market = useAsync(loadMarket, []);
+  const flows = useAsync(loadEtfFlows, []);
   const m = market.data;
   const list = m?.active_etfs ?? [];
   const rk = m?.etf_ranking;
   const cov = rk && typeof rk.coverage === 'object' ? rk.coverage : undefined;
+  const [period, setPeriod] = useSegParam<FlowPeriodKey>(FLOW_PERIOD_KEYS, '1d', 'fp', 'etf-flow-period');
   const [sort, setSort] = useState<EtfSortMetric>(() => savedSort() ?? 'pct_avg20');
   useEffect(() => { if (!savedSort() && rk?.sort_default) setSort(rk.sort_default); }, [rk?.sort_default]);
   const pick = (v: EtfSortMetric) => {
     setSort(v);
     try { localStorage.setItem(SORT_KEY, v); } catch { /* 無痕模式：只在本次有效 */ }
   };
-  const items = rk?.items ?? [];
+  const data = periodData(flows.data, period, rk?.items, rk?.date);
+  const items = periodItems(data, period, rk?.items);
   const add = sortItems(items.filter((x) => x.dir === 'add'), sort);
   const reduce = sortItems(items.filter((x) => x.dir === 'reduce'), sort);
   const warn = unverifiedLine(rk?.validation);
   const kinds = rk ? kindCountsText({ kinds: rk.kinds, add: rk.add ?? [], reduce: rk.reduce ?? [] }) : undefined;
+  const pname = FLOW_PERIOD_LABEL[period];
+  const flowPhase = !data ? (flows.loading && period !== '1d' ? 'loading' : 'empty') : 'ok';
   return (
     <div class="page">
       <TopBar back="/explore" />
-      <PageTitle title="主動式 ETF"
-        sub={m ? <><div data-testid="etf-coverage">{coverageLine(cov)}</div>{warn ? <div data-testid="etf-unverified">{warn}</div> : null}</> : undefined} />
+      <PageTitle title="主動式 ETF" sub={m ? <div data-testid="etf-coverage">{coverageLine(cov)}</div> : undefined} />
       <PageStale />
       {market.error ? <ErrorState error={market.error} /> : null}
       {market.loading ? <Loading /> : null}
       {m ? (
         <>
-          <Section title="持股變動" testid="etf-moves" aside={cov ? `${cov.issuers} 家投信` : undefined}
+          {/* 2026-10-10：首屏就是完整的資金流向圖（期間 1 日～1 季）；明細與清單往下滑 */}
+          <Section title="資金流向" testid="etf-flow" aside={spanLabel(data) || undefined} info={<FlowInfo days={data?.days} />} infoTitle="主動式 ETF 資金流向">
+            <Seg options={FLOW_PERIODS} value={period} onChange={setPeriod} label="期間" testid="etf-flow-period" />
+            <DataState phase={flowPhase} reason={period === '1d' ? '持股資料累積中' : `${pname}資金流向資料累積中（下一次部署後出現）`}>
+              <Interp testid="etf-flow-summary">{flowSummary(data)}</Interp>
+              <EtfFlowChart items={items} label={`主動式 ETF ${pname}資金流向（億元）`} />
+            </DataState>
+          </Section>
+          <Section title="明細" testid="etf-moves" aside={cov ? `${cov.issuers} 家投信` : undefined}
             info={<EtfInfo cov={cov} method={rk?.method} v={rk?.validation} kinds={kinds} />} infoTitle="主動式 ETF 持股變動">
+            {warn ? <Interp testid="etf-unverified">{warn}</Interp> : null}
             <Seg options={SORT_OPTIONS} value={sort} onChange={pick} label="排序口徑" testid="etf-sort" />
-            <Interp testid="etf-moves-summary">{moveSummary(add.length, reduce.length, sort)}</Interp>
+            <Interp testid="etf-moves-summary">{`${pname}・${moveSummary(add.length, reduce.length, sort)}`}</Interp>
             <MoveChart add={add} reduce={reduce} sort={sort} />
           </Section>
           <EtfList list={list} />
