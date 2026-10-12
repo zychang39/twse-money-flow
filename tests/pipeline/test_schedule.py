@@ -458,10 +458,12 @@ def test_kbar_deploys_only_on_last_segment():
     from pipeline.cli import kbar_should_deploy
 
     assert not kbar_should_deploy({"progressed": False, "remaining": 0})
-    assert not kbar_should_deploy({"progressed": True, "remaining": 300, "chained": True})
-    assert kbar_should_deploy({"progressed": True, "remaining": 300, "chained": False})
-    assert kbar_should_deploy({"progressed": True, "remaining": 300})  # 本機執行（沒有接續）
-    assert kbar_should_deploy({"progressed": True, "remaining": 0})
+    assert not kbar_should_deploy({"progressed": True, "remaining": 300, "unfinished": 300, "chained": True})
+    assert kbar_should_deploy({"progressed": True, "remaining": 300, "unfinished": 300, "chained": False})
+    assert kbar_should_deploy({"progressed": True, "remaining": 300, "unfinished": 300})  # 本機執行（沒有接續）
+    assert kbar_should_deploy({"progressed": True, "remaining": 0, "unfinished": 0})
+    # 2026-10-12：清單跑完、只剩請求失敗的幾檔 → 這一段就是最後一段，要部署
+    assert kbar_should_deploy({"progressed": True, "remaining": 6, "unfinished": 0})
 
 
 def test_data_workflow_dispatches_deploy_without_waiting():

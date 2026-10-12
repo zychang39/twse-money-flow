@@ -73,6 +73,10 @@ def parse_chart(payload: bytes | str | dict[str, Any], code: str) -> ParseResult
         raise ParseError(f"Yahoo chart：時區 {meta.get('exchangeTimezoneName')} 不是台北")
     offset = timezone(timedelta(seconds=int(meta.get("gmtoffset", 28800))))
     stamps = res.get("timestamp") or []
+    if not stamps:
+        # 2026-10-12：成交稀少的股票（1522A、00625K…）在 5 日內沒有任何 K 棒時，回應只有 meta、quote 是空物件 {}；
+        # 原本當成格式錯誤（缺少 open）記為失敗，剩餘永遠不是 0 → 每次補抓都再觸發一次 kbar、最後一段也不部署
+        return ParseResult(pd.DataFrame(columns=KBAR_COLS), no_data=True, message="查無 K 棒")
     quotes = ((res.get("indicators") or {}).get("quote") or [{}])[0]
     for key in ("open", "high", "low", "close", "volume"):
         if key not in quotes:

@@ -58,10 +58,14 @@ HOLDERS_STALL_HOURS = 3
 
 
 def kbar_should_deploy(extra: dict[str, object]) -> bool:
-    """個股 5 分 K 分段：有前進且是最後一段（沒有剩餘，或下一段沒有接上）才部署。"""
+    """個股 5 分 K 分段：有前進且是最後一段（清單跑完，或下一段沒有接上）才部署。
+
+    2026-10-12：以「這一段沒輪到的代號」（unfinished）判斷，不再用剩餘（remaining 含請求失敗的代號）：
+    原本有幾檔一直失敗時，跑完清單的那一段仍接續下一段而不部署，下一段只重試失敗的幾檔、沒有前進也不部署。
+    """
     if not extra.get("progressed"):
         return False
-    return not extra.get("remaining") or not extra.get("chained")
+    return not extra.get("unfinished") or not extra.get("chained")
 
 
 def in_quiet_window(now: datetime, calendar: Any) -> bool:
@@ -129,9 +133,10 @@ def cmd_run(args: argparse.Namespace) -> int:
             from pipeline import tasks_kbar
 
             extra = tasks_kbar.run_kbar(ctx)
-            # 還有剩餘且有前進 → 觸發下一段接續。2026-10-08：只在最後一段（或接續觸發失敗）部署——
-            # 原本每段都部署（一天 3～4 次、每次 20～30 分鐘），佔住部署佇列，補抓的資料要排在後面
-            if extra.get("remaining") and extra.get("progressed") and args.chain:
+            # 清單沒跑完（時間預算用完、斷路器）且有前進 → 觸發下一段接續。2026-10-08：只在最後一段（或接續觸發失敗）部署——
+            # 原本每段都部署（一天 3～4 次、每次 20～30 分鐘），佔住部署佇列，補抓的資料要排在後面。
+            # 2026-10-12：只剩請求失敗的代號時不接續（立刻重試只會再失敗），由補抓任務稍後重試
+            if extra.get("unfinished") and extra.get("progressed") and args.chain:
                 from pipeline.notify.github import dispatch_workflow
 
                 extra["chained"] = dispatch_workflow(

@@ -15,7 +15,7 @@ from pipeline.derive.extras import breadth_52w, market_flows
 from pipeline.sources import advanced as adv
 from pipeline.sources import insti_amount, yahoo
 from pipeline.sources.base import ParseError
-from pipeline.tasks_kbar import done_codes, flush, priority_universe, prune, triggered_codes
+from pipeline.tasks_kbar import done_codes, flush, no_trade_codes, priority_universe, prune, triggered_codes
 from tests.pipeline.conftest import sample
 
 
@@ -75,6 +75,10 @@ def test_yahoo_error_and_empty():
     with pytest.raises(ParseError):
         yahoo.parse_chart({"chart": {"result": None, "error": {"code": "Bad", "description": "x"}}}, "1")
     assert yahoo.parse_chart({"chart": {"result": None, "error": {"code": "Not Found"}}}, "1").no_data
+    # 2026-10-12 實測 1522A.TW、3085.TWO：5 日內沒有 K 棒時只有 meta、quote 是空物件 → 查無，不是格式錯誤
+    empty = {"chart": {"result": [{"meta": {"exchangeTimezoneName": "Asia/Taipei"}, "indicators": {"quote": [{}]}}]}}
+    res = yahoo.parse_chart(empty, "1522A")
+    assert res.no_data and res.df.empty
 
 
 # ------------------------------------------------------------------ 三大法人金額
@@ -243,6 +247,21 @@ def test_kbar_priority():
     u = priority_universe(quotes, trig, top=1)
     assert [c for c, _m, _t in u] == ["1101", "0050", "6488", "2330"]
     assert [t for _c, _m, t in u] == [1, 2, 3, 3] and u[2][1] == "tpex"
+
+
+def test_kbar_skips_no_trade_on_target():
+    """目標日收盤行情已入庫：沒有收盤或成交股數 0 的代號不發請求；目標日還沒有行情 → 全部照抓。"""
+    quotes = pd.DataFrame(
+        {
+            "date": ["2026-10-08", "2026-10-12", "2026-10-12", "2026-10-12"],
+            "code": ["1101", "1101", "00625K", "1522A"],
+            "close": [1.0, 1.0, np.nan, 2.0],
+            "volume": [10.0, 10.0, 0.0, 0.0],
+        }
+    )
+    assert no_trade_codes(quotes, date(2026, 10, 12)) == {"00625K", "1522A"}
+    assert no_trade_codes(quotes, date(2026, 10, 13)) == set()
+    assert no_trade_codes(pd.DataFrame(), date(2026, 10, 12)) == set()
 
 
 # ------------------------------------------------------------------ 注意／處置

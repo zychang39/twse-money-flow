@@ -119,6 +119,11 @@ def test_kbar_due(tmp_path):
     assert freshness.kbar_due({}, ctx.calendar, ctx.now)
     assert not freshness.kbar_due({"kbar": {"target": "2026-10-05", "remaining": 0}}, ctx.calendar, ctx.now)
     assert freshness.kbar_due({"kbar": {"target": "2026-10-05", "remaining": 4}}, ctx.calendar, ctx.now)
+    # 2026-10-12：只剩請求失敗的代號 → 同一目標日最多 3 段；清單沒跑完則不受限
+    st = {"target": "2026-10-05", "remaining": 4, "unfinished": 0}
+    assert freshness.kbar_due({"kbar": {**st, "rounds": 2}}, ctx.calendar, ctx.now)
+    assert not freshness.kbar_due({"kbar": {**st, "rounds": 3}}, ctx.calendar, ctx.now)
+    assert freshness.kbar_due({"kbar": {**st, "rounds": 5, "unfinished": 4}}, ctx.calendar, ctx.now)
 
 
 # ── 接力（2026-10-07）：每次補抓結束時預約下一次 ─────────────────────────────

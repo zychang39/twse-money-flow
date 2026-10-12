@@ -4,6 +4,10 @@
 - 每檔每日一次請求（range=5d 一次回傳最近 5 個交易日），節流 1–2 次／秒（含抖動）、失敗重試（PoliteClient）。
 - 優先順序：近 20 日成交金額前 500 名 → 近 60 日任一策略觸發過（已部署網站的 signals.json）→ 其餘（依成交金額）。
 - 可續傳：目標日檔案裡已有的代號視為完成；查無 K 棒的代號記在 manifest `kbar.empty`；進度寫在 manifest `kbar`。
+- 目標日的收盤行情已入庫時，當日無成交（沒有收盤或成交股數 0）的代號不發請求（記在 `kbar.no_trade`；
+  build-web 依收盤行情標成「當日無成交」，用不到 K 棒）。
+- 接續：只有這一段沒跑完清單（時間預算用完、斷路器）才觸發下一段；跑完清單後剩下的只是請求失敗，
+  立刻再開一段只會再失敗一次，改由補抓任務稍後重試（同一目標日最多 MAX_ROUNDS 段）。
 - 存檔：raw/yahoo_kbar/{YYYY}/{YYYYMMDD}.csv.gz（一個交易日一檔、所有股票），只保留最近 keep_days 個交易日。
 
 加權指數 1D 備援（每日任務內呼叫）：證交所「每 5 秒指數統計」在已收盤的交易日仍取不到時，
@@ -30,6 +34,8 @@ KBAR = "yahoo_kbar"
 TWII = "yahoo_twii"
 INTRADAY = "twse_intraday_index"
 FLUSH_EVERY = 200
+# 同一目標日最多跑幾段（含第一段）：清單已跑完、只剩請求失敗的代號時，補抓任務最多再觸發 MAX_ROUNDS-1 次
+MAX_ROUNDS = 3
 
 
 def kbar_cfg() -> dict[str, Any]:
@@ -53,7 +59,8 @@ def _recent_quotes(store: Any, days: list[date]) -> pd.DataFrame:
         for sid, mk in (("twse_quotes", "twse"), ("tpex_quotes", "tpex")):
             df = store.read(sid, d)
             if df is not None and not df.empty:
-                frames.append(df[["date", "code", "close", "value"]].assign(market=mk))
+                cols = [c for c in ("date", "code", "close", "volume", "value") if c in df.columns]
+                frames.append(df[cols].assign(market=mk))
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
@@ -88,6 +95,20 @@ def priority_universe(quotes: pd.DataFrame, triggered: set[str], top: int = 500)
         out.append((str(code), str(agg.at[code, "market"]), tier))
     out.sort(key=lambda x: x[2])  # 穩定排序：同優先級內維持成交金額由大到小
     return out
+
+
+def no_trade_codes(quotes: pd.DataFrame, target: date) -> set[str]:
+    """目標日收盤行情裡沒有收盤價或成交股數 0 的代號（與 build-web intraday 的「當日無成交」同一條規則）。
+
+    目標日的收盤行情還沒入庫 → 空集合（全部照抓）。"""
+    if quotes.empty or "date" not in quotes.columns:
+        return set()
+    day = quotes[quotes["date"].astype(str) == target.isoformat()]
+    if day.empty:
+        return set()
+    vol = day["volume"] if "volume" in day.columns else pd.Series(1.0, index=day.index)
+    idle = day["close"].isna() | (pd.to_numeric(vol, errors="coerce").fillna(0) <= 0)
+    return set(day.loc[idle, "code"].astype(str))
 
 
 def _load_signals(client: PoliteClient, url: str | None) -> dict[str, Any] | None:
@@ -149,8 +170,9 @@ def run_kbar(ctx: Any, *, codes: list[str] | None = None, limit: int | None = No
         universe = [(c, markets.get(c, "twse"), 0) for c in codes]
     state = ctx.manifest.get("kbar") or {}
     if state.get("target") != target.isoformat():
-        state = {"target": target.isoformat(), "empty": [], "failed": []}
-    have = done_codes(ctx.store, target) | set(state.get("empty") or [])
+        state = {"target": target.isoformat(), "empty": [], "failed": [], "rounds": 0}
+    idle = no_trade_codes(quotes, target) & {c for c, _m, _t in universe} if codes is None else set()
+    have = done_codes(ctx.store, target) | set(state.get("empty") or []) | idle
     todo = [u for u in universe if u[0] not in have]
     if limit is not None:
         todo = todo[:limit]
@@ -189,14 +211,19 @@ def run_kbar(ctx: Any, *, codes: list[str] | None = None, limit: int | None = No
     removed = prune(ctx.store, keep)
     covered = done_codes(ctx.store, target)
     total = len(universe)
-    remaining = len([u for u in universe if u[0] not in covered and u[0] not in set(empty)])
+    remaining = len([u for u in universe if u[0] not in covered and u[0] not in set(empty) and u[0] not in idle])
+    # 這一段沒輪到的代號（時間預算用完、斷路器）；跑完清單時為 0
+    unfinished = len(todo) - fetched - len(failed) if stopped else 0
     state.update(
         {
             "target": target.isoformat(),
             "total": total,
             "covered": len(covered),
             "remaining": remaining,
+            "unfinished": unfinished,
+            "rounds": int(state.get("rounds") or 0) + 1,
             "empty": sorted(set(empty)),
+            "no_trade": sorted(idle),
             "failed": sorted(set(failed)),
             "at": ctx.now.isoformat(timespec="minutes"),
             "stopped": stopped or None,
@@ -204,7 +231,10 @@ def run_kbar(ctx: Any, *, codes: list[str] | None = None, limit: int | None = No
     )
     ctx.manifest["kbar"] = state
     status = "ok" if covered else "failed"
-    msg = f"涵蓋 {len(covered)}/{total} 檔；本次 {fetched} 檔請求、失敗 {len(failed)}、查無 {len(set(empty))}"
+    msg = (
+        f"涵蓋 {len(covered)}/{total} 檔；本次 {fetched} 檔請求、失敗 {len(failed)}、查無 {len(set(empty))}"
+        f"、當日無成交略過 {len(idle)}"
+    )
     if stopped:
         msg += f"；中止：{stopped}"
     ctx.note(KBAR, status, data_date=target, rows=len(covered), message=msg)
@@ -215,6 +245,7 @@ def run_kbar(ctx: Any, *, codes: list[str] | None = None, limit: int | None = No
         "covered": len(covered),
         "total": total,
         "remaining": remaining,
+        "unfinished": unfinished,
         "progressed": fetched > 0,
         "pruned": removed,
         "by_tier": tier_done,
