@@ -1693,7 +1693,7 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-10-12T19:52+08:00",
+  "at": "2026-10-12T22:08+08:00",
   "covered": 2335,
   "empty": [
    "00707R",
@@ -2030,20 +2030,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-09T18:07:21+08:00",
-   "by_source": {
-    "active_etf": 23
-   },
-   "chained": true,
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 23,
-   "requests": 545,
-   "task": "backfill"
-  },
   {
    "at": "2026-10-09T18:24:14+08:00",
    "by_source": {
@@ -2790,6 +2776,27 @@
    "requests": 1,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-12T22:08:20+08:00",
+   "by_tier": {
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "covered": 2335,
+   "failed": [],
+   "fetched": 0,
+   "kbar_target": "2026-10-12",
+   "ok": 1,
+   "pending": [],
+   "progressed": false,
+   "pruned": 0,
+   "remaining": 6,
+   "requests": 0,
+   "rows": 0,
+   "task": "kbar",
+   "total": 2369
   }
  ],
  "sources": {
@@ -3446,11 +3453,11 @@
   },
   "yahoo_kbar": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-12T19:52:44+08:00",
+   "last_attempt": "2026-10-12T22:08:20+08:00",
    "last_message": "涵蓋 2335/2369 檔；本次 0 檔請求、失敗 6、查無 28",
    "last_status": "ok",
    "last_success": "2026-10-12",
-   "last_success_at": "2026-10-12T19:52:44+08:00",
+   "last_success_at": "2026-10-12T22:08:20+08:00",
    "rows": 2335,
    "validation": "ok"
   }
@@ -3468,6 +3475,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-12T21:51:09+08:00",
+ "updated_at": "2026-10-12T22:08:20+08:00",
  "version": 1
 }
