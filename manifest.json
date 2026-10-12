@@ -1690,14 +1690,16 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-10-10T03:37+08:00",
+  "at": "2026-10-12T13:51+08:00",
   "covered": 2331,
   "empty": [
+   "00643K",
    "00682U",
    "00707R",
    "00847B",
    "2067",
    "2073",
+   "2323",
    "2718",
    "3332",
    "3625",
@@ -1727,14 +1729,12 @@
   ],
   "failed": [
    "00625K",
-   "00643K",
    "00793B",
    "1522A",
-   "2323",
    "3085",
    "8183"
   ],
-  "remaining": 7,
+  "remaining": 5,
   "stopped": null,
   "target": "2026-10-08",
   "total": 2369
@@ -2031,20 +2031,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-09T10:14:07+08:00",
-   "by_source": {
-    "tdcc_full": 9121
-   },
-   "chained": true,
-   "failed": [],
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "remaining": 9121,
-   "requests": 556,
-   "task": "holders_backfill"
-  },
   {
    "at": "2026-10-09T10:55:01+08:00",
    "by_source": {
@@ -2635,6 +2621,28 @@
    "pending": [],
    "requests": 32,
    "task": "periodic"
+  },
+  {
+   "at": "2026-10-12T13:51:24+08:00",
+   "by_tier": {
+    "1": 0,
+    "2": 0,
+    "3": 2
+   },
+   "chained": true,
+   "covered": 2331,
+   "failed": [],
+   "fetched": 2,
+   "kbar_target": "2026-10-08",
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "pruned": 0,
+   "remaining": 5,
+   "requests": 0,
+   "rows": 0,
+   "task": "kbar",
+   "total": 2369
   }
  ],
  "sources": {
@@ -3291,11 +3299,11 @@
   },
   "yahoo_kbar": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-10T03:37:41+08:00",
-   "last_message": "涵蓋 2331/2369 檔；本次 0 檔請求、失敗 7、查無 31",
+   "last_attempt": "2026-10-12T13:51:23+08:00",
+   "last_message": "涵蓋 2331/2369 檔；本次 2 檔請求、失敗 5、查無 33",
    "last_status": "ok",
    "last_success": "2026-10-08",
-   "last_success_at": "2026-10-10T03:37:41+08:00",
+   "last_success_at": "2026-10-12T13:51:23+08:00",
    "rows": 2331,
    "validation": "ok"
   }
@@ -3318,6 +3326,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-11T17:34:35+08:00",
+ "updated_at": "2026-10-12T13:51:24+08:00",
  "version": 1
 }
