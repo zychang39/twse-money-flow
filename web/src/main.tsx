@@ -3,6 +3,7 @@ import { App } from './app';
 import './styles/global.css';
 import { createUpdater, domBusy, getUpdater, publishState, setUpdater } from './lib/swUpdate';
 import { forgetScroll } from './lib/scrollRestore';
+import { checkDataUpdate } from './data/api';
 
 /**
  * 顯示模式：加入主畫面（standalone）與 Safari 瀏覽器模式的 safe-area 處理不同（見 global.css）。
@@ -13,6 +14,12 @@ const nav = navigator as Navigator & { standalone?: boolean };
 if (window.matchMedia?.('(display-mode: standalone)').matches || nav.standalone) document.documentElement.classList.add('standalone');
 
 render(<App />, document.getElementById('app')!);
+
+/** 資料更新：啟動與回到前景時檢查是否有新部署的資料（見 data/api.checkDataUpdate；PWA 常駐背景時清單才不會停在舊的一天）。 */
+checkDataUpdate(0).catch(() => undefined);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkDataUpdate().catch(() => undefined);
+});
 
 /**
  * Service worker：App 外殼是 cache-first，新版安裝後停在 waiting，由 lib/swUpdate 決定何時接手：

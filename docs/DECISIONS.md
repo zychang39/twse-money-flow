@@ -587,3 +587,8 @@
    - 接續與部署改看 `unfinished`（這一段沒輪到的代號：時間預算用完、斷路器），不看 `remaining`：清單跑完就是最後一段、照常部署；只剩請求失敗的代號不立刻接續（立刻重試只會再失敗）。
    - 補抓觸發 kbar（`freshness.kbar_due`）：只剩請求失敗的代號時，同一目標日最多跑 3 段（manifest `kbar.rounds`）。
    - 沒改的：節流維持 0.5–1.0 秒（Yahoo 非官方，實測 runner 上回應約 0.1 秒，33 分鐘幾乎都是刻意的間隔；縮短可能被 429 擋，不划算）；`range=5d` 維持（一檔一次請求，多回傳的 4 天只多幾 KB，換來漏抓一天時隔天自動補齊）；仍只在最後一段部署（#431），一段就跑得完，不需要分段上線。
+458. **清單停在前一天、個股頁卻是今天（2026-10-13 使用者回報）**：23:35 開 App，「我的股票」顯示「資料至 10/12」、長科 85.00 ▲9.96%（10/12），點進個股頁 1D 卻是 10/13 的 86.60 ▲1.88%。伺服器上的 `summary.json` 15:02 起就是 10/13（之後部署 8 次），問題在前端快取：(1) service worker 對 `data/*.json` 是 stale-while-revalidate，開啟時先回上次存的舊檔、背景才更新，這次開啟的畫面不會換；(2) `api.getJson` 的記憶體快取到頁面重新載入前都不更新，PWA 常駐背景時可以停在好幾天前；(3) 個股的 `intraday/{code}.json` 是第一次讀、沒有快取，所以是新的 → 兩邊不一致。修正：
+   - `api.checkDataUpdate`：啟動與回到前景（間隔至少 60 秒）時以 `cache: 'no-store'` 讀 `meta.json`（service worker 不攔截、不經 HTTP 快取），`generated_at` 和目前用的不同 → 清掉 service worker 的資料快取（`data-v1`）與記憶體快取，`dataVersion` 加 1；`useAsync`／`useStockData`／`useHistories` 跟著重讀，重讀期間保留舊資料（不閃、不變成載入中）。離線時沿用快取。
+   - 一般資料讀取改 `cache: 'no-cache'`：GitHub Pages 的 `max-age=600` 不會讓部署後 10 分鐘內仍拿到舊檔（伺服器回 304 時沒有多傳資料）。
+   - 「上次查看」的快照（`lib/seen.commit`）原本一次使用只寫一次，開啟時拿到舊檔就把舊的一天存成下次的基準；改成資料日變新時再寫一次（本次的基準不變）。
+   - 沒改的：仍是 stale-while-revalidate（離線可用、開啟快）；`momentum/data.ts` 依日期帶參數，本來就每天換。
