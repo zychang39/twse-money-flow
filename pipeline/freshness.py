@@ -202,10 +202,19 @@ def sync_stages(ctx: Any) -> None:
 
 
 def kbar_due(manifest: dict[str, Any], cal: TradingCalendar, now: datetime) -> bool:
-    """個股 5 分 K 是否還欠（目標日不是 D(分鐘 K)、或還有剩餘）。"""
+    """個股 5 分 K 是否還欠（目標日不是 D(分鐘 K)、清單沒跑完、或還有請求失敗的代號且重試段數未達上限）。
+
+    2026-10-12：只剩請求失敗的代號時，同一目標日最多跑 MAX_ROUNDS 段；原本每次補抓都再觸發一次 kbar。
+    """
+    from pipeline.tasks_kbar import MAX_ROUNDS
+
     due = due_date("intraday", cal, now).isoformat()
     st = manifest.get("kbar") or {}
-    return st.get("target") != due or bool(st.get("remaining"))
+    if st.get("target") != due:
+        return True
+    if not st.get("remaining"):
+        return False
+    return bool(st.get("unfinished")) or int(st.get("rounds") or 0) < MAX_ROUNDS
 
 
 def relay_config() -> dict[str, Any]:
