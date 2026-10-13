@@ -964,7 +964,7 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-14T00:12+08:00",
+  "at": "2026-10-14T04:18+08:00",
   "attempt": 1,
   "fixed": [],
   "missing": [],
@@ -2062,42 +2062,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-12T16:11:09+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [
-    "insti_amount",
-    "taifex"
-   ],
-   "format_warnings": [
-    "twse_fulldelivery"
-   ],
-   "kbar_dispatched": true,
-   "missing_after": [
-    "insti",
-    "valuation"
-   ],
-   "missing_before": [
-    "insti",
-    "insti_amount",
-    "taifex",
-    "valuation"
-   ],
-   "ok": 37,
-   "pending": [
-    "tpex_valuation",
-    "twse_insti",
-    "twse_valuation",
-    "twse_insti",
-    "twse_valuation"
-   ],
-   "progressed": true,
-   "relay": "2026-10-12T17:02+08:00",
-   "requests": 87,
-   "retry": true,
-   "task": "catchup"
-  },
-  {
    "at": "2026-10-12T16:12:00+08:00",
    "by_tier": {
     "1": 0,
@@ -2990,6 +2954,21 @@
    "requests": 0,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-14T04:18:53+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "progressed": false,
+   "relay": "skip:2026-10-14T05:12+08:00",
+   "requests": 0,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3673,6 +3652,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-14T00:12:34+08:00",
+ "updated_at": "2026-10-14T04:18:53+08:00",
  "version": 1
 }
