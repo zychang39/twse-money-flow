@@ -1,12 +1,11 @@
 {
  "task": "catchup",
- "at": "2026-10-13T19:02:07+08:00",
+ "at": "2026-10-13T19:40:26+08:00",
  "requests": 1,
  "ok": 0,
- "failed": [
-  "twse_qfii 2026-10-13 外資持股比：預期時間已過仍未取得（第 4 次補抓）"
- ],
+ "failed": [],
  "pending": [
+  "twse_qfii",
   "twse_qfii"
  ],
  "missing_before": [
@@ -16,8 +15,8 @@
   "qfii"
  ],
  "fixed": [],
- "attempt": 4,
- "retry": false,
+ "attempt": 1,
+ "retry": true,
  "progressed": false,
- "relay": "2026-10-13T22:02+08:00"
+ "relay": "2026-10-13T20:40+08:00"
 }
