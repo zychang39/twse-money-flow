@@ -1,11 +1,12 @@
 {
  "task": "catchup",
- "at": "2026-10-13T19:40:26+08:00",
+ "at": "2026-10-13T20:40:06+08:00",
  "requests": 1,
  "ok": 0,
- "failed": [],
+ "failed": [
+  "twse_qfii 2026-10-13 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
+ ],
  "pending": [
-  "twse_qfii",
   "twse_qfii"
  ],
  "missing_before": [
@@ -15,8 +16,8 @@
   "qfii"
  ],
  "fixed": [],
- "attempt": 1,
+ "attempt": 2,
  "retry": true,
  "progressed": false,
- "relay": "2026-10-13T20:40+08:00"
+ "relay": "2026-10-13T21:40+08:00"
 }
