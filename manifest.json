@@ -960,20 +960,18 @@
   }
  },
  "daily_extras": {
-  "at": "2026-10-13T15:02+08:00"
+  "at": "2026-10-12T18:02+08:00"
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-13T15:02+08:00",
-  "attempt": 1,
+  "at": "2026-10-12T21:51+08:00",
+  "attempt": 3,
   "fixed": [
-   "index",
-   "intraday",
-   "quotes"
+   "qfii"
   ],
   "missing": [],
   "next_retry": null,
-  "next_run": "2026-10-13T16:02+08:00"
+  "next_run": "2026-10-12T22:02+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -1695,50 +1693,55 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-10-13T10:55+08:00",
-  "covered": 2335,
+  "at": "2026-10-13T14:47+08:00",
+  "covered": 2332,
   "empty": [
+   "00625K",
+   "00666R",
+   "00682U",
    "00707R",
-   "1435",
-   "2064",
+   "00793B",
+   "00847B",
+   "00867B",
+   "1522A",
    "2067",
-   "2718",
+   "2321",
+   "2881B",
+   "2941",
    "2948",
-   "2949",
    "3064",
+   "3171",
+   "3226",
+   "3259",
    "3625",
    "3632",
    "4155",
-   "4183",
-   "4530",
-   "5276",
-   "5520",
+   "4198",
    "5703",
+   "5906",
    "6167",
    "6173",
    "6212",
-   "6730",
-   "6929",
-   "7713",
-   "7716",
-   "7820",
-   "8409",
-   "8443",
-   "8923",
-   "9912"
+   "6512",
+   "6542",
+   "6865",
+   "6881",
+   "6904",
+   "6997",
+   "7811",
+   "8183",
+   "8342",
+   "8921",
+   "8923"
   ],
-  "failed": [
-   "00625K",
-   "00793B",
-   "00847B",
-   "1522A",
-   "3085",
-   "8183"
-  ],
-  "remaining": 6,
+  "failed": [],
+  "no_trade": [],
+  "remaining": 0,
+  "rounds": 1,
   "stopped": null,
-  "target": "2026-10-12",
-  "total": 2369
+  "target": "2026-10-13",
+  "total": 2369,
+  "unfinished": 0
  },
  "last_target_date": "2026-10-08",
  "publish_probe": {
@@ -2032,21 +2035,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-09T23:26:16+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [],
-   "kbar_dispatched": true,
-   "missing_after": [],
-   "missing_before": [],
-   "ok": 0,
-   "pending": [],
-   "progressed": false,
-   "requests": 0,
-   "retry": false,
-   "task": "catchup"
-  },
   {
    "at": "2026-10-09T23:27:06+08:00",
    "by_tier": {
@@ -2873,6 +2861,28 @@
    "requests": 98,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-13T15:20:23+08:00",
+   "by_tier": {
+    "1": 500,
+    "2": 444,
+    "3": 1425
+   },
+   "covered": 2332,
+   "failed": [],
+   "fetched": 2369,
+   "kbar_target": "2026-10-13",
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "pruned": 1,
+   "remaining": 0,
+   "requests": 0,
+   "rows": 381018,
+   "task": "kbar",
+   "total": 2369,
+   "unfinished": 0
   }
  ],
  "sources": {
@@ -2883,7 +2893,7 @@
    "last_status": "ok",
    "last_success": "2026-10-12",
    "last_success_at": "2026-10-13T15:11:35+08:00",
-   "rows": 1187,
+   "rows": 466,
    "validation": "ok"
   },
   "cbc_money": {
@@ -3529,23 +3539,28 @@
   },
   "yahoo_kbar": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-13T10:55:31+08:00",
-   "last_message": "涵蓋 2335/2369 檔；本次 0 檔請求、失敗 6、查無 28",
+   "last_attempt": "2026-10-13T15:20:23+08:00",
+   "last_message": "涵蓋 2332/2369 檔；本次 2369 檔請求、失敗 0、查無 37、當日無成交略過 0",
    "last_status": "ok",
-   "last_success": "2026-10-12",
-   "last_success_at": "2026-10-13T10:55:31+08:00",
-   "rows": 2335,
+   "last_success": "2026-10-13",
+   "last_success_at": "2026-10-13T15:20:23+08:00",
+   "rows": 2332,
    "validation": "ok"
   }
  },
  "stages": {
   "close": {
-   "at": "15:02",
+   "at": "18:02",
    "status": "done",
    "waited": 0
   },
-  "date": "2026-10-13"
+  "date": "2026-10-12",
+  "insti": {
+   "at": "18:02",
+   "status": "done",
+   "waited": 0
+  }
  },
- "updated_at": "2026-10-13T15:11:41+08:00",
+ "updated_at": "2026-10-13T15:20:23+08:00",
  "version": 1
 }
