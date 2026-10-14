@@ -1,15 +1,24 @@
 {
  "task": "catchup",
- "at": "2026-10-14T05:12:05+08:00",
- "requests": 0,
- "ok": 0,
- "failed": [],
+ "at": "2026-10-14T10:17:21+08:00",
+ "requests": 53,
+ "ok": 22,
+ "failed": [
+  "twse_parchange 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'",
+  "twse_etfsplit 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'",
+  "twse_exright 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'",
+  "twse_capreduce 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'",
+  "twse_attention 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'",
+  "twse_disposition 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'",
+  "twse_fulldelivery 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'",
+  "twse_short_halt 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'"
+ ],
  "pending": [],
  "missing_before": [],
  "missing_after": [],
  "fixed": [],
  "attempt": 1,
  "retry": false,
- "progressed": false,
- "relay": "2026-10-14T10:12+08:00"
+ "progressed": true,
+ "relay": "2026-10-14T15:02+08:00"
 }
