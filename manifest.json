@@ -964,11 +964,9 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-14T21:51+08:00",
-  "attempt": 2,
-  "fixed": [
-   "qfii"
-  ],
+  "at": "2026-10-14T21:55+08:00",
+  "attempt": 1,
+  "fixed": [],
   "missing": [],
   "next_retry": null,
   "next_run": "2026-10-14T22:02+08:00"
@@ -2066,25 +2064,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-13T02:10:12+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [],
-   "format_warnings": [
-    "twse_fulldelivery"
-   ],
-   "kbar_dispatched": true,
-   "missing_after": [],
-   "missing_before": [],
-   "ok": 30,
-   "pending": [],
-   "progressed": true,
-   "relay": "skip:2026-10-13T05:47+08:00",
-   "requests": 47,
-   "retry": false,
-   "task": "catchup"
-  },
-  {
    "at": "2026-10-13T02:10:57+08:00",
    "by_tier": {
     "1": 0,
@@ -2964,6 +2943,21 @@
    "requests": 1,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-14T21:55:23+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "progressed": false,
+   "relay": "skip:2026-10-14T22:02+08:00",
+   "requests": 0,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3642,6 +3636,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-14T21:51:09+08:00",
+ "updated_at": "2026-10-14T21:55:23+08:00",
  "version": 1
 }
