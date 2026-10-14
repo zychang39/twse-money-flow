@@ -964,21 +964,12 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-14T17:27+08:00",
-  "attempt": 1,
-  "fixed": [],
+  "at": "2026-10-14T18:02+08:00",
+  "attempt": 3,
+  "fixed": [
+   "valuation"
+  ],
   "missing": [
-   {
-    "dates": [
-     "2026-10-14"
-    ],
-    "due": "2026-10-14",
-    "key": "valuation",
-    "label": "本益比、淨值比",
-    "sources": [
-     "tpex_valuation"
-    ]
-   },
    {
     "dates": [
      "2026-10-14"
@@ -987,13 +978,12 @@
     "key": "qfii",
     "label": "外資持股比",
     "sources": [
-     "twse_qfii",
-     "tpex_qfii"
+     "twse_qfii"
     ]
    }
   ],
-  "next_retry": "2026-10-14T18:27+08:00",
-  "next_run": "2026-10-14T18:02+08:00"
+  "next_retry": "2026-10-14T19:02+08:00",
+  "next_run": "2026-10-14T19:02+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2088,34 +2078,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-12T22:07:30+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [
-    "credit",
-    "daytrade",
-    "margin_total",
-    "sbl"
-   ],
-   "format_warnings": [
-    "twse_fulldelivery"
-   ],
-   "kbar_dispatched": true,
-   "missing_after": [],
-   "missing_before": [
-    "credit",
-    "margin_total",
-    "sbl",
-    "daytrade"
-   ],
-   "ok": 40,
-   "pending": [],
-   "progressed": true,
-   "requests": 57,
-   "retry": false,
-   "task": "catchup"
-  },
-  {
    "at": "2026-10-12T22:08:20+08:00",
    "by_tier": {
     "1": 0,
@@ -2984,6 +2946,31 @@
    "requests": 4,
    "retry": true,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-14T18:02:36+08:00",
+   "attempt": 3,
+   "failed": [],
+   "fixed": [
+    "valuation"
+   ],
+   "missing_after": [
+    "qfii"
+   ],
+   "missing_before": [
+    "valuation",
+    "qfii"
+   ],
+   "ok": 2,
+   "pending": [
+    "twse_qfii",
+    "twse_qfii"
+   ],
+   "progressed": true,
+   "relay": "2026-10-14T19:02+08:00",
+   "requests": 3,
+   "retry": true,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3285,11 +3272,11 @@
   },
   "tpex_qfii": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-14T17:27:15+08:00",
-   "last_message": "尚未公布或無資料：ok",
-   "last_status": "pending",
-   "last_success": "2026-10-13",
-   "last_success_at": "2026-10-13T18:02:03+08:00",
+   "last_attempt": "2026-10-14T18:02:09+08:00",
+   "last_message": null,
+   "last_status": "ok",
+   "last_success": "2026-10-14",
+   "last_success_at": "2026-10-14T18:02:09+08:00",
    "rows": 888,
    "validation": "ok"
   },
@@ -3335,11 +3322,11 @@
   },
   "tpex_valuation": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-14T17:27:29+08:00",
-   "last_message": "本益比、淨值比：預期時間已過仍未取得（第 1 次補抓）",
-   "last_status": "pending",
-   "last_success": "2026-10-13",
-   "last_success_at": "2026-10-13T18:02:14+08:00",
+   "last_attempt": "2026-10-14T18:02:27+08:00",
+   "last_message": null,
+   "last_status": "ok",
+   "last_success": "2026-10-14",
+   "last_success_at": "2026-10-14T18:02:27+08:00",
    "rows": 886,
    "validation": "ok"
   },
@@ -3570,8 +3557,8 @@
   },
   "twse_qfii": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-14T17:27:29+08:00",
-   "last_message": "外資持股比：預期時間已過仍未取得（第 1 次補抓）",
+   "last_attempt": "2026-10-14T18:02:32+08:00",
+   "last_message": "外資持股比：預期時間已過仍未取得（第 3 次補抓）",
    "last_status": "pending",
    "last_success": "2026-10-13",
    "last_success_at": "2026-10-13T21:40:02+08:00",
@@ -3662,6 +3649,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-14T17:27:32+08:00",
+ "updated_at": "2026-10-14T18:02:36+08:00",
  "version": 1
 }
