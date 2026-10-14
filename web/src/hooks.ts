@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { loadState, registerState } from './lib/scrollRestore';
 import { type InvestStyle, getStyle } from './lib/style';
-import { loadStock, peekStock } from './data/api';
+import { getDataVersion, isStockFresh, loadStock, onDataUpdate, peekStock } from './data/api';
 import type { StockHistory } from './data/types';
 import { subscribe } from './db/db';
 import { navigate, useRoute } from './router';
@@ -12,8 +12,16 @@ export interface AsyncState<T> {
   loading: boolean;
 }
 
+/** 資料版本（api.checkDataUpdate 偵測到新部署時加 1）：放進 effect 的依賴，資料更新後自動重讀。 */
+export function useDataVersion(): number {
+  const [v, setV] = useState(getDataVersion);
+  useEffect(() => onDataUpdate(() => setV(getDataVersion())), []);
+  return v;
+}
+
 export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]): AsyncState<T> {
   const [state, setState] = useState<AsyncState<T>>({ data: null, error: null, loading: true });
+  const version = useDataVersion();
   useEffect(() => {
     let alive = true;
     setState((s) => ({ ...s, loading: true }));
@@ -23,7 +31,7 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]): AsyncState<T
     return () => {
       alive = false;
     };
-  }, deps);
+  }, [...deps, version]);
   return state;
 }
 
@@ -46,6 +54,7 @@ export function useDb<T>(fn: () => Promise<T>, deps: unknown[] = []): T | null {
 export function useHistories(codes: string[]): Map<string, StockHistory | null> {
   const [map, setMap] = useState<Map<string, StockHistory | null>>(new Map());
   const key = codes.join(',');
+  const version = useDataVersion();
   useEffect(() => {
     let alive = true;
     const out = new Map<string, StockHistory | null>();
@@ -59,7 +68,7 @@ export function useHistories(codes: string[]): Map<string, StockHistory | null> 
       });
     }
     return () => { alive = false; };
-  }, [key]);
+  }, [key, version]);
   return map;
 }
 
@@ -76,12 +85,14 @@ export function useStockData(code: string): { data: StockHistory | null; error: 
   const [, bump] = useState(0);
   const [err, setErr] = useState<{ code: string; error: Error } | null>(null);
   const cached = peekStock(code) ?? null;
+  const version = useDataVersion();
   useEffect(() => {
-    if (peekStock(code)) return;
+    // 已讀過這一版：直接用；資料更新後（isStockFresh＝false）先顯示舊資料、背景重讀
+    if (peekStock(code) && isStockFresh(code)) return;
     let alive = true;
     loadStock(code).then(() => alive && bump((n) => n + 1), (error: Error) => alive && setErr({ code, error }));
     return () => { alive = false; };
-  }, [code]);
+  }, [code, version]);
   const error = err && err.code === code ? err.error : null;
   return { data: cached, error, loading: !cached && !error };
 }

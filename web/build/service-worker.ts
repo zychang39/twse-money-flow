@@ -100,7 +100,9 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.includes('/data/')) {
-    // 資料：先回快取（若有），同時背景更新
+    // 資料版本檢查（api.checkDataUpdate）要繞過快取直接問伺服器
+    if (req.cache === 'no-store') return;
+    // 資料：先回快取（若有），同時背景更新；部署新資料後由頁面清掉這個快取（api.checkDataUpdate）
     event.respondWith(
       caches.open(DATA_CACHE).then(async (cache) => {
         const cached = await cache.match(req);
