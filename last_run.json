@@ -1,22 +1,23 @@
 {
- "task": "kbar",
- "at": "2026-10-15T20:10:19+08:00",
- "requests": 0,
- "ok": 1,
- "failed": [],
- "pending": [],
- "kbar_target": "2026-10-15",
- "fetched": 0,
- "rows": 0,
- "covered": 2337,
- "total": 2371,
- "remaining": 0,
- "unfinished": 0,
+ "task": "catchup",
+ "at": "2026-10-15T20:38:08+08:00",
+ "requests": 1,
+ "ok": 0,
+ "failed": [
+  "twse_qfii 2026-10-15 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
+ ],
+ "pending": [
+  "twse_qfii"
+ ],
+ "missing_before": [
+  "qfii"
+ ],
+ "missing_after": [
+  "qfii"
+ ],
+ "fixed": [],
+ "attempt": 1,
+ "retry": true,
  "progressed": false,
- "pruned": 0,
- "by_tier": {
-  "1": 0,
-  "2": 0,
-  "3": 0
- }
+ "relay": "2026-10-15T21:38+08:00"
 }

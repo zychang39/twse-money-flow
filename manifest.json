@@ -964,8 +964,8 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-15T19:02+08:00",
-  "attempt": 4,
+  "at": "2026-10-15T20:38+08:00",
+  "attempt": 1,
   "fixed": [],
   "missing": [
    {
@@ -980,8 +980,8 @@
     ]
    }
   ],
-  "next_retry": null,
-  "next_run": "2026-10-15T22:02+08:00"
+  "next_retry": "2026-10-15T21:38+08:00",
+  "next_run": "2026-10-15T21:38+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2065,29 +2065,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-13T19:02:07+08:00",
-   "attempt": 4,
-   "failed": [
-    "twse_qfii 2026-10-13 外資持股比：預期時間已過仍未取得（第 4 次補抓）"
-   ],
-   "fixed": [],
-   "missing_after": [
-    "qfii"
-   ],
-   "missing_before": [
-    "qfii"
-   ],
-   "ok": 0,
-   "pending": [
-    "twse_qfii"
-   ],
-   "progressed": false,
-   "relay": "2026-10-13T22:02+08:00",
-   "requests": 1,
-   "retry": false,
-   "task": "catchup"
-  },
-  {
    "at": "2026-10-13T19:40:26+08:00",
    "attempt": 1,
    "failed": [],
@@ -2957,6 +2934,29 @@
    "task": "kbar",
    "total": 2371,
    "unfinished": 0
+  },
+  {
+   "at": "2026-10-15T20:38:08+08:00",
+   "attempt": 1,
+   "failed": [
+    "twse_qfii 2026-10-15 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
+   ],
+   "fixed": [],
+   "missing_after": [
+    "qfii"
+   ],
+   "missing_before": [
+    "qfii"
+   ],
+   "ok": 0,
+   "pending": [
+    "twse_qfii"
+   ],
+   "progressed": false,
+   "relay": "2026-10-15T21:38+08:00",
+   "requests": 1,
+   "retry": true,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3542,10 +3542,10 @@
    "validation": "ok"
   },
   "twse_qfii": {
-   "consecutive_failures": 1,
-   "last_attempt": "2026-10-15T19:02:02+08:00",
-   "last_message": "外資持股比：預期時間已過仍未取得（第 4 次補抓）",
-   "last_status": "failed",
+   "consecutive_failures": 2,
+   "last_attempt": "2026-10-15T20:38:03+08:00",
+   "last_message": "外資持股比：預期時間已過仍未取得（第 1 次補抓）",
+   "last_status": "pending",
    "last_success": "2026-10-14",
    "last_success_at": "2026-10-14T21:51:02+08:00",
    "rows": 1356,
@@ -3635,6 +3635,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-15T20:10:19+08:00",
+ "updated_at": "2026-10-15T20:38:08+08:00",
  "version": 1
 }
