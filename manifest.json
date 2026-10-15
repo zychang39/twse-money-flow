@@ -1703,7 +1703,7 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-10-15T15:44+08:00",
+  "at": "2026-10-15T20:10+08:00",
   "covered": 2337,
   "empty": [
    "00625K",
@@ -1766,7 +1766,7 @@
    "9941A"
   ],
   "remaining": 0,
-  "rounds": 2,
+  "rounds": 3,
   "stopped": null,
   "target": "2026-10-15",
   "total": 2371,
@@ -2064,31 +2064,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-13T18:02:24+08:00",
-   "attempt": 3,
-   "failed": [],
-   "fixed": [
-    "valuation"
-   ],
-   "missing_after": [
-    "qfii"
-   ],
-   "missing_before": [
-    "valuation",
-    "qfii"
-   ],
-   "ok": 2,
-   "pending": [
-    "twse_qfii",
-    "twse_qfii"
-   ],
-   "progressed": true,
-   "relay": "2026-10-13T19:02+08:00",
-   "requests": 3,
-   "retry": true,
-   "task": "catchup"
-  },
   {
    "at": "2026-10-13T19:02:07+08:00",
    "attempt": 4,
@@ -2960,6 +2935,28 @@
    "requests": 1,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-15T20:10:19+08:00",
+   "by_tier": {
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "covered": 2337,
+   "failed": [],
+   "fetched": 0,
+   "kbar_target": "2026-10-15",
+   "ok": 1,
+   "pending": [],
+   "progressed": false,
+   "pruned": 0,
+   "remaining": 0,
+   "requests": 0,
+   "rows": 0,
+   "task": "kbar",
+   "total": 2371,
+   "unfinished": 0
   }
  ],
  "sources": {
@@ -3616,11 +3613,11 @@
   },
   "yahoo_kbar": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-15T15:45:03+08:00",
-   "last_message": "涵蓋 2337/2371 檔；本次 1 檔請求、失敗 0、查無 34、當日無成交略過 21",
+   "last_attempt": "2026-10-15T20:10:19+08:00",
+   "last_message": "涵蓋 2337/2371 檔；本次 0 檔請求、失敗 0、查無 34、當日無成交略過 21",
    "last_status": "ok",
    "last_success": "2026-10-15",
-   "last_success_at": "2026-10-15T15:45:03+08:00",
+   "last_success_at": "2026-10-15T20:10:19+08:00",
    "rows": 2337,
    "validation": "ok"
   }
@@ -3638,6 +3635,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-15T19:02:06+08:00",
+ "updated_at": "2026-10-15T20:10:19+08:00",
  "version": 1
 }
