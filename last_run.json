@@ -1,22 +1,35 @@
 {
- "task": "kbar",
- "at": "2026-10-15T15:45:03+08:00",
- "requests": 0,
- "ok": 1,
+ "task": "catchup",
+ "at": "2026-10-15T16:11:01+08:00",
+ "requests": 94,
+ "ok": 37,
  "failed": [],
- "pending": [],
- "kbar_target": "2026-10-15",
- "fetched": 1,
- "rows": 129,
- "covered": 2337,
- "total": 2371,
- "remaining": 0,
- "unfinished": 0,
+ "pending": [
+  "tpex_valuation",
+  "twse_insti",
+  "twse_valuation",
+  "twse_insti",
+  "twse_valuation"
+ ],
+ "format_warnings": [
+  "twse_fulldelivery"
+ ],
+ "missing_before": [
+  "insti",
+  "insti_amount",
+  "taifex",
+  "valuation"
+ ],
+ "missing_after": [
+  "insti",
+  "valuation"
+ ],
+ "fixed": [
+  "insti_amount",
+  "taifex"
+ ],
+ "attempt": 1,
+ "retry": true,
  "progressed": true,
- "pruned": 0,
- "by_tier": {
-  "1": 0,
-  "2": 0,
-  "3": 1
- }
+ "relay": "2026-10-15T17:02+08:00"
 }
