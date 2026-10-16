@@ -964,24 +964,12 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-16T16:02+08:00",
+  "at": "2026-10-16T16:57+08:00",
   "attempt": 1,
   "fixed": [
-   "insti_amount",
-   "taifex"
+   "insti"
   ],
   "missing": [
-   {
-    "dates": [
-     "2026-10-16"
-    ],
-    "due": "2026-10-16",
-    "key": "insti",
-    "label": "三大法人",
-    "sources": [
-     "twse_insti"
-    ]
-   },
    {
     "dates": [
      "2026-10-16"
@@ -995,7 +983,7 @@
     ]
    }
   ],
-  "next_retry": "2026-10-16T17:02+08:00",
+  "next_retry": "2026-10-16T17:57+08:00",
   "next_run": "2026-10-16T17:02+08:00"
  },
  "holders_backfill": {
@@ -2097,22 +2085,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-14T15:27:53+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [],
-   "kbar_dispatched": true,
-   "missing_after": [],
-   "missing_before": [],
-   "ok": 0,
-   "pending": [],
-   "progressed": false,
-   "relay": "skip:2026-10-14T16:02+08:00",
-   "requests": 0,
-   "retry": false,
-   "task": "catchup"
-  },
-  {
    "at": "2026-10-14T15:48:12+08:00",
    "by_tier": {
     "1": 500,
@@ -3015,6 +2987,32 @@
    "requests": 95,
    "retry": true,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-16T16:58:01+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [
+    "insti"
+   ],
+   "missing_after": [
+    "valuation"
+   ],
+   "missing_before": [
+    "insti",
+    "valuation"
+   ],
+   "ok": 1,
+   "pending": [
+    "tpex_valuation",
+    "twse_valuation",
+    "twse_valuation"
+   ],
+   "progressed": true,
+   "relay": "skip:2026-10-16T17:02+08:00",
+   "requests": 3,
+   "retry": true,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3366,7 +3364,7 @@
   },
   "tpex_valuation": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-16T16:02:11+08:00",
+   "last_attempt": "2026-10-16T16:57:43+08:00",
    "last_message": "尚未公布或無資料：ok",
    "last_status": "pending",
    "last_success": "2026-10-15",
@@ -3541,12 +3539,12 @@
   },
   "twse_insti": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-16T16:10:37+08:00",
-   "last_message": "三大法人：預期時間已過仍未取得（第 1 次補抓）",
-   "last_status": "pending",
-   "last_success": "2026-10-15",
-   "last_success_at": "2026-10-15T17:05:35+08:00",
-   "rows": 1322,
+   "last_attempt": "2026-10-16T16:57:53+08:00",
+   "last_message": null,
+   "last_status": "ok",
+   "last_success": "2026-10-16",
+   "last_success_at": "2026-10-16T16:57:53+08:00",
+   "rows": 1313,
    "validation": "ok"
   },
   "twse_insti_amount": {
@@ -3651,7 +3649,7 @@
   },
   "twse_valuation": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-16T16:10:37+08:00",
+   "last_attempt": "2026-10-16T16:57:57+08:00",
    "last_message": "本益比、淨值比：預期時間已過仍未取得（第 1 次補抓）",
    "last_status": "pending",
    "last_success": "2026-10-15",
@@ -3686,8 +3684,13 @@
    "status": "done",
    "waited": 0
   },
-  "date": "2026-10-16"
+  "date": "2026-10-16",
+  "insti": {
+   "at": "16:57",
+   "status": "done",
+   "waited": 0
+  }
  },
- "updated_at": "2026-10-16T16:10:43+08:00",
+ "updated_at": "2026-10-16T16:58:01+08:00",
  "version": 1
 }
