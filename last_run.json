@@ -1,7 +1,7 @@
 {
  "task": "catchup",
- "at": "2026-10-16T15:12:20+08:00",
- "requests": 84,
+ "at": "2026-10-16T15:11:35+08:00",
+ "requests": 86,
  "ok": 35,
  "failed": [],
  "pending": [],
@@ -22,6 +22,6 @@
  "attempt": 1,
  "retry": false,
  "progressed": true,
- "relay": "2026-10-16T16:02+08:00",
+ "relay": "skip:2026-10-16T15:02+08:00",
  "kbar_dispatched": true
 }
