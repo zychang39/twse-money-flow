@@ -1,15 +1,18 @@
 {
  "task": "catchup",
- "at": "2026-10-16T07:28:04+08:00",
- "requests": 0,
- "ok": 0,
+ "at": "2026-10-16T12:25:31+08:00",
+ "requests": 59,
+ "ok": 30,
  "failed": [],
  "pending": [],
+ "format_warnings": [
+  "twse_fulldelivery"
+ ],
  "missing_before": [],
  "missing_after": [],
  "fixed": [],
  "attempt": 1,
  "retry": false,
- "progressed": false,
- "relay": "2026-10-16T12:28+08:00"
+ "progressed": true,
+ "relay": "skip:2026-10-16T12:28+08:00"
 }
