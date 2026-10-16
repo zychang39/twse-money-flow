@@ -960,20 +960,16 @@
   }
  },
  "daily_extras": {
-  "at": "2026-10-16T15:02+08:00"
+  "at": "2026-10-16T12:28+08:00"
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-16T15:02+08:00",
+  "at": "2026-10-16T12:28+08:00",
   "attempt": 1,
-  "fixed": [
-   "index",
-   "intraday",
-   "quotes"
-  ],
+  "fixed": [],
   "missing": [],
   "next_retry": null,
-  "next_run": "2026-10-16T16:02+08:00"
+  "next_run": "2026-10-16T15:02+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -1695,72 +1691,59 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-10-15T20:10+08:00",
-  "covered": 2337,
+  "at": "2026-10-16T15:12+08:00",
+  "covered": 2328,
   "empty": [
-   "00625K",
-   "00707R",
    "00793B",
    "00847B",
+   "1312A",
+   "1470",
    "1516",
    "1522A",
-   "2035",
+   "1538",
    "2067",
+   "2073",
    "2321",
-   "2724",
-   "2949",
+   "2891B",
+   "2891C",
+   "2910",
    "3064",
+   "3332",
    "3625",
-   "3629",
    "3632",
-   "4154",
    "4155",
+   "4192",
+   "4305",
+   "4413",
+   "4502",
+   "4530",
+   "4535",
+   "5455",
    "5520",
-   "5523",
    "5703",
    "5906",
    "6142",
    "6167",
    "6173",
-   "6228",
-   "6496",
-   "6592A",
-   "6597",
+   "6236",
+   "6624",
+   "6881",
+   "6884",
    "7713",
+   "7782",
    "8047",
    "8183",
-   "8455",
-   "8923",
-   "9941A"
+   "8279",
+   "8908",
+   "8917",
+   "8923"
   ],
   "failed": [],
-  "no_trade": [
-   "00625K",
-   "00707R",
-   "2035",
-   "2321",
-   "2724",
-   "2949",
-   "3064",
-   "3629",
-   "4154",
-   "5520",
-   "5523",
-   "5703",
-   "5906",
-   "6228",
-   "6496",
-   "6592A",
-   "6597",
-   "7713",
-   "8455",
-   "8923",
-   "9941A"
-  ],
+  "no_trade": [],
   "remaining": 0,
-  "rounds": 3,
+  "rounds": 1,
   "stopped": null,
-  "target": "2026-10-15",
+  "target": "2026-10-16",
   "total": 2371,
   "unfinished": 0
  },
@@ -2056,30 +2039,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-14T10:17:21+08:00",
-   "attempt": 1,
-   "failed": [
-    "twse_parchange 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'",
-    "twse_etfsplit 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'",
-    "twse_exright 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'",
-    "twse_capreduce 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'",
-    "twse_attention 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'",
-    "twse_disposition 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'",
-    "twse_fulldelivery 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'",
-    "twse_short_halt 2026-10-13 不是 JSON：'<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.or'"
-   ],
-   "fixed": [],
-   "missing_after": [],
-   "missing_before": [],
-   "ok": 22,
-   "pending": [],
-   "progressed": true,
-   "relay": "2026-10-14T15:02+08:00",
-   "requests": 53,
-   "retry": false,
-   "task": "catchup"
-  },
   {
    "at": "2026-10-14T12:42:30+08:00",
    "attempt": 1,
@@ -2962,6 +2921,28 @@
    "requests": 84,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-16T15:44:59+08:00",
+   "by_tier": {
+    "1": 500,
+    "2": 441,
+    "3": 1430
+   },
+   "covered": 2328,
+   "failed": [],
+   "fetched": 2371,
+   "kbar_target": "2026-10-16",
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "pruned": 1,
+   "remaining": 0,
+   "requests": 0,
+   "rows": 385953,
+   "task": "kbar",
+   "total": 2371,
+   "unfinished": 0
   }
  ],
  "sources": {
@@ -2972,7 +2953,7 @@
    "last_status": "ok",
    "last_success": "2026-10-15",
    "last_success_at": "2026-10-16T15:12:15+08:00",
-   "rows": 1405,
+   "rows": 919,
    "validation": "ok"
   },
   "cbc_money": {
@@ -3618,23 +3599,33 @@
   },
   "yahoo_kbar": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-15T20:10:19+08:00",
-   "last_message": "涵蓋 2337/2371 檔；本次 0 檔請求、失敗 0、查無 34、當日無成交略過 21",
+   "last_attempt": "2026-10-16T15:44:59+08:00",
+   "last_message": "涵蓋 2328/2371 檔；本次 2371 檔請求、失敗 0、查無 43、當日無成交略過 0",
    "last_status": "ok",
-   "last_success": "2026-10-15",
-   "last_success_at": "2026-10-15T20:10:19+08:00",
-   "rows": 2337,
+   "last_success": "2026-10-16",
+   "last_success_at": "2026-10-16T15:44:59+08:00",
+   "rows": 2328,
    "validation": "ok"
   }
  },
  "stages": {
   "close": {
-   "at": "15:02",
+   "at": "16:02",
    "status": "done",
    "waited": 0
   },
-  "date": "2026-10-16"
+  "credit": {
+   "at": "22:02",
+   "status": "done",
+   "waited": 0
+  },
+  "date": "2026-10-15",
+  "insti": {
+   "at": "17:05",
+   "status": "done",
+   "waited": 0
+  }
  },
- "updated_at": "2026-10-16T15:12:20+08:00",
+ "updated_at": "2026-10-16T15:44:59+08:00",
  "version": 1
 }
