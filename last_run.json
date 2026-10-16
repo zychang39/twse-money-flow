@@ -1,22 +1,19 @@
 {
  "task": "catchup",
- "at": "2026-10-16T20:21:19+08:00",
+ "at": "2026-10-16T21:21:07+08:00",
  "requests": 1,
- "ok": 0,
+ "ok": 1,
  "failed": [],
- "pending": [
-  "twse_qfii",
-  "twse_qfii"
- ],
+ "pending": [],
  "missing_before": [
   "qfii"
  ],
- "missing_after": [
+ "missing_after": [],
+ "fixed": [
   "qfii"
  ],
- "fixed": [],
- "attempt": 1,
- "retry": true,
- "progressed": false,
- "relay": "2026-10-16T21:21+08:00"
+ "attempt": 2,
+ "retry": false,
+ "progressed": true,
+ "relay": "2026-10-16T22:02+08:00"
 }
