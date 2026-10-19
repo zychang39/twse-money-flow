@@ -1691,7 +1691,7 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-10-19T15:12+08:00",
+  "at": "2026-10-19T15:46+08:00",
   "covered": 2333,
   "empty": [
    "00625K",
@@ -1734,9 +1734,41 @@
    "9941A"
   ],
   "failed": [],
-  "no_trade": [],
+  "no_trade": [
+   "00625K",
+   "00643K",
+   "00707R",
+   "1213",
+   "1538",
+   "1593",
+   "2926",
+   "2939",
+   "3085",
+   "3259",
+   "3432",
+   "4183",
+   "4198",
+   "4305",
+   "4530",
+   "4581",
+   "4728",
+   "5455",
+   "5601",
+   "5703",
+   "6242",
+   "6592A",
+   "6597",
+   "7708",
+   "7782",
+   "7842",
+   "8067",
+   "8342",
+   "8921",
+   "8923",
+   "9941A"
+  ],
   "remaining": 0,
-  "rounds": 1,
+  "rounds": 2,
   "stopped": null,
   "target": "2026-10-19",
   "total": 2371,
@@ -2034,24 +2066,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-15T12:30:11+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [],
-   "format_warnings": [
-    "twse_fulldelivery"
-   ],
-   "missing_after": [],
-   "missing_before": [],
-   "ok": 30,
-   "pending": [],
-   "progressed": true,
-   "relay": "skip:2026-10-15T12:47+08:00",
-   "requests": 57,
-   "retry": false,
-   "task": "catchup"
-  },
   {
    "at": "2026-10-15T12:47:06+08:00",
    "attempt": 1,
@@ -2928,6 +2942,28 @@
    "task": "kbar",
    "total": 2371,
    "unfinished": 0
+  },
+  {
+   "at": "2026-10-19T15:46:19+08:00",
+   "by_tier": {
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "covered": 2333,
+   "failed": [],
+   "fetched": 0,
+   "kbar_target": "2026-10-19",
+   "ok": 1,
+   "pending": [],
+   "progressed": false,
+   "pruned": 0,
+   "remaining": 0,
+   "requests": 0,
+   "rows": 0,
+   "task": "kbar",
+   "total": 2371,
+   "unfinished": 0
   }
  ],
  "sources": {
@@ -3584,11 +3620,11 @@
   },
   "yahoo_kbar": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-19T15:45:34+08:00",
-   "last_message": "涵蓋 2333/2371 檔；本次 2371 檔請求、失敗 0、查無 38、當日無成交略過 0",
+   "last_attempt": "2026-10-19T15:46:19+08:00",
+   "last_message": "涵蓋 2333/2371 檔；本次 0 檔請求、失敗 0、查無 38、當日無成交略過 31",
    "last_status": "ok",
    "last_success": "2026-10-19",
-   "last_success_at": "2026-10-19T15:45:34+08:00",
+   "last_success_at": "2026-10-19T15:46:19+08:00",
    "rows": 2333,
    "validation": "ok"
   }
@@ -3611,6 +3647,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-19T15:45:34+08:00",
+ "updated_at": "2026-10-19T15:46:19+08:00",
  "version": 1
 }
