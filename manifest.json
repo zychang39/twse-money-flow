@@ -1703,7 +1703,7 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-10-19T15:46+08:00",
+  "at": "2026-10-19T22:00+08:00",
   "covered": 2333,
   "empty": [
    "00625K",
@@ -1780,7 +1780,7 @@
    "9941A"
   ],
   "remaining": 0,
-  "rounds": 2,
+  "rounds": 3,
   "stopped": null,
   "target": "2026-10-19",
   "total": 2371,
@@ -2078,41 +2078,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-15T16:11:01+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [
-    "insti_amount",
-    "taifex"
-   ],
-   "format_warnings": [
-    "twse_fulldelivery"
-   ],
-   "missing_after": [
-    "insti",
-    "valuation"
-   ],
-   "missing_before": [
-    "insti",
-    "insti_amount",
-    "taifex",
-    "valuation"
-   ],
-   "ok": 37,
-   "pending": [
-    "tpex_valuation",
-    "twse_insti",
-    "twse_valuation",
-    "twse_insti",
-    "twse_valuation"
-   ],
-   "progressed": true,
-   "relay": "2026-10-15T17:02+08:00",
-   "requests": 94,
-   "retry": true,
-   "task": "catchup"
-  },
   {
    "at": "2026-10-15T17:09:24+08:00",
    "attempt": 2,
@@ -3017,6 +2982,28 @@
    "requests": 1,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-19T22:00:45+08:00",
+   "by_tier": {
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "covered": 2333,
+   "failed": [],
+   "fetched": 0,
+   "kbar_target": "2026-10-19",
+   "ok": 1,
+   "pending": [],
+   "progressed": false,
+   "pruned": 0,
+   "remaining": 0,
+   "requests": 0,
+   "rows": 0,
+   "task": "kbar",
+   "total": 2371,
+   "unfinished": 0
   }
  ],
  "sources": {
@@ -3673,11 +3660,11 @@
   },
   "yahoo_kbar": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-19T15:46:19+08:00",
+   "last_attempt": "2026-10-19T22:00:45+08:00",
    "last_message": "涵蓋 2333/2371 檔；本次 0 檔請求、失敗 0、查無 38、當日無成交略過 31",
    "last_status": "ok",
    "last_success": "2026-10-19",
-   "last_success_at": "2026-10-19T15:46:19+08:00",
+   "last_success_at": "2026-10-19T22:00:45+08:00",
    "rows": 2333,
    "validation": "ok"
   }
@@ -3695,6 +3682,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-19T19:02:07+08:00",
+ "updated_at": "2026-10-19T22:00:45+08:00",
  "version": 1
 }
