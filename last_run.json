@@ -1,27 +1,16 @@
 {
  "task": "catchup",
- "at": "2026-10-20T15:12:10+08:00",
- "requests": 105,
- "ok": 35,
+ "at": "2026-10-20T15:25:04+08:00",
+ "requests": 0,
+ "ok": 0,
  "failed": [],
  "pending": [],
- "format_warnings": [
-  "twse_fulldelivery"
- ],
- "missing_before": [
-  "quotes",
-  "index",
-  "intraday"
- ],
+ "missing_before": [],
  "missing_after": [],
- "fixed": [
-  "index",
-  "intraday",
-  "quotes"
- ],
+ "fixed": [],
  "attempt": 1,
  "retry": false,
- "progressed": true,
- "relay": "2026-10-20T16:02+08:00",
+ "progressed": false,
+ "relay": "skip:2026-10-20T16:02+08:00",
  "kbar_dispatched": true
 }

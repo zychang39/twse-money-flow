@@ -964,13 +964,9 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-20T15:02+08:00",
+  "at": "2026-10-20T15:24+08:00",
   "attempt": 1,
-  "fixed": [
-   "index",
-   "intraday",
-   "quotes"
-  ],
+  "fixed": [],
   "missing": [],
   "next_retry": null,
   "next_run": "2026-10-20T16:02+08:00"
@@ -2071,33 +2067,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-15T22:07:55+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [
-    "credit",
-    "daytrade",
-    "margin_total",
-    "sbl"
-   ],
-   "format_warnings": [
-    "twse_fulldelivery"
-   ],
-   "missing_after": [],
-   "missing_before": [
-    "credit",
-    "margin_total",
-    "sbl",
-    "daytrade"
-   ],
-   "ok": 40,
-   "pending": [],
-   "progressed": true,
-   "requests": 65,
-   "retry": false,
-   "task": "catchup"
-  },
-  {
    "at": "2026-10-16T02:28:09+08:00",
    "attempt": 1,
    "failed": [],
@@ -2944,6 +2913,22 @@
    "requests": 105,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-20T15:25:04+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "kbar_dispatched": true,
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "progressed": false,
+   "relay": "skip:2026-10-20T16:02+08:00",
+   "requests": 0,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3617,6 +3602,6 @@
   },
   "date": "2026-10-20"
  },
- "updated_at": "2026-10-20T15:12:10+08:00",
+ "updated_at": "2026-10-20T15:25:04+08:00",
  "version": 1
 }
