@@ -964,24 +964,14 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-20T20:41+08:00",
-  "attempt": 1,
-  "fixed": [],
-  "missing": [
-   {
-    "dates": [
-     "2026-10-20"
-    ],
-    "due": "2026-10-20",
-    "key": "qfii",
-    "label": "外資持股比",
-    "sources": [
-     "twse_qfii"
-    ]
-   }
+  "at": "2026-10-20T21:41+08:00",
+  "attempt": 2,
+  "fixed": [
+   "qfii"
   ],
-  "next_retry": "2026-10-20T21:41+08:00",
-  "next_run": "2026-10-20T21:41+08:00"
+  "missing": [],
+  "next_retry": null,
+  "next_run": "2026-10-20T22:02+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2078,32 +2068,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-16T16:58:01+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [
-    "insti"
-   ],
-   "missing_after": [
-    "valuation"
-   ],
-   "missing_before": [
-    "insti",
-    "valuation"
-   ],
-   "ok": 1,
-   "pending": [
-    "tpex_valuation",
-    "twse_valuation",
-    "twse_valuation"
-   ],
-   "progressed": true,
-   "relay": "skip:2026-10-16T17:02+08:00",
-   "requests": 3,
-   "retry": true,
-   "task": "catchup"
-  },
-  {
    "at": "2026-10-16T17:09:08+08:00",
    "attempt": 2,
    "failed": [],
@@ -2974,6 +2938,25 @@
    "requests": 1,
    "retry": true,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-20T21:41:08+08:00",
+   "attempt": 2,
+   "failed": [],
+   "fixed": [
+    "qfii"
+   ],
+   "missing_after": [],
+   "missing_before": [
+    "qfii"
+   ],
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "relay": "2026-10-20T22:02+08:00",
+   "requests": 1,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3559,14 +3542,14 @@
    "validation": "ok"
   },
   "twse_qfii": {
-   "consecutive_failures": 2,
-   "last_attempt": "2026-10-20T20:41:43+08:00",
-   "last_message": "外資持股比：預期時間已過仍未取得（第 1 次補抓）",
-   "last_status": "pending",
-   "last_success": "2026-10-19",
-   "last_success_at": "2026-10-19T22:02:37+08:00",
+   "consecutive_failures": 0,
+   "last_attempt": "2026-10-20T21:41:03+08:00",
+   "last_message": null,
+   "last_status": "ok",
+   "last_success": "2026-10-20",
+   "last_success_at": "2026-10-20T21:41:03+08:00",
    "rows": 1359,
-   "validation": "failed"
+   "validation": "ok"
   },
   "twse_quotes": {
    "consecutive_failures": 0,
@@ -3652,6 +3635,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-20T20:41:49+08:00",
+ "updated_at": "2026-10-20T21:41:08+08:00",
  "version": 1
 }
