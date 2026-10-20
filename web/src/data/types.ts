@@ -392,3 +392,24 @@ export interface LongHistory {
 /** U-01：沒有個股檔的證券（近 20 個交易日無成交） */
 export interface InactiveRow { code: string; name: string; market: 'twse' | 'tpex' | null; last_trade_date: string | null; status: 'halted' | 'inactive' }
 export interface InactiveList { date: string; rows: InactiveRow[] }
+
+/** 融資增減（2026-10-20；pipeline/derive/margin.py）：可回看的日期與每日上市／上櫃融資金額（億元）。 */
+export interface MarginTotal { amt: number; chg: number | null }
+export interface MarginIndexDay { date: string; down: number; up: number; flat: number; twse?: MarginTotal; tpex?: MarginTotal }
+export interface MarginIndex {
+  date: string;
+  dates: string[];
+  days: MarginIndexDay[];
+  periods: number[];
+  top: number;
+  min_base_lots: number;
+  min_base_lots_pct: number;
+  source: string;
+}
+/** 某一天的排行：lists 的鍵＝`${期間}_${down|up}_${lots|pct}`，列依 columns 排列 */
+export interface MarginDay {
+  date: string;
+  counts: { down: number; up: number; flat: number };
+  columns: string[];
+  lists: Record<string, (string | number | null)[][]>;
+}

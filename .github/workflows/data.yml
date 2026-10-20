@@ -145,6 +145,7 @@ jobs:
       # 加上 run 的上限 320 分鐘仍在 job 的 350 分鐘內，不會讓既有資料因整個 job 逾時而沒提交。
       - if: >-
           always() && steps.prepare.outcome == 'success' && steps.run.outcome == 'success' && steps.run.outputs.deploy == 'true'
+          && steps.run.outputs.quick != 'true'
           && (!inputs.task || inputs.task == 'daily' || inputs.task == 'catchup')
           && github.event.schedule != '45 6 * * 1-5' && github.event.schedule != '40 14 * * 1-5'
         continue-on-error: true
@@ -163,10 +164,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python -m pipeline keepalive
       # 只有 main 會部署 GitHub Pages：在開發分支執行的回補（v3 M5 的 10 年股價）只寫入 data 分支，不發布開發中的前端。
+      # 2026-10-20：只補到融資（20:50 起輪詢）→ quick=true，deploy.yml 只重算融資增減（數分鐘上線）。
       # 2026-10-08：改成觸發 deploy.yml 就結束（原本以 reusable workflow 在同一個 run 裡等部署跑完 20～30 分鐘，
       # 這段期間佔住自己的 concurrency 群組，5 分 K 下一段、補抓接力都要等）。部署在 pages 群組排隊，
       # 同時只保留最新一個等待中的部署，連續幾次資料更新只會部署一次最新的。
       - if: always() && steps.run.outputs.deploy == 'true' && github.ref_name == 'main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run deploy.yml --ref main -f digest="${{ steps.run.outputs.digest || 'false' }}"
+        run: gh workflow run deploy.yml --ref main -f digest="${{ steps.run.outputs.digest || 'false' }}" -f quick="${{ steps.run.outputs.quick || 'false' }}"

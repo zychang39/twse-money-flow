@@ -140,6 +140,10 @@ export const loadIntraday = () => getJson<import('./types').IntradayData>('intra
 export const loadStockIntradayIndex = () => getJson<import('./types').StockIntradayIndex>('intraday/index.json').catch(() => null);
 export const loadStockIntraday = (code: string) => getJson<import('./types').StockIntraday>(`intraday/${encodeURIComponent(code)}.json`).catch(() => null);
 
+/** 融資增減（2026-10-20）：日期索引與每日排行（換日期時才下載）；舊版部署沒有這些檔案時為 null。 */
+export const loadMarginIndex = () => getJson<import('./types').MarginIndex>('margin/index.json').catch(() => null);
+export const loadMarginDay = (date: string) => getJson<import('./types').MarginDay>(`margin/${encodeURIComponent(date)}.json`);
+
 /** M1.2 族群三層：清單與統計（含每檔的細產業、題材與報酬，自訂族群在前端計算）。 */
 /** 2026-10-10：主動式 ETF 資金流向（1 日～1 季；只有主動式 ETF 頁載入） */
 export const loadEtfFlows = () => getJson<import('../lib/etfFlows').EtfFlows>('etf_flows.json');

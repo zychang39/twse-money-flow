@@ -115,6 +115,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         ctx.deadline = time.monotonic() + float(args.max_minutes) * 60
     extra: dict[str, object] = {}
     deploy = "false"
+    quick = "false"
     try:
         if task == "daily":
             tasks.task_daily(ctx, sources)
@@ -127,6 +128,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         elif task == "catchup":
             extra = run_catchup_task(ctx, args)
             deploy = "true" if extra.get("progressed") else "false"
+            # 2026-10-20：這一次只補到融資 → 快速部署（只重算融資增減，約數分鐘上線）
+            quick = "true" if deploy == "true" and extra.get("quick") else "false"
         elif task == "probe":
             extra = run_probe(ctx, args)
         elif task == "kbar":
@@ -240,6 +243,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         task=task,
         failed="true" if ctx.failures else "false",
         deploy=deploy,
+        quick=quick,
         digest=digest,
         remaining=extra.get("remaining", 0),
     )
@@ -279,7 +283,8 @@ def run_catchup_task(ctx: Any, args: argparse.Namespace) -> dict[str, object]:
             datetime.fromisoformat(state["next_retry"]) if extra.get("retry") and state.get("next_retry") else None
         )
         now = now_tpe()
-        plan = freshness.plan_next(now, attempt, retry_at, freshness.next_due_at(ctx.calendar, now), max_wait)
+        poll_at = datetime.fromisoformat(str(extra["poll_at"])) if extra.get("poll_at") else None
+        plan = freshness.plan_next(now, attempt, retry_at, freshness.next_due_at(ctx.calendar, now), max_wait, poll_at)
         if plan:
             res = dispatch_relay(*plan, ref=ref)
             extra["relay"] = res
@@ -486,6 +491,26 @@ def cmd_build_web(args: argparse.Namespace) -> int:
     report = build_web(Path(args.data_dir), Path(args.out), evidence_cache=Path(cache) if cache else None)
     print(json.dumps(report, ensure_ascii=False, indent=1))
     return 0
+
+
+def cmd_build_margin(args: argparse.Namespace) -> int:
+    """快速部署（2026-10-20）：融資約 20:45 公布後只重算 margin/*.json，並更新 meta.json 的 generated_at、margin_date
+    （前端依 generated_at 判斷有新部署、清掉快取重讀；api.checkDataUpdate）。其餘衍生資料沿用上一次完整部署的輸出。"""
+    from pipeline.derive import margin
+    from pipeline.derive.export import write_json
+
+    out = Path(args.out)
+    meta_path = out / "meta.json"
+    if not meta_path.exists():
+        print("找不到上一次完整部署的 meta.json：改走完整部署")
+        return 1
+    report = margin.build(DataStore(args.data_dir), out)
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta["generated_at"] = now_tpe().isoformat(timespec="seconds")
+    meta["margin_date"] = report.get("date")
+    write_json(meta_path, meta)
+    print(json.dumps(report, ensure_ascii=False))
+    return 0 if report.get("days") else 1
 
 
 def cmd_guard(args: argparse.Namespace) -> int:
@@ -706,6 +731,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="指標效度評估的快取目錄（輸入、程式、設定都沒變就沿用；deploy.yml 以 actions/cache 保存）",
     )
     web.set_defaults(func=cmd_build_web)
+
+    bm = sub.add_parser("build-margin", help="快速部署：只重算融資增減（margin/*.json）並更新 meta.json")
+    bm.add_argument("--data-dir", default="data")
+    bm.add_argument("--out", default="web/public/data")
+    bm.set_defaults(func=cmd_build_margin)
 
     gd = sub.add_parser("guard", help="部署前守門：新版衍生資料 vs 線上前一版（欄位、日期、筆數）")
     gd.add_argument("--out", default="web/public/data")

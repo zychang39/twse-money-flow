@@ -16,6 +16,7 @@ import { fillForward, intradayWindow, sliceWindow, TONIGHT_PERIODS, type Period,
 import { makeCalendar } from '../lib/tradingCalendar';
 import { PAGE_SOURCES, affectedFor } from '../lib/health';
 import { fmtNum } from '../lib/format';
+import { MarginCards, MarginSection } from './MarginBrief';
 
 const WD = '日一二三四五六';
 
@@ -211,6 +212,7 @@ export function Overview({ market, index, onSeg, rows }: {
             interp={flow ? `${md(flow.date)}・外資 ${flow.foreign == null ? `—（${DAY_STATUS_TEXT[missingDayStatus('insti', flow.date, tpeClock())]}）` : `${fmtNum(flow.foreign, 0)} 億`}` : '尚未公布'} />
           <SummaryCard title="成交金額" conclusion={turn ? <><Num v={turn.total.value} digits={0} unit="億" /></> : '—'} onClick={() => onSeg('money')} testid="sum-turnover"
             interp={turn && ratio(turn.total) !== null ? `20 日平均的 ${fmtNum(ratio(turn.total) as number, 2)} 倍` : undefined} />
+          <MarginCards market={market} onSeg={onSeg} />
         </div>
       </Section>
       <div class="ui-sec">
@@ -291,6 +293,7 @@ export function MoneyPane({ market }: { market: MarketData | null }) {
         ) : <Card><p class="ds-line">資料源待處理</p></Card>}
       </Section>
       <FlowsSection flows={flows} flow={flow} sum20={sum20} source={market?.flows_source} />
+      <MarginSection />
       <TurnoverSection turnover={market?.turnover} />
     </div>
   );

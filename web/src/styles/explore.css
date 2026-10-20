@@ -20,3 +20,9 @@
 .ex-tile-v { grid-column: 1 / -1; grid-row: 2; margin-top: var(--s-1); font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); font-variant-numeric: tabular-nums; word-break: keep-all; overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) { .ex-tile:active, .ex-index:active { transform: none; } }
 .ex-skel { display: block; width: 70%; height: 1em; }
+
+/* 融資增減（2026-10-20）：資料日前後切換（按鈕 44pt） */
+.mg-step { display: flex; align-items: center; justify-content: space-between; margin: 0 0 var(--s-1, 8px); }
+.mg-step-d { font-size: var(--fs-body); font-weight: 600; font-variant-numeric: tabular-nums; }
+.mg-step .icon-btn:disabled { color: var(--text-3); cursor: default; }
+.mg-gap { height: 8px; }

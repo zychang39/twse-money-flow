@@ -249,6 +249,20 @@ def build_store(root: Path, *, days: int = 320, end: date | None = None, seed: i
                 },
             ]
         )
+    # 2026-10-20：融資總計（融資金額，仟元）＝示範股票融資張數 × 收盤 × 15（放大到接近真實市場的量級）
+    for market in ("twse", "tpex"):
+        prev_amt: float | None = None
+        for iso in sorted(rows.get(f"{market}_margin", {})):
+            px = {r["code"]: float(str(r["close"])) for r in rows[f"{market}_quotes"][iso]}
+            amt = sum(
+                float(str(r["margin_balance"])) * px.get(str(r["code"]), 0.0) for r in rows[f"{market}_margin"][iso]
+            )
+            amt = round(amt * 15)
+            item = "融資金額(仟元)" if market == "twse" else "融資金(仟元)"
+            rows.setdefault(f"{market}_margin_total", {})[iso] = [
+                {"date": iso, "item": item, "prev": prev_amt if prev_amt is not None else amt, "balance": amt}
+            ]
+            prev_amt = amt
     for source, by_date in rows.items():
         for iso, recs in by_date.items():
             store.write(source, date.fromisoformat(iso), pd.DataFrame(recs))

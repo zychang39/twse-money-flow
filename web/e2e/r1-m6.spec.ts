@@ -84,10 +84,10 @@ for (const width of [375, 393]) {
       expect(await sub.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('normal');
     });
 
-    test('U-06（M4）：探索頁不捲動就看得到全部 10 個功能格與 3 個指數格；每格的即時數值一行', async ({ page }) => {
+    test('U-06（M4）：探索頁不捲動就看得到全部 11 個功能格（2026-10-20 加融資增減）與 3 個指數格；每格的即時數值一行', async ({ page }) => {
       await page.goto('#/explore');
       const tiles = page.locator('.ex-tile');
-      await expect(tiles).toHaveCount(10);
+      await expect(tiles).toHaveCount(11);
       await expect(page.locator('.ex-index')).toHaveCount(3);
       await page.waitForTimeout(600);
       const info = await tiles.evaluateAll((els) => els.map((el) => {

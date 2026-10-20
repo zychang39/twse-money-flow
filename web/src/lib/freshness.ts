@@ -17,7 +17,7 @@ export interface FreshDef { label: string; time: string; sources: string[] }
 interface FreshnessConfig { datasets: Record<string, FreshDef>; banner: string[]; catchup: { times: string[]; retry_minutes: number; max_retries: number } }
 
 export const freshnessConfig = (scheduleYml as { freshness: FreshnessConfig }).freshness;
-export type FreshKey = 'quotes' | 'index' | 'intraday' | 'insti' | 'insti_amount' | 'taifex' | 'valuation' | 'qfii' | 'credit' | 'margin_total' | 'sbl' | 'daytrade';
+export type FreshKey = 'quotes' | 'index' | 'intraday' | 'insti' | 'insti_amount' | 'taifex' | 'valuation' | 'qfii' | 'credit' | 'margin_total' | 'margin_flash' | 'sbl' | 'daytrade';
 export const FRESH: Record<FreshKey, FreshDef> = freshnessConfig.datasets as Record<FreshKey, FreshDef>;
 /** 頁首「資料至」與橫幅看的資料集 */
 export const BANNER_KEYS = freshnessConfig.banner as FreshKey[];
