@@ -1,6 +1,6 @@
 {
  "task": "catchup",
- "at": "2026-10-20T21:41:08+08:00",
+ "at": "2026-10-20T21:44:32+08:00",
  "requests": 1,
  "ok": 1,
  "failed": [],
@@ -12,8 +12,8 @@
  "fixed": [
   "qfii"
  ],
- "attempt": 2,
+ "attempt": 1,
  "retry": false,
  "progressed": true,
- "relay": "2026-10-20T22:02+08:00"
+ "relay": "skip:2026-10-20T22:02+08:00"
 }
