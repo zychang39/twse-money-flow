@@ -63,7 +63,7 @@ def test_catchup_fetches_only_due_and_missing(tmp_path, monkeypatch):
     }
     _fill(ctx.store, DAYS, skip=miss)
     gaps = {g.key: g for g in freshness.gaps(ctx.store, ctx.calendar, ctx.now)}
-    assert set(gaps) == {"insti", "credit", "margin_total", "taifex"}
+    assert set(gaps) == {"insti", "credit", "margin_total", "margin_flash", "taifex"}
     assert gaps["insti"].dates == [date(2026, 10, 5)] and gaps["insti"].due == date(2026, 10, 5)
 
     calls: list[tuple[str, date]] = []
@@ -93,7 +93,7 @@ def test_catchup_fetches_only_due_and_missing(tmp_path, monkeypatch):
     assert (
         res["missing_after"] == []
         and not res["retry"]
-        and set(res["fixed"]) == {"insti", "credit", "margin_total", "taifex"}
+        and set(res["fixed"]) == {"insti", "credit", "margin_total", "margin_flash", "taifex"}
     )
     assert ctx.manifest["freshness"]["missing"] == []
 
@@ -136,7 +136,8 @@ def test_kbar_due(tmp_path):
         ((15, 0), (16, 2)),  # 15:00 已到期（這一次就抓了）→ 下一個是 16:00
         ((15, 5), (16, 2)),
         ((16, 30), (17, 2)),
-        ((17, 5), (22, 2)),
+        ((17, 5), (20, 52)),  # 2026-10-20：融資增減 20:50（輪詢）
+        ((20, 55), (22, 2)),
         ((22, 5), None),  # 今天都過了 → 隔天由排程起跑
     ],
 )
@@ -332,6 +333,7 @@ def test_daily_extras_cover_rest_of_daily_task():
         (None, (10, 7, 15, 2), True),
         ((10, 7, 15, 2), (10, 7, 15, 40), False),  # 同一時段（15:00 起）的重試、中繼不重跑
         ((10, 7, 15, 2), (10, 7, 16, 2), True),  # 16:00 新時段
+        ((10, 7, 17, 2), (10, 7, 20, 52), False),  # 融資增減（輪詢）不是新時段：其他來源要跑數分鐘
         ((10, 7, 17, 2), (10, 7, 22, 2), True),
         ((10, 7, 22, 2), (10, 8, 7, 50), False),  # 08:00 前仍屬前一天 22:00 時段
         ((10, 7, 22, 2), (10, 8, 8, 5), True),  # 起跑點：補前一天晚上才公布的 ETF 持股
@@ -369,3 +371,49 @@ def test_task_daily_extras_fetches_etf_holdings(tmp_path, monkeypatch):
     assert seen["etf"] == [date(2026, 10, 7)] and seen["ust"] == [2026]
     assert ("twse_disposition", date(2026, 10, 7)) in seen["range"]
     assert "twse_attention_accum" in seen["snap"] and "twse_exright_notice" in seen["snap"]
+
+
+# ── 融資增減輪詢與快速部署（2026-10-20）─────────────────────────────
+
+
+def test_catchup_polls_margin_every_5_minutes(tmp_path, monkeypatch):
+    """20:52 融資還沒公布 → 5 分鐘後再試（輪詢不算失敗、不累計重試次數）；22:00 後不再輪詢。"""
+    ctx = make_ctx(tmp_path, {}, now=datetime(2026, 10, 7, 20, 52, tzinfo=TPE))
+    monkeypatch.setattr(tasks, "task_daily_extras", lambda c: None)
+    _fill(ctx.store, [*DAYS, date(2026, 10, 6), date(2026, 10, 7)], skip={("twse_margin", date(2026, 10, 7))})
+    monkeypatch.setattr(tasks, "run_daily_source", lambda c, spec, d, overwrite=False: "pending")
+    res = freshness.run_catchup(ctx, attempt=1)
+    assert res["missing_after"] == ["margin_flash"] and not res["retry"]
+    assert res["poll_at"] == "2026-10-07T20:57+08:00"
+    assert not any(r["status"] == "failed" for r in ctx.results)
+    plan = freshness.plan_next(
+        ctx.now, 1, None, freshness.next_due_at(ctx.calendar, ctx.now), 300, datetime.fromisoformat(res["poll_at"])
+    )
+    assert plan == (datetime(2026, 10, 7, 20, 57, tzinfo=TPE), 1)
+    ctx.now = datetime(2026, 10, 7, 22, 0, tzinfo=TPE)
+    assert freshness.run_catchup(ctx, attempt=1)["poll_at"] is None
+
+
+def test_catchup_margin_only_is_quick(tmp_path, monkeypatch):
+    """只補到融資 → 快速部署；同時補到其他資料集 → 完整部署。"""
+    ctx = make_ctx(tmp_path, {}, now=datetime(2026, 10, 7, 20, 57, tzinfo=TPE))
+    monkeypatch.setattr(tasks, "task_daily_extras", lambda c: None)
+    _fill(ctx.store, [*DAYS, date(2026, 10, 6), date(2026, 10, 7)], skip={("twse_margin", date(2026, 10, 7))})
+
+    def fake(c, spec, d, *, overwrite=False):
+        c.store.write(spec.id, d, pd.DataFrame({"code": ["2330"], "v": [1]}))
+        c.note(spec.id, "ok", data_date=d)
+        c.note(spec.id.replace("_margin", "_margin_total"), "ok", data_date=d)  # 附表
+        return "ok"
+
+    monkeypatch.setattr(tasks, "run_daily_source", fake)
+    res = freshness.run_catchup(ctx)
+    assert res["fixed"] == ["margin_flash"] and res["quick"] and res["progressed"]
+    assert freshness.quick_deploy(["margin_flash", "credit", "margin_total"], {"twse_margin", "tpex_margin"})
+    # 附表（融資總計）也記成一個來源（tasks.run_daily_source）
+    assert freshness.quick_deploy(
+        ["margin_flash"], {"twse_margin", "twse_margin_total", "tpex_margin", "tpex_margin_total"}
+    )
+    assert not freshness.quick_deploy(["margin_flash", "sbl"], {"twse_margin", "twse_sbl"})
+    assert not freshness.quick_deploy(["margin_flash"], {"twse_margin", "active_etf"})
+    assert not freshness.quick_deploy([], set())

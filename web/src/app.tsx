@@ -27,6 +27,7 @@ const EtfDetail = lazy(() => import('./pages/EtfDetail'));
 const MarketTemp = lazy(() => import('./pages/MarketTemp'));
 const CalendarPage = lazy(() => import('./pages/Calendar'));
 const Disposition = lazy(() => import('./pages/Disposition'));
+const MarginFlow = lazy(() => import('./pages/MarginFlow'));
 const Discipline = lazy(() => import('./pages/Discipline'));
 const Journal = lazy(() => import('./pages/Journal'));
 const Stats = lazy(() => import('./pages/Stats'));
@@ -88,6 +89,7 @@ function Page({ parts }: { parts: string[] }) {
         case 'market': return <MarketTemp />;
         case 'calendar': return <CalendarPage />;
         case 'disposition': return <Disposition />;
+        case 'margin': return <MarginFlow />;
         case 'evidence': return <Evidence />;
         case 'strategies': return <Strategies id={c} />;
         case 'leverage': return <Leverage />;

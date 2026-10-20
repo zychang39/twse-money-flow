@@ -6,9 +6,10 @@
 import type { ComponentChildren } from 'preact';
 import { TopBar } from '../components/Chrome';
 import { PageTitle, Signed } from '../components/ui';
-import { IconAlert, IconBooks, IconBriefcase, IconCalendar, IconFilter, IconFlask, IconHistory, IconLayers, IconThermo } from '../components/Icons';
+import { IconAlert, IconBooks, IconBriefcase, IconCalendar, IconFilter, IconFlask, IconHistory, IconLayers, IconMargin, IconThermo } from '../components/Icons';
 import { useAsync } from '../hooks';
-import { loadIndex, loadJson, loadMarket, loadSectors } from '../data/api';
+import { loadIndex, loadJson, loadMarginIndex, loadMarket, loadSectors } from '../data/api';
+import type { MarginIndex } from '../data/types';
 import { TAIEX, TAIEX_TR, TPEX } from '../data/types';
 import { envCounts, envInfo } from '../lib/envState';
 import type { EvidenceFile } from '../lib/evidence';
@@ -48,6 +49,13 @@ function Tile({ icon, title, value, href, testid }: { icon: ComponentChildren; t
   );
 }
 
+/** 融資增減卡片：最新一天的資減／資增家數 */
+function marginTile(m: { data: MarginIndex | null; loading: boolean }): string {
+  const d = m.data?.days[m.data.days.length - 1];
+  if (d) return `資減 ${fmtNum(d.down, 0)}・資增 ${fmtNum(d.up, 0)}`;
+  return m.loading ? '載入中' : '資料累積中';
+}
+
 export default function Explore() {
   const market = useAsync(loadMarket, []);
   const index = useAsync(loadIndex, []);
@@ -57,6 +65,7 @@ export default function Explore() {
   const st = useAsync(() => loadJson<StrategiesFile>('strategies.json').catch(() => null), []);
   const cal = useAsync(() => loadJson<{ events?: { date: string }[] }>('calendar.json').catch(() => null), []);
   const mf = useAsync(() => loadMomentumSummary().catch(() => null), []);
+  const margin = useAsync(loadMarginIndex, []);
   const lab = labStatus(ev.data ?? null, st.data?.strategies ?? null);
   const vc = verdictCounts(ev.data?.rows);
   const env = envInfo(market.data?.env?.lights);
@@ -89,6 +98,7 @@ export default function Explore() {
         <Tile icon={<IconBriefcase />} title="主動式 ETF" href="#/explore/etf" testid="ex-etf" value={rk?.total !== undefined ? `${rk.covered ?? 0}/${rk.total} 檔有持股` : market.data?.active_etfs ? `${market.data.active_etfs.length} 檔` : pending(market)} />
         <Tile icon={<IconCalendar />} title="行事曆" href="#/explore/calendar" testid="ex-calendar" value={cal.data ? `即將 ${upcoming} 件` : '除權息・營收・法說'} />
         <Tile icon={<IconAlert />} title="處置與注意" href="#/explore/disposition" testid="ex-disposition" value={disp.data ? `處置 ${disp.data.disposition.length}・注意 ${disp.data.watch.filter((w) => w.in10 > 0).length}` : pending(disp)} />
+        <Tile icon={<IconMargin />} title="融資增減" href="#/explore/margin" testid="ex-margin" value={marginTile(margin)} />
         <Tile icon={<IconMomentum />} title="動能流程" href="#/explore/momentum" testid="ex-momentum" value={mf.loading ? pending(mf) : mf.data ?? '—'} />
       </nav>
     </div>

@@ -315,6 +315,7 @@
 | 三大法人、法人買賣金額、期貨法人、本益比 | 16:00 | twse/tpex_insti、twse/tpex_insti_amount、taifex_insti、twse/tpex_valuation |
 | 外資持股比 | 17:00 | twse/tpex_qfii |
 | 融資融券（含融資總計）、借券、當沖 | 22:00 | twse/tpex_margin、twse/tpex_sbl、twse/tpex_daytrade |
+| 融資增減（2026-10-20；輪詢） | 20:50（之後每 5 分鐘試抓，到 22:00） | twse/tpex_margin |
 
 - D(X)＝最近一個「預期公布時間已經過了」的交易日；資料日 ≥ D(X) 為最新，否則落後（以交易日計）。
 - **補抓**（`task=catchup`）：data.yml 台北 08:05、10:05、12:05、15:15、16:30、22:30（UTC `5 0`、`5 2`、`5 4`、`15 7`、`30 8`、`30 14`，週一至五）。每次只抓 D(X) 與之前 5 個交易日內缺的來源與日子，與是哪一次觸發無關；任何一次觸發都會把該有的補齊。
@@ -324,6 +325,7 @@
 - **重試**：補抓後仍有缺 → 下一棒是 1 小時後（`attempt`+1；若下一個預期公布時間更早就先在那時醒來，仍照算重試次數），最多 3 次。dispatch 事件不會像 schedule 一樣被延遲或丟掉。
 - **不靜默失敗**：每次結果寫在 manifest `freshness`（缺哪些資料集與日子、第幾次、下次重試時間）；預期時間已過仍沒有資料記為 pending，3 次重試後仍沒有記為 failed（執行摘要與 data-failure issue）。
 - 分鐘 K 還欠（manifest `kbar.target` 不是 D(分鐘 K) 或還有剩餘）→ 補抓順便觸發 `task=kbar`（14:45 的 kbar 排程沒觸發時的備援）。
+- **融資增減儘量即時**（2026-10-20）：融資融券實測約 20:45 公布（2026-09-30 probe 20:45）。原本要等 22:02 那一棒才抓、完整部署又要 20～30 分鐘，網站約 22:30 才看得到。新增資料集 `margin_flash`（20:50）：接力在 20:52 醒來，還沒公布就每 5 分鐘再試（`poll`，到 22:00；輪詢不算重試、不累計 attempt、不記 failed，也不算每日任務其他來源的新時段）。這一次只補到融資（`freshness.quick_deploy`）→ data.yml 不跑動能流程、以 `quick=true` 觸發 deploy.yml：還原上一次完整部署存下的網站（actions/cache `site-dist-*`），只重算 `margin/*.json` 與 `meta.json`（`python -m pipeline build-margin`），數分鐘上線。個股檔與摘要裡的融資欄仍由 22:00 後的完整部署更新；`credit`／`margin_total` 的預期時間維持 22:00（頁首「資料至」不提早變成落後）。快取被清掉時快速部署改觸發完整部署。
 - 分段更新（`task=stage`）保留給手動觸發；頁面狀態列的三段時間改為 15:15／16:30／22:30。
 
 **10/5 資料補回**：2026-10-06 00:33 手動觸發 `task=stage stage=credit`（全部每日來源，目標日 10/5）；排程 `30 7`（延到 00:15 才觸發）也抓了 10/5 的三大法人。

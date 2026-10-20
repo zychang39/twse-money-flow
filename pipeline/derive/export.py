@@ -347,6 +347,11 @@ def build_web(data_dir: Path, out: Path, *, demo: bool = False, evidence_cache: 
     from pipeline.derive.sectors import add_triggers
 
     report["sector_triggers"] = add_triggers(out)
+    # 2026-10-20：融資增減（每天一個排行檔，可回看；快速部署 build-margin 只重算這一段）
+    from pipeline.derive import margin
+
+    report["margin"] = margin.build(store, out)
+    meta["margin_date"] = report["margin"].get("date")
     meta.update(report.get("meta", {}))
     codes = sorted(p.stem for p in (out / "stocks").glob("*.json") if not p.stem.endswith(".hist"))
     report["long_history"] = history.write_long_history(full_quotes, ds, out, codes)

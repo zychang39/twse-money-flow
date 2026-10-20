@@ -148,7 +148,10 @@ def run_catchup(ctx: Any, *, attempt: int = 1) -> dict[str, Any]:
         ctx.manifest["daily_extras"] = {"at": ctx.now.isoformat(timespec="minutes")}
     after = gaps(ctx.store, ctx.calendar, ctx.now)
     cfg = table()["catchup"]
-    retry = bool(after) and attempt < int(cfg["max_retries"]) + 1
+    poll_at = poll_time(after, ctx.now)
+    polling = {g.key for g in after if poll_time([g], ctx.now)}
+    # 重試只看輪詢以外的缺漏（輪詢是在等今天剛要公布的資料，不算失敗）
+    retry = any(g.key not in polling for g in after) and attempt < int(cfg["max_retries"]) + 1
     fixed = sorted({g.key for g in before} - {g.key for g in after})
     state = {
         "at": ctx.now.isoformat(timespec="minutes"),
@@ -158,25 +161,50 @@ def run_catchup(ctx: Any, *, attempt: int = 1) -> dict[str, Any]:
         "next_retry": (ctx.now + timedelta(minutes=int(cfg["retry_minutes"]))).isoformat(timespec="minutes")
         if retry
         else None,
+        "next_poll": poll_at.isoformat(timespec="minutes") if poll_at else None,
     }
     ctx.manifest["freshness"] = state
     for g in after:
-        # 預期時間已過仍沒有資料：記成失敗（執行摘要、資料健康頁看得到），不靜默
+        # 預期時間已過仍沒有資料：記成失敗（執行摘要、資料健康頁看得到），不靜默；輪詢中記 pending
         ctx.note(
             g.sources[0],
-            "failed" if attempt > int(cfg["max_retries"]) else "pending",
+            "failed" if attempt > int(cfg["max_retries"]) and g.key not in polling else "pending",
             data_date=g.dates[-1],
-            message=f"{g.label}：預期時間已過仍未取得（第 {attempt} 次補抓）",
+            message=f"{g.label}：預期時間已過仍未取得（{'輪詢中' if g.key in polling else f'第 {attempt} 次補抓'}）",
         )
     sync_stages(ctx)
+    ok_sources = {str(r["source"]) for r in ctx.results if r["status"] == "ok"}
     return {
         "missing_before": [g.key for g in before],
         "missing_after": [g.key for g in after],
         "fixed": fixed,
         "attempt": attempt,
         "retry": retry,
-        "progressed": bool(fixed) or any(r["status"] == "ok" for r in ctx.results),
+        "poll_at": state["next_poll"],
+        "progressed": bool(fixed) or bool(ok_sources),
+        "quick": quick_deploy(fixed, ok_sources),
     }
+
+
+def poll_time(missing: list[Gap], now: datetime) -> datetime | None:
+    """輪詢（2026-10-20，融資增減）：今天剛到預期時間、還沒公布的資料集，每 poll.minutes 分鐘再試一次，直到 poll.until。"""
+    out: list[datetime] = []
+    for g in missing:
+        p = datasets()[g.key].get("poll")
+        if not p or g.due != now.date() or now.date() not in g.dates:
+            continue
+        if (now.hour, now.minute) < _hm(str(p["until"])):
+            out.append((now + timedelta(minutes=int(p["minutes"]))).replace(second=0, microsecond=0))
+    return min(out) if out else None
+
+
+# 快速部署只涵蓋融資增減：這一次補齊的資料集都在這裡、抓到的來源也只有融資（含附表融資總計）
+QUICK_KEYS = {"margin_flash", "credit", "margin_total"}
+QUICK_SOURCES = {"twse_margin", "tpex_margin", "twse_margin_total", "tpex_margin_total"}  # 融資總計是融資融券回應的附表
+
+
+def quick_deploy(fixed: list[str], ok_sources: set[str]) -> bool:
+    return bool(fixed) and set(fixed) <= QUICK_KEYS and "margin_flash" in fixed and ok_sources <= QUICK_SOURCES
 
 
 def tasks_advanced_fallback(ctx: Any, d: date) -> None:
@@ -233,13 +261,19 @@ def next_due_at(cal: TradingCalendar, now: datetime) -> datetime | None:
 
 
 def plan_next(
-    now: datetime, attempt: int, retry_at: datetime | None, due_at: datetime | None, max_wait_minutes: int
+    now: datetime,
+    attempt: int,
+    retry_at: datetime | None,
+    due_at: datetime | None,
+    max_wait_minutes: int,
+    poll_at: datetime | None = None,
 ) -> tuple[datetime, int] | None:
-    """下一棒（not_before, attempt）：重試時間與下一個預期公布時間取早的；超過 max_wait 先等到上限（中繼）。
+    """下一棒（not_before, attempt）：重試時間、輪詢時間與下一個預期公布時間取早的；超過 max_wait 先等到上限（中繼）。
 
-    有重試時 attempt＋1（就算先醒來的是下一個公布時間，也照算重試次數，第 4 次仍記 failed）；沒有重試從 1 起算。
+    有重試時 attempt＋1（就算先醒來的是下一個公布時間，也照算重試次數，第 4 次仍記 failed）；沒有重試從 1 起算
+    （只有輪詢也從 1 起算：輪詢不是失敗）。
     """
-    cands = [t for t in (retry_at, due_at) if t is not None]
+    cands = [t for t in (retry_at, due_at, poll_at) if t is not None]
     if not cands:
         return None
     target = min(cands)
@@ -261,8 +295,10 @@ def extras_due(manifest: dict[str, Any], now: datetime) -> bool:
     last = (manifest.get("daily_extras") or {}).get("at")
     if not last:
         return True
+    # 輪詢的資料集（融資增減 20:50）不是新時段：其他來源要跑數分鐘，會拖慢融資上線
     marks = sorted(
-        {_hm(str(table()["catchup"].get("extras_start", "08:00")))} | {_hm(str(d["time"])) for d in datasets().values()}
+        {_hm(str(table()["catchup"].get("extras_start", "08:00")))}
+        | {_hm(str(d["time"])) for d in datasets().values() if not d.get("poll")}
     )
     today = [now.replace(hour=h, minute=m, second=0, microsecond=0) for h, m in marks]
     passed = [t for t in today if t <= now]

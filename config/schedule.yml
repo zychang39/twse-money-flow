@@ -45,6 +45,10 @@ freshness:
     margin_total: { label: 融資總計,   time: "22:00", sources: [twse_margin, tpex_margin] }
     sbl:          { label: 借券,       time: "22:00", sources: [twse_sbl, tpex_sbl] }
     daytrade:     { label: 當沖,       time: "22:00", sources: [twse_daytrade, tpex_daytrade] }
+    # 2026-10-20：融資增減儘量即時（實測約 20:45 公布）。20:50 起每 poll.minutes 分鐘試抓一次，抓到為止（到 poll.until）；
+    # 輪詢不算失敗重試、不重跑每日任務的其他來源。只抓到融資時走快速部署（deploy.yml quick：只重算 margin/*.json）。
+    # credit／margin_total 仍是 22:00（頁首「資料至」與個股融資欄由 22:00 後的完整部署更新）。
+    margin_flash: { label: 融資增減, time: "20:50", sources: [twse_margin, tpex_margin], poll: { minutes: 5, until: "22:00" } }
   # 頁首「資料至 …」與橫幅只看這幾個資料集（其餘在資料健康頁）
   banner: [quotes, insti, credit, taifex]
   # 補抓排程（data.yml；台北時間）：每次只抓「依規則應已公布但還沒拿到」的資料集；有缺漏時 1 小時後再試，最多 3 次

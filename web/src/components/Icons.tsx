@@ -72,6 +72,8 @@ export const IconBriefcase = () => base(<><rect x="3.5" y="7.5" width="17" heigh
 // ---------- 流程 ----------
 export const IconNotebook = () => base(<><path d="M6.5 3.8h11a1.5 1.5 0 0 1 1.5 1.5v13.4a1.5 1.5 0 0 1-1.5 1.5h-11Z" /><path d="M6.5 3.8v16.4M4.5 8h4M4.5 12h4M4.5 16h4M11 8.5h5" /></>);
 export const IconClipboard = () => base(<><path d="M8.5 5H7a1.5 1.5 0 0 0-1.5 1.5v12.5A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V6.5A1.5 1.5 0 0 0 17 5h-1.5" /><rect x="8.5" y="3.5" width="7" height="3" rx="1" /><path d="m9 13.2 2.2 2.2 4-4.4" /></>);
+/** 融資增減（2026-10-20）：三條橫線＋向下箭頭 */
+export const IconMargin = () => base(<><path d="M3.6 7.5h9.2M3.6 12h9.2M3.6 16.5h9.2" /><path d="M17.8 4.6v13.6M14.6 15.2l3.2 3.2 3.2-3.2" /></>);
 export const IconBars = () => base(<><path d="M5 19.5V13M10 19.5V8M15 19.5v-4.5M20 19.5V5.5" /></>);
 export const IconMedal = () => base(<><circle cx="12" cy="14" r="5.5" /><path d="m9 8.8-2.5-5h4L12 7l1.5-3.2h4L15 8.8" /><path d="m12 11.6.9 1.6 1.7.3-1.3 1.2.3 1.8-1.6-.9-1.6.9.3-1.8-1.3-1.2 1.7-.3Z" /></>);
 export const IconPaper = () => base(<><rect x="4" y="4.5" width="16" height="15" rx="2.5" /><path d="M7.5 8.5h9M7.5 12h9M7.5 15.5h5" /></>);
