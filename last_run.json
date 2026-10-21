@@ -1,8 +1,8 @@
 {
  "task": "catchup",
- "at": "2026-10-21T20:57:11+08:00",
- "requests": 2,
- "ok": 0,
+ "at": "2026-10-21T20:54:43+08:00",
+ "requests": 3,
+ "ok": 2,
  "failed": [
   "twse_margin 2026-10-21 尚未公布或無資料：很抱歉，沒有符合條件的資料",
   "twse_qfii 2026-10-21 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
@@ -20,10 +20,10 @@
   "margin_flash"
  ],
  "fixed": [],
- "attempt": 2,
+ "attempt": 1,
  "retry": true,
- "poll_at": "2026-10-21T21:02+08:00",
- "progressed": false,
+ "poll_at": "2026-10-21T20:59+08:00",
+ "progressed": true,
  "quick": false,
- "relay": "2026-10-21T21:02+08:00"
+ "relay": "skip:2026-10-21T20:57+08:00"
 }
