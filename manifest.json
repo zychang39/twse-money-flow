@@ -964,8 +964,8 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-21T19:02+08:00",
-  "attempt": 4,
+  "at": "2026-10-21T20:52+08:00",
+  "attempt": 1,
   "fixed": [],
   "missing": [
    {
@@ -978,11 +978,22 @@
     "sources": [
      "twse_qfii"
     ]
+   },
+   {
+    "dates": [
+     "2026-10-21"
+    ],
+    "due": "2026-10-21",
+    "key": "margin_flash",
+    "label": "融資增減",
+    "sources": [
+     "twse_margin"
+    ]
    }
   ],
-  "next_poll": null,
-  "next_retry": null,
-  "next_run": "2026-10-21T20:52+08:00"
+  "next_poll": "2026-10-21T20:57+08:00",
+  "next_retry": "2026-10-21T21:52+08:00",
+  "next_run": "2026-10-21T20:57+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2075,40 +2086,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-19T17:09:46+08:00",
-   "attempt": 2,
-   "failed": [],
-   "fixed": [
-    "insti"
-   ],
-   "format_warnings": [
-    "twse_fulldelivery"
-   ],
-   "missing_after": [
-    "valuation",
-    "qfii"
-   ],
-   "missing_before": [
-    "insti",
-    "valuation",
-    "qfii"
-   ],
-   "ok": 31,
-   "pending": [
-    "tpex_qfii",
-    "tpex_valuation",
-    "twse_qfii",
-    "twse_valuation",
-    "twse_valuation",
-    "twse_qfii"
-   ],
-   "progressed": true,
-   "relay": "2026-10-19T18:02+08:00",
-   "requests": 78,
-   "retry": true,
-   "task": "catchup"
-  },
-  {
    "at": "2026-10-19T17:49:07+08:00",
    "attempt": 1,
    "failed": [],
@@ -3005,6 +2982,35 @@
    "task": "kbar",
    "total": 2372,
    "unfinished": 0
+  },
+  {
+   "at": "2026-10-21T20:52:15+08:00",
+   "attempt": 1,
+   "failed": [
+    "twse_margin 2026-10-21 尚未公布或無資料：很抱歉，沒有符合條件的資料",
+    "twse_qfii 2026-10-21 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
+   ],
+   "fixed": [],
+   "missing_after": [
+    "qfii",
+    "margin_flash"
+   ],
+   "missing_before": [
+    "qfii",
+    "margin_flash"
+   ],
+   "ok": 2,
+   "pending": [
+    "twse_qfii",
+    "twse_margin"
+   ],
+   "poll_at": "2026-10-21T20:57+08:00",
+   "progressed": true,
+   "quick": false,
+   "relay": "2026-10-21T20:57+08:00",
+   "requests": 3,
+   "retry": true,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3286,21 +3292,21 @@
   },
   "tpex_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-20T22:02:04+08:00",
+   "last_attempt": "2026-10-21T20:52:01+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-20",
-   "last_success_at": "2026-10-20T22:02:04+08:00",
+   "last_success": "2026-10-21",
+   "last_success_at": "2026-10-21T20:52:01+08:00",
    "rows": 918,
    "validation": "ok"
   },
   "tpex_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-20T22:02:04+08:00",
+   "last_attempt": "2026-10-21T20:52:01+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-20",
-   "last_success_at": "2026-10-20T22:02:04+08:00",
+   "last_success": "2026-10-21",
+   "last_success_at": "2026-10-21T20:52:01+08:00",
    "rows": 2,
    "validation": "ok"
   },
@@ -3560,14 +3566,14 @@
    "validation": "ok"
   },
   "twse_margin": {
-   "consecutive_failures": 0,
-   "last_attempt": "2026-10-20T22:02:19+08:00",
-   "last_message": null,
-   "last_status": "ok",
+   "consecutive_failures": 1,
+   "last_attempt": "2026-10-21T20:52:10+08:00",
+   "last_message": "融資增減：預期時間已過仍未取得（輪詢中）",
+   "last_status": "pending",
    "last_success": "2026-10-20",
    "last_success_at": "2026-10-20T22:02:19+08:00",
    "rows": 1298,
-   "validation": "ok"
+   "validation": "failed"
   },
   "twse_margin_total": {
    "consecutive_failures": 0,
@@ -3590,10 +3596,10 @@
    "validation": "ok"
   },
   "twse_qfii": {
-   "consecutive_failures": 1,
-   "last_attempt": "2026-10-21T19:02:03+08:00",
-   "last_message": "外資持股比：預期時間已過仍未取得（第 4 次補抓）",
-   "last_status": "failed",
+   "consecutive_failures": 2,
+   "last_attempt": "2026-10-21T20:52:10+08:00",
+   "last_message": "外資持股比：預期時間已過仍未取得（第 1 次補抓）",
+   "last_status": "pending",
    "last_success": "2026-10-20",
    "last_success_at": "2026-10-20T21:44:27+08:00",
    "rows": 1359,
@@ -3683,6 +3689,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-21T20:28:01+08:00",
+ "updated_at": "2026-10-21T20:52:15+08:00",
  "version": 1
 }
