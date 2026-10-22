@@ -964,8 +964,8 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-22T19:20+08:00",
-  "attempt": 3,
+  "at": "2026-10-22T20:20+08:00",
+  "attempt": 4,
   "fixed": [],
   "missing": [
    {
@@ -981,8 +981,8 @@
    }
   ],
   "next_poll": null,
-  "next_retry": "2026-10-22T20:20+08:00",
-  "next_run": "2026-10-22T20:20+08:00"
+  "next_retry": null,
+  "next_run": "2026-10-22T20:52+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2089,40 +2089,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-20T17:08:58+08:00",
-   "attempt": 2,
-   "failed": [],
-   "fixed": [
-    "insti"
-   ],
-   "format_warnings": [
-    "twse_fulldelivery"
-   ],
-   "missing_after": [
-    "valuation",
-    "qfii"
-   ],
-   "missing_before": [
-    "insti",
-    "valuation",
-    "qfii"
-   ],
-   "ok": 31,
-   "pending": [
-    "tpex_qfii",
-    "tpex_valuation",
-    "twse_qfii",
-    "twse_valuation",
-    "twse_valuation",
-    "twse_qfii"
-   ],
-   "progressed": true,
-   "relay": "2026-10-20T18:02+08:00",
-   "requests": 77,
-   "retry": true,
-   "task": "catchup"
-  },
-  {
    "at": "2026-10-20T17:21:55+08:00",
    "attempt": 1,
    "failed": [],
@@ -3060,6 +3026,31 @@
    "requests": 1,
    "retry": true,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-22T20:20:08+08:00",
+   "attempt": 4,
+   "failed": [
+    "twse_qfii 2026-10-22 外資持股比：預期時間已過仍未取得（第 4 次補抓）"
+   ],
+   "fixed": [],
+   "missing_after": [
+    "qfii"
+   ],
+   "missing_before": [
+    "qfii"
+   ],
+   "ok": 0,
+   "pending": [
+    "twse_qfii"
+   ],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "relay": "2026-10-22T20:52+08:00",
+   "requests": 1,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3645,14 +3636,14 @@
    "validation": "ok"
   },
   "twse_qfii": {
-   "consecutive_failures": 0,
-   "last_attempt": "2026-10-22T19:20:01+08:00",
-   "last_message": "外資持股比：預期時間已過仍未取得（第 3 次補抓）",
-   "last_status": "pending",
+   "consecutive_failures": 1,
+   "last_attempt": "2026-10-22T20:20:03+08:00",
+   "last_message": "外資持股比：預期時間已過仍未取得（第 4 次補抓）",
+   "last_status": "failed",
    "last_success": "2026-10-21",
    "last_success_at": "2026-10-21T21:02:07+08:00",
    "rows": 1359,
-   "validation": "ok"
+   "validation": "failed"
   },
   "twse_quotes": {
    "consecutive_failures": 0,
@@ -3738,6 +3729,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-22T19:20:07+08:00",
+ "updated_at": "2026-10-22T20:20:08+08:00",
  "version": 1
 }
