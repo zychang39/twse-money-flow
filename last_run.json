@@ -1,25 +1,22 @@
 {
- "task": "catchup",
- "at": "2026-10-22T20:20:08+08:00",
- "requests": 1,
- "ok": 0,
- "failed": [
-  "twse_qfii 2026-10-22 外資持股比：預期時間已過仍未取得（第 4 次補抓）"
- ],
- "pending": [
-  "twse_qfii"
- ],
- "missing_before": [
-  "qfii"
- ],
- "missing_after": [
-  "qfii"
- ],
- "fixed": [],
- "attempt": 4,
- "retry": false,
- "poll_at": null,
+ "task": "kbar",
+ "at": "2026-10-22T20:30:39+08:00",
+ "requests": 0,
+ "ok": 1,
+ "failed": [],
+ "pending": [],
+ "kbar_target": "2026-10-22",
+ "fetched": 0,
+ "rows": 0,
+ "covered": 2331,
+ "total": 2373,
+ "remaining": 0,
+ "unfinished": 0,
  "progressed": false,
- "quick": false,
- "relay": "2026-10-22T20:52+08:00"
+ "pruned": 0,
+ "by_tier": {
+  "1": 0,
+  "2": 0,
+  "3": 0
+ }
 }
