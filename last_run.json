@@ -1,8 +1,8 @@
 {
  "task": "catchup",
- "at": "2026-10-23T15:09:43+08:00",
- "requests": 94,
- "ok": 31,
+ "at": "2026-10-23T15:21:58+08:00",
+ "requests": 5,
+ "ok": 1,
  "failed": [],
  "pending": [
   "twse_quotes",
@@ -11,9 +11,6 @@
   "twse_quotes",
   "twse_index",
   "twse_intraday_index"
- ],
- "format_warnings": [
-  "twse_fulldelivery"
  ],
  "missing_before": [
   "quotes",
@@ -31,6 +28,6 @@
  "poll_at": null,
  "progressed": true,
  "quick": false,
- "relay": "2026-10-23T16:02+08:00",
+ "relay": "skip:2026-10-23T16:02+08:00",
  "kbar_dispatched": true
 }
