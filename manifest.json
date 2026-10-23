@@ -1692,7 +1692,7 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-10-23T15:10+08:00",
+  "at": "2026-10-23T15:45+08:00",
   "covered": 0,
   "empty": [
    "00400A",
@@ -4071,7 +4071,7 @@
   "failed": [],
   "no_trade": [],
   "remaining": 0,
-  "rounds": 1,
+  "rounds": 2,
   "stopped": null,
   "target": "2026-10-23",
   "total": 2372,
@@ -4369,24 +4369,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-21T15:27:20+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [],
-   "kbar_dispatched": true,
-   "missing_after": [],
-   "missing_before": [],
-   "ok": 0,
-   "pending": [],
-   "poll_at": null,
-   "progressed": false,
-   "quick": false,
-   "relay": "skip:2026-10-21T16:02+08:00",
-   "requests": 0,
-   "retry": false,
-   "task": "catchup"
-  },
   {
    "at": "2026-10-21T15:41:45+08:00",
    "by_tier": {
@@ -5341,6 +5323,30 @@
    "task": "kbar",
    "total": 2372,
    "unfinished": 0
+  },
+  {
+   "at": "2026-10-23T15:45:16+08:00",
+   "by_tier": {
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "covered": 0,
+   "failed": [
+    "yahoo_kbar 2026-10-23 涵蓋 0/2372 檔；本次 0 檔請求、失敗 0、查無 2372、當日無成交略過 0"
+   ],
+   "fetched": 0,
+   "kbar_target": "2026-10-23",
+   "ok": 0,
+   "pending": [],
+   "progressed": false,
+   "pruned": 0,
+   "remaining": 0,
+   "requests": 0,
+   "rows": 0,
+   "task": "kbar",
+   "total": 2372,
+   "unfinished": 0
   }
  ],
  "sources": {
@@ -5996,9 +6002,9 @@
    "validation": "ok"
   },
   "yahoo_kbar": {
-   "consecutive_failures": 1,
-   "last_attempt": "2026-10-23T15:44:29+08:00",
-   "last_message": "涵蓋 0/2372 檔；本次 2372 檔請求、失敗 0、查無 2372、當日無成交略過 0",
+   "consecutive_failures": 2,
+   "last_attempt": "2026-10-23T15:45:16+08:00",
+   "last_message": "涵蓋 0/2372 檔；本次 0 檔請求、失敗 0、查無 2372、當日無成交略過 0",
    "last_status": "failed",
    "last_success": "2026-10-22",
    "last_success_at": "2026-10-22T20:30:39+08:00",
@@ -6024,6 +6030,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-23T15:44:29+08:00",
+ "updated_at": "2026-10-23T15:45:16+08:00",
  "version": 1
 }
