@@ -1,24 +1,35 @@
 {
- "task": "kbar",
- "at": "2026-10-23T15:45:16+08:00",
- "requests": 0,
- "ok": 0,
- "failed": [
-  "yahoo_kbar 2026-10-23 涵蓋 0/2372 檔；本次 0 檔請求、失敗 0、查無 2372、當日無成交略過 0"
- ],
+ "task": "catchup",
+ "at": "2026-10-23T16:07:21+08:00",
+ "requests": 61,
+ "ok": 31,
+ "failed": [],
  "pending": [],
- "kbar_target": "2026-10-23",
- "fetched": 0,
- "rows": 0,
- "covered": 0,
- "total": 2372,
- "remaining": 0,
- "unfinished": 0,
- "progressed": false,
- "pruned": 0,
- "by_tier": {
-  "1": 0,
-  "2": 0,
-  "3": 0
- }
+ "format_warnings": [
+  "twse_fulldelivery"
+ ],
+ "missing_before": [
+  "quotes",
+  "index",
+  "intraday",
+  "insti",
+  "insti_amount",
+  "taifex",
+  "valuation"
+ ],
+ "missing_after": [],
+ "fixed": [
+  "index",
+  "insti",
+  "insti_amount",
+  "intraday",
+  "quotes",
+  "taifex",
+  "valuation"
+ ],
+ "attempt": 2,
+ "retry": false,
+ "poll_at": null,
+ "progressed": true,
+ "quick": false
 }
