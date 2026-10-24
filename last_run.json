@@ -1,19 +1,8 @@
 {
- "task": "catchup",
- "at": "2026-10-24T02:39:20+08:00",
- "requests": 58,
- "ok": 30,
+ "task": "periodic",
+ "at": "2026-10-24T14:52:16+08:00",
+ "requests": 32,
+ "ok": 6,
  "failed": [],
- "pending": [],
- "format_warnings": [
-  "twse_fulldelivery"
- ],
- "missing_before": [],
- "missing_after": [],
- "fixed": [],
- "attempt": 1,
- "retry": false,
- "poll_at": null,
- "progressed": true,
- "quick": false
+ "pending": []
 }
