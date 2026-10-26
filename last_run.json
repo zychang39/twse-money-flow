@@ -1,8 +1,19 @@
 {
- "task": "periodic",
- "at": "2026-10-24T14:52:16+08:00",
- "requests": 32,
- "ok": 6,
+ "task": "catchup",
+ "at": "2026-10-26T12:36:28+08:00",
+ "requests": 58,
+ "ok": 30,
  "failed": [],
- "pending": []
+ "pending": [],
+ "format_warnings": [
+  "twse_fulldelivery"
+ ],
+ "missing_before": [],
+ "missing_after": [],
+ "fixed": [],
+ "attempt": 1,
+ "retry": false,
+ "poll_at": null,
+ "progressed": true,
+ "quick": false
 }
