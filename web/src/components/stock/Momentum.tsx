@@ -1,6 +1,6 @@
 /**
- * 個股頁「動能」分段（M3）：五張摘要卡（報酬與相對強弱、族群與走勢相近、趨勢、位置、波動與部位），
- * 每張推入詳情頁 #/stock/{code}/m/{card}。詳情頁的圖表在上、原始數字表格緊接在圖下（E 節）。
+ * 個股頁「動能」分段（M3）：摘要卡（報酬與相對強弱、報酬來源、族群與走勢相近、趨勢、位置、波動與部位），
+ * 每張推入詳情頁 #/stock/{code}/m/{card}（報酬來源的詳情在 pages/Attribution 的 StockAttribution）。詳情頁的圖表在上、原始數字表格緊接在圖下（E 節）。
  */
 import { useMemo, useState } from 'preact/hooks';
 import type { StockHistory, StockSectorItem } from '../../data/types';
@@ -14,14 +14,15 @@ import { EmptyRow, List, Num, Row, Section, Signed, Table } from '../ui';
 import { SeriesChart } from '../SeriesChart';
 import { kdText, macdText, techFacts } from '../../lib/technical';
 import { RiskCalcSection } from '../StockPanels';
+import { AttrCard } from './AttrCard';
 
 type N = number | null | undefined;
 const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const md = (iso: string | null | undefined) => (iso ? `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}` : '—');
 const pct = (v: N, d = 2) => (ok(v) ? sp(v as number, d) : '—');
 
-export type MomCard = 'returns' | 'sector' | 'trend' | 'position' | 'risk';
-export const MOM_TITLE: Record<MomCard, string> = { returns: '報酬與相對強弱', sector: '族群與走勢相近', trend: '趨勢', position: '位置', risk: '波動與部位' };
+export type MomCard = 'returns' | 'attribution' | 'sector' | 'trend' | 'position' | 'risk';
+export const MOM_TITLE: Record<MomCard, string> = { returns: '報酬與相對強弱', attribution: '報酬來源', sector: '族群與走勢相近', trend: '趨勢', position: '位置', risk: '波動與部位' };
 
 /** 摘要卡用的數字：只算一次 */
 function useMom(h: StockHistory) {
@@ -75,6 +76,8 @@ export function MomentumPane({ h }: { h: StockHistory }) {
           ))}
         </span>
       </SummaryCard>
+
+      <AttrCard code={h.code} href={`${base}/attribution`} />
 
       <div class="sum-card mom-group" data-testid="mom-sector">
         <span class="sum-head"><span class="sum-title">族群</span></span>

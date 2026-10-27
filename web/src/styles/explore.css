@@ -32,3 +32,4 @@
 /* 橫條列的數值欄固定寬：每一列的 0 軸對齊（不同列的第二行長短不同） */
 .attr-bars .ui-row.br-row { grid-template-columns: 5.5em minmax(3rem, 1fr) 9em; }
 .attr-bars .br-name .br-sub { white-space: nowrap; }
+.attr-more { height: var(--s-8); } /* 個股頁 › 報酬來源：連到因子順逆風前與上一區塊隔開 */

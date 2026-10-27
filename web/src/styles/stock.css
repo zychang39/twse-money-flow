@@ -102,3 +102,7 @@
 .atr-dot.hot { background: var(--risk); }
 .risk-intro { margin-top: var(--s-2); }
 .pos-label { margin: 0; }
+/* 動能 › 報酬來源摘要卡（2026-10-27）：名稱｜數值｜發散橫條（0 軸對齊） */
+.attr-mini { display: grid; grid-template-columns: auto auto minmax(0, 1fr); column-gap: var(--s-3); row-gap: var(--s-2); align-items: center; margin-top: var(--s-3); }
+.attr-mini-row { display: contents; }
+.attr-mini-bar { display: block; }

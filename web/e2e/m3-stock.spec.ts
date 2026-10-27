@@ -46,7 +46,7 @@ test('量比超過 3 倍：解讀行轉橘；精簡模式數值旁出現橘點',
 test('動能：報酬、族群、走勢相近、趨勢、位置、波動與部位；摘要卡推入詳情頁，返回停在動能分段', async ({ page }) => {
   await page.goto('#/stock/2330?seg=m');
   const cards = page.getByTestId('mom-cards');
-  for (const id of ['mom-returns', 'mom-sector', 'mom-similar', 'mom-trend', 'mom-position', 'mom-risk']) await expect(cards.getByTestId(id)).toBeVisible();
+  for (const id of ['mom-returns', 'mom-attr', 'mom-sector', 'mom-similar', 'mom-trend', 'mom-position', 'mom-risk']) await expect(cards.getByTestId(id)).toBeVisible();
   // 報酬卡：四列 期間｜報酬｜百分位進度條
   await expect(page.getByTestId('mom-returns').locator('.ret-row')).toHaveCount(4);
   // 族群卡：連到族群頁；走勢相近先 3 檔、可展開
