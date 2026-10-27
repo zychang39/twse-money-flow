@@ -60,10 +60,8 @@ function StockPane({ f }: { f: AttrFactors }) {
   const route = useRoute();
   const user = useUser();
   const summary = useAsync(loadSummary, []);
-  const [period, setPeriod] = useSegParam<AttrPeriod>(ATTR_PERIODS.map(([v]) => v), '12', 'p', 'attr-period');
   const [picking, setPicking] = useState(false);
   const code = route.query.get('code') ?? user?.watch[0]?.code ?? '2330';
-  const s = useAsync(() => loadAttrStock(code), [code]);
   const nameOf = (c: string) => (summary.data?.byCode.get(c)?.name as string | undefined) ?? c;
   const pick = (c: string) => {
     const qs = new URLSearchParams(route.query);
@@ -71,9 +69,6 @@ function StockPane({ f }: { f: AttrFactors }) {
     navigate(`${route.path}?${qs.toString()}`, true, 'none');
     setPicking(false);
   };
-  const idx = useMemo(() => periodRange(f, Number(period)), [f, period]);
-  const from = idx.length ? f.months[idx[0]] : null;
-  const to = idx.length ? f.months[idx[idx.length - 1]] : null;
   return (
     <div class="seg-pane" data-testid="attr-stock">
       <List chev>
@@ -83,6 +78,41 @@ function StockPane({ f }: { f: AttrFactors }) {
         <StockSearch rows={summary.data?.rows ?? []} onPick={(r) => pick(r.code)} autoFocus />
       </Sheet>
       <div class="mg-gap" />
+      <AttrStockView f={f} code={code} nameOf={nameOf} />
+    </div>
+  );
+}
+
+/**
+ * 個股頁 › 動能 › 報酬來源（#/stock/{code}/m/attribution；2026-10-27）：同一套個股拆解，不含換股；
+ * 因子順逆風與換股留在探索頁。
+ */
+export function StockAttribution({ code }: { code: string }) {
+  const factors = useAsync(loadAttrFactors, []);
+  const summary = useAsync(loadSummary, []);
+  const f = factors.data ?? null;
+  const nameOf = (c: string) => (summary.data?.byCode.get(c)?.name as string | undefined) ?? c;
+  return (
+    <div class="seg-pane" data-testid="attr-stock">
+      {factors.error ? <ErrorState error={factors.error} /> : !f && !factors.loading ? <p class="ds-line">資料累積中</p> : f ? <AttrStockView f={f} code={code} nameOf={nameOf} /> : null}
+      <div class="mg-gap" />
+      <List chev>
+        <Row label="因子順逆風" sub="哪一類股票最近被市場獎勵（探索 › 報酬拆解）" href={`#/explore/attribution?seg=factor&code=${encodeURIComponent(code)}`} testid="attr-to-explore" />
+      </List>
+      <p class="ds-line">分析方法與研究流程，不提供個股買賣建議。因子報酬來自本工具以公開資料自建的台股多空組合，與學術研究、市售 ETF 不同；歷史統計不代表未來報酬。</p>
+    </div>
+  );
+}
+
+/** 期間切換 ＋ 個股拆解（探索頁與個股頁共用；期間記在網址 p 與 attr-period） */
+function AttrStockView({ f, code, nameOf }: { f: AttrFactors; code: string; nameOf: (c: string) => string }) {
+  const [period, setPeriod] = useSegParam<AttrPeriod>(ATTR_PERIODS.map(([v]) => v), '12', 'p', 'attr-period');
+  const s = useAsync(() => loadAttrStock(code), [code]);
+  const idx = useMemo(() => periodRange(f, Number(period)), [f, period]);
+  const from = idx.length ? f.months[idx[0]] : null;
+  const to = idx.length ? f.months[idx[idx.length - 1]] : null;
+  return (
+    <>
       <Seg options={ATTR_PERIODS} value={period} onChange={setPeriod} label="期間" testid="attr-period" />
       <p class="ds-line" data-testid="attr-range">
         {from && to ? `${from}～${to}${f.partial ? '（最後一個月到最新交易日）' : ''}` : ''}
@@ -91,7 +121,7 @@ function StockPane({ f }: { f: AttrFactors }) {
       {s.error ? <ErrorState error={s.error} /> : s.data === null && !s.loading ? (
         <p class="ds-line">這一檔沒有報酬拆解（只算普通股；上市未滿 24 個月或成交太少時無法估計）</p>
       ) : s.data ? <StockBody f={f} s={s.data} idx={idx} nameOf={nameOf} /> : null}
-    </div>
+    </>
   );
 }
 
@@ -108,7 +138,7 @@ function StockBody({ f, s, idx, nameOf }: { f: AttrFactors; s: AttrStock; idx: n
           <p>大盤：發行量加權股價報酬指數（含息）。同業籃子：扣掉大盤後股價最常一起動的 5～10 家，等權（見下方「同業籃子」）。同風格：期初跟這檔同一組規模（小／中／大）× 價值（成長／中性／價值）的股票，等權。</p>
           <p>先選好尺再量，之後固定用同一把；期間用實際持有的期間，至少幾個季度。台股加權指數單一權值股比重很高，拿來當尺時解讀要打折。</p>
         </>}>
-        <Conclusion>{r.peer !== null ? <>領先同業籃子 {pp(lead(r.peer))}</> : r.market !== null ? <>領先大盤 {pp(lead(r.market))}</> : '資料不足'}</Conclusion>
+        <Conclusion>{r.peer !== null ? leadText('同業籃子', lead(r.peer)) : r.market !== null ? leadText('大盤', lead(r.market)) : '資料不足'}</Conclusion>
         <List class="attr-bars" testid="attr-ruler-rows">
           <BarRow name="這一檔" bar={{ kind: 'diverging', value: r.stock, max: maxR }} value={pct(r.stock)} label={`這一檔 ${fmtPct(r.stock)}`} />
           <BarRow name="大盤" sub="報酬指數" bar={{ kind: 'diverging', value: r.market, max: maxR }} value={pct(r.market)} valueSub={`差 ${pp(lead(r.market))}`} label={`大盤 ${fmtPct(r.market)}`} />
@@ -243,7 +273,7 @@ function Luck({ s }: { s: AttrStock }) {
       <Conclusion>{sig ? '這段期間的 Alpha 統計上顯著，仍可能是運氣' : '統計上分不出能力和運氣'}</Conclusion>
       <List>
         <Row label="Alpha（年化）" sub={`${s.full ? '多因子' : 'CAPM'}・t 值 ${fmtT(t)}`} value={pct(annualAlpha(m))} />
-        <Row label="殘差波動（年化）" sub="模型解釋不了的部分" value={pct(m.resid_sd === null ? null : m.resid_sd * Math.sqrt(12))} />
+        <Row label="殘差波動（年化）" sub="模型解釋不了的部分" value={<Num v={m.resid_sd === null ? null : m.resid_sd * Math.sqrt(12) * 100} digits={1} unit="%" />} />
         <Row label="要多少年才分得出來" sub="t 值到 2 需要的資料長度" value={years === null ? '—' : !Number.isFinite(years) || years > 99 ? '超過 99 年' : `約 ${fmtNum(years, years < 10 ? 1 : 0)} 年`} />
       </List>
     </Section>
@@ -312,6 +342,8 @@ function layerSummary(d: NonNullable<ReturnType<typeof decompose>>) {
   );
 }
 
+/** 領先／落後（不寫「領先 −x」） */
+const leadText = (name: string, v: number | null) => (v === null ? `${name}無資料` : `${v >= 0 ? '領先' : '落後'}${name} ${fmtNum(Math.abs(v * 100), 1)} 個百分點`);
 const toPct = (v: number | null | undefined) => (v === null || v === undefined ? null : v * 100);
 const fmtPct = (v: number | null) => (v === null ? '無資料' : `${v >= 0 ? '+' : '−'}${fmtNum(Math.abs(v * 100), 1)}%`);
 const fmtT = (v: number | null | undefined) => (v === null || v === undefined ? '—' : fmtNum(v, 1));
