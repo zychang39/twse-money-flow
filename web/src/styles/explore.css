@@ -26,3 +26,9 @@
 .mg-step-d { font-size: var(--fs-body); font-weight: 600; font-variant-numeric: tabular-nums; }
 .mg-step .icon-btn:disabled { color: var(--text-3); cursor: default; }
 .mg-gap { height: 8px; }
+
+/* 報酬拆解（2026-10-27）：三層的小標 */
+.attr-layer { margin-top: var(--s-1, 8px); color: var(--text-2); }
+/* 橫條列的數值欄固定寬：每一列的 0 軸對齊（不同列的第二行長短不同） */
+.attr-bars .ui-row.br-row { grid-template-columns: 5.5em minmax(3rem, 1fr) 9em; }
+.attr-bars .br-name .br-sub { white-space: nowrap; }

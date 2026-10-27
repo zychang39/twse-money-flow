@@ -326,6 +326,31 @@ def summary_adj_events(code_ev: list[list[Any]], since: str) -> list[list[Any]] 
     return out or None
 
 
+def build_attribution(ds: Dataset, p: Panels, fine_of: dict[str, list[str]], out: Path) -> dict[str, Any]:
+    from pipeline.derive import attribution, fundamentals
+    from pipeline.derive.extras import TAIEX_TR, index_series
+
+    try:
+        fin = ds.table("financials")
+        roe = fundamentals.fundamental_panels(fin, p.dates, p.codes).get("roe") if not fin.empty else None
+        return attribution.build(
+            adj=p.adj_close,
+            close=p.close,
+            value=p.value,
+            shares=p.shares,
+            pb=p.pb,
+            roe=roe if roe is not None else pd.DataFrame(np.nan, index=p.dates, columns=p.codes),
+            market=index_series(ds, TAIEX_TR, p.dates),
+            industries=p.industries,
+            fine_of=fine_of,
+            out=out,
+            cfg=attribution.demo_settings() if ds.manifest.get("demo") else None,
+        )
+    except Exception as exc:  # 新功能失敗不擋部署（執行紀錄看得到）
+        log.exception("報酬拆解失敗")
+        return {"error": f"{type(exc).__name__}: {exc}"[:300]}
+
+
 def inactive_list(ds: Dataset, p: Panels, active: set[str], last_date: str) -> dict[str, Any]:
     """U-01：近 20 個交易日沒有成交、因此沒有個股檔的證券（下市、長期停牌）。
 
@@ -486,6 +511,8 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
     from pipeline.derive import whaleflow
 
     sector_report.update(whaleflow.write_output(p, ds.table("tdcc"), sec_layers, out))
+    # 2026-10-27：報酬拆解（市場 Beta、因子與產業、Alpha；探索 › 報酬拆解）。失敗只記錄，不影響其他輸出
+    sector_report["attribution"] = build_attribution(ds, p, sec_layers.fine_of, out)
     inferred = p.events[p.events["source"] == "inferred"] if not p.events.empty else p.events
     meta_extra = {
         "adjust_events": len(p.events),

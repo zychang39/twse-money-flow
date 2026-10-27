@@ -131,6 +131,20 @@ credit:
   short_ratio_high: 30      # 券資比 ≥ 30% 視為偏高（融券回補買盤可能推升股價：軋空風險）
   foreign_change_days: 20   # 外資持股比的變化基準（交易日前）
 
+# 報酬拆解（2026-10-27；探索 › 報酬拆解；pipeline/derive/attribution.py；METHODOLOGY §4.12）
+# 市場 Beta → 因子與產業 → Alpha。台股自建月因子（2×3 分組、組內等權）；同業籃子依扣掉大盤後的週報酬相關挑選。
+attribution:
+  rf_annual: 0.015          # 無風險利率（年）：固定假設，約為台灣短期利率（央行重貼現率扣碼、一年期定存）；本工具不另抓利率資料
+  window_months: 60         # 迴歸最多用最近 60 個月（課文：最近 5 年月報酬）
+  min_months: 24            # 至少 24 個月才估（課文：至少 2～3 年）
+  break_low: 0.3            # 因子分組：特徵 30／70 百分位（Fama–French）
+  break_high: 0.7
+  liquidity_pctile: 20      # 期初近 60 日平均成交值最低的 20% 不列入因子樣本（成交稀少、報酬失真）
+  peer_weeks: 104           # 同業籃子：近 104 週的週報酬
+  peer_min_corr: 0.2        # 扣掉大盤後相關 ≥ 0.2 才算同業
+  peer_min: 5               # 同業至少 5 家（課文：任何一家出事尺就歪掉）
+  peer_max: 10
+
 # 融資增減（2026-10-20；探索 › 融資增減、盤後簡報 › 資金 › 融資；pipeline/derive/margin.py）
 # 證交所、櫃買中心約 20:45 公布；資料檔每天一個（margin/{日期}.json），換日期時才下載。
 margin_flow:
