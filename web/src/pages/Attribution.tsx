@@ -95,7 +95,7 @@ export function StockAttribution({ code }: { code: string }) {
   return (
     <div class="seg-pane" data-testid="attr-stock">
       {factors.error ? <ErrorState error={factors.error} /> : !f && !factors.loading ? <p class="ds-line">資料累積中</p> : f ? <AttrStockView f={f} code={code} nameOf={nameOf} /> : null}
-      <div class="mg-gap" />
+      <div class="attr-more" />
       <List chev>
         <Row label="因子順逆風" sub="哪一類股票最近被市場獎勵（探索 › 報酬拆解）" href={`#/explore/attribution?seg=factor&code=${encodeURIComponent(code)}`} testid="attr-to-explore" />
       </List>
