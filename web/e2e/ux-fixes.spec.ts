@@ -316,6 +316,9 @@ test('5. 今晚：主角數字下方固定是資料日（M/D）的漲跌；走�
 });
 
 test('6. 頁首副資訊在手機寬度最多兩行，只在標點處換行', async ({ page }) => {
+  // 2026-10-27：固定在示範資料日的晚上。原本跟著真實時鐘：交易日 15:00 後示範資料（9/24）會多出「今天的資料尚未更新・」，
+  // 加上「示範資料」變成三行，CI 在下午以後跑就失敗（與被測的換行規則無關）
+  await page.clock.setFixedTime(new Date('2026-09-24T21:00:00+08:00'));
   await page.goto('#/mine');
   await page.getByRole('button', { name: '加入範例自選' }).click();
   for (const hash of ['#/mine', '#/']) {

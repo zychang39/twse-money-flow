@@ -144,6 +144,13 @@ export const loadStockIntraday = (code: string) => getJson<import('./types').Sto
 export const loadMarginIndex = () => getJson<import('./types').MarginIndex>('margin/index.json').catch(() => null);
 export const loadMarginDay = (date: string) => getJson<import('./types').MarginDay>(`margin/${encodeURIComponent(date)}.json`);
 
+/** 報酬拆解（2026-10-27）：月因子與個股檔（只有報酬拆解頁載入）；舊版部署或該股沒有檔案時為 null。 */
+export const loadAttrFactors = () => getJson<import('./types').AttrFactors>('attribution/factors.json').catch(() => null);
+export const loadAttrStock = (code: string) => getJson<import('./types').AttrStock>(`attribution/${encodeURIComponent(code)}.json`).catch((e: unknown) => {
+  if (isNotFound(e)) return null;
+  throw e;
+});
+
 /** M1.2 族群三層：清單與統計（含每檔的細產業、題材與報酬，自訂族群在前端計算）。 */
 /** 2026-10-10：主動式 ETF 資金流向（1 日～1 季；只有主動式 ETF 頁載入） */
 export const loadEtfFlows = () => getJson<import('../lib/etfFlows').EtfFlows>('etf_flows.json');

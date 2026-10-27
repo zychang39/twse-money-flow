@@ -332,6 +332,7 @@ def build_store(root: Path, *, days: int = 320, end: date | None = None, seed: i
     store.save_manifest(
         {
             "version": 1,
+            "demo": True,  # 衍生計算依此放寬樣本門檻（例：報酬拆解；attribution.demo_settings）
             "sources": {"twse_quotes": {"last_success": end.isoformat(), "last_status": "ok", "rows": 7}},
             "runs": [],
             "closed_days": [],

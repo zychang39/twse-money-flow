@@ -413,3 +413,49 @@ export interface MarginDay {
   columns: string[];
   lists: Record<string, (string | number | null)[][]>;
 }
+
+/** 報酬拆解（2026-10-27；pipeline/derive/attribution.py）：月因子與個股迴歸。報酬一律為小數（0.05＝5%）。 */
+export type AttrFactorKey = 'smb' | 'hml' | 'umd' | 'rmw' | 'lv';
+export interface AttrFactors {
+  months: string[];
+  end_dates: string[];
+  partial: boolean;
+  rf_annual: number;
+  rf: (number | null)[];
+  mkt: (number | null)[];
+  f: Record<AttrFactorKey, (number | null)[]>;
+  start: Record<AttrFactorKey, string | null>;
+  labels: Record<string, string>;
+  style_labels: string[];
+  style_ret: (number | null)[][];
+  universe: number[];
+  window_months: number;
+  min_months: number;
+  peer_min: number;
+  peer_max: number;
+  peer_min_corr: number;
+  peer_weeks: number;
+  liquidity_pctile: number;
+}
+export interface AttrModel {
+  alpha: number | null;
+  alpha_t: number | null;
+  b: Record<string, number | null>;
+  t: Record<string, number | null>;
+  r2: number | null;
+  resid_sd: number | null;
+  n: number;
+}
+export interface AttrStock {
+  code: string;
+  r: (number | null)[];
+  peer: (number | null)[];
+  ind: (number | null)[];
+  style: (number | null)[];
+  peers: { kind: 'peer' | 'weak'; codes: string[]; corr: number[]; cross: boolean[] } | null;
+  fit: Record<string, { r2: number | null; n: number } | null>;
+  window: [string, string] | null;
+  capm: AttrModel | null;
+  full: AttrModel | null;
+  dropped: AttrFactorKey[];
+}
