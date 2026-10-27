@@ -961,32 +961,17 @@
   }
  },
  "daily_extras": {
-  "at": "2026-10-27T15:02+08:00"
+  "at": "2026-10-27T09:02+08:00"
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-27T15:02+08:00",
+  "at": "2026-10-27T14:08+08:00",
   "attempt": 1,
-  "fixed": [
-   "intraday",
-   "quotes"
-  ],
-  "missing": [
-   {
-    "dates": [
-     "2026-10-27"
-    ],
-    "due": "2026-10-27",
-    "key": "index",
-    "label": "指數",
-    "sources": [
-     "tpex_index"
-    ]
-   }
-  ],
+  "fixed": [],
+  "missing": [],
   "next_poll": null,
-  "next_retry": "2026-10-27T16:02+08:00",
-  "next_run": "2026-10-27T16:02+08:00"
+  "next_retry": null,
+  "next_run": "2026-10-27T15:02+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -1708,60 +1693,50 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-10-26T21:36+08:00",
-  "covered": 2331,
+  "at": "2026-10-27T15:10+08:00",
+  "covered": 2339,
   "empty": [
-   "00847B",
-   "1516",
-   "1522A",
-   "6142",
-   "8047",
-   "8183"
-  ],
-  "failed": [],
-  "no_trade": [
    "00625K",
    "00643K",
-   "00682U",
    "00707R",
-   "1341",
-   "1441",
-   "1538",
-   "1583",
+   "00847B",
+   "00870B",
+   "1312A",
+   "1522A",
+   "2035",
    "2073",
-   "2321",
    "2724",
-   "2891C",
-   "2949",
    "3064",
+   "3067",
    "3085",
-   "3115",
+   "3310",
+   "3332",
+   "3523",
+   "3593",
    "4139",
    "4305",
-   "4530",
-   "4535",
-   "4581",
-   "4728",
-   "5348",
-   "5455",
    "5520",
-   "5703",
    "6212",
+   "6222",
    "6236",
-   "6242",
-   "6597",
-   "6843",
-   "6904",
+   "6542",
+   "6662",
    "6921",
-   "8077",
+   "7708",
+   "7716",
    "8342",
-   "8455"
+   "8349A",
+   "8917",
+   "8921",
+   "8928"
   ],
+  "failed": [],
+  "no_trade": [],
   "remaining": 0,
-  "rounds": 3,
+  "rounds": 1,
   "stopped": null,
-  "target": "2026-10-22",
-  "total": 2373,
+  "target": "2026-10-27",
+  "total": 2372,
   "unfinished": 0
  },
  "last_target_date": "2026-10-08",
@@ -2056,24 +2031,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-22T15:27:55+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [],
-   "kbar_dispatched": true,
-   "missing_after": [],
-   "missing_before": [],
-   "ok": 0,
-   "pending": [],
-   "poll_at": null,
-   "progressed": false,
-   "quick": false,
-   "relay": "skip:2026-10-22T16:02+08:00",
-   "requests": 0,
-   "retry": false,
-   "task": "catchup"
-  },
   {
    "at": "2026-10-22T15:42:40+08:00",
    "by_tier": {
@@ -2932,6 +2889,28 @@
    "requests": 88,
    "retry": true,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-27T15:43:57+08:00",
+   "by_tier": {
+    "1": 500,
+    "2": 442,
+    "3": 1430
+   },
+   "covered": 2339,
+   "failed": [],
+   "fetched": 2372,
+   "kbar_target": "2026-10-27",
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "pruned": 0,
+   "remaining": 0,
+   "requests": 0,
+   "rows": 295810,
+   "task": "kbar",
+   "total": 2372,
+   "unfinished": 0
   }
  ],
  "sources": {
@@ -2942,7 +2921,7 @@
    "last_status": "ok",
    "last_success": "2026-10-22",
    "last_success_at": "2026-10-27T15:09:45+08:00",
-   "rows": 1545,
+   "rows": 745,
    "validation": "ok"
   },
   "cbc_money": {
@@ -3588,23 +3567,33 @@
   },
   "yahoo_kbar": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-26T21:36:42+08:00",
-   "last_message": "涵蓋 2331/2373 檔；本次 0 檔請求、失敗 0、查無 6、當日無成交略過 36",
+   "last_attempt": "2026-10-27T15:43:57+08:00",
+   "last_message": "涵蓋 2339/2372 檔；本次 2372 檔請求、失敗 0、查無 33、當日無成交略過 0",
    "last_status": "ok",
-   "last_success": "2026-10-22",
-   "last_success_at": "2026-10-26T21:36:42+08:00",
-   "rows": 2331,
+   "last_success": "2026-10-27",
+   "last_success_at": "2026-10-27T15:43:57+08:00",
+   "rows": 2339,
    "validation": "ok"
   }
  },
  "stages": {
   "close": {
-   "at": "15:02",
+   "at": "17:20",
    "status": "done",
    "waited": 0
   },
-  "date": "2026-10-27"
+  "credit": {
+   "at": "20:52",
+   "status": "done",
+   "waited": 0
+  },
+  "date": "2026-10-22",
+  "insti": {
+   "at": "17:20",
+   "status": "done",
+   "waited": 0
+  }
  },
- "updated_at": "2026-10-27T15:09:49+08:00",
+ "updated_at": "2026-10-27T15:43:57+08:00",
  "version": 1
 }
