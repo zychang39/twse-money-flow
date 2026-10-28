@@ -965,9 +965,11 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-28T19:02+08:00",
-  "attempt": 4,
-  "fixed": [],
+  "at": "2026-10-28T20:52+08:00",
+  "attempt": 1,
+  "fixed": [
+   "margin_flash"
+  ],
   "missing": [
    {
     "dates": [
@@ -982,8 +984,8 @@
    }
   ],
   "next_poll": null,
-  "next_retry": null,
-  "next_run": "2026-10-28T20:52+08:00"
+  "next_retry": "2026-10-28T21:52+08:00",
+  "next_run": "2026-10-28T21:52+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2046,25 +2048,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-23T20:41:17+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [],
-   "format_warnings": [
-    "twse_fulldelivery"
-   ],
-   "missing_after": [],
-   "missing_before": [],
-   "ok": 30,
-   "pending": [],
-   "poll_at": null,
-   "progressed": true,
-   "quick": false,
-   "requests": 58,
-   "retry": false,
-   "task": "catchup"
-  },
-  {
    "at": "2026-10-23T21:40:42+08:00",
    "attempt": 1,
    "failed": [],
@@ -2953,6 +2936,34 @@
    "requests": 1,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-28T20:52:16+08:00",
+   "attempt": 1,
+   "failed": [
+    "twse_qfii 2026-10-28 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
+   ],
+   "fixed": [
+    "margin_flash"
+   ],
+   "missing_after": [
+    "qfii"
+   ],
+   "missing_before": [
+    "qfii",
+    "margin_flash"
+   ],
+   "ok": 4,
+   "pending": [
+    "twse_qfii"
+   ],
+   "poll_at": null,
+   "progressed": true,
+   "quick": true,
+   "relay": "2026-10-28T21:52+08:00",
+   "requests": 3,
+   "retry": true,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3234,21 +3245,21 @@
   },
   "tpex_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-27T20:52:03+08:00",
+   "last_attempt": "2026-10-28T20:52:03+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-27",
-   "last_success_at": "2026-10-27T20:52:03+08:00",
+   "last_success": "2026-10-28",
+   "last_success_at": "2026-10-28T20:52:03+08:00",
    "rows": 919,
    "validation": "ok"
   },
   "tpex_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-27T20:52:03+08:00",
+   "last_attempt": "2026-10-28T20:52:03+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-27",
-   "last_success_at": "2026-10-27T20:52:03+08:00",
+   "last_success": "2026-10-28",
+   "last_success_at": "2026-10-28T20:52:03+08:00",
    "rows": 2,
    "validation": "ok"
   },
@@ -3509,21 +3520,21 @@
   },
   "twse_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-27T20:52:08+08:00",
+   "last_attempt": "2026-10-28T20:52:07+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-27",
-   "last_success_at": "2026-10-27T20:52:08+08:00",
-   "rows": 1298,
+   "last_success": "2026-10-28",
+   "last_success_at": "2026-10-28T20:52:07+08:00",
+   "rows": 1300,
    "validation": "ok"
   },
   "twse_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-27T20:52:08+08:00",
+   "last_attempt": "2026-10-28T20:52:07+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-10-27",
-   "last_success_at": "2026-10-27T20:52:08+08:00",
+   "last_success": "2026-10-28",
+   "last_success_at": "2026-10-28T20:52:07+08:00",
    "rows": 3,
    "validation": "ok"
   },
@@ -3538,10 +3549,10 @@
    "validation": "ok"
   },
   "twse_qfii": {
-   "consecutive_failures": 1,
-   "last_attempt": "2026-10-28T19:02:03+08:00",
-   "last_message": "外資持股比：預期時間已過仍未取得（第 4 次補抓）",
-   "last_status": "failed",
+   "consecutive_failures": 2,
+   "last_attempt": "2026-10-28T20:52:11+08:00",
+   "last_message": "外資持股比：預期時間已過仍未取得（第 1 次補抓）",
+   "last_status": "pending",
    "last_success": "2026-10-27",
    "last_success_at": "2026-10-27T21:52:03+08:00",
    "rows": 1360,
@@ -3624,6 +3635,11 @@
    "status": "done",
    "waited": 0
   },
+  "credit": {
+   "at": "20:52",
+   "status": "done",
+   "waited": 0
+  },
   "date": "2026-10-28",
   "insti": {
    "at": "17:02",
@@ -3631,6 +3647,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-28T19:02:07+08:00",
+ "updated_at": "2026-10-28T20:52:16+08:00",
  "version": 1
 }
