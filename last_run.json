@@ -1,21 +1,17 @@
 {
  "task": "catchup",
- "at": "2026-10-28T21:52:08+08:00",
- "requests": 1,
- "ok": 1,
+ "at": "2026-10-28T21:59:04+08:00",
+ "requests": 0,
+ "ok": 0,
  "failed": [],
  "pending": [],
- "missing_before": [
-  "qfii"
- ],
+ "missing_before": [],
  "missing_after": [],
- "fixed": [
-  "qfii"
- ],
- "attempt": 2,
+ "fixed": [],
+ "attempt": 1,
  "retry": false,
  "poll_at": null,
- "progressed": true,
+ "progressed": false,
  "quick": false,
- "relay": "2026-10-28T22:02+08:00"
+ "relay": "skip:2026-10-28T22:02+08:00"
 }
