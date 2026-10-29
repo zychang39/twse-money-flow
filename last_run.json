@@ -1,6 +1,6 @@
 {
  "task": "catchup",
- "at": "2026-10-29T18:50:08+08:00",
+ "at": "2026-10-29T19:50:06+08:00",
  "requests": 1,
  "ok": 0,
  "failed": [],
@@ -15,10 +15,10 @@
   "qfii"
  ],
  "fixed": [],
- "attempt": 1,
+ "attempt": 2,
  "retry": true,
  "poll_at": null,
  "progressed": false,
  "quick": false,
- "relay": "2026-10-29T19:50+08:00"
+ "relay": "2026-10-29T20:50+08:00"
 }
