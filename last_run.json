@@ -1,24 +1,28 @@
 {
  "task": "catchup",
- "at": "2026-10-29T19:50:06+08:00",
- "requests": 1,
- "ok": 0,
- "failed": [],
+ "at": "2026-10-29T20:50:18+08:00",
+ "requests": 3,
+ "ok": 4,
+ "failed": [
+  "twse_qfii 2026-10-29 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
+ ],
  "pending": [
-  "twse_qfii",
   "twse_qfii"
  ],
  "missing_before": [
-  "qfii"
+  "qfii",
+  "margin_flash"
  ],
  "missing_after": [
   "qfii"
  ],
- "fixed": [],
- "attempt": 2,
+ "fixed": [
+  "margin_flash"
+ ],
+ "attempt": 3,
  "retry": true,
  "poll_at": null,
- "progressed": false,
- "quick": false,
- "relay": "2026-10-29T20:50+08:00"
+ "progressed": true,
+ "quick": true,
+ "relay": "2026-10-29T21:50+08:00"
 }
