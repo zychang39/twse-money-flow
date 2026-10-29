@@ -1,39 +1,28 @@
 {
  "task": "catchup",
- "at": "2026-10-29T16:10:57+08:00",
- "requests": 96,
- "ok": 38,
+ "at": "2026-10-29T16:21:33+08:00",
+ "requests": 3,
+ "ok": 1,
  "failed": [],
  "pending": [
   "tpex_valuation",
-  "twse_insti",
   "twse_valuation",
-  "twse_insti",
   "twse_valuation"
  ],
- "format_warnings": [
-  "twse_fulldelivery"
- ],
  "missing_before": [
-  "index",
   "insti",
-  "insti_amount",
-  "taifex",
   "valuation"
  ],
  "missing_after": [
-  "insti",
   "valuation"
  ],
  "fixed": [
-  "index",
-  "insti_amount",
-  "taifex"
+  "insti"
  ],
- "attempt": 2,
+ "attempt": 1,
  "retry": true,
  "poll_at": null,
  "progressed": true,
  "quick": false,
- "relay": "2026-10-29T17:02+08:00"
+ "relay": "skip:2026-10-29T17:02+08:00"
 }
