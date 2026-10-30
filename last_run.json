@@ -1,22 +1,25 @@
 {
- "task": "kbar",
- "at": "2026-10-30T21:38:30+08:00",
- "requests": 0,
- "ok": 1,
+ "task": "catchup",
+ "at": "2026-10-30T22:08:00+08:00",
+ "requests": 68,
+ "ok": 36,
  "failed": [],
  "pending": [],
- "kbar_target": "2026-10-30",
- "fetched": 2,
- "rows": 177,
- "covered": 2344,
- "total": 2379,
- "remaining": 0,
- "unfinished": 0,
+ "format_warnings": [
+  "twse_fulldelivery"
+ ],
+ "missing_before": [
+  "sbl",
+  "daytrade"
+ ],
+ "missing_after": [],
+ "fixed": [
+  "daytrade",
+  "sbl"
+ ],
+ "attempt": 1,
+ "retry": false,
+ "poll_at": null,
  "progressed": true,
- "pruned": 0,
- "by_tier": {
-  "1": 0,
-  "2": 0,
-  "3": 2
- }
+ "quick": false
 }
