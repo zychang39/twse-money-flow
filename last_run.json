@@ -1,17 +1,22 @@
 {
  "task": "catchup",
- "at": "2026-10-30T03:45:00+08:00",
- "requests": 0,
- "ok": 0,
- "failed": [],
+ "at": "2026-10-30T08:49:55+08:00",
+ "requests": 60,
+ "ok": 29,
+ "failed": [
+  "twse_cmode 2026-10-29 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://openapi.twse.com.tw/v1/exchangeReport/TWT85U"
+ ],
  "pending": [],
+ "format_warnings": [
+  "twse_fulldelivery"
+ ],
  "missing_before": [],
  "missing_after": [],
  "fixed": [],
  "attempt": 1,
  "retry": false,
  "poll_at": null,
- "progressed": false,
+ "progressed": true,
  "quick": false,
- "relay": "2026-10-30T08:44+08:00"
+ "relay": "2026-10-30T13:49+08:00"
 }
