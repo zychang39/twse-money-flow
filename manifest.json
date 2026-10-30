@@ -1696,8 +1696,8 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-10-30T15:10+08:00",
-  "covered": 2342,
+  "at": "2026-10-30T21:38+08:00",
+  "covered": 2344,
   "empty": [
    "00682U",
    "00847B",
@@ -1736,12 +1736,43 @@
    "9941A"
   ],
   "failed": [],
-  "no_trade": [],
+  "no_trade": [
+   "00682U",
+   "009807",
+   "1470",
+   "1538",
+   "2035",
+   "2719",
+   "2891B",
+   "2891C",
+   "2937",
+   "2941",
+   "2948",
+   "3064",
+   "3085",
+   "3259",
+   "3523",
+   "5520",
+   "5523",
+   "5703",
+   "5906",
+   "6212",
+   "6236",
+   "6592A",
+   "6661",
+   "6921",
+   "7716",
+   "7728",
+   "8342",
+   "8409",
+   "9110",
+   "9941A"
+  ],
   "remaining": 0,
-  "rounds": 1,
+  "rounds": 2,
   "stopped": null,
   "target": "2026-10-30",
-  "total": 2377,
+  "total": 2379,
   "unfinished": 0
  },
  "last_target_date": "2026-10-08",
@@ -2036,33 +2067,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-10-28T18:02:24+08:00",
-   "attempt": 3,
-   "failed": [],
-   "fixed": [
-    "valuation"
-   ],
-   "missing_after": [
-    "qfii"
-   ],
-   "missing_before": [
-    "valuation",
-    "qfii"
-   ],
-   "ok": 3,
-   "pending": [
-    "twse_qfii",
-    "twse_qfii"
-   ],
-   "poll_at": null,
-   "progressed": true,
-   "quick": false,
-   "relay": "2026-10-28T19:02+08:00",
-   "requests": 4,
-   "retry": true,
-   "task": "catchup"
-  },
   {
    "at": "2026-10-28T18:30:25+08:00",
    "attempt": 1,
@@ -2990,6 +2994,28 @@
    "requests": 3,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-30T21:38:30+08:00",
+   "by_tier": {
+    "1": 0,
+    "2": 0,
+    "3": 2
+   },
+   "covered": 2344,
+   "failed": [],
+   "fetched": 2,
+   "kbar_target": "2026-10-30",
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "pruned": 0,
+   "remaining": 0,
+   "requests": 0,
+   "rows": 177,
+   "task": "kbar",
+   "total": 2379,
+   "unfinished": 0
   }
  ],
  "sources": {
@@ -3646,12 +3672,12 @@
   },
   "yahoo_kbar": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-10-30T15:42:36+08:00",
-   "last_message": "涵蓋 2342/2377 檔；本次 2377 檔請求、失敗 0、查無 35、當日無成交略過 0",
+   "last_attempt": "2026-10-30T21:38:30+08:00",
+   "last_message": "涵蓋 2344/2379 檔；本次 2 檔請求、失敗 0、查無 35、當日無成交略過 30",
    "last_status": "ok",
    "last_success": "2026-10-30",
-   "last_success_at": "2026-10-30T15:42:36+08:00",
-   "rows": 2342,
+   "last_success_at": "2026-10-30T21:38:30+08:00",
+   "rows": 2344,
    "validation": "ok"
   }
  },
@@ -3673,6 +3699,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-30T20:52:17+08:00",
+ "updated_at": "2026-10-30T21:38:30+08:00",
  "version": 1
 }
