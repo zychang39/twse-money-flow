@@ -965,12 +965,9 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-30T22:04+08:00",
+  "at": "2026-10-30T23:10+08:00",
   "attempt": 1,
-  "fixed": [
-   "daytrade",
-   "sbl"
-  ],
+  "fixed": [],
   "missing": [],
   "next_poll": null,
   "next_retry": null
@@ -2067,34 +2064,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-28T20:52:16+08:00",
-   "attempt": 1,
-   "failed": [
-    "twse_qfii 2026-10-28 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
-   ],
-   "fixed": [
-    "margin_flash"
-   ],
-   "missing_after": [
-    "qfii"
-   ],
-   "missing_before": [
-    "qfii",
-    "margin_flash"
-   ],
-   "ok": 4,
-   "pending": [
-    "twse_qfii"
-   ],
-   "poll_at": null,
-   "progressed": true,
-   "quick": true,
-   "relay": "2026-10-28T21:52+08:00",
-   "requests": 3,
-   "retry": true,
-   "task": "catchup"
-  },
-  {
    "at": "2026-10-28T21:34:46+08:00",
    "by_tier": {
     "1": 0,
@@ -3016,6 +2985,22 @@
    "requests": 68,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-30T23:10:04+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "requests": 0,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3699,6 +3684,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-30T22:10:14+08:00",
+ "updated_at": "2026-10-30T23:10:04+08:00",
  "version": 1
 }
