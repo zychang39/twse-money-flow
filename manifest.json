@@ -965,7 +965,7 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-10-30T08:44+08:00",
+  "at": "2026-10-30T13:34+08:00",
   "attempt": 1,
   "fixed": [],
   "missing": [],
@@ -2087,31 +2087,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-27T22:08:14+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [
-    "daytrade",
-    "sbl"
-   ],
-   "format_warnings": [
-    "twse_fulldelivery"
-   ],
-   "missing_after": [],
-   "missing_before": [
-    "sbl",
-    "daytrade"
-   ],
-   "ok": 36,
-   "pending": [],
-   "poll_at": null,
-   "progressed": true,
-   "quick": false,
-   "requests": 69,
-   "retry": false,
-   "task": "catchup"
-  },
-  {
    "at": "2026-10-27T22:46:28+08:00",
    "attempt": 1,
    "failed": [],
@@ -3025,6 +3000,23 @@
    "requests": 60,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-10-30T13:34:23+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "relay": "skip:2026-10-30T13:49+08:00",
+   "requests": 0,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3708,6 +3700,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-10-30T08:49:55+08:00",
+ "updated_at": "2026-10-30T13:34:23+08:00",
  "version": 1
 }
