@@ -1,16 +1,8 @@
 {
- "task": "catchup",
- "at": "2026-10-31T03:33:54+08:00",
- "requests": 0,
- "ok": 0,
+ "task": "periodic",
+ "at": "2026-10-31T15:58:46+08:00",
+ "requests": 32,
+ "ok": 6,
  "failed": [],
- "pending": [],
- "missing_before": [],
- "missing_after": [],
- "fixed": [],
- "attempt": 1,
- "retry": false,
- "poll_at": null,
- "progressed": false,
- "quick": false
+ "pending": []
 }
