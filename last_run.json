@@ -1,27 +1,22 @@
 {
- "task": "catchup",
- "at": "2026-11-03T22:08:11+08:00",
- "requests": 67,
- "ok": 35,
- "failed": [
-  "twse_insider 2026-11-03 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://openapi.twse.com.tw/v1/opendata/t187ap12_L"
- ],
+ "task": "kbar",
+ "at": "2026-11-03T22:41:37+08:00",
+ "requests": 0,
+ "ok": 1,
+ "failed": [],
  "pending": [],
- "format_warnings": [
-  "twse_fulldelivery"
- ],
- "missing_before": [
-  "sbl",
-  "daytrade"
- ],
- "missing_after": [],
- "fixed": [
-  "daytrade",
-  "sbl"
- ],
- "attempt": 1,
- "retry": false,
- "poll_at": null,
+ "kbar_target": "2026-11-03",
+ "fetched": 1,
+ "rows": 54,
+ "covered": 2343,
+ "total": 2379,
+ "remaining": 0,
+ "unfinished": 0,
  "progressed": true,
- "quick": false
+ "pruned": 0,
+ "by_tier": {
+  "1": 1,
+  "2": 0,
+  "3": 0
+ }
 }
