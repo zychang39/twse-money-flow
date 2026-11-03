@@ -965,9 +965,11 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-11-03T20:49+08:00",
-  "attempt": 2,
-  "fixed": [],
+  "at": "2026-11-03T20:52+08:00",
+  "attempt": 3,
+  "fixed": [
+   "margin_flash"
+  ],
   "missing": [
    {
     "dates": [
@@ -982,8 +984,8 @@
    }
   ],
   "next_poll": null,
-  "next_retry": "2026-11-03T21:49+08:00",
-  "next_run": "2026-11-03T20:52+08:00"
+  "next_retry": "2026-11-03T21:52+08:00",
+  "next_run": "2026-11-03T21:52+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2047,43 +2049,6 @@
  },
  "runs": [
   {
-   "at": "2026-10-30T16:09:57+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [
-    "insti_amount",
-    "taifex"
-   ],
-   "format_warnings": [
-    "twse_fulldelivery"
-   ],
-   "missing_after": [
-    "insti",
-    "valuation"
-   ],
-   "missing_before": [
-    "insti",
-    "insti_amount",
-    "taifex",
-    "valuation"
-   ],
-   "ok": 37,
-   "pending": [
-    "tpex_valuation",
-    "twse_insti",
-    "twse_valuation",
-    "twse_insti",
-    "twse_valuation"
-   ],
-   "poll_at": null,
-   "progressed": true,
-   "quick": false,
-   "relay": "2026-10-30T17:02+08:00",
-   "requests": 94,
-   "retry": true,
-   "task": "catchup"
-  },
-  {
    "at": "2026-10-30T16:30:00+08:00",
    "attempt": 1,
    "failed": [],
@@ -3039,6 +3004,34 @@
    "requests": 1,
    "retry": true,
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-03T20:52:21+08:00",
+   "attempt": 3,
+   "failed": [
+    "twse_qfii 2026-11-03 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
+   ],
+   "fixed": [
+    "margin_flash"
+   ],
+   "missing_after": [
+    "qfii"
+   ],
+   "missing_before": [
+    "qfii",
+    "margin_flash"
+   ],
+   "ok": 4,
+   "pending": [
+    "twse_qfii"
+   ],
+   "poll_at": null,
+   "progressed": true,
+   "quick": true,
+   "relay": "2026-11-03T21:52+08:00",
+   "requests": 3,
+   "retry": true,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3320,21 +3313,21 @@
   },
   "tpex_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-11-02T20:52:02+08:00",
+   "last_attempt": "2026-11-03T20:52:07+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-11-02",
-   "last_success_at": "2026-11-02T20:52:02+08:00",
+   "last_success": "2026-11-03",
+   "last_success_at": "2026-11-03T20:52:07+08:00",
    "rows": 919,
    "validation": "ok"
   },
   "tpex_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-11-02T20:52:02+08:00",
+   "last_attempt": "2026-11-03T20:52:07+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-11-02",
-   "last_success_at": "2026-11-02T20:52:02+08:00",
+   "last_success": "2026-11-03",
+   "last_success_at": "2026-11-03T20:52:07+08:00",
    "rows": 2,
    "validation": "ok"
   },
@@ -3595,21 +3588,21 @@
   },
   "twse_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-11-02T20:52:07+08:00",
+   "last_attempt": "2026-11-03T20:52:12+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-11-02",
-   "last_success_at": "2026-11-02T20:52:07+08:00",
-   "rows": 1301,
+   "last_success": "2026-11-03",
+   "last_success_at": "2026-11-03T20:52:12+08:00",
+   "rows": 1302,
    "validation": "ok"
   },
   "twse_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-11-02T20:52:07+08:00",
+   "last_attempt": "2026-11-03T20:52:12+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-11-02",
-   "last_success_at": "2026-11-02T20:52:07+08:00",
+   "last_success": "2026-11-03",
+   "last_success_at": "2026-11-03T20:52:12+08:00",
    "rows": 3,
    "validation": "ok"
   },
@@ -3624,9 +3617,9 @@
    "validation": "ok"
   },
   "twse_qfii": {
-   "consecutive_failures": 2,
-   "last_attempt": "2026-11-03T20:49:02+08:00",
-   "last_message": "外資持股比：預期時間已過仍未取得（第 2 次補抓）",
+   "consecutive_failures": 3,
+   "last_attempt": "2026-11-03T20:52:17+08:00",
+   "last_message": "外資持股比：預期時間已過仍未取得（第 3 次補抓）",
    "last_status": "pending",
    "last_success": "2026-11-02",
    "last_success_at": "2026-11-02T21:52:04+08:00",
@@ -3710,6 +3703,11 @@
    "status": "done",
    "waited": 0
   },
+  "credit": {
+   "at": "20:52",
+   "status": "done",
+   "waited": 0
+  },
   "date": "2026-11-03",
   "insti": {
    "at": "17:02",
@@ -3717,6 +3715,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-03T20:49:07+08:00",
+ "updated_at": "2026-11-03T20:52:21+08:00",
  "version": 1
 }
