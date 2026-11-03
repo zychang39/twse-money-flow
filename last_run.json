@@ -1,21 +1,27 @@
 {
  "task": "catchup",
- "at": "2026-11-03T21:52:06+08:00",
- "requests": 1,
- "ok": 1,
- "failed": [],
+ "at": "2026-11-03T22:08:11+08:00",
+ "requests": 67,
+ "ok": 35,
+ "failed": [
+  "twse_insider 2026-11-03 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://openapi.twse.com.tw/v1/opendata/t187ap12_L"
+ ],
  "pending": [],
+ "format_warnings": [
+  "twse_fulldelivery"
+ ],
  "missing_before": [
-  "qfii"
+  "sbl",
+  "daytrade"
  ],
  "missing_after": [],
  "fixed": [
-  "qfii"
+  "daytrade",
+  "sbl"
  ],
- "attempt": 4,
+ "attempt": 1,
  "retry": false,
  "poll_at": null,
  "progressed": true,
- "quick": false,
- "relay": "2026-11-03T22:02+08:00"
+ "quick": false
 }
