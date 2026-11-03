@@ -1,14 +1,12 @@
 {
  "task": "catchup",
- "at": "2026-11-03T17:25:50+08:00",
- "requests": 4,
- "ok": 1,
- "failed": [],
+ "at": "2026-11-03T18:02:27+08:00",
+ "requests": 3,
+ "ok": 2,
+ "failed": [
+  "twse_qfii 2026-11-03 外資持股比：預期時間已過仍未取得（第 4 次補抓）"
+ ],
  "pending": [
-  "tpex_qfii",
-  "tpex_valuation",
-  "twse_qfii",
-  "tpex_valuation",
   "twse_qfii"
  ],
  "missing_before": [
@@ -16,14 +14,15 @@
   "qfii"
  ],
  "missing_after": [
-  "valuation",
   "qfii"
  ],
- "fixed": [],
- "attempt": 1,
- "retry": true,
+ "fixed": [
+  "valuation"
+ ],
+ "attempt": 4,
+ "retry": false,
  "poll_at": null,
  "progressed": true,
  "quick": false,
- "relay": "skip:2026-11-03T18:02+08:00"
+ "relay": "2026-11-03T20:52+08:00"
 }
