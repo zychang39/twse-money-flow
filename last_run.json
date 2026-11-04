@@ -1,17 +1,32 @@
 {
  "task": "catchup",
- "at": "2026-11-04T14:01:53+08:00",
- "requests": 0,
- "ok": 0,
- "failed": [],
+ "at": "2026-11-04T15:10:56+08:00",
+ "requests": 83,
+ "ok": 30,
+ "failed": [
+  "twse_attention 2026-11-04 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/announcement/notice?querytype=1&startDate=20261025&endDate=20261104&response=json",
+  "twse_disposition 2026-11-04 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/announcement/punish?startDate=20261025&endDate=20261104&response=json",
+  "twse_fulldelivery 2026-11-04 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/fullDelivery/BFIHBU?startDate=20261025&endDate=20261104&response=json",
+  "twse_exright_notice 2026-11-04 斷路器開啟：www.twse.com.tw 連續失敗 5 次",
+  "twse_short_halt 2026-11-04 斷路器開啟：www.twse.com.tw 連續失敗 5 次"
+ ],
  "pending": [],
- "missing_before": [],
+ "missing_before": [
+  "quotes",
+  "index",
+  "intraday"
+ ],
  "missing_after": [],
- "fixed": [],
+ "fixed": [
+  "index",
+  "intraday",
+  "quotes"
+ ],
  "attempt": 1,
  "retry": false,
  "poll_at": null,
- "progressed": false,
+ "progressed": true,
  "quick": false,
- "relay": "skip:2026-11-04T15:02+08:00"
+ "relay": "2026-11-04T16:02+08:00",
+ "kbar_dispatched": true
 }
