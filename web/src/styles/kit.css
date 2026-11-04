@@ -245,3 +245,7 @@ button.ring2 { cursor: pointer; }
 .g-swatches { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-3); }
 .g-sw { display: inline-flex; align-items: center; gap: var(--s-1); font-size: var(--fs-foot); color: var(--text-2); font-variant-numeric: tabular-nums; }
 .g-sw i { display: inline-block; width: var(--s-4); height: var(--s-4); border-radius: var(--r-xs); box-shadow: inset 0 0 0 1px var(--card-edge); }
+/* 盤後簡報 › 資金 › 融資：上櫃與上市＋上櫃合計的備註（主數字是上市；2026-11-04） */
+.margin-note { margin: var(--s-3) 0 0; font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.margin-note > span { display: block; }
+.margin-note .ui-num, .margin-note .ui-unit { font-size: inherit; }

@@ -1,6 +1,7 @@
 /**
  * 融資增減（2026-10-20；定義見 METHODOLOGY §4.7.8；資料 pipeline/derive/margin.py）。純函式，可測。
- * 上市＋上櫃融資金額（億元）、資減／資增家數；排行依期間（當日／5 日／20 日）、方向與排序。
+ * 融資金額（億元）：盤後簡報以上市為主（新聞常說的「融資減少 N 億」就是上市），上櫃與上市＋上櫃合計列在備註（2026-11-04）；
+ * 資減／資增家數；排行依期間（當日／5 日／20 日）、方向與排序。
  */
 import type { MarginDay, MarginIndex, MarginIndexDay } from '../data/types';
 import { type DayStatus, FRESH, dueDate, missingDayStatus, type TpeClock } from './freshness';
@@ -39,10 +40,20 @@ export function dayTotal(d: MarginIndexDay | undefined): { chg: number | null; a
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
 
-/** 近 n 個交易日的融資金額合計增減（期末餘額 − n 日前餘額；不足 n+1 天 → null） */
-export function changeOver(ix: MarginIndex, n: number, end = ix.days.length - 1): number | null {
-  const a = dayTotal(ix.days[end]).amt;
-  const b = dayTotal(ix.days[end - n]).amt;
+/** 盤後簡報的主數字：上市（twse）；all＝上市＋上櫃合計 */
+export type MarginScope = 'twse' | 'all';
+
+/** 某一天、某個範圍的融資金額增減與餘額（億元）；上市沒有資料 → null（不拿合計頂替） */
+export function dayMargin(d: MarginIndexDay | undefined, scope: MarginScope): { chg: number | null; amt: number | null } {
+  if (scope === 'all') return dayTotal(d);
+  const m = d?.twse;
+  return m ? { chg: m.chg !== null && Number.isFinite(m.chg) ? m.chg : null, amt: m.amt } : { chg: null, amt: null };
+}
+
+/** 近 n 個交易日的融資金額增減（期末餘額 − n 日前餘額；不足 n+1 天 → null）；預設上市＋上櫃合計 */
+export function changeOver(ix: MarginIndex, n: number, end = ix.days.length - 1, scope: MarginScope = 'all'): number | null {
+  const a = dayMargin(ix.days[end], scope).amt;
+  const b = dayMargin(ix.days[end - n], scope).amt;
   return end - n >= 0 && a !== null && b !== null ? round1(a - b) : null;
 }
 

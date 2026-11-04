@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MarginDay, MarginIndex } from '../data/types';
-import { cardState, changeOver, dayTotal, marginRows, publishTime, streakText } from './margin';
+import { cardState, changeOver, dayMargin, dayTotal, marginRows, publishTime, streakText } from './margin';
 import { makeCalendar } from './tradingCalendar';
 
 const cal = makeCalendar({ closed: [] });
@@ -19,6 +19,13 @@ describe('融資增減', () => {
     expect(dayTotal({ date: 'x', down: 0, up: 0, flat: 0 })).toEqual({ chg: null, amt: null });
     expect(changeOver(ix, 2)).toBe(-59.8);
     expect(changeOver(ix, 5)).toBeNull();
+  });
+
+  it('上市（盤後簡報的主數字）：只算證交所；缺上市時是 null，不拿合計頂替', () => {
+    expect(dayMargin(ix.days[1], 'twse')).toEqual({ chg: ix.days[1].twse!.chg, amt: ix.days[1].twse!.amt });
+    expect(dayMargin(ix.days[1], 'all')).toEqual(dayTotal(ix.days[1]));
+    expect(dayMargin({ date: 'x', down: 0, up: 0, flat: 0, tpex: { amt: 2000, chg: -3 } }, 'twse')).toEqual({ chg: null, amt: null });
+    expect(changeOver(ix, 2, undefined, 'twse')).toBe(-59.8); // 6455.9 − 6515.7
   });
 
   it('排行列依 columns 還原成物件', () => {
