@@ -965,7 +965,7 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-11-06T00:38+08:00",
+  "at": "2026-11-06T05:09+08:00",
   "attempt": 1,
   "fixed": [],
   "missing": [],
@@ -2034,33 +2034,6 @@
  },
  "runs": [
   {
-   "at": "2026-11-03T22:08:11+08:00",
-   "attempt": 1,
-   "failed": [
-    "twse_insider 2026-11-03 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://openapi.twse.com.tw/v1/opendata/t187ap12_L"
-   ],
-   "fixed": [
-    "daytrade",
-    "sbl"
-   ],
-   "format_warnings": [
-    "twse_fulldelivery"
-   ],
-   "missing_after": [],
-   "missing_before": [
-    "sbl",
-    "daytrade"
-   ],
-   "ok": 35,
-   "pending": [],
-   "poll_at": null,
-   "progressed": true,
-   "quick": false,
-   "requests": 67,
-   "retry": false,
-   "task": "catchup"
-  },
-  {
    "at": "2026-11-03T22:41:37+08:00",
    "by_tier": {
     "1": 1,
@@ -2971,6 +2944,23 @@
    "requests": 0,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-06T05:09:27+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "relay": "skip:2026-11-06T05:38+08:00",
+   "requests": 0,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3654,6 +3644,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-06T00:38:28+08:00",
+ "updated_at": "2026-11-06T05:09:27+08:00",
  "version": 1
 }
