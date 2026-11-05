@@ -1,14 +1,11 @@
 {
  "task": "catchup",
- "at": "2026-11-05T17:21:44+08:00",
- "requests": 4,
- "ok": 1,
+ "at": "2026-11-05T18:02:17+08:00",
+ "requests": 3,
+ "ok": 2,
  "failed": [],
  "pending": [
-  "tpex_qfii",
-  "tpex_valuation",
   "twse_qfii",
-  "tpex_valuation",
   "twse_qfii"
  ],
  "missing_before": [
@@ -16,14 +13,15 @@
   "qfii"
  ],
  "missing_after": [
-  "valuation",
   "qfii"
  ],
- "fixed": [],
- "attempt": 1,
+ "fixed": [
+  "valuation"
+ ],
+ "attempt": 3,
  "retry": true,
  "poll_at": null,
  "progressed": true,
  "quick": false,
- "relay": "skip:2026-11-05T18:02+08:00"
+ "relay": "2026-11-05T19:02+08:00"
 }
