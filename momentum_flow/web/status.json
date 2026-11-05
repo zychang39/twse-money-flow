@@ -1,1 +1,1 @@
-{"date":"2026-11-04","state":2,"exposure":0.6,"candidates":405,"pass":11,"snapshots_written":5,"snapshots_pending":0,"stopped_by_time":false,"backtest_ok":true,"seconds":189,"generated":"2026-11-05 10:00","params_version":1}
+{"date":"2026-11-05","state":2,"exposure":0.6,"candidates":410,"pass":0,"snapshots_written":5,"snapshots_pending":0,"stopped_by_time":false,"backtest_ok":true,"seconds":193,"generated":"2026-11-05 15:13","params_version":1}
