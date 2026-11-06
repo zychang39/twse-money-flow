@@ -1696,7 +1696,7 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-11-06T15:10+08:00",
+  "at": "2026-11-06T22:38+08:00",
   "covered": 2347,
   "empty": [
    "00625K",
@@ -1732,9 +1732,36 @@
    "8176"
   ],
   "failed": [],
-  "no_trade": [],
+  "no_trade": [
+   "00625K",
+   "00707R",
+   "00867B",
+   "00986B",
+   "1312A",
+   "1538",
+   "2064",
+   "2724",
+   "2891C",
+   "3067",
+   "3085",
+   "3531",
+   "3629",
+   "4183",
+   "4198",
+   "4406",
+   "4728",
+   "5906",
+   "6212",
+   "6236",
+   "6624",
+   "6904",
+   "6958A",
+   "6997",
+   "8047",
+   "8077"
+  ],
   "remaining": 0,
-  "rounds": 1,
+  "rounds": 2,
   "stopped": null,
   "target": "2026-11-06",
   "total": 2378,
@@ -2032,34 +2059,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-11-04T20:52:17+08:00",
-   "attempt": 1,
-   "failed": [
-    "twse_qfii 2026-11-04 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
-   ],
-   "fixed": [
-    "margin_flash"
-   ],
-   "missing_after": [
-    "qfii"
-   ],
-   "missing_before": [
-    "qfii",
-    "margin_flash"
-   ],
-   "ok": 4,
-   "pending": [
-    "twse_qfii"
-   ],
-   "poll_at": null,
-   "progressed": true,
-   "quick": true,
-   "relay": "2026-11-04T21:52+08:00",
-   "requests": 3,
-   "retry": true,
-   "task": "catchup"
-  },
   {
    "at": "2026-11-04T21:52:07+08:00",
    "attempt": 2,
@@ -3003,6 +3002,28 @@
    "requests": 66,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-06T22:38:33+08:00",
+   "by_tier": {
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "covered": 2347,
+   "failed": [],
+   "fetched": 0,
+   "kbar_target": "2026-11-06",
+   "ok": 1,
+   "pending": [],
+   "progressed": false,
+   "pruned": 0,
+   "remaining": 0,
+   "requests": 0,
+   "rows": 0,
+   "task": "kbar",
+   "total": 2378,
+   "unfinished": 0
   }
  ],
  "sources": {
@@ -3659,11 +3680,11 @@
   },
   "yahoo_kbar": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-11-06T15:44:37+08:00",
-   "last_message": "涵蓋 2347/2378 檔；本次 2378 檔請求、失敗 0、查無 31、當日無成交略過 0",
+   "last_attempt": "2026-11-06T22:38:33+08:00",
+   "last_message": "涵蓋 2347/2378 檔；本次 0 檔請求、失敗 0、查無 31、當日無成交略過 26",
    "last_status": "ok",
    "last_success": "2026-11-06",
-   "last_success_at": "2026-11-06T15:44:37+08:00",
+   "last_success_at": "2026-11-06T22:38:33+08:00",
    "rows": 2347,
    "validation": "ok"
   }
@@ -3686,6 +3707,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-06T22:08:38+08:00",
+ "updated_at": "2026-11-06T22:38:33+08:00",
  "version": 1
 }
