@@ -1,28 +1,27 @@
 {
  "task": "catchup",
- "at": "2026-11-06T21:02:09+08:00",
- "requests": 2,
- "ok": 2,
- "failed": [
-  "twse_qfii 2026-11-06 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
- ],
- "pending": [
-  "twse_qfii"
+ "at": "2026-11-06T22:08:38+08:00",
+ "requests": 66,
+ "ok": 37,
+ "failed": [],
+ "pending": [],
+ "format_warnings": [
+  "twse_fulldelivery"
  ],
  "missing_before": [
   "qfii",
-  "margin_flash"
+  "sbl",
+  "daytrade"
  ],
- "missing_after": [
-  "qfii"
- ],
+ "missing_after": [],
  "fixed": [
-  "margin_flash"
+  "daytrade",
+  "qfii",
+  "sbl"
  ],
- "attempt": 3,
- "retry": true,
+ "attempt": 4,
+ "retry": false,
  "poll_at": null,
  "progressed": true,
- "quick": true,
- "relay": "2026-11-06T22:02+08:00"
+ "quick": false
 }
