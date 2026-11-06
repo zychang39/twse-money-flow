@@ -961,21 +961,17 @@
   }
  },
  "daily_extras": {
-  "at": "2026-11-06T15:02+08:00"
+  "at": "2026-11-06T10:38+08:00"
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-11-06T15:02+08:00",
+  "at": "2026-11-06T14:23+08:00",
   "attempt": 1,
-  "fixed": [
-   "index",
-   "intraday",
-   "quotes"
-  ],
+  "fixed": [],
   "missing": [],
   "next_poll": null,
   "next_retry": null,
-  "next_run": "2026-11-06T16:02+08:00"
+  "next_run": "2026-11-06T15:02+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -1697,51 +1693,47 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-11-05T22:59+08:00",
-  "covered": 2358,
+  "at": "2026-11-06T15:10+08:00",
+  "covered": 2347,
   "empty": [
-   "00682U",
+   "00625K",
+   "00707R",
+   "00867B",
+   "00986B",
    "1312A",
    "1538",
-   "2949",
+   "2064",
+   "2724",
+   "2891C",
+   "3067",
    "3085",
-   "3191",
-   "3226",
+   "3531",
    "3629",
    "3714",
+   "4183",
+   "4198",
    "4207",
+   "4406",
    "4534",
-   "5276",
+   "4728",
    "5355",
    "5906",
-   "6615",
-   "6649",
-   "6661",
-   "6767",
-   "7716",
+   "6212",
+   "6236",
+   "6624",
+   "6904",
+   "6958A",
+   "6997",
+   "8047",
+   "8077",
    "8176"
   ],
   "failed": [],
-  "no_trade": [
-   "00682U",
-   "1312A",
-   "1538",
-   "2949",
-   "3191",
-   "3226",
-   "3629",
-   "5276",
-   "5906",
-   "6615",
-   "6649",
-   "6661",
-   "6767",
-   "7716"
-  ],
+  "no_trade": [],
   "remaining": 0,
-  "rounds": 2,
+  "rounds": 1,
   "stopped": null,
-  "target": "2026-11-05",
+  "target": "2026-11-06",
   "total": 2378,
   "unfinished": 0
  },
@@ -2037,23 +2029,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-11-04T05:28:16+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [],
-   "missing_after": [],
-   "missing_before": [],
-   "ok": 0,
-   "pending": [],
-   "poll_at": null,
-   "progressed": false,
-   "quick": false,
-   "relay": "2026-11-04T10:28+08:00",
-   "requests": 0,
-   "retry": false,
-   "task": "catchup"
-  },
   {
    "at": "2026-11-04T10:33:58+08:00",
    "attempt": 1,
@@ -2976,6 +2951,28 @@
    "requests": 88,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-06T15:44:37+08:00",
+   "by_tier": {
+    "1": 500,
+    "2": 438,
+    "3": 1440
+   },
+   "covered": 2347,
+   "failed": [],
+   "fetched": 2378,
+   "kbar_target": "2026-11-06",
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "pruned": 1,
+   "remaining": 0,
+   "requests": 0,
+   "rows": 405704,
+   "task": "kbar",
+   "total": 2378,
+   "unfinished": 0
   }
  ],
  "sources": {
@@ -3632,23 +3629,33 @@
   },
   "yahoo_kbar": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-11-05T22:59:05+08:00",
-   "last_message": "涵蓋 2358/2378 檔；本次 0 檔請求、失敗 0、查無 20、當日無成交略過 14",
+   "last_attempt": "2026-11-06T15:44:37+08:00",
+   "last_message": "涵蓋 2347/2378 檔；本次 2378 檔請求、失敗 0、查無 31、當日無成交略過 0",
    "last_status": "ok",
-   "last_success": "2026-11-05",
-   "last_success_at": "2026-11-05T22:59:05+08:00",
-   "rows": 2358,
+   "last_success": "2026-11-06",
+   "last_success_at": "2026-11-06T15:44:37+08:00",
+   "rows": 2347,
    "validation": "ok"
   }
  },
  "stages": {
   "close": {
-   "at": "15:02",
+   "at": "16:02",
    "status": "done",
    "waited": 0
   },
-  "date": "2026-11-06"
+  "credit": {
+   "at": "20:52",
+   "status": "done",
+   "waited": 0
+  },
+  "date": "2026-11-05",
+  "insti": {
+   "at": "17:02",
+   "status": "done",
+   "waited": 0
+  }
  },
- "updated_at": "2026-11-06T15:09:48+08:00",
+ "updated_at": "2026-11-06T15:44:37+08:00",
  "version": 1
 }
