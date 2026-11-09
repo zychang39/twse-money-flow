@@ -965,27 +965,15 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-11-09T20:52+08:00",
-  "attempt": 1,
+  "at": "2026-11-09T21:52+08:00",
+  "attempt": 2,
   "fixed": [
-   "margin_flash"
+   "qfii"
   ],
-  "missing": [
-   {
-    "dates": [
-     "2026-11-09"
-    ],
-    "due": "2026-11-09",
-    "key": "qfii",
-    "label": "外資持股比",
-    "sources": [
-     "twse_qfii"
-    ]
-   }
-  ],
+  "missing": [],
   "next_poll": null,
-  "next_retry": "2026-11-09T21:52+08:00",
-  "next_run": "2026-11-09T21:52+08:00"
+  "next_retry": null,
+  "next_run": "2026-11-09T22:02+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2034,33 +2022,6 @@
  },
  "runs": [
   {
-   "at": "2026-11-05T18:02:17+08:00",
-   "attempt": 3,
-   "failed": [],
-   "fixed": [
-    "valuation"
-   ],
-   "missing_after": [
-    "qfii"
-   ],
-   "missing_before": [
-    "valuation",
-    "qfii"
-   ],
-   "ok": 2,
-   "pending": [
-    "twse_qfii",
-    "twse_qfii"
-   ],
-   "poll_at": null,
-   "progressed": true,
-   "quick": false,
-   "relay": "2026-11-05T19:02+08:00",
-   "requests": 3,
-   "retry": true,
-   "task": "catchup"
-  },
-  {
    "at": "2026-11-05T19:02:07+08:00",
    "attempt": 4,
    "failed": [
@@ -3005,6 +2966,27 @@
    "requests": 3,
    "retry": true,
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-09T21:52:07+08:00",
+   "attempt": 2,
+   "failed": [],
+   "fixed": [
+    "qfii"
+   ],
+   "missing_after": [],
+   "missing_before": [
+    "qfii"
+   ],
+   "ok": 1,
+   "pending": [],
+   "poll_at": null,
+   "progressed": true,
+   "quick": false,
+   "relay": "2026-11-09T22:02+08:00",
+   "requests": 1,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3590,14 +3572,14 @@
    "validation": "ok"
   },
   "twse_qfii": {
-   "consecutive_failures": 3,
-   "last_attempt": "2026-11-09T20:52:13+08:00",
-   "last_message": "外資持股比：預期時間已過仍未取得（第 1 次補抓）",
-   "last_status": "pending",
-   "last_success": "2026-11-06",
-   "last_success_at": "2026-11-06T22:02:18+08:00",
+   "consecutive_failures": 0,
+   "last_attempt": "2026-11-09T21:52:03+08:00",
+   "last_message": null,
+   "last_status": "ok",
+   "last_success": "2026-11-09",
+   "last_success_at": "2026-11-09T21:52:03+08:00",
    "rows": 1364,
-   "validation": "failed"
+   "validation": "ok"
   },
   "twse_quotes": {
    "consecutive_failures": 0,
@@ -3688,6 +3670,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-09T20:52:18+08:00",
+ "updated_at": "2026-11-09T21:52:07+08:00",
  "version": 1
 }
