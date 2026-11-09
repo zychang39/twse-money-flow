@@ -965,7 +965,7 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-11-10T01:26+08:00",
+  "at": "2026-11-10T02:58+08:00",
   "attempt": 1,
   "fixed": [],
   "missing": [],
@@ -2040,27 +2040,6 @@
  },
  "runs": [
   {
-   "at": "2026-11-05T21:52:07+08:00",
-   "attempt": 2,
-   "failed": [],
-   "fixed": [
-    "qfii"
-   ],
-   "missing_after": [],
-   "missing_before": [
-    "qfii"
-   ],
-   "ok": 1,
-   "pending": [],
-   "poll_at": null,
-   "progressed": true,
-   "quick": false,
-   "relay": "2026-11-05T22:02+08:00",
-   "requests": 1,
-   "retry": false,
-   "task": "catchup"
-  },
-  {
    "at": "2026-11-05T22:08:31+08:00",
    "attempt": 1,
    "failed": [],
@@ -2994,6 +2973,23 @@
    "requests": 0,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-10T02:58:58+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "relay": "skip:2026-11-10T06:26+08:00",
+   "requests": 0,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3677,6 +3673,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-10T01:26:20+08:00",
+ "updated_at": "2026-11-10T02:58:58+08:00",
  "version": 1
 }
