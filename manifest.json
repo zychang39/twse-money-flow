@@ -1695,7 +1695,7 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-11-09T15:17+08:00",
+  "at": "2026-11-10T00:54+08:00",
   "covered": 2357,
   "empty": [
    "00625K",
@@ -1721,9 +1721,29 @@
    "8923"
   ],
   "failed": [],
-  "no_trade": [],
+  "no_trade": [
+   "00625K",
+   "00643K",
+   "00707R",
+   "00982B",
+   "00986B",
+   "1312A",
+   "2724",
+   "3064",
+   "3085",
+   "4183",
+   "4305",
+   "4406",
+   "4530",
+   "5276",
+   "5703",
+   "6512",
+   "6958A",
+   "7716",
+   "8923"
+  ],
   "remaining": 0,
-  "rounds": 1,
+  "rounds": 2,
   "stopped": null,
   "target": "2026-11-09",
   "total": 2378,
@@ -2021,30 +2041,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-11-05T20:09:37+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [],
-   "missing_after": [
-    "qfii"
-   ],
-   "missing_before": [
-    "qfii"
-   ],
-   "ok": 0,
-   "pending": [
-    "twse_qfii",
-    "twse_qfii"
-   ],
-   "poll_at": null,
-   "progressed": false,
-   "quick": false,
-   "relay": "skip:2026-11-05T20:52+08:00",
-   "requests": 1,
-   "retry": true,
-   "task": "catchup"
-  },
   {
    "at": "2026-11-05T20:52:17+08:00",
    "attempt": 1,
@@ -2989,6 +2985,28 @@
    "requests": 65,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-10T00:54:23+08:00",
+   "by_tier": {
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "covered": 2357,
+   "failed": [],
+   "fetched": 0,
+   "kbar_target": "2026-11-09",
+   "ok": 1,
+   "pending": [],
+   "progressed": false,
+   "pruned": 0,
+   "remaining": 0,
+   "requests": 0,
+   "rows": 0,
+   "task": "kbar",
+   "total": 2378,
+   "unfinished": 0
   }
  ],
  "sources": {
@@ -3645,11 +3663,11 @@
   },
   "yahoo_kbar": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-11-09T15:50:49+08:00",
-   "last_message": "涵蓋 2357/2378 檔；本次 2378 檔請求、失敗 0、查無 21、當日無成交略過 0",
+   "last_attempt": "2026-11-10T00:54:23+08:00",
+   "last_message": "涵蓋 2357/2378 檔；本次 0 檔請求、失敗 0、查無 21、當日無成交略過 19",
    "last_status": "ok",
    "last_success": "2026-11-09",
-   "last_success_at": "2026-11-09T15:50:49+08:00",
+   "last_success_at": "2026-11-10T00:54:23+08:00",
    "rows": 2357,
    "validation": "ok"
   }
@@ -3672,6 +3690,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-09T22:07:45+08:00",
+ "updated_at": "2026-11-10T00:54:23+08:00",
  "version": 1
 }
