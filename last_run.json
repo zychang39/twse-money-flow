@@ -1,22 +1,39 @@
 {
- "task": "kbar",
- "at": "2026-11-10T15:43:45+08:00",
- "requests": 0,
- "ok": 1,
- "failed": [],
- "pending": [],
- "kbar_target": "2026-11-10",
- "fetched": 0,
- "rows": 0,
- "covered": 2341,
- "total": 2378,
- "remaining": 0,
- "unfinished": 0,
- "progressed": false,
- "pruned": 0,
- "by_tier": {
-  "1": 0,
-  "2": 0,
-  "3": 0
- }
+ "task": "catchup",
+ "at": "2026-11-10T16:09:59+08:00",
+ "requests": 96,
+ "ok": 36,
+ "failed": [
+  "tpex_company 2026-11-10 格式不符（UnicodeDecodeError）：'utf-8' codec can't decode bytes in position 450558-450559: unexpected end of data"
+ ],
+ "pending": [
+  "tpex_valuation",
+  "twse_insti",
+  "twse_valuation",
+  "twse_insti",
+  "twse_valuation"
+ ],
+ "format_warnings": [
+  "twse_fulldelivery"
+ ],
+ "missing_before": [
+  "insti",
+  "insti_amount",
+  "taifex",
+  "valuation"
+ ],
+ "missing_after": [
+  "insti",
+  "valuation"
+ ],
+ "fixed": [
+  "insti_amount",
+  "taifex"
+ ],
+ "attempt": 1,
+ "retry": true,
+ "poll_at": null,
+ "progressed": true,
+ "quick": false,
+ "relay": "2026-11-10T17:02+08:00"
 }
