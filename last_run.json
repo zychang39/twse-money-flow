@@ -1,29 +1,22 @@
 {
- "task": "catchup",
- "at": "2026-11-10T15:13:58+08:00",
- "requests": 86,
- "ok": 35,
+ "task": "kbar",
+ "at": "2026-11-10T15:43:00+08:00",
+ "requests": 0,
+ "ok": 1,
  "failed": [],
  "pending": [],
- "format_warnings": [
-  "twse_fulldelivery"
- ],
- "missing_before": [
-  "quotes",
-  "index",
-  "intraday"
- ],
- "missing_after": [],
- "fixed": [
-  "index",
-  "intraday",
-  "quotes"
- ],
- "attempt": 1,
- "retry": false,
- "poll_at": null,
+ "kbar_target": "2026-11-10",
+ "fetched": 2378,
+ "rows": 411829,
+ "covered": 2341,
+ "total": 2378,
+ "remaining": 0,
+ "unfinished": 0,
  "progressed": true,
- "quick": false,
- "relay": "skip:2026-11-10T16:02+08:00",
- "kbar_dispatched": true
+ "pruned": 1,
+ "by_tier": {
+  "1": 500,
+  "2": 433,
+  "3": 1445
+ }
 }
