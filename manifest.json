@@ -965,13 +965,9 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-11-11T22:02+08:00",
+  "at": "2026-11-11T23:07+08:00",
   "attempt": 1,
-  "fixed": [
-   "daytrade",
-   "qfii",
-   "sbl"
-  ],
+  "fixed": [],
   "missing": [],
   "next_poll": null,
   "next_retry": null
@@ -2078,28 +2074,6 @@
  },
  "runs": [
   {
-   "at": "2026-11-10T00:54:23+08:00",
-   "by_tier": {
-    "1": 0,
-    "2": 0,
-    "3": 0
-   },
-   "covered": 2357,
-   "failed": [],
-   "fetched": 0,
-   "kbar_target": "2026-11-09",
-   "ok": 1,
-   "pending": [],
-   "progressed": false,
-   "pruned": 0,
-   "remaining": 0,
-   "requests": 0,
-   "rows": 0,
-   "task": "kbar",
-   "total": 2378,
-   "unfinished": 0
-  },
-  {
    "at": "2026-11-10T01:26:20+08:00",
    "attempt": 1,
    "failed": [],
@@ -3032,6 +3006,22 @@
    "task": "kbar",
    "total": 2380,
    "unfinished": 0
+  },
+  {
+   "at": "2026-11-11T23:07:05+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "requests": 0,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3715,6 +3705,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-11T22:44:44+08:00",
+ "updated_at": "2026-11-11T23:07:05+08:00",
  "version": 1
 }
