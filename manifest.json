@@ -965,13 +965,13 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-11-13T05:32+08:00",
+  "at": "2026-11-13T05:57+08:00",
   "attempt": 1,
   "fixed": [],
   "missing": [],
   "next_poll": null,
   "next_retry": null,
-  "next_run": "2026-11-13T05:57+08:00"
+  "next_run": "2026-11-13T10:57+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2074,23 +2074,6 @@
  },
  "runs": [
   {
-   "at": "2026-11-11T00:30:43+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [],
-   "missing_after": [],
-   "missing_before": [],
-   "ok": 0,
-   "pending": [],
-   "poll_at": null,
-   "progressed": false,
-   "quick": false,
-   "relay": "2026-11-11T05:30+08:00",
-   "requests": 0,
-   "retry": false,
-   "task": "catchup"
-  },
-  {
    "at": "2026-11-11T04:56:28+08:00",
    "attempt": 1,
    "failed": [],
@@ -3007,6 +2990,23 @@
    "requests": 0,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-13T05:57:05+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "relay": "2026-11-13T10:57+08:00",
+   "requests": 0,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3690,6 +3690,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-13T05:32:05+08:00",
+ "updated_at": "2026-11-13T05:57:05+08:00",
  "version": 1
 }
