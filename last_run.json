@@ -1,21 +1,25 @@
 {
  "task": "catchup",
- "at": "2026-11-12T20:57:07+08:00",
- "requests": 1,
- "ok": 2,
+ "at": "2026-11-12T22:07:18+08:00",
+ "requests": 63,
+ "ok": 36,
  "failed": [],
  "pending": [],
+ "format_warnings": [
+  "twse_fulldelivery"
+ ],
  "missing_before": [
-  "margin_flash"
+  "sbl",
+  "daytrade"
  ],
  "missing_after": [],
  "fixed": [
-  "margin_flash"
+  "daytrade",
+  "sbl"
  ],
  "attempt": 1,
  "retry": false,
  "poll_at": null,
  "progressed": true,
- "quick": true,
- "relay": "2026-11-12T22:02+08:00"
+ "quick": false
 }
