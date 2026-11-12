@@ -1,28 +1,21 @@
 {
  "task": "catchup",
- "at": "2026-11-12T20:52:17+08:00",
- "requests": 3,
- "ok": 3,
- "failed": [
-  "twse_margin 2026-11-12 尚未公布或無資料：很抱歉，沒有符合條件的資料"
- ],
- "pending": [
-  "twse_margin"
- ],
+ "at": "2026-11-12T20:57:07+08:00",
+ "requests": 1,
+ "ok": 2,
+ "failed": [],
+ "pending": [],
  "missing_before": [
-  "qfii",
   "margin_flash"
  ],
- "missing_after": [
-  "margin_flash"
- ],
+ "missing_after": [],
  "fixed": [
-  "qfii"
+  "margin_flash"
  ],
  "attempt": 1,
  "retry": false,
- "poll_at": "2026-11-12T20:57+08:00",
+ "poll_at": null,
  "progressed": true,
- "quick": false,
- "relay": "2026-11-12T20:57+08:00"
+ "quick": true,
+ "relay": "2026-11-12T22:02+08:00"
 }
