@@ -965,7 +965,7 @@
  },
  "digest_date": "2026-10-02",
  "freshness": {
-  "at": "2026-11-13T23:19+08:00",
+  "at": "2026-11-14T00:38+08:00",
   "attempt": 1,
   "fixed": [],
   "missing": [],
@@ -2061,33 +2061,6 @@
  },
  "runs": [
   {
-   "at": "2026-11-11T20:57:09+08:00",
-   "attempt": 4,
-   "failed": [
-    "twse_qfii 2026-11-11 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!",
-    "twse_qfii 2026-11-11 外資持股比：預期時間已過仍未取得（第 4 次補抓）"
-   ],
-   "fixed": [
-    "margin_flash"
-   ],
-   "missing_after": [
-    "qfii"
-   ],
-   "missing_before": [
-    "qfii",
-    "margin_flash"
-   ],
-   "ok": 2,
-   "pending": [],
-   "poll_at": null,
-   "progressed": true,
-   "quick": true,
-   "relay": "2026-11-11T22:02+08:00",
-   "requests": 2,
-   "retry": false,
-   "task": "catchup"
-  },
-  {
    "at": "2026-11-11T22:07:27+08:00",
    "attempt": 1,
    "failed": [],
@@ -3017,6 +2990,22 @@
    "requests": 0,
    "retry": false,
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-14T00:38:22+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "requests": 0,
+   "retry": false,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3700,6 +3689,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-13T23:19:33+08:00",
+ "updated_at": "2026-11-14T00:38:22+08:00",
  "version": 1
 }
