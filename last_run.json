@@ -1,45 +1,36 @@
 {
  "task": "catchup",
- "at": "2026-11-13T16:11:06+08:00",
- "requests": 93,
- "ok": 27,
- "failed": [
-  "twse_parchange 2026-11-13 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/change/TWTB8U?startDate=20261103&endDate=20261113&response=json",
-  "twse_etfsplit 2026-11-13 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/split/TWTCAU?startDate=20261103&endDate=20261113&response=json",
-  "twse_exright 2026-11-13 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/exRight/TWT49U?startDate=20261103&endDate=20261113&response=json",
-  "twse_capreduce 2026-11-13 斷路器開啟：www.twse.com.tw 連續失敗 5 次",
-  "twse_attention 2026-11-13 斷路器開啟：www.twse.com.tw 連續失敗 5 次",
-  "twse_disposition 2026-11-13 斷路器開啟：www.twse.com.tw 連續失敗 5 次",
-  "twse_fulldelivery 2026-11-13 斷路器開啟：www.twse.com.tw 連續失敗 5 次",
-  "twse_exright_notice 2026-11-13 斷路器開啟：www.twse.com.tw 連續失敗 5 次",
-  "twse_delisted 2026-11-13 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://openapi.twse.com.tw/v1/company/suspendListingCsvAndHtml",
-  "twse_short_halt 2026-11-13 斷路器開啟：www.twse.com.tw 連續失敗 5 次"
- ],
+ "at": "2026-11-13T17:09:29+08:00",
+ "requests": 79,
+ "ok": 31,
+ "failed": [],
  "pending": [
+  "tpex_qfii",
   "tpex_valuation",
-  "twse_insti",
+  "twse_qfii",
   "twse_valuation",
-  "twse_insti",
-  "twse_valuation"
+  "twse_valuation",
+  "twse_qfii"
+ ],
+ "format_warnings": [
+  "twse_fulldelivery"
  ],
  "missing_before": [
   "insti",
-  "insti_amount",
-  "taifex",
-  "valuation"
+  "valuation",
+  "qfii"
  ],
  "missing_after": [
-  "insti",
-  "valuation"
+  "valuation",
+  "qfii"
  ],
  "fixed": [
-  "insti_amount",
-  "taifex"
+  "insti"
  ],
- "attempt": 1,
+ "attempt": 2,
  "retry": true,
  "poll_at": null,
  "progressed": true,
  "quick": false,
- "relay": "2026-11-13T17:02+08:00"
+ "relay": "2026-11-13T18:02+08:00"
 }
