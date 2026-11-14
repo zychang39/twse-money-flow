@@ -1,8 +1,14 @@
 {
- "task": "daily",
- "at": "2026-11-15T01:21:14+08:00",
- "requests": 1,
+ "task": "backfill",
+ "at": "2026-11-15T02:11:07+08:00",
+ "requests": 501,
  "ok": 1,
  "failed": [],
- "pending": []
+ "pending": [],
+ "remaining": 12,
+ "by_source": {
+  "tpex_esb": 12
+ },
+ "progressed": true,
+ "chained": true
 }
