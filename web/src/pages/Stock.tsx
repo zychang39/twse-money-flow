@@ -16,6 +16,8 @@ import { StockChart } from '../components/StockChart';
 import { EventsPanel, FundamentalPanel, mdw } from '../components/StockPanels';
 import { ChipsPane } from '../components/stock/Chips';
 import { OverviewPane, type StockSeg } from '../components/stock/Overview';
+import { EsbPane } from '../components/stock/Esb';
+import { isEsb } from '../lib/esb';
 import { MomentumPane } from '../components/stock/Momentum';
 import { Sheet } from '../components/Sheet';
 import { StaleNote, Term } from '../components/kit';
@@ -54,6 +56,7 @@ const SEG_IDS = SEGS.map((s) => s[0]) as StockSeg[];
 const read = readPref;
 const write = writePref;
 const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
+const MARKET_LABEL: Record<string, string> = { twse: '上市', tpex: '上櫃', esb: '興櫃' };
 
 /** 代號・市場・族群路徑（官方產業 › 細產業）；族群可點，進入族群頁。 */
 function Crumb({ code, h, market, industry }: { code: string; h: StockHistory | null; market?: string | null; industry: string | null }) {
@@ -63,7 +66,7 @@ function Crumb({ code, h, market, industry }: { code: string; h: StockHistory | 
   return (
     <p class="stock-crumb ui-foot ui-muted" data-testid="stock-crumb">
       <span>{code}</span>
-      {market ? <span>・{market === 'tpex' ? '上櫃' : '上市'}</span> : null}
+      {market ? <span>・{MARKET_LABEL[market] ?? '上市'}</span> : null}
       {off ? <span>・{link(off.id, off.name)}</span> : industry ? <span>・{industry}</span> : null}
       {fine ? <span> › {link(fine.id, fine.name)}</span> : null}
     </p>
@@ -105,12 +108,12 @@ function StockHero({ code, fallbackName, fallbackIndustry, status, period, onPer
   const synth = series?.synthUntil ? `${Number(series.synthUntil.slice(0, 4))}/${Number(series.synthUntil.slice(5, 7))} 以前以收盤價合成` : '';
   const foot0 = !series || !last ? null
     : series.kind === 'intraday' ? `5 分 K・${mdw(last.t)} ${last.t.slice(11, 16)}・${intra.data?.source ?? ''}`
-      : [`資料至 ${mdw(last.t)} 收盤`, kindNote, synth, basis === 'raw' ? '原始價' : ''].filter(Boolean).join('・');
+      : [`資料至 ${mdw(last.t)}${isEsb(h) ? '' : ' 收盤'}`, kindNote, synth, basis === 'raw' ? '原始價' : ''].filter(Boolean).join('・');
   const foot = coverage && candle ? <><span data-testid="hero-coverage">{coverage}</span>{foot0 ? `・${foot0}` : ''}</> : foot0;
   const showAdj = basis === 'adj' && !intraOn && !!h && adjDiffers(h, period);
   // 當日漲跌一律用日資料（盤中與週 K 的相鄰兩點不是「前一交易日」）；1D／1W 沒有分鐘資料時主角數字也用它
   const today = h ? dailyChange(h, intraOn ? 'raw' : basis) : null;
-  const label = intraOn ? '成交價（5 分 K）' : basis === 'adj' ? <Term id="adjusted_price">收盤價（還原）</Term> : '收盤價（原始）';
+  const label = isEsb(h) ? '當日均價（興櫃）' : intraOn ? '成交價（5 分 K）' : basis === 'adj' ? <Term id="adjusted_price">收盤價（還原）</Term> : '收盤價（原始）';
   const empty = intraOn ? (hasIntra && intra.loading ? '載入中…' : intradayReason(code, idx.data, !!idx.error || !!intra.error)) : '資料累積中';
   const name = h?.name ?? fallbackName ?? inactive.data?.name ?? code;
   return (
@@ -316,14 +319,18 @@ export default function Stock({ code }: { code: string }) {
         <div key={code} class={`stock-lower ${code !== firstCode.current ? 'fade-in' : ''}`} {...lowerSwipe}>
           {staleText ? <StaleNote lead="資料落後" testid="stock-stale">{staleText}</StaleNote> : null}
           <StatusTags h={h} today={today} cal={cal} />
-          <div class="sk-seg">
-            <Seg options={SEGS} value={seg} onChange={setSeg} label="個股分段" sticky testid="stock-seg" />
-          </div>
-          {seg === 'o' ? <OverviewPane h={h} row={row} onSeg={setSeg} /> : null}
-          {seg === 'm' ? <MomentumPane h={h} /> : null}
-          {seg === 'c' ? <ChipsPane h={h} asof={asof} /> : null}
-          {seg === 'f' ? <FundamentalPanel h={h} asof={asof} /> : null}
-          {seg === 'e' ? <EventsPanel h={h} today={today} cal={cal} /> : null}
+          {isEsb(h) ? <EsbPane h={h} /> : (
+            <>
+              <div class="sk-seg">
+                <Seg options={SEGS} value={seg} onChange={setSeg} label="個股分段" sticky testid="stock-seg" />
+              </div>
+              {seg === 'o' ? <OverviewPane h={h} row={row} onSeg={setSeg} /> : null}
+              {seg === 'm' ? <MomentumPane h={h} /> : null}
+              {seg === 'c' ? <ChipsPane h={h} asof={asof} /> : null}
+              {seg === 'f' ? <FundamentalPanel h={h} asof={asof} /> : null}
+              {seg === 'e' ? <EventsPanel h={h} today={today} cal={cal} /> : null}
+            </>
+          )}
         </div>
       ) : null}
 

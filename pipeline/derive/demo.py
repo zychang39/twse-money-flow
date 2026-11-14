@@ -149,6 +149,8 @@ DEMO_TAILWIND_INDEX: list[tuple[str, float, int]] = [
     ("臺灣中型100報酬指數", -0.0001, 0),
     ("特選高息低波報酬指數", -0.0032, 0),
 ]
+#: 2026-11-14 興櫃示範：（代號, 名稱, 起始均價, 最後一天沒有成交）
+DEMO_ESB: list[tuple[str, str, float, bool]] = [("6930", "盛新", 45.0, False), ("7777", "示範興櫃", 120.0, True)]
 DEMO_STYLE_HOLDINGS: dict[str, list[tuple[str, str, float]]] = {
     "00938": [("2330", "台積電", 30.0), ("2882", "國泰金", 50.0), ("2412", "中華電", 20.0)],
     "00940": [("2317", "鴻海", 40.0), ("1101", "台泥", 30.0), ("2882", "國泰金", 30.0)],
@@ -365,6 +367,37 @@ def build_store(root: Path, *, days: int = 320, end: date | None = None, seed: i
             ]
         ),
     )
+    # 2026-11-14 興櫃：兩檔示範（均價、最高、最低、成交量；其中一檔最後一天沒有成交）
+    rng_esb = np.random.default_rng(seed + 2000)
+    for code, name, base, skip_last in DEMO_ESB:
+        path = base * np.exp(np.cumsum(rng_esb.normal(0.0005, 0.03, len(dates))))
+        for i, d in enumerate(dates[-120:]):
+            j = len(dates) - 120 + i
+            if skip_last and i == 119:
+                continue
+            avg = float(round(path[j], 2))
+            vol = int(rng_esb.integers(20_000, 400_000))
+            store.upsert(
+                "tpex_esb_quotes",
+                d,
+                pd.DataFrame(
+                    [
+                        {
+                            "date": d.isoformat(),
+                            "code": code,
+                            "name": name,
+                            "high": round(avg * 1.03, 2),
+                            "low": round(avg * 0.97, 2),
+                            "close": avg,
+                            "volume": vol,
+                            "value": round(avg * vol),
+                            "trades": 50,
+                            "last": avg,
+                        }
+                    ]
+                ),
+                ["date", "code"],
+            )
     comp = pd.DataFrame(
         [
             {

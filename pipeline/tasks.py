@@ -425,6 +425,11 @@ def task_daily(ctx: RunContext, sources: list[str] | None = None, heal_days: int
         from pipeline import tasks_advanced
 
         tasks_advanced.run_style_etf_holdings(ctx, target)
+    # 8) 興櫃股票當日行情（一次請求；2026-11-14）
+    if not sources or "tpex_esb" in sources:
+        from pipeline import tasks_advanced
+
+        tasks_advanced.run_esb_quotes(ctx, target)
 
 
 #: 2026-10-08：補抓（catchup）只抓資料新鮮度表上的每日來源；每日任務其餘的來源（區間型、快照、美債、主動式 ETF 持股）
@@ -444,6 +449,7 @@ def task_daily_extras(ctx: RunContext) -> None:
     tasks_advanced.run_ust(ctx, target.year)
     tasks_advanced.run_etf_holdings(ctx, target)
     tasks_advanced.run_style_etf_holdings(ctx, target)
+    tasks_advanced.run_esb_quotes(ctx, target)
 
 
 def _after_financial_deadline(today: date) -> bool:
@@ -509,6 +515,11 @@ def _mark_month(ctx: RunContext, key: str, m: date, failures_before: int) -> Non
 
 def default_backfill_start(sources: list[str] | None, end: date) -> date:
     """未給起日時的回補起點：只回補收盤行情（上市／上櫃）→ 10 年；其他 → 3 年（config/sources.yml history）。"""
+    if sources and set(sources) == {"tpex_esb"}:
+        # 興櫃只有「單檔、按月」的查詢（約 370 檔 × 月數次請求）：預設只回補近 12 個月
+        months = int(config.source("tpex_esb").get("history_months", 12))
+        y, m = divmod(end.year * 12 + end.month - 1 - months, 12)
+        return date(y, m + 1, 1)
     h = config.history()
     prices = set(h.get("price_sources", []))
     years = int(h.get("price_years", 10)) if sources and set(sources) <= prices else int(h.get("default_years", 3))
@@ -575,6 +586,10 @@ def task_backfill(
                     before = len(ctx.failures)
                     tasks_advanced.run_conference(ctx, m)
                     _mark_month(ctx, "investor_conference", m, before)
+        if "tpex_esb" in custom and not ctx.out_of_time():
+            left = tasks_advanced.run_esb_history(ctx, start, end)
+            if left:
+                remaining["tpex_esb"] = left  # 時間用完：接力下一段（已查過的代號記在 manifest）
         if "active_etf" in custom and not ctx.out_of_time():
             days = ctx.calendar.trading_days(start, min(end, ctx.today))[::-1]
             left = tasks_advanced.run_etf_holdings(ctx, days[0] if days else end, days=days)

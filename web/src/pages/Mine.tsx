@@ -523,7 +523,7 @@ export default function Mine() {
       {summary.data && prefs ? (
         seg === 'hold'
           ? <ChecklistSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.rows} portfolio={prefs.portfolio} day={summary.data.date} />
-          : <AddWatchSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.rows} group={group === '全部' ? '預設' : group} explicit={group !== '全部'} groups={groups} watchGroup={watchGroupOf} />
+          : <AddWatchSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.all} group={group === '全部' ? '預設' : group} explicit={group !== '全部'} groups={groups} watchGroup={watchGroupOf} />
       ) : null}
       <CloseSheet trade={closing} onClose={() => setClosing(null)} costs={prefs?.costs ?? DEFAULT_COSTS} price={closing ? byCode?.get(closing.code)?.close ?? null : null} day={summary.data?.date ?? ''} />
       <GroupSheet item={moving} groups={groups} onClose={() => setMoving(null)} />

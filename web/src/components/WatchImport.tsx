@@ -3,7 +3,7 @@
  * 截圖只在這支裝置上辨識（lib/ocr），不上傳、不儲存；比對邏輯在 lib/watchImport（不靠版面，任何券商都一樣）。
  * 先用英數模型找代號就先列出來，中文名稱核對完再更新標記。只加進自選清單，不讀股數與成本。
  */
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { StockRow } from '../data/types';
 import { putWatchInGroup } from '../db/db';
 import { extractStocks, importSummary, type ImportCandidate, type ImportSource } from '../lib/watchImport';
@@ -36,6 +36,7 @@ export function WatchImport({ rows, watchGroup, group, move, open }: { rows: Sto
     void import('../lib/ocr').then((m) => m.disposeOcr()).catch(() => undefined);
   }, [open]);
 
+  const esb = useMemo(() => new Set(rows.filter((r) => r.market === 'esb').map((r) => r.code)), [rows]);
   /** 重新比對：使用者動過的勾選保留，其餘用預設 */
   const refresh = () => {
     const res = extractStocks(sources.current, rows);
@@ -124,7 +125,7 @@ export function WatchImport({ rows, watchGroup, group, move, open }: { rows: Sto
             找到 {sum.found} 檔{sum.found - sum.fresh ? `，其中 ${sum.found - sum.fresh} 檔${move ? `已在「${group}」` : '已在自選'}` : ''}
             {movable ? `；${movable} 檔在其他群組，勾選的會移到「${group}」（一檔股票只在一個群組）` : ''}{sum.review ? `；${sum.review} 檔請再看一眼` : ''}
           </p>
-          {unknown.length ? <p class="caption muted" role="status" data-testid="import-unknown">不在上市櫃清單、沒有列入：{unknown.join('、')}（例如興櫃股）</p> : null}
+          {unknown.length ? <p class="caption muted" role="status" data-testid="import-unknown">不在上市、上櫃、興櫃的清單裡，沒有列入：{unknown.join('、')}（可能已下市、近期沒有成交，或辨識有誤）</p> : null}
           <div class="list" data-testid="import-list">
             {items.map((c) => {
               const done = watched.has(c.code);
@@ -135,7 +136,7 @@ export function WatchImport({ rows, watchGroup, group, move, open }: { rows: Sto
                 <label key={c.code} class="list-item check-row" data-testid={`import-${c.code}`}>
                   <input type="checkbox" checked={done || c.checked} disabled={done} onChange={() => toggle(c.code)} />
                   <span class="grow"><span class="body">{c.name}</span>
-                    <span class="caption muted" style={{ display: 'block' }}><span class="nowrap">{c.code}</span>{note ? `・${note}` : ''}</span>
+                    <span class="caption muted" style={{ display: 'block' }}><span class="nowrap">{c.code}</span>{esb.has(c.code) ? '・興櫃' : ''}{note ? `・${note}` : ''}</span>
                   </span>
                 </label>
               );

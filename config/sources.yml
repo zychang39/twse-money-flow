@@ -638,6 +638,17 @@ sources:
     interval_days: 7   # 類股權重變化慢：每檔距離上一份持股滿 7 天才再抓（每次只取最新一份）
     # 單元 2 對照表台股那一欄的 ETF（config/ui.yml attribution.tailwind）→ 發行投信（端點與解析器見 active_etf.issuers）
     etfs: { "0050": yuanta, "0051": yuanta, "00940": yuanta, "00713": yuanta, "00733": fubon, "00938": kgi, "009816": kgi }
+  tpex_esb:
+    label: 興櫃股票行情（均價、最高、最低、成交量）
+    market: esb
+    tier: advanced
+    frequency: daily
+    status: verified   # 2026-11-14 本環境實測：OpenAPI 當日行情 373 檔；單檔歷史（按月）可查
+    publish: "約 16:30"
+    url: https://www.tpex.org.tw/openapi/v1/tpex_esb_latest_statistics
+    # 回補（python -m pipeline backfill --source tpex_esb）：只有「單檔、按月」的查詢，約 370 檔 × 月數次請求，分段接力
+    history_url: https://www.tpex.org.tw/www/zh-tw/emerging/historical?date={date_slash}&code={code}&response=json
+    history_months: 12   # 未指定起日時回補近 12 個月
 
   # ---------- 選配 ----------
   twse_insider:
