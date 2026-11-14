@@ -25,7 +25,7 @@ import { useAsync, useDb, useHistories, useRestoredState } from '../hooks';
 import { loadInactive, loadLists, loadMeta } from '../data/api';
 import { useScoredSummary } from '../data/useSummary';
 import { useUser } from '../data/useUser';
-import { addWatch, addWatchMany, clearSampleWatch, getSetting, removeWatch, updateWatch, type Trade, type WatchItem } from '../db/db';
+import { addWatch, addWatchMany, clearSampleWatch, getSetting, putWatchInGroup, removeWatch, updateWatch, type Trade, type WatchItem } from '../db/db';
 import type { StockRow } from '../data/types';
 import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
 import { DEFAULT_COSTS, type CostSettings } from '../lib/costs';
@@ -65,28 +65,55 @@ export function hotSub(h: HotItem): string {
 }
 const SORTS: [SortKey, string][] = [['change', '依變化'], ['pct', '漲跌幅'], ['rs', 'RS 百分位'], ['foreign', '外資'], ['trust', '投信'], ['custom', '自訂順序']];
 
-function AddWatchSheet({ open, onClose, rows, group, groups, watched }: { open: boolean; onClose: () => void; rows: StockRow[]; group: string; groups: string[]; watched: Set<string> }) {
+/**
+ * 加入自選股。群組：輸入框裡打的名稱（沒有這個群組就建立——有股票放進去就存在），沒打就用目前所在的群組。
+ * 2026-11-15：有指定群組時（打了名稱，或目前不在「全部」），已在別的群組的股票會移過來；沒指定時不動已在自選的股票。
+ */
+function AddWatchSheet({ open, onClose, rows, group, explicit, groups, watchGroup }: {
+  open: boolean; onClose: () => void; rows: StockRow[]; group: string; explicit: boolean; groups: string[]; watchGroup: Map<string, string>;
+}) {
   const [importText, setImportText] = useState('');
   const [newGroup, setNewGroup] = useState('');
   const [msg, setMsg] = useState('');
+  const target = newGroup.trim() || group;
+  const move = explicit || !!newGroup.trim();
+  /** 放進群組：沒指定群組時，已在自選的不動 */
+  async function put(codes: string[], g: string, canMove: boolean) {
+    const todo = canMove ? codes : codes.filter((c) => !watchGroup.has(c));
+    const res = await putWatchInGroup(todo, g);
+    return { ...res, same: res.same + (codes.length - todo.length) };
+  }
+  const report = (r: { added: number; moved: number; same: number }, g: string) =>
+    [r.added ? `已加入 ${r.added} 檔` : '', r.moved ? `移動 ${r.moved} 檔` : ''].filter(Boolean).join('、') + (r.added || r.moved ? `到「${g}」` : '') + (r.same ? `${r.added || r.moved ? '；' : ''}${r.same} 檔已在自選` : '');
+  async function pick(r: StockRow) {
+    const res = await put([r.code], target, move);
+    setMsg(res.added ? `已加入 ${r.name} 到「${target}」` : res.moved ? `已把 ${r.name} 移到「${target}」` : `${r.name} 已在自選（${watchGroup.get(r.code) ?? target}）`);
+  }
   async function doImport() {
     const known = new Set(rows.map((r) => r.code));
     const byName = new Map(rows.map((r) => [r.name, r.code]));
     const parsed = parseImport(importText, known, byName);
-    for (const p of parsed.codes) await addWatch(p.code, p.group ?? (newGroup || group));
+    const total = { added: 0, moved: 0, same: 0 };
+    // CSV 的「代號,群組」是明確指定；其餘照上方的群組
+    const byGroup = new Map<string, string[]>();
+    for (const c of parsed.codes) byGroup.set(c.group ?? '', [...(byGroup.get(c.group ?? '') ?? []), c.code]);
+    for (const [g, codes] of byGroup) {
+      const res = await put(codes, g || target, g ? true : move);
+      total.added += res.added; total.moved += res.moved; total.same += res.same;
+    }
     setImportText('');
-    setMsg(`已加入 ${parsed.codes.length} 檔${parsed.unknown.length ? `；無法辨識：${parsed.unknown.join('、')}` : ''}`);
+    setMsg(`${report(total, byGroup.size === 1 && !byGroup.has('') ? [...byGroup.keys()][0] : target) || '沒有可加入的股票'}${parsed.unknown.length ? `；無法辨識：${parsed.unknown.join('、')}` : ''}`);
   }
   return (
     <Sheet open={open} onClose={onClose} title="加入自選股" detent="full">
-      <StockSearch rows={rows} autoFocus onPick={(r) => { addWatch(r.code, newGroup || group); setMsg(`已加入 ${r.name}`); }} />
-      {msg ? <p class="caption muted" role="status" style={{ marginTop: 'var(--s-2)' }}>{msg}</p> : null}
+      <StockSearch rows={rows} autoFocus onPick={pick} />
+      {msg ? <p class="caption muted" role="status" style={{ marginTop: 'var(--s-2)' }} data-testid="add-watch-msg">{msg}</p> : null}
       <label class="field">
-        <span>加入到群組（目前：{newGroup || group}；可輸入新群組）</span>
+        <span>加入到群組（目前：{target}；可輸入新群組，沒有就會建立）</span>
         <input class="input" value={newGroup} list="watch-groups" placeholder={group} onInput={(e) => setNewGroup((e.target as HTMLInputElement).value)} />
         <datalist id="watch-groups">{groups.map((g) => <option key={g} value={g} />)}</datalist>
       </label>
-      <WatchImport rows={rows} watched={watched} group={newGroup.trim() || group} open={open} />
+      <WatchImport rows={rows} watchGroup={watchGroup} group={target} move={move} open={open} />
       <label class="field">
         <span>或貼上文字、代號清單或 CSV（每行或以逗號分隔；CSV 可含「代號,群組」）</span>
         <textarea class="input" rows={4} value={importText} onInput={(e) => setImportText((e.target as HTMLTextAreaElement).value)} placeholder={'2330 台積電\n2317, 0050\n代號,群組\n2454,半導體'} />
@@ -244,6 +271,7 @@ export default function Mine() {
   const watchShown = group === HOT ? [] : watch.filter((w) => group === '全部' || w.group === group);
   const hotItems = useMemo(() => hotSorted(lists.data?.hot_momentum.items ?? [], hotSort), [lists.data, hotSort]);
   const watchedSet = useMemo(() => new Set(watch.map((w) => w.code)), [watch]);
+  const watchGroupOf = useMemo(() => new Map(watch.map((w) => [w.code, w.group] as const)), [watch]);
   const samples = watch.filter((w) => w.origin === 'sample');
   const hist = useHistories(useMemo(() => [...holdCodes, ...watch.map((w) => w.code)].filter((c, i, a) => a.indexOf(c) === i), [holdCodes, watch]));
 
@@ -495,7 +523,7 @@ export default function Mine() {
       {summary.data && prefs ? (
         seg === 'hold'
           ? <ChecklistSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.rows} portfolio={prefs.portfolio} day={summary.data.date} />
-          : <AddWatchSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.rows} group={group === '全部' ? '預設' : group} groups={groups} watched={watchedSet} />
+          : <AddWatchSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.rows} group={group === '全部' ? '預設' : group} explicit={group !== '全部'} groups={groups} watchGroup={watchGroupOf} />
       ) : null}
       <CloseSheet trade={closing} onClose={() => setClosing(null)} costs={prefs?.costs ?? DEFAULT_COSTS} price={closing ? byCode?.get(closing.code)?.close ?? null : null} day={summary.data?.date ?? ''} />
       <GroupSheet item={moving} groups={groups} onClose={() => setMoving(null)} />

@@ -5,12 +5,19 @@
  */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { StockRow } from '../data/types';
-import { addWatchMany } from '../db/db';
+import { putWatchInGroup } from '../db/db';
 import { extractStocks, importSummary, type ImportCandidate, type ImportSource } from '../lib/watchImport';
 
 const NOTE: Record<string, string> = { code: '名稱沒對到，請確認', name: '只對到名稱', off: '可能是金額，不是代號' };
 
-export function WatchImport({ rows, watched, group, open }: { rows: StockRow[]; watched: Set<string>; group: string; open: boolean }) {
+/**
+ * watchGroup：已在自選的股票 → 所在群組。move＝使用者有指定群組：已在別的群組的可以勾選移過來；
+ * 沒指定時（在「全部」底下、也沒打群組名稱）已在自選的一律略過。
+ */
+export function WatchImport({ rows, watchGroup, group, move, open }: { rows: StockRow[]; watchGroup: Map<string, string>; group: string; move: boolean; open: boolean }) {
+  /** 這一檔不能動：已在目標群組，或已在自選而沒有指定群組 */
+  const locked = (code: string) => watchGroup.has(code) && (!move || watchGroup.get(code) === group);
+  const watched = new Set([...watchGroup.keys()].filter(locked));
   const [items, setItems] = useState<ImportCandidate[]>([]);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
@@ -87,17 +94,20 @@ export function WatchImport({ rows, watched, group, open }: { rows: StockRow[]; 
 
   async function add() {
     const codes = items.filter((c) => c.checked && !watched.has(c.code)).map((c) => c.code);
-    const n = await addWatchMany(codes, group);
+    const res = await putWatchInGroup(codes, group);
     sources.current = [];
     picked.current = new Map();
     setItems([]);
     setRaw('');
     setUnknown([]);
-    setMsg(`已加入 ${n} 檔到「${group}」`);
+    setMsg(`${[res.added ? `已加入 ${res.added} 檔` : '', res.moved ? `移動 ${res.moved} 檔` : ''].filter(Boolean).join('、')}到「${group}」`);
   }
 
   const sum = importSummary(items, watched);
-  const count = items.filter((c) => c.checked && !watched.has(c.code)).length;
+  const chosen = items.filter((c) => c.checked && !watched.has(c.code));
+  const count = chosen.length;
+  const moving = chosen.filter((c) => watchGroup.has(c.code)).length;
+  const movable = items.filter((c) => watchGroup.has(c.code) && !watched.has(c.code)).length;
   return (
     <section class="watch-import" data-testid="watch-import" aria-label="從截圖加入">
       <p class="caption muted">從券商庫存的截圖加入（任何券商都可以；可一次選多張）。截圖只在這支裝置上辨識，不會上傳。</p>
@@ -111,13 +121,16 @@ export function WatchImport({ rows, watched, group, open }: { rows: StockRow[]; 
       {items.length ? (
         <>
           <p class="caption muted" role="status" data-testid="import-summary">
-            找到 {sum.found} 檔{sum.found - sum.fresh ? `，其中 ${sum.found - sum.fresh} 檔已在自選` : ''}{sum.review ? `；${sum.review} 檔請再看一眼` : ''}
+            找到 {sum.found} 檔{sum.found - sum.fresh ? `，其中 ${sum.found - sum.fresh} 檔${move ? `已在「${group}」` : '已在自選'}` : ''}
+            {movable ? `；${movable} 檔在其他群組，勾選的會移到「${group}」（一檔股票只在一個群組）` : ''}{sum.review ? `；${sum.review} 檔請再看一眼` : ''}
           </p>
           {unknown.length ? <p class="caption muted" role="status" data-testid="import-unknown">不在上市櫃清單、沒有列入：{unknown.join('、')}（例如興櫃股）</p> : null}
           <div class="list" data-testid="import-list">
             {items.map((c) => {
               const done = watched.has(c.code);
-              const note = done ? '已在自選' : c.offColumn && c.match === 'code' ? NOTE.off : c.match === 'both' ? '' : NOTE[c.match];
+              const from = watchGroup.get(c.code);
+              const note = done ? (move ? `已在「${group}」` : `已在自選（${from}）`)
+                : [from ? `在「${from}」，移過來` : '', c.offColumn && c.match === 'code' ? NOTE.off : c.match === 'both' ? '' : NOTE[c.match]].filter(Boolean).join('・');
               return (
                 <label key={c.code} class="list-item check-row" data-testid={`import-${c.code}`}>
                   <input type="checkbox" checked={done || c.checked} disabled={done} onChange={() => toggle(c.code)} />
@@ -129,7 +142,7 @@ export function WatchImport({ rows, watched, group, open }: { rows: StockRow[]; 
             })}
           </div>
           <button type="button" class="btn primary block" disabled={!count || !!busy} onClick={add} data-testid="import-add">
-            {count ? `加入 ${count} 檔到「${group}」` : '勾選要加入的股票'}
+            {count ? `${[count - moving ? `加入 ${count - moving} 檔` : '', moving ? `移動 ${moving} 檔` : ''].filter(Boolean).join('、')}到「${group}」` : '勾選要加入的股票'}
           </button>
         </>
       ) : null}
