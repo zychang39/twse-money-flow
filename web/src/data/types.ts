@@ -423,14 +423,15 @@ export interface AttrFactors {
   rf_annual: number;
   rf: (number | null)[];
   mkt: (number | null)[];
+  /** 台股自建的多空因子（只作對照；第二層 2026-11-13 起改用同業籃子與風格 ETF） */
   f: Record<AttrFactorKey, (number | null)[]>;
   start: Record<AttrFactorKey, string | null>;
   labels: Record<string, string>;
-  style_labels: string[];
-  style_ret: (number | null)[][];
   universe: number[];
   window_months: number;
   min_months: number;
+  exposure_weeks: number;
+  exposure_min_weeks: number;
   peer_min: number;
   peer_max: number;
   peer_min_corr: number;
@@ -445,17 +446,81 @@ export interface AttrModel {
   r2: number | null;
   resid_sd: number | null;
   n: number;
+  /** 第二層：曝險用了幾週的週報酬、週報酬的期間、月 Alpha 的期間 */
+  weeks?: number;
+  wwindow?: [string, string];
+  window?: [string, string] | null;
 }
+/** 順風檢查的五種風格（單元 2）：價值、品質、動能、規模、低波動 */
+export type StyleKey = 'value' | 'quality' | 'momentum' | 'size' | 'lowvol';
+/** 順風＝自己賺錢且贏大盤；中性＝自己賺錢但輸大盤；逆風＝自己賠錢 */
+export type WindState = 'tail' | 'neutral' | 'head';
 export interface AttrStock {
   code: string;
   r: (number | null)[];
   peer: (number | null)[];
+  /** 同業籃子的月報酬扣掉它自己的市場 Beta（第二層的「產業」） */
   ind: (number | null)[];
-  style: (number | null)[];
+  /** 所屬類股（官方產業 → 證交所類股報酬指數）；沒有對應的類股指數 → null */
+  sector: string | null;
   peers: { kind: 'peer' | 'weak'; codes: string[]; corr: number[]; cross: boolean[] } | null;
   fit: Record<string, { r2: number | null; n: number } | null>;
   window: [string, string] | null;
   capm: AttrModel | null;
+  /** 市場＋同業籃子＋風格 ETF；b 的鍵：ind 與風格 key */
   full: AttrModel | null;
-  dropped: AttrFactorKey[];
+  /** 資料太短而沒放進模型的風格 ETF */
+  dropped: StyleKey[];
+  /** 五種特徵在樣本內的百分位（0–100；越高越屬於那一種風格） */
+  styles: Partial<Record<StyleKey, number | null>>;
+  /** 出現在哪幾檔風格 ETF 的持股裡（權重 %） */
+  held: Partial<Record<StyleKey, number>>;
+  /** 主要風格；五種特徵都不突出、也不在任何一檔風格 ETF 裡 → null */
+  main: StyleKey | null;
 }
+type PeriodR = Record<string, number | null>;
+export interface WindThermo { r: PeriodR; state: WindState | null; prev: WindState | null; m: (number | null)[]; x: (number | null)[] | null; beta: number | null }
+export interface WindStyle extends WindThermo {
+  key: StyleKey;
+  label: string;
+  etf: string;
+  name: string | null;
+  index: string | null;
+  mix: string | null;
+  char: string | null;
+  note: string | null;
+  /** etf＝全程 ETF 還原價；spliced＝掛牌前以追蹤指數補；index＝行情裡沒有這檔 ETF（示範資料）；null＝沒有資料 */
+  source: 'etf' | 'spliced' | 'index' | null;
+  listed: string | null;
+  start: string | null;
+  /** 未滿 12 個月：有資料以來的同一段期間（暫定） */
+  since?: { start: string; r: number | null; rm: number | null; state: WindState | null };
+  alt?: { code: string; name: string; r: PeriodR };
+  /** 類股權重（投信公布的持股）：w＝ETF、wm＝大盤、d＝超配（百分點）；alloc＝類股配置效果（小數） */
+  weights?: { date: string | null; rows: { s: string; w: number; wm: number; d: number }[]; alloc: number | null };
+}
+export interface WindSector extends WindThermo {
+  key: string;
+  index: string;
+  /** 占大盤（上市）的權重 % */
+  w: number | null;
+  n: number;
+  top?: { code: string; name: string; w: number };
+  /** 排除最大權值股的等權籃子（至少 5 家） */
+  ex_top?: { r12: number | null; n: number };
+}
+/** 順風檢查（2026-11-13；pipeline/derive/tailwind.py；attribution/tailwind.json） */
+export interface Tailwind {
+  date: string;
+  prev_date: string | null;
+  months: number[];
+  near_pp: number;
+  style_pct: number;
+  top_weight_warn: number;
+  same_wind_corr: number;
+  market: { name: string; r: PeriodR; etf: { code: string; name: string; r: PeriodR } | null };
+  styles: WindStyle[];
+  sectors: WindSector[];
+}
+/** 每檔的主要風格與類股（自選的兩個狀態）：列＝[代號, 風格, 類股] */
+export interface AttrTags { date: string; columns: string[]; rows: [string, StyleKey | null, string | null][] }

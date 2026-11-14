@@ -134,6 +134,28 @@ def _trading_days(end: date, n: int) -> list[date]:
     return list(reversed(out))
 
 
+#: 2026-11-13 順風檢查的示範指數：（名稱, 每日相對大盤的漂移, 從第幾個交易日開始有資料）。
+#: 示範用：各種狀態都看得到（順風、中性、逆風、未滿 12 個月）；數字沒有意義。
+DEMO_TAILWIND_INDEX: list[tuple[str, float, int]] = [
+    ("半導體類報酬指數", 0.0016, 0),
+    ("其他電子類報酬指數", -0.0003, 0),
+    ("通信網路類報酬指數", -0.0030, 0),
+    ("水泥類報酬指數", -0.0035, 0),
+    ("金融保險類報酬指數", 0.0012, 0),
+    ("光電類報酬指數", -0.0002, 0),
+    ("臺灣價值高息報酬指數", -0.0003, 0),
+    ("臺灣優選多因子30報酬指數", 0.0012, 0),
+    ("特選臺灣TOP 50報酬指數", 0.0010, 150),
+    ("臺灣中型100報酬指數", -0.0001, 0),
+    ("特選高息低波報酬指數", -0.0032, 0),
+]
+DEMO_STYLE_HOLDINGS: dict[str, list[tuple[str, str, float]]] = {
+    "00938": [("2330", "台積電", 30.0), ("2882", "國泰金", 50.0), ("2412", "中華電", 20.0)],
+    "00940": [("2317", "鴻海", 40.0), ("1101", "台泥", 30.0), ("2882", "國泰金", 30.0)],
+    "0051": [("2454", "聯發科", 60.0), ("2317", "鴻海", 40.0)],
+}
+
+
 def build_store(root: Path, *, days: int = 320, end: date | None = None, seed: int = 7) -> DataStore:
     rng = np.random.default_rng(seed)
     end = end or date(2026, 9, 24)
@@ -147,11 +169,13 @@ def build_store(root: Path, *, days: int = 320, end: date | None = None, seed: i
     rows: dict[str, dict[str, list[dict[str, object]]]] = {}
     index_level = 20000.0
     ret_index = 40000.0
+    market_tr: list[float] = []
     for i, d in enumerate(dates):
         iso = d.isoformat()
         idx_ret = rng.normal(0.0004, 0.01)
         index_level *= 1 + idx_ret
         ret_index *= 1 + idx_ret + 0.0001
+        market_tr.append(ret_index)
         for code, name, market, _, _ in DEMO_STOCKS:
             close = float(round(paths[code][i], 2))
             prev = float(paths[code][i - 1]) if i else close
@@ -249,6 +273,23 @@ def build_store(root: Path, *, days: int = 320, end: date | None = None, seed: i
                 },
             ]
         )
+    # 2026-11-13 順風檢查：類股與風格 ETF 追蹤的報酬指數＝大盤 × 自己的漂移（另一個亂數序列，不動原本的示範數字）
+    rng_tw = np.random.default_rng(seed + 1000)
+    for name, drift, start in DEMO_TAILWIND_INDEX:
+        rel = np.exp(np.cumsum(rng_tw.normal(drift, 0.006, len(dates))))
+        for i, d in enumerate(dates):
+            if i < start:
+                continue
+            rows["twse_index"][d.isoformat()].append(
+                {
+                    "date": d.isoformat(),
+                    "name": name,
+                    "kind": "return",
+                    "close": round(market_tr[i] / 4 * float(rel[i]), 2),
+                    "change": 0,
+                    "change_pct": 0,
+                }
+            )
     # 2026-10-20：融資總計（融資金額，仟元）＝示範股票融資張數 × 收盤 × 15（放大到接近真實市場的量級）
     for market in ("twse", "tpex"):
         prev_amt: float | None = None
@@ -312,6 +353,18 @@ def build_store(root: Path, *, days: int = 320, end: date | None = None, seed: i
             )
         store.write("revenue", ym_date, pd.DataFrame(recs))
     _advanced(store, dates, rng, paths)
+    # 2026-11-13 順風檢查：風格 ETF（示範資料沒有這幾檔的行情，溫度計直接用追蹤的報酬指數）的持股示範
+    store.write(
+        "style_etf_holdings",
+        end.replace(day=1),
+        pd.DataFrame(
+            [
+                {"date": end.isoformat(), "etf": etf, "code": code, "name": name, "weight": w, "foreign": False}
+                for etf, rows_ in DEMO_STYLE_HOLDINGS.items()
+                for code, name, w in rows_
+            ]
+        ),
+    )
     comp = pd.DataFrame(
         [
             {

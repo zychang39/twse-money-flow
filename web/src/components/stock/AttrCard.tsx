@@ -1,10 +1,12 @@
 /**
  * 個股頁 › 動能 ›「報酬來源」摘要卡（2026-10-27）：近 1 年報酬拆成市場 Beta、因子與產業、Alpha 三層；
+ * 2026-11-13：解讀行加上兩個狀態（所屬風格 × 所屬類股是順風、中性還是逆風）；
  * 點開到 #/stock/{code}/m/attribution（完整拆解，同探索 › 報酬拆解）。定義見 METHODOLOGY §4.12。
  */
-import { loadAttrFactors, loadAttrStock } from '../../data/api';
+import { loadAttrFactors, loadAttrStock, loadAttrTailwind } from '../../data/api';
 import { useAsync } from '../../hooks';
-import { decompose, exposureText, periodRange } from '../../lib/attribution';
+import { STYLE_LABEL, decompose, exposureText, periodRange } from '../../lib/attribution';
+import { WIND_TEXT, stockWind } from '../../lib/tailwind';
 import { fmtNum } from '../../lib/format';
 import { DivergingBar, SummaryCard } from '../kit';
 import { Signed } from '../ui';
@@ -14,9 +16,10 @@ const fmt = (v: number) => `${v >= 0 ? '+' : '−'}${fmtNum(Math.abs(v * 100), 1
 export function AttrCard({ code, href }: { code: string; href: string }) {
   const f = useAsync(loadAttrFactors, []);
   const s = useAsync(() => loadAttrStock(code), [code]);
-  const loading = f.loading || s.loading;
+  const tw = useAsync(loadAttrTailwind, []);
+  const loading = f.loading || s.loading || tw.loading;
   const idx = f.data ? periodRange(f.data, 12) : [];
-  const d = f.data && s.data ? decompose(f.data, s.data, idx) : null;
+  const d = f.data && s.data && !tw.loading ? decompose(f.data, s.data, tw.data ?? null, idx) : null;
   if (!d) {
     return (
       <SummaryCard title="報酬來源" href={href} testid="mom-attr" vt="mom-attr"
@@ -31,10 +34,16 @@ export function AttrCard({ code, href }: { code: string; href: string }) {
   ];
   const max = Math.max(0.01, ...layers.map((x) => Math.abs(x.v)));
   const range = f.data && idx.length ? `${f.data.months[idx[0]]}～${f.data.months[idx[idx.length - 1]]}` : '';
+  // 兩個狀態（順風檢查）：所屬風格 × 所屬類股
+  const sw = tw.data && s.data ? stockWind(tw.data, s.data) : null;
+  const wind = sw && (sw.style || sw.sector) ? [
+    sw.style ? `${STYLE_LABEL[sw.style.key]}${sw.styleState ? WIND_TEXT[sw.styleState] : ''}` : '風格不突出',
+    sw.sector ? `${sw.sector.key}${sw.sectorState ? WIND_TEXT[sw.sectorState] : ''}` : null,
+  ].filter(Boolean).join(' × ') : null;
   return (
     <SummaryCard title="報酬來源" href={href} testid="mom-attr" vt="mom-attr"
       conclusion={<>Alpha {fmt(d.alpha)}<span class="key-unit">（近 1 年）</span></>}
-      interp={<>β {fmtNum(d.beta, 2)} {exposureText('mkt', d.beta, null)}・{range} 各月報酬加總 {fmt(d.total)}</>}>
+      interp={<>{wind ? <span data-testid="mom-attr-wind">{wind}・</span> : null}β {fmtNum(d.beta, 2)} {exposureText('mkt', d.beta, null)}・{range} 各月報酬加總 {fmt(d.total)}</>}>
       <span class="attr-mini" role="table" aria-label="近 1 年報酬的三層拆解">
         {layers.map((x) => (
           <span key={x.k} class="attr-mini-row" role="row">

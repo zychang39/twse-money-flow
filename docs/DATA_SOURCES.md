@@ -107,6 +107,7 @@
 | fx_usdtwd | 美元兌台幣 | POST `www.taifex.com.tw/cht/3/dailyFXRateDown`（Big5 CSV） | 每日 | ✅ |
 | financials | 季財報（上市＋上櫃） | MOPS `ajax_t163sb04`（綜合損益彙總）、`ajax_t163sb05`（資產負債彙總），GET 帶 `TYPEK=sii/otc&year=民國年&season=季`；一次涵蓋一般業、金融、證券、保險等所有格式 | 法定期限後 | ✅（Actions 實測；OpenAPI t187ap06／07 只有最新一季且依產業分檔，改用 MOPS） |
 | active_etf | 主動式 ETF 每日持股 | 各發行投信官網的持股揭露／申購買回清單（PCF），逐家實作（見下方「主動式 ETF 持股」） | 每日（多為當晚或次一營業日） | 🟡 已實作 14 家投信（對應 30／32 檔；國泰、兆豐依 User-Agent 擋本工具，2026-10-09）；實際有持股資料的檔數與投信家數依每日抓取結果（市場頁「涵蓋 N/32 檔」、資料健康頁）；2026-10-03 起同時保存受益權單位數（聯博未揭露）（DECISIONS #22、#242；2026-10-03 新增台新、凱基、聯博、第一金、復華） |
+| style_etf | 風格與大盤 ETF 持股（順風檢查的類股超配） | 同上三家投信的 PCF 端點：元大（0050、0051、00940、00713）、富邦（00733）、凱基（00938→J017、009816→J023） | 每週（每檔距上一份持股滿 7 天才再抓，只取最新一份） | ✅ 2026-11-13 本環境實測 7 檔皆可解析（沿用 active_etf 的解析器；存 `raw/style_etf_holdings`，與主動式 ETF 的 `etf_holdings` 分開）；DECISIONS #463 |
 
 其他：`twse_insider`／`tpex_insider`（內部人轉讓事前申報，OpenAPI t187ap12_L／mopsfin_t187ap12_O）列為選配資料並用於風險旗標。
 

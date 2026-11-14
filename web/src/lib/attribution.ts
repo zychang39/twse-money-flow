@@ -1,16 +1,19 @@
 /**
  * 報酬拆解（2026-10-27；探索 › 報酬拆解；定義見 METHODOLOGY §4.12；資料 pipeline/derive/attribution.py）。純函式，可測。
  *
- * 三層：市場 Beta（CAPM 的 β ×（大盤 − 無風險））→ 因子與產業（同業籃子扣掉自己的市場 Beta、規模、價值、動能、獲利、低波動）
+ * 三層：市場 Beta（CAPM 的 β ×（大盤 − 無風險））→ 因子與產業（2026-11-13 起：同業籃子與風格 ETF，各自扣掉自己的市場 Beta）
  * → Alpha（剩下的）。期間拆解用各月報酬加總（各層可以相加），另附複利的實際報酬。
  */
-import type { AttrFactorKey, AttrFactors, AttrModel, AttrStock } from '../data/types';
+import type { AttrFactorKey, AttrFactors, AttrModel, AttrStock, StyleKey, Tailwind } from '../data/types';
 
 export const ATTR_PERIODS = [['3', '3 個月'], ['6', '6 個月'], ['12', '1 年'], ['24', '2 年']] as const;
 export type AttrPeriod = (typeof ATTR_PERIODS)[number][0];
 export const FACTOR_KEYS: AttrFactorKey[] = ['smb', 'hml', 'umd', 'rmw', 'lv'];
-/** 畫面用的短名稱（完整定義在因子分段） */
+/** 畫面用的短名稱（自建多空因子；順風檢查最下方的對照） */
 export const FACTOR_SHORT: Record<AttrFactorKey, string> = { smb: '規模', hml: '價值', umd: '動能', rmw: '獲利', lv: '低波動' };
+/** 五種風格（單元 2 的順序）：風格 ETF 當溫度計，也是第二層的因子 */
+export const STYLE_KEYS: StyleKey[] = ['value', 'quality', 'momentum', 'size', 'lowvol'];
+export const STYLE_LABEL: Record<StyleKey, string> = { value: '價值', quality: '品質', momentum: '動能', size: '規模', lowvol: '低波動' };
 
 type N = number | null | undefined;
 const ok = (v: N): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -45,20 +48,30 @@ const sum = (series: N[], idx: number[]): number | null => {
 export interface Rulers {
   stock: number | null;
   market: number | null;
+  /** 類股報酬指數（粗尺，看風向） */
+  sector: number | null;
+  sectorLabel: string | null;
+  /** 同業籃子（細尺，量 Alpha） */
   peer: number | null;
+  /** 主要風格的 ETF */
   style: number | null;
-  styleLabel: string | null;
+  styleKey: StyleKey | null;
+  styleEtf: string | null;
 }
 
-/** 三把尺（複利）：大盤（報酬指數）、同業籃子、同風格籃子（期初的規模 × 價值分組） */
-export function rulers(f: AttrFactors, s: AttrStock, idx: number[]): Rulers {
-  const g = idx.length ? s.style[idx[0]] : null;
+/** 尺（複利）：大盤（報酬指數）、類股報酬指數、同業籃子、主要風格的 ETF */
+export function rulers(f: AttrFactors, s: AttrStock, tw: Tailwind | null, idx: number[]): Rulers {
+  const sec = s.sector ? tw?.sectors.find((x) => x.key === s.sector) : undefined;
+  const st = s.main ? tw?.styles.find((x) => x.key === s.main) : undefined;
   return {
     stock: compound(s.r, idx),
     market: compound(f.mkt, idx),
+    sector: sec ? compound(sec.m, idx) : null,
+    sectorLabel: sec ? sec.key : null,
     peer: compound(s.peer, idx),
-    style: g === null || g === undefined ? null : compound(f.style_ret[g], idx),
-    styleLabel: g === null || g === undefined ? null : f.style_labels[g] ?? null,
+    style: st ? compound(st.m, idx) : null,
+    styleKey: st ? st.key : null,
+    styleEtf: st ? st.etf : null,
   };
 }
 
@@ -69,20 +82,21 @@ export interface Decomp {
   compound: number | null;
   rf: number;
   market: number;
-  /** 產業（同業籃子扣掉自己的市場 Beta）；沒有多因子模型時 null */
+  /** 產業（同業籃子扣掉自己的市場 Beta）；沒有第二層模型時 null */
   ind: number | null;
-  factors: Partial<Record<AttrFactorKey, number>>;
+  /** 風格 ETF（扣掉自己的市場 Beta）× 曝險 */
+  factors: Partial<Record<StyleKey, number>>;
   /** 剩下的（＝跟選股判斷有關的部分，混著運氣） */
   alpha: number;
   /** 只用 CAPM 時的 Alpha（模型越完整，Alpha 越少） */
   alphaCapm: number;
   beta: number;
-  /** 期間內缺資料而沒算到的因子 */
-  missing: AttrFactorKey[];
+  /** 期間內缺資料而沒算到的風格 */
+  missing: StyleKey[];
 }
 
 /** 期間拆解；個股或大盤在期間內缺值、或沒有 CAPM（不足 24 個月）→ null */
-export function decompose(f: AttrFactors, s: AttrStock, idx: number[]): Decomp | null {
+export function decompose(f: AttrFactors, s: AttrStock, tw: Tailwind | null, idx: number[]): Decomp | null {
   const total = sum(s.r, idx);
   const rf = sum(f.rf, idx);
   const mk = sum(f.mkt, idx);
@@ -91,17 +105,18 @@ export function decompose(f: AttrFactors, s: AttrStock, idx: number[]): Decomp |
   const market = beta * (mk - rf);
   const alphaCapm = total - rf - market;
   const full = s.full;
-  const factors: Partial<Record<AttrFactorKey, number>> = {};
-  const missing: AttrFactorKey[] = [];
+  const factors: Partial<Record<StyleKey, number>> = {};
+  const missing: StyleKey[] = [];
   let ind: number | null = null;
   if (full) {
     const bi = full.b.ind;
     const si = sum(s.ind, idx);
     ind = ok(bi) && si !== null ? bi * si : null;
-    for (const k of FACTOR_KEYS) {
+    for (const k of STYLE_KEYS) {
       const b = full.b[k];
       if (!ok(b)) continue;
-      const fk = sum(f.f[k], idx);
+      const x = tw?.styles.find((st) => st.key === k)?.x;
+      const fk = x ? sum(x, idx) : null;
       if (fk === null) missing.push(k);
       else factors[k] = b * fk;
     }
@@ -126,7 +141,7 @@ export function yearsToTell(m: AttrModel | null): number | null {
   return ((2 * m.resid_sd) / Math.abs(m.alpha)) ** 2 / 12;
 }
 
-/** 曝險的白話（|t| ≥ 2 才說；其餘「不明顯」） */
+/** 曝險的白話（|t| ≥ 2 才說；其餘「不明顯」）。風格的曝險是對風格 ETF（扣掉市場後）的連動 */
 export function exposureText(key: string, b: N, t: N): string | null {
   if (!ok(b)) return null;
   if (key === 'mkt') return b >= 1.2 ? '比大盤敏感' : b <= 0.8 ? '比大盤溫和' : '跟大盤差不多';
@@ -134,11 +149,11 @@ export function exposureText(key: string, b: N, t: N): string | null {
   const pos = b > 0;
   switch (key) {
     case 'ind': return pos ? '跟同業同進退' : '跟同業反向';
-    case 'smb': return pos ? '偏小型股' : '偏大型股';
-    case 'hml': return pos ? '偏便宜（價值）' : '偏昂貴（成長）';
-    case 'umd': return pos ? '偏近期強勢' : '偏近期弱勢';
-    case 'rmw': return pos ? '偏高獲利' : '偏低獲利';
-    case 'lv': return pos ? '偏低波動' : '偏高波動';
+    case 'value': return pos ? '跟價值型同進退' : '跟價值型反向（偏成長）';
+    case 'quality': return pos ? '跟品質型同進退' : '跟品質型反向';
+    case 'momentum': return pos ? '跟動能型同進退' : '跟動能型反向';
+    case 'size': return pos ? '跟中型股同進退' : '跟中型股反向（偏大型）';
+    case 'lowvol': return pos ? '跟低波動型同進退' : '跟低波動型反向（偏高波動）';
     default: return null;
   }
 }
@@ -172,7 +187,7 @@ export function factorCorr(f: AttrFactors, a: AttrFactorKey, b: AttrFactorKey): 
 
 /** 各把尺的貼合度（月報酬 R²），由高到低；同業籃子排第一時代表比族群分組貼近 */
 export function rulerFit(s: AttrStock): { key: string; label: string; r2: number }[] {
-  const labels: Record<string, string> = { market: '大盤（報酬指數）', official: '官方產業（等權）', fine: '主要細產業（族群）', peer: '同業籃子' };
+  const labels: Record<string, string> = { market: '大盤（報酬指數）', sector: '類股報酬指數', official: '官方產業（等權）', fine: '主要細產業（族群）', peer: '同業籃子' };
   return Object.entries(s.fit)
     .filter((e): e is [string, { r2: number; n: number }] => !!e[1] && ok(e[1].r2))
     .map(([key, v]) => ({ key, label: labels[key] ?? key, r2: v.r2 }))

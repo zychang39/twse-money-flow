@@ -60,6 +60,8 @@ def demo_settings() -> dict[str, Any]:
         "peer_min_corr": -1.0,
         "peer_cover": 0.5,
         "liquidity_pctile": 0,
+        "exposure_min_weeks": 30,
+        "model_min_months": 6,
     }
 
 
