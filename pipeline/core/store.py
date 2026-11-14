@@ -15,6 +15,7 @@ from pipeline.core.dates import TPE, parse_date
 
 TEXT_COLUMNS = {
     "code",
+    "etf",  # ETF 代號（0050、00940 不能讀成數字；2026-11-13 風格 ETF 持股）
     "name",
     "market",
     "industry",

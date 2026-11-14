@@ -868,3 +868,64 @@ def run_etf_holdings(ctx: RunContext, target: date, days: list[date] | None = No
     status = "failed" if errors and not frames else "ok"
     ctx.note("active_etf", status, data_date=date.fromisoformat(latest) if latest else None, rows=rows, message=summary)
     return unfinished
+
+
+# ------------------------------------------------------------------ 風格與大盤 ETF 持股（順風檢查；2026-11-13）
+def run_style_etf_holdings(ctx: RunContext, target: date) -> None:
+    """順風檢查用的風格 ETF 持股（類股權重、個股在不在持股裡）：每檔只取最新一份，距離上一份滿 interval_days 才再抓。
+
+    端點與解析器沿用主動式 ETF 的投信設定（元大、富邦、凱基）；存成 raw/style_etf_holdings/{月初}.csv.gz，
+    與主動式 ETF 的 etf_holdings 分開（那邊的排行與加減碼只算主動式）。任何一檔失敗都不影響其他檔。
+    """
+    cfg = config.source("style_etf")
+    issuers: dict[str, dict[str, Any]] = config.source("active_etf")["issuers"]
+    etfs: dict[str, str] = {str(k): str(v) for k, v in (cfg.get("etfs") or {}).items()}
+    stored = ctx.store.read_range("style_etf_holdings", month_start(target - timedelta(days=62)))
+    last: dict[str, str] = {}
+    if not stored.empty:
+        last = stored.groupby(stored["etf"].astype(str))["date"].max().astype(str).to_dict()
+    due = [
+        e
+        for e in sorted(etfs)
+        if e not in last or (target - date.fromisoformat(last[e])).days >= int(cfg.get("interval_days", 7))
+    ]
+    if not due:
+        return
+    fetcher = _EtfFetcher(ctx, issuers)
+    frames: list[pd.DataFrame] = []
+    errors: list[str] = []
+    dead: set[str] = set()
+    for etf in due:
+        issuer = etfs[etf]
+        if issuer in dead or ctx.out_of_time():
+            continue
+        try:
+            res = fetcher.fetch(issuer, etf, None)
+        except SOURCE_ERRORS as exc:
+            errors.append(f"{etf}（{issuers[issuer]['label']}）：{str(exc)[:120]}")
+            if isinstance(exc, CircuitOpenError) or "HTTP 4" in str(exc):
+                dead.add(issuer)
+            continue
+        if res.df.empty:
+            errors.append(f"{etf}（{issuers[issuer]['label']}）：查無持股")
+            continue
+        frames.append(res.df[~res.df["foreign"].astype(bool)] if "foreign" in res.df.columns else res.df)
+    rows = 0
+    latest: str | None = max(last.values(), default=None)
+    if frames:
+        df = pd.concat(frames, ignore_index=True)
+        rows = len(df)
+        latest = max([str(df["date"].max()), *([latest] if latest else [])])
+        for key, part in df.groupby(pd.to_datetime(df["date"]).dt.to_period("M")):
+            month = key.to_timestamp().date()
+            old = ctx.store.read("style_etf_holdings", month)
+            if old is not None and not old.empty:
+                pairs = set(zip(part["date"], part["etf"], strict=True))
+                keep = [(d, e) not in pairs for d, e in zip(old["date"], old["etf"].astype(str), strict=True)]
+                part = pd.concat([old[keep], part], ignore_index=True)
+            ctx.store.write("style_etf_holdings", month, part.sort_values(HOLDING_KEYS).reset_index(drop=True))
+    summary = f"已取得 {len(frames)}/{len(due)} 檔風格 ETF 的最新持股（共 {len(etfs)} 檔，其餘未滿 {cfg.get('interval_days', 7)} 天不重抓）"
+    if errors:
+        summary += f"；失敗 {len(errors)} 檔：" + "；".join(errors[:3])
+    status = "failed" if errors and not frames else "ok"
+    ctx.note("style_etf", status, data_date=date.fromisoformat(latest) if latest else None, rows=rows, message=summary)
