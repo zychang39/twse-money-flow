@@ -1768,7 +1768,7 @@
   "total": 2380,
   "unfinished": 0
  },
- "last_target_date": "2026-10-08",
+ "last_target_date": "2026-11-13",
  "publish_probe": {
   "2026-09-30": {
    "tpex_daytrade": "20:34",
@@ -2060,22 +2060,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-11-11T23:07:05+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [],
-   "missing_after": [],
-   "missing_before": [],
-   "ok": 0,
-   "pending": [],
-   "poll_at": null,
-   "progressed": false,
-   "quick": false,
-   "requests": 0,
-   "retry": false,
-   "task": "catchup"
-  },
   {
    "at": "2026-11-12T00:26:25+08:00",
    "attempt": 1,
@@ -2981,6 +2965,14 @@
    "pending": [],
    "requests": 32,
    "task": "periodic"
+  },
+  {
+   "at": "2026-11-15T01:21:14+08:00",
+   "failed": [],
+   "ok": 1,
+   "pending": [],
+   "requests": 1,
+   "task": "daily"
   }
  ],
  "sources": {
@@ -3178,6 +3170,16 @@
    "last_success": "2026-11-13",
    "last_success_at": "2026-11-13T22:03:15+08:00",
    "rows": 24,
+   "validation": "ok"
+  },
+  "tpex_esb": {
+   "consecutive_failures": 0,
+   "last_attempt": "2026-11-15T01:21:14+08:00",
+   "last_message": null,
+   "last_status": "ok",
+   "last_success": "2026-11-13",
+   "last_success_at": "2026-11-15T01:21:14+08:00",
+   "rows": 358,
    "validation": "ok"
   },
   "tpex_etfrevsplit": {
@@ -3664,6 +3666,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-14T16:32:59+08:00",
+ "updated_at": "2026-11-15T01:21:14+08:00",
  "version": 1
 }

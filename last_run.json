@@ -1,8 +1,8 @@
 {
- "task": "periodic",
- "at": "2026-11-14T16:32:59+08:00",
- "requests": 32,
- "ok": 6,
+ "task": "daily",
+ "at": "2026-11-15T01:21:14+08:00",
+ "requests": 1,
+ "ok": 1,
  "failed": [],
  "pending": []
 }
