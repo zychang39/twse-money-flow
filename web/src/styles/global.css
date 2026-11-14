@@ -1032,3 +1032,9 @@ p a, .meta-line a, li a { text-decoration: underline; text-decoration-thickness:
 .if-more { margin: 0; padding: 0 var(--s-4); border-top: 1px solid var(--line); border-radius: 0; }
 /* 2026-10-06：「下次更新 10/6 15:00 後」—頁首資料時間下方獨立一小行（不是警示，系統灰） */
 .meta-next { color: var(--text-2); }
+/* 加入自選股 › 從截圖加入（2026-11-14） */
+.watch-import { margin: var(--s-4) 0; padding-top: var(--s-3); box-shadow: inset 0 0.5px 0 var(--line); }
+.watch-import > * + * { margin-top: var(--s-2); }
+.watch-import .btn.block { margin-top: var(--s-3); }
+.watch-import-raw summary { min-height: var(--tap); display: flex; align-items: center; cursor: pointer; }
+.watch-import-raw pre { margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 16rem; overflow: auto; font-family: inherit; }

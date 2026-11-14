@@ -3,6 +3,7 @@ import preact from '@preact/preset-vite';
 import { configYaml } from './build/config-yaml.ts';
 import { serviceWorker } from './build/service-worker.ts';
 import { fontPreload } from './build/font-preload.ts';
+import { ocrAssets } from './build/ocr-assets.ts';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 
@@ -20,7 +21,7 @@ const APP_BUILD_DATE = new Intl.DateTimeFormat('sv-SE', {
 
 export default defineConfig({
   base: '/twse-money-flow/',
-  plugins: [configYaml(), preact(), serviceWorker(`${APP_COMMIT}・${APP_BUILD_DATE}`), fontPreload()],
+  plugins: [configYaml(), preact(), serviceWorker(`${APP_COMMIT}・${APP_BUILD_DATE}`), fontPreload(), ocrAssets()],
   define: { __APP_COMMIT__: JSON.stringify(APP_COMMIT), __APP_BUILD_DATE__: JSON.stringify(APP_BUILD_DATE) },
   resolve: {
     // 自託管 Inter（數字與英文）；只打包 CSS 實際引用的拉丁子集

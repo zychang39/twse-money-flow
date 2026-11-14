@@ -17,6 +17,7 @@ import { StockListRow, type RowAction } from '../components/StockRow';
 import { ChangePill } from '../components/Change';
 import { QuickPreview } from '../components/QuickPreview';
 import { Sheet } from '../components/Sheet';
+import { WatchImport } from '../components/WatchImport';
 import { StockSearch } from '../components/StockSearch';
 import { ChecklistSheet, CloseSheet } from '../components/Trades';
 import { IconChevron, IconChevronDown, IconPlus } from '../components/Icons';
@@ -64,7 +65,7 @@ export function hotSub(h: HotItem): string {
 }
 const SORTS: [SortKey, string][] = [['change', '依變化'], ['pct', '漲跌幅'], ['rs', 'RS 百分位'], ['foreign', '外資'], ['trust', '投信'], ['custom', '自訂順序']];
 
-function AddWatchSheet({ open, onClose, rows, group, groups }: { open: boolean; onClose: () => void; rows: StockRow[]; group: string; groups: string[] }) {
+function AddWatchSheet({ open, onClose, rows, group, groups, watched }: { open: boolean; onClose: () => void; rows: StockRow[]; group: string; groups: string[]; watched: Set<string> }) {
   const [importText, setImportText] = useState('');
   const [newGroup, setNewGroup] = useState('');
   const [msg, setMsg] = useState('');
@@ -85,6 +86,7 @@ function AddWatchSheet({ open, onClose, rows, group, groups }: { open: boolean; 
         <input class="input" value={newGroup} list="watch-groups" placeholder={group} onInput={(e) => setNewGroup((e.target as HTMLInputElement).value)} />
         <datalist id="watch-groups">{groups.map((g) => <option key={g} value={g} />)}</datalist>
       </label>
+      <WatchImport rows={rows} watched={watched} group={newGroup.trim() || group} open={open} />
       <label class="field">
         <span>或貼上文字、代號清單或 CSV（每行或以逗號分隔；CSV 可含「代號,群組」）</span>
         <textarea class="input" rows={4} value={importText} onInput={(e) => setImportText((e.target as HTMLTextAreaElement).value)} placeholder={'2330 台積電\n2317, 0050\n代號,群組\n2454,半導體'} />
@@ -493,7 +495,7 @@ export default function Mine() {
       {summary.data && prefs ? (
         seg === 'hold'
           ? <ChecklistSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.rows} portfolio={prefs.portfolio} day={summary.data.date} />
-          : <AddWatchSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.rows} group={group === '全部' ? '預設' : group} groups={groups} />
+          : <AddWatchSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.rows} group={group === '全部' ? '預設' : group} groups={groups} watched={watchedSet} />
       ) : null}
       <CloseSheet trade={closing} onClose={() => setClosing(null)} costs={prefs?.costs ?? DEFAULT_COSTS} price={closing ? byCode?.get(closing.code)?.close ?? null : null} day={summary.data?.date ?? ''} />
       <GroupSheet item={moving} groups={groups} onClose={() => setMoving(null)} />
