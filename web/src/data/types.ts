@@ -16,6 +16,8 @@ export interface Meta {
   stocks?: number;
   /** v3：長歷史股價檔（stocks/{code}.hist.json）的檔數與最早日期；沒有時前端不嘗試載入 */
   long_history?: { files: number; first_date?: string | null };
+  /** 興櫃股票（esb.json 與個股檔；2026-11-14）：檔數、資料日、有資料的交易日數 */
+  esb?: { stocks: number; date?: string; days?: number };
   /** 有 ANTHROPIC_API_KEY 時產生 ai_summary.json */
   ai_summary?: boolean;
   /** 還原價事件總數（官方＋推估） */
@@ -54,7 +56,8 @@ export interface Flag {
 export interface StockRow {
   code: string;
   name: string;
-  market: 'twse' | 'tpex';
+  /** esb＝興櫃（2026-11-14；另外輸出的 esb.json，只有均價、最高、最低、成交量；不在 loadSummary 的 rows 裡） */
+  market: 'twse' | 'tpex' | 'esb';
   industry: string | null;
   close: number | null;
   change: number | null;

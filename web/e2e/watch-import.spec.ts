@@ -79,4 +79,33 @@ test.describe('從截圖加入自選', () => {
     await expect(page.getByTestId('import-2330').locator('input')).toBeDisabled();
     await expect(page.getByTestId('import-add')).toHaveText('加入 1 檔到「預設」');
   });
+
+  test('指定新群組：已在別的群組的股票可以移過來，群組不存在就建立；沒指定群組時不動已在自選的', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await openAdd(page);
+    await page.evaluate(() => navigator.clipboard.writeText('2330 台積電\n2317 鴻海'));
+    await page.getByTestId('import-paste').click();
+    await page.getByTestId('import-add').click();
+    await expect(page.getByTestId('import-msg')).toHaveText('已加入 2 檔到「預設」');
+    // 打一個還不存在的群組：兩檔在「預設」→ 可以勾選移過來；聯發科是新的
+    await page.getByPlaceholder('預設').fill('Latest');
+    await page.evaluate(() => navigator.clipboard.writeText('2330 台積電\n2317 鴻海\n2454 聯發科'));
+    await page.getByTestId('import-paste').click();
+    await expect(page.getByTestId('import-summary')).toContainText('2 檔在其他群組，勾選的會移到「Latest」');
+    await expect(page.getByTestId('import-2330')).toContainText('在「預設」，移過來');
+    await expect(page.getByTestId('import-2330').locator('input')).toBeChecked();
+    await page.getByTestId('import-2317').locator('input').uncheck(); // 鴻海留在原本的群組
+    await expect(page.getByTestId('import-add')).toHaveText('加入 1 檔、移動 1 檔到「Latest」');
+    await page.getByTestId('import-add').click();
+    await expect(page.getByTestId('import-msg')).toHaveText('已加入 1 檔、移動 1 檔到「Latest」');
+    // 搜尋加入也一樣：已在「預設」的鴻海 → 移到 Latest
+    await page.getByRole('searchbox', { name: '搜尋股票' }).fill('2317');
+    await page.getByRole('option', { name: /2317/ }).click();
+    await expect(page.getByTestId('add-watch-msg')).toHaveText('已把 鴻海 移到「Latest」');
+    await page.getByRole('button', { name: '關閉' }).click();
+    const chips = page.getByRole('group', { name: '群組' });
+    await expect(chips.getByRole('button', { name: 'Latest' })).toBeVisible(); // 群組自動建立
+    await expect(chips.getByRole('button', { name: '預設' })).toHaveCount(0); // 原本的群組搬空了就不顯示
+    await expect(page.locator('.page').first()).toContainText('自選 3 檔');
+  });
 });

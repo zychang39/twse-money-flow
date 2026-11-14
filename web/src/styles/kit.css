@@ -47,6 +47,8 @@
 .metric-v .ui-unit, .key-unit { font-size: calc(1em * var(--unit-scale)); color: var(--text-2); font-weight: var(--fw-medium); }
 .metric-g { display: block; margin-top: var(--s-2); }
 .metric .interp { margin-top: var(--s-2); }
+/* 興櫃個股頁（2026-11-14）：說明卡的第二段與資料期間註記 */
+.esb-cov, [data-testid="esb-note"] p + p { margin-top: var(--s-3); }
 
 /* ---------- 摘要卡 ---------- */
 .sum-card {

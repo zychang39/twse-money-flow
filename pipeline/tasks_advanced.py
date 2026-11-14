@@ -929,3 +929,122 @@ def run_style_etf_holdings(ctx: RunContext, target: date) -> None:
         summary += f"；失敗 {len(errors)} 檔：" + "；".join(errors[:3])
     status = "failed" if errors and not frames else "ok"
     ctx.note("style_etf", status, data_date=date.fromisoformat(latest) if latest else None, rows=rows, message=summary)
+
+
+# ------------------------------------------------------------------ 興櫃股票行情（2026-11-14）
+ESB_KEYS = ["date", "code"]
+
+
+def _esb_upsert(ctx: RunContext, df: pd.DataFrame) -> None:
+    """依日期存檔（raw/tpex_esb_quotes/{日期}）；同一天同一檔以新資料為準。"""
+    for iso, part in df.groupby("date"):
+        ctx.store.upsert("tpex_esb_quotes", date.fromisoformat(str(iso)), part, ESB_KEYS)
+
+
+def run_esb_quotes(ctx: RunContext, target: date) -> str:
+    """興櫃當日行情（OpenAPI，一次取得全部）：資料日以回應為準（每一列的 Date）。回應的日期早於目標日＝還沒更新，不算失敗。"""
+    from pipeline.sources import esb
+
+    cfg = config.source("tpex_esb")
+    try:
+        res = esb.parse_latest(_fetch(ctx, str(cfg["url"])))
+    except SOURCE_ERRORS as exc:
+        ctx.note("tpex_esb", "failed", data_date=target, message=err_text(exc)[:300])
+        return "failed"
+    if res.response_date is None or len(res.df) < 50:
+        ctx.note(
+            "tpex_esb", "failed", data_date=target, rows=len(res.df), message=f"筆數 {len(res.df)} 過少或沒有資料日"
+        )
+        return "failed"
+    _esb_upsert(ctx, res.df)
+    ctx.note("tpex_esb", "ok", data_date=res.response_date, rows=len(res.df))
+    return "ok"
+
+
+def run_esb_history(ctx: RunContext, start: date, end: date) -> int:
+    """興櫃歷史行情回補（單檔、按月；由近到遠）。回傳時間用完時還沒做完的月數（接力下一段）。
+
+    進度記在 manifest：`backfilled.tpex_esb`＝整個月都做完的月份；`esb_history_progress`＝做到一半的月份已查過的代號
+    （查過但沒有資料的也算，避免每一段重問）。代號取自近 10 個已存交易日的當日行情（含這段期間有成交過的）。
+    """
+    from pipeline.sources import esb
+
+    cfg = config.source("tpex_esb")
+    stored_days = ctx.store.dates("tpex_esb_quotes")[-10:]
+    names: dict[str, str] = {}
+    for d in stored_days:
+        day = ctx.store.read("tpex_esb_quotes", d)
+        if day is not None:
+            names.update(dict(zip(day["code"].astype(str), day["name"].astype(str), strict=True)))
+    if not names:
+        ctx.note("tpex_esb", "failed", message="還沒有興櫃當日行情（先跑每日任務），不知道要回補哪些代號")
+        return 0
+    codes = sorted(names)
+    done_months: list[str] = ctx.manifest.setdefault("backfilled", {}).setdefault("tpex_esb", [])
+    progress: dict[str, list[str]] = ctx.manifest.setdefault("esb_history_progress", {})
+    months = []
+    m = month_start(min(end, ctx.today))
+    while m >= month_start(start):
+        months.append(m)
+        m = month_start(m - timedelta(days=1))
+    rows = 0
+    asked = 0
+    errors: list[str] = []
+    for i, m in enumerate(months):
+        ym = m.strftime("%Y-%m")
+        if ym in done_months:
+            continue
+        seen = set(progress.get(ym, []))
+        frames: list[pd.DataFrame] = []
+        stopped = False
+        for code in codes:
+            if code in seen:
+                continue
+            if ctx.out_of_time() or len(errors) >= 5:
+                stopped = True
+                break
+            url = str(cfg["history_url"]).format(date_slash=slash(m), code=code)
+            try:
+                res = esb.parse_history(_fetch(ctx, url), code, names[code])
+            except SOURCE_ERRORS as exc:
+                errors.append(f"{code} {ym}：{err_text(exc)[:80]}")
+                if isinstance(exc, CircuitOpenError):
+                    stopped = True
+                    break
+                continue
+            asked += 1
+            seen.add(code)
+            if not res.df.empty:
+                frames.append(res.df)
+        if frames:
+            df = pd.concat(frames, ignore_index=True)
+            # 當日行情已存的（有最後成交價）不覆蓋：只補沒有的列
+            for iso, part in df.groupby("date"):
+                day_date = date.fromisoformat(str(iso))
+                old = ctx.store.read("tpex_esb_quotes", day_date)
+                if old is not None and not old.empty:
+                    part = part[~part["code"].isin(set(old["code"].astype(str)))]
+                    part = pd.concat([old, part], ignore_index=True)
+                ctx.store.write("tpex_esb_quotes", day_date, part.sort_values(ESB_KEYS).reset_index(drop=True))
+            rows += len(df)
+        if stopped:
+            progress[ym] = sorted(seen)
+            left = len([x for x in months[i:] if x.strftime("%Y-%m") not in done_months])
+            ctx.note(
+                "tpex_esb",
+                "failed" if errors and not asked else "ok",
+                rows=rows,
+                message=f"興櫃歷史回補：這一段查了 {asked} 檔次，還剩 {left} 個月"
+                + (f"；失敗 {len(errors)} 次：{errors[0]}" if errors else ""),
+            )
+            return left
+        progress.pop(ym, None)
+        done_months.append(ym)
+        done_months.sort()
+    ctx.note(
+        "tpex_esb",
+        "ok",
+        rows=rows,
+        message=f"興櫃歷史回補完成（{months[-1]:%Y-%m}～{months[0]:%Y-%m}，這一段 {asked} 檔次）",
+    )
+    return 0

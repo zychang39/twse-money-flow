@@ -355,6 +355,17 @@ def build_attribution(ds: Dataset, p: Panels, fine_of: dict[str, list[str]], out
         return {"error": f"{type(exc).__name__}: {exc}"[:300]}
 
 
+def build_esb(ds: Dataset, p: Panels, cols: list[str], out: Path) -> dict[str, Any]:
+    """興櫃股票（另外輸出 esb.json 與個股檔，不進上市櫃的面板）。失敗只記錄，不影響其他輸出。"""
+    from pipeline.derive import esb
+
+    try:
+        return esb.build(ds, p.dates, set(p.codes), cols, out)
+    except Exception as exc:
+        log.exception("興櫃輸出失敗")
+        return {"error": f"{type(exc).__name__}: {exc}"[:300]}
+
+
 def inactive_list(ds: Dataset, p: Panels, active: set[str], last_date: str) -> dict[str, Any]:
     """U-01：近 20 個交易日沒有成交、因此沒有個股檔的證券（下市、長期停牌）。
 
@@ -528,6 +539,7 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
         ],
     }
     write_json(out / "summary.json", summary)
+    sector_report["esb"] = build_esb(ds, p, cols, out)
     write_json(out / "inactive.json", inactive_list(ds, p, set(active), last_date))
     from pipeline.derive.lists import build_lists
 
@@ -542,6 +554,8 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
     report_extra.update(signals_mod.tracking_signals(ds, p, mp, sc, out))
     # S2：週資料（集保大戶）的資料基準日與公布日，選股頁在條件含這些欄位時顯示
     meta_extra["weekly"] = signals_mod.weekly_asof(ds)
+    if sector_report["esb"].get("stocks"):
+        meta_extra["esb"] = sector_report["esb"]  # 前端有這個欄位才讀 esb.json（避免 404）
     return {
         "stocks": written,
         "dates": len(p.dates),

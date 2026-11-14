@@ -40,8 +40,14 @@ def check_coverage(out: Path) -> tuple[list[str], dict[str, Any]]:
     errs: list[str] = []
     stocks = sorted(p.stem for p in (out / "stocks").glob("*.json") if not p.stem.endswith(".hist"))
     no_fine, no_intra = [], []
-    for code in stocks:
+    esb = 0
+    for code in list(stocks):
         st = _load(out / "stocks" / f"{code}.json")
+        if st.get("esb"):
+            # 興櫃股票另外輸出：沒有細產業與分鐘資料是預期的（2026-11-14）
+            stocks.remove(code)
+            esb += 1
+            continue
         sec = st.get("sectors") or {}
         if not sec.get("fine"):
             no_fine.append(code)
@@ -55,6 +61,7 @@ def check_coverage(out: Path) -> tuple[list[str], dict[str, Any]]:
     intra = _load(idx_path) if idx_path.exists() else {}
     report = {
         "stocks": len(stocks),
+        "esb": esb,
         "fine_covered": len(stocks) - len(no_fine),
         "intraday_files": len(stocks) - len(no_intra),
         "kbar_covered": len(intra.get("codes") or []),

@@ -57,7 +57,7 @@ export function useVisualViewport(ref: { current: HTMLElement | null }): void {
   }, []);
 }
 
-type Row = Pick<StockRow, 'code' | 'name' | 'industry' | 'close' | 'change' | 'change_pct'>;
+type Row = Pick<StockRow, 'code' | 'name' | 'market' | 'industry' | 'close' | 'change' | 'change_pct'>;
 
 const SWIPE_ADD = 72; // 左滑超過這個距離放開就加入自選
 
@@ -109,7 +109,7 @@ function ResultRow({ row, watched, onOpen, onAdd, sub, index }: {
           onClick={(e) => { if (moved.current) { e.preventDefault(); moved.current = false; return; } onOpen(); }}>
           <span class="grow" style={{ minWidth: 0 }}>
             <span class="body w5 ellipsis" style={{ display: 'block' }}>{row.name}</span>
-            <span class="caption muted ellipsis" style={{ display: 'block' }}>{row.code}{sub ? `・${sub}` : row.industry ? `・${row.industry}` : ''}</span>
+            <span class="caption muted ellipsis" style={{ display: 'block' }}>{row.code}{row.market === 'esb' ? '・興櫃' : ''}{sub ? `・${sub}` : row.industry ? `・${row.industry}` : ''}</span>
           </span>
           <span class="right">
             <span class="body" style={{ display: 'block' }}>{fmtPrice(row.close)}</span>
@@ -161,7 +161,7 @@ export default function Search() {
     return () => { root.style.overflow = prev; window.removeEventListener('search-refocus', focus); };
   }, []);
 
-  const rows = summary.data?.rows ?? [];
+  const rows = summary.data?.all ?? []; // 含興櫃（搜尋得到、可以加自選）
   const byCode = summary.data?.byCode;
   const watched = useMemo(() => new Set(watch.map((w) => w.code)), [watch]);
   const hits = useMemo(() => searchStocks(rows, q, 20), [rows, q]);

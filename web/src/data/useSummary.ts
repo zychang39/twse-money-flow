@@ -20,7 +20,8 @@ export function useScoredSummary() {
       ...r,
       composite: composite({ chip: r.chip, momentum: r.momentum, fundamental: r.fundamental, valuation: r.valuation }, weights),
     }));
-    return { ...summary.data, rows, byCode: new Map(rows.map((r) => [r.code, r])) };
+    const all = [...rows, ...summary.data.all.slice(rows.length)]; // 興櫃沒有分數，原樣接在後面
+    return { ...summary.data, rows, all, byCode: new Map(all.map((r) => [r.code, r])) };
   }, [summary.data, weights]);
   return { ...summary, data };
 }

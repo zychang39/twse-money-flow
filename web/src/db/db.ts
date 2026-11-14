@@ -402,6 +402,33 @@ export async function deleteStrategy(id: string): Promise<void> {
 export async function listTracked(): Promise<TrackedSignal[]> {
   return (await getDb()).getAll('tracked');
 }
+/**
+ * 把股票放進指定的群組（2026-11-15；一檔股票只在一個群組）：不在自選的加入；已在別的群組的移過來
+ * （範例自選移過來後算使用者自己的）；已在這個群組的不動。群組不用另外建立——有股票在裡面就存在。
+ */
+export async function putWatchInGroup(codes: string[], group: string): Promise<{ added: number; moved: number; same: number }> {
+  const db = await getDb();
+  const tx = db.transaction('watchlist', 'readwrite');
+  let order = await tx.store.count();
+  const res = { added: 0, moved: 0, same: 0 };
+  const now = new Date().toISOString();
+  for (const code of [...new Set(codes.map(normCode))]) {
+    const cur = await tx.store.get(code);
+    if (!cur) {
+      await tx.store.put({ code, group, addedAt: now, order: order++, origin: 'user' });
+      res.added++;
+    } else if (cur.group !== group) {
+      await tx.store.put({ ...cur, group, origin: cur.origin === 'sample' ? 'user' : cur.origin });
+      res.moved++;
+    } else {
+      res.same++;
+    }
+  }
+  await tx.done;
+  if (res.added || res.moved) notify();
+  return res;
+}
+
 /** 寫入新觸發或出場後的價格；不通知（避免畫面重複計算），由呼叫端決定何時重新讀取。 */
 export async function putTracked(rows: TrackedSignal[]): Promise<void> {
   if (!rows.length) return;

@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { addWatch, addWatchMany, clearSampleWatch, deleteGroup, getSetting, listActivity, listGroups, listRecentSearches, listTrades, listWatch, pushRecentSearch, resetDbConnection, saveGroup, saveTrade, setSetting, DB_VERSION, RECENT_MAX } from './db';
+import { addWatch, addWatchMany, clearSampleWatch, deleteGroup, getSetting, listActivity, listGroups, listRecentSearches, listTrades, listWatch, pushRecentSearch, putWatchInGroup, resetDbConnection, saveGroup, saveTrade, setSetting, DB_VERSION, RECENT_MAX } from './db';
 import { flowLevel, flowXp } from '../lib/ritual';
 import { makeCalendar } from '../lib/tradingCalendar';
 import { EXPORT_MIGRATIONS, exportAll, importAll, migrateBackup, previewImport, type BackupFile } from './backup';
@@ -228,5 +228,16 @@ describe('IndexedDB 與備份', () => {
     const legacy = (up.stores.activity as { type: string; at: string; meta: { xp: number } }[]).find((a) => a.type === 'legacy_xp');
     expect(legacy).toMatchObject({ at: '2026-10-01T00:00:00.000Z', meta: { xp: 10 } });
     expect(up.stores.activity).toHaveLength(2);
+  });
+
+  it('放進群組：不在自選的加入、在別的群組的移過來、已在這個群組的不動；群組不用另外建立', async () => {
+    await addWatchMany(['2330', '2317'], '預設');
+    await addWatchMany(['2603'], '範例', 'sample');
+    expect(await putWatchInGroup(['2330', ' 2454 ', '2603', '2454'], 'Latest')).toEqual({ added: 1, moved: 2, same: 0 });
+    const by = new Map((await listWatch()).map((w) => [w.code, w] as const));
+    expect([by.get('2330')?.group, by.get('2454')?.group, by.get('2317')?.group]).toEqual(['Latest', 'Latest', '預設']);
+    expect(by.get('2603')).toMatchObject({ group: 'Latest', origin: 'user' }); // 範例移過來後算自己的
+    expect(by.get('2330')?.order).toBe(0); // 移動不改順序與加入時間
+    expect(await putWatchInGroup(['2330', '2454'], 'Latest')).toEqual({ added: 0, moved: 0, same: 2 });
   });
 });

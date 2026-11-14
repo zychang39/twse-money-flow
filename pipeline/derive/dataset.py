@@ -95,6 +95,7 @@ def load(store: DataStore) -> Dataset:
         "margin_total": [],
         "daytrade_total": ["twse_daytrade_total", "tpex_daytrade_total"],
         "etf_holdings": ["etf_holdings"],  # 主動式 ETF 持股（資料源待處理；有資料即生效）
+        "esb_quotes": ["tpex_esb_quotes"],  # 興櫃股票行情（另外輸出，不進上市櫃的面板；2026-11-14）
         "style_etf_holdings": ["style_etf_holdings"],  # 風格與大盤 ETF 持股（順風檢查的類股超配；2026-11-13）
         "conference": ["conference"],
     }.items():

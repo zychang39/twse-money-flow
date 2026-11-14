@@ -55,7 +55,7 @@ export function onDataUpdate(fn: () => void): () => void {
   return () => versionListeners.delete(fn);
 }
 
-let summaryIndex: Promise<{ date: string; rows: StockRow[]; byCode: Map<string, StockRow> }> | null = null;
+let summaryIndex: Promise<{ date: string; rows: StockRow[]; all: StockRow[]; esbDate: string | null; byCode: Map<string, StockRow> }> | null = null;
 let lastCheck = 0;
 let checking: Promise<boolean> | null = null;
 /** 有新版資料並已切換 → true。minGapMs 內重複呼叫直接略過（回到前景常連續觸發）。 */
@@ -99,11 +99,20 @@ export const loadSignalPrices = () => getJson<import('../lib/tracking').SignalPr
 /** 選配 AI 摘要：meta.ai_summary 為 true 才讀取，避免 404。 */
 export const loadAiSummary = () => loadMeta().then((m) => (m.ai_summary ? getJson<AiSummary>('ai_summary.json') : null));
 
+/**
+ * 全市場清單。rows＝上市櫃（排行、選股、橫斷面比較都用它）；
+ * all＝上市櫃＋興櫃（搜尋、加入自選、截圖匯入用）；byCode 含興櫃（自選與持股找得到）。
+ * 興櫃（esb.json；2026-11-14）另外輸出，meta.esb 有檔數才讀（避免 404）；沒有就只有上市櫃。
+ */
 export function loadSummary() {
   if (!summaryIndex) {
-    summaryIndex = getJson<Summary>('summary.json').then((s) => {
+    const esbJson = loadMeta().then((m) => (m.esb?.stocks ? getJson<Summary>('esb.json') : null)).catch(() => null);
+    summaryIndex = Promise.all([getJson<Summary>('summary.json'), esbJson]).then(([s, e]) => {
       const rows = rowsToObjects<StockRow>(s);
-      return { date: s.date, rows, byCode: new Map(rows.map((r) => [r.code, r])) };
+      const listed = new Set(rows.map((r) => r.code));
+      const esb = e ? rowsToObjects<StockRow>(e).filter((r) => !listed.has(r.code)) : [];
+      const all = esb.length ? [...rows, ...esb] : rows;
+      return { date: s.date, rows, all, esbDate: e?.date ?? null, byCode: new Map(all.map((r) => [r.code, r])) };
     });
     summaryIndex.catch(() => (summaryIndex = null));
   }

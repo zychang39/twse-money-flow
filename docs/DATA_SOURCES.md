@@ -108,6 +108,7 @@
 | financials | 季財報（上市＋上櫃） | MOPS `ajax_t163sb04`（綜合損益彙總）、`ajax_t163sb05`（資產負債彙總），GET 帶 `TYPEK=sii/otc&year=民國年&season=季`；一次涵蓋一般業、金融、證券、保險等所有格式 | 法定期限後 | ✅（Actions 實測；OpenAPI t187ap06／07 只有最新一季且依產業分檔，改用 MOPS） |
 | active_etf | 主動式 ETF 每日持股 | 各發行投信官網的持股揭露／申購買回清單（PCF），逐家實作（見下方「主動式 ETF 持股」） | 每日（多為當晚或次一營業日） | 🟡 已實作 14 家投信（對應 30／32 檔；國泰、兆豐依 User-Agent 擋本工具，2026-10-09）；實際有持股資料的檔數與投信家數依每日抓取結果（市場頁「涵蓋 N/32 檔」、資料健康頁）；2026-10-03 起同時保存受益權單位數（聯博未揭露）（DECISIONS #22、#242；2026-10-03 新增台新、凱基、聯博、第一金、復華） |
 | style_etf | 風格與大盤 ETF 持股（順風檢查的類股超配） | 同上三家投信的 PCF 端點：元大（0050、0051、00940、00713）、富邦（00733）、凱基（00938→J017、009816→J023） | 每週（每檔距上一份持股滿 7 天才再抓，只取最新一份） | ✅ 2026-11-13 本環境實測 7 檔皆可解析（沿用 active_etf 的解析器；存 `raw/style_etf_holdings`，與主動式 ETF 的 `etf_holdings` 分開）；DECISIONS #463 |
+| tpex_esb | 興櫃股票行情（日均價、最高、最低、成交股數） | 當日：`www.tpex.org.tw/openapi/v1/tpex_esb_latest_statistics`（全部興櫃股一次取得，只有最新一天）；歷史：`www.tpex.org.tw/www/zh-tw/emerging/historical?date=YYYY/MM/01&code=代號&response=json`（單檔、按月） | 約 16:30 | ✅（2026-11-14 新增；見下方「興櫃股票行情」） |
 
 其他：`twse_insider`／`tpex_insider`（內部人轉讓事前申報，OpenAPI t187ap12_L／mopsfin_t187ap12_O）列為選配資料並用於風險旗標。
 
@@ -116,6 +117,19 @@
 期交所三大法人欄位：`日期, 商品名稱, 身份別, 多方交易口數, 多方交易契約金額(千元), 空方交易口數, …, 多方未平倉口數, 多方未平倉契約金額(千元), 空方未平倉口數, 空方未平倉契約金額(千元), 多空未平倉口數淨額, 多空未平倉契約金額淨額(千元)`。
 
 期交所選擇權 Put/Call 比（taifex_pc）正規化欄位：`date, put_vol, call_vol, pc_vol_ratio, put_oi, call_oi, pc_oi_ratio`（比率為 %＝賣權 ÷ 買權 × 100；只有 `pc_oi_ratio` 為必要欄位）。
+
+### 興櫃股票行情（tpex_esb；2026-11-14，DECISIONS #465）
+
+起因：使用者從券商庫存截圖加入自選時，興櫃股（6930 盛新）不在 App 的股票清單裡，加不進去。
+
+- **興櫃的價格**：議價交易，沒有開盤價、收盤價，也沒有漲跌幅限制；官方的參考價是「日均價」（成交金額 ÷ 成交股數），漲跌以前一日均價為準。本專案把日均價存在 `close` 欄。
+- **當日行情**（OpenAPI，每日任務第 8 步，一次請求）：欄位 `Date`（民國年）、`SecuritiesCompanyCode`、`CompanyName`、`PreviousAveragePrice`、`Highest`、`Lowest`、`Average`、`LatestPrice`、`TransactionVolume`…；2026-11-13 實測 373 檔，其中 358 檔當日有成交。成交股數為 0 的列（當日沒有成交）不存。回應少於 50 檔視為異常，不覆蓋已存的資料。
+- **歷史行情**（回補用）：櫃買中心沒有「某一天全部興櫃股」的歷史查詢，只有「單檔、按月」。欄位 `日期, 成交股數, 成交金額(元), 成交最高, 成交最低, 成交均價, 筆數`（同名欄位有兩組，只取第一組）；還沒登錄或當月沒有成交時 `stat` 為「查無…」、`data` 為空（不算錯誤）。
+- **正規化欄位**（`raw/tpex_esb_quotes`）：`date, code, name, high, low, close（日均價）, volume（股）, value（元；當日行情沒有金額欄，以均價 × 股數計）, trades（筆；只有歷史有）, last（最後成交價；只有當日行情有）, prev（前日均價；只有當日行情有）`。只收 4 碼數字代號（普通股）。
+- **回補**：`python -m pipeline backfill --source tpex_esb`（未給起日時回補近 12 個月；`config/sources.yml` 的 `history_months`），或 Data workflow `task=backfill, source=tpex_esb`。代號取自近 10 個已存交易日的當日行情（所以要先有當日行情）。約 370 檔 × 12 個月 ≈ 4,500 次請求、每次約 5 秒 ≈ 6 小時，由近到遠、分段接力：整個月做完記在 `manifest.backfilled.tpex_esb`，做到一半的月份把查過的代號記在 `manifest.esb_history_progress`（查過但沒有資料的也算，下一段不重問）。當日行情已存的日子不被歷史資料覆蓋。只在明確指定 `tpex_esb` 時才跑，不含在一般回補裡。
+- **輸出**（`pipeline/derive/esb.py`）：`esb.json`（欄位同 `summary.json`）與 `stocks/{代號}.json`（欄位同上市櫃個股檔，另加 `esb: true`），**不進上市櫃的面板**：排行、漲跌家數、分數、選股、族群、報酬拆解、系統清單、回測都不含興櫃。`meta.json` 的 `esb`（檔數、資料日、天數）有值時前端才讀 `esb.json`。已在上市櫃清單的代號（轉上市、上櫃後）不再輸出興櫃版本。
+- **資料量（2026-11-14 量測與估算）**：data 分支每個交易日一檔約 10 KB（gzip），一年約 2.5 MB；前端輸出以 358 檔 × 245 個交易日試算是 7.2 MB（gzip 0.9 MB），占 GitHub Pages 1 GB 上限不到 1%（目前整站約 600 MB）。
+- **沒有的資料**：三大法人、融資融券、借券、本益比／淨值比／殖利率、集保分級、除權息（沒有還原，`af`＝1）。
 
 ### 個股 5 分 K（yahoo_kbar；2026-10，SPEC §3.2 來源評估）
 官方沒有免費的個股歷史分鐘資料（證交所 MIS 只有即時快照）。依序評估（2026-10-03 實測）：
