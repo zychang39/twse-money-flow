@@ -8,7 +8,7 @@ import { TopBar } from '../components/Chrome';
 import { PageTitle, Signed } from '../components/ui';
 import { IconAlert, IconBooks, IconBriefcase, IconCalendar, IconFilter, IconFlask, IconHistory, IconLayers, IconMargin, IconThermo, IconAttribution } from '../components/Icons';
 import { useAsync } from '../hooks';
-import { loadAttrFactors, loadIndex, loadJson, loadMarginIndex, loadMarket, loadSectors } from '../data/api';
+import { loadAttrTailwind, loadIndex, loadJson, loadMarginIndex, loadMarket, loadSectors } from '../data/api';
 import type { MarginIndex } from '../data/types';
 import { TAIEX, TAIEX_TR, TPEX } from '../data/types';
 import { envCounts, envInfo } from '../lib/envState';
@@ -17,7 +17,7 @@ import { labStatus } from '../lib/labStatus';
 import { verdictCounts } from '../lib/status';
 import type { StrategiesFile } from '../lib/strategies';
 import { fmtNum } from '../lib/format';
-import { FACTOR_KEYS, FACTOR_SHORT, factorTrend } from '../lib/attribution';
+import { styleNow } from '../lib/tailwind';
 import { moodOf, useAmbient } from '../lib/ambient';
 import { todayTpe } from '../lib/dates';
 import '../styles/explore.css';
@@ -50,11 +50,11 @@ function Tile({ icon, title, value, href, testid }: { icon: ComponentChildren; t
   );
 }
 
-/** 報酬拆解卡片：近 12 個月順風的因子 */
-function attrTile(a: { data: import('../data/types').AttrFactors | null; loading: boolean }): string {
+/** 報酬拆解卡片：目前順風的風格（風格 ETF 過去 12 個月自己賺錢且贏大盤） */
+function attrTile(a: { data: import('../data/types').Tailwind | null; loading: boolean }): string {
   if (!a.data) return a.loading ? '載入中' : 'Beta・因子・Alpha';
-  const up = FACTOR_KEYS.filter((k) => factorTrend(a.data!, k).tailwind).map((k) => FACTOR_SHORT[k]);
-  return up.length ? `順風：${up.join('、')}` : '因子都逆風';
+  const up = a.data.styles.filter((s) => styleNow(s, a.data!).state === 'tail').map((s) => s.label);
+  return up.length ? `順風：${up.join('、')}` : '沒有順風的風格';
 }
 
 /** 融資增減卡片：最新一天的資減／資增家數 */
@@ -74,7 +74,7 @@ export default function Explore() {
   const cal = useAsync(() => loadJson<{ events?: { date: string }[] }>('calendar.json').catch(() => null), []);
   const mf = useAsync(() => loadMomentumSummary().catch(() => null), []);
   const margin = useAsync(loadMarginIndex, []);
-  const attr = useAsync(loadAttrFactors, []);
+  const attr = useAsync(loadAttrTailwind, []);
   const lab = labStatus(ev.data ?? null, st.data?.strategies ?? null);
   const vc = verdictCounts(ev.data?.rows);
   const env = envInfo(market.data?.env?.lights);

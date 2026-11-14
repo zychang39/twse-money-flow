@@ -596,7 +596,7 @@ sources:
         status: verified
         method: 'POST 表單 {fundID: 基金代碼, queryDate: "YYYY/MM/DD" 或 ""＝最新}（網頁以 jQuery .load 取得的局部 HTML）；queryDate＝申購買回清單適用日，持股日＝頁面「(YYYY/MM/DD)每受益權單位淨資產價值」的淨值日；中文為 HTML 實體編碼；基金代碼由 funds 設定（官網沒有可解析的代號清單；00407A→J024 見 Upload/Activity/KGI00407A 與局部頁面標題「主動凱基台灣(00407A)」）'
         lag_days: 1
-        funds: { "00407A": "J024" }
+        funds: { "00407A": "J024", "00938": "J017", "009816": "J023" }   # 00938、009816：順風檢查的風格 ETF（style_etf；2026-11-13 由局部頁面標題「凱基優選30(00938)」「凱基台灣TOP50(009816)」確認）
         url: https://www.kgifund.com.tw/Fund/RedemptionVC
       ab:
         label: 聯博投信
@@ -629,6 +629,15 @@ sources:
         method: 'GET xlsx（基金資產明細，標準函式庫解析）；{ymd}＝持股日 YYYYMMDD；無資料時回 HTTP 200 的 JSON 文字「查無資料」；工作表「日期: YYYY/MM/DD」為持股日，海外持股（LITE US）不列入；基金代碼由 funds 設定（ETF 專區 /ETF/index 的基金卡片：00409A→ETF26、00991A→ETF23、00998A→ETF24）'
         funds: { "00409A": "ETF26", "00991A": "ETF23", "00998A": "ETF24" }
         url: https://www.fhtrust.com.tw/api/assetsExcel/{fund}/{ymd}
+  style_etf:
+    label: 風格與大盤 ETF 持股（順風檢查的類股超配；各投信官網 PCF）
+    market: both
+    tier: advanced
+    frequency: weekly
+    status: verified   # 2026-11-13 本環境實測：元大、富邦、凱基的端點對被動式 ETF 回傳同一種格式，沿用 active_etf 的解析器
+    interval_days: 7   # 類股權重變化慢：每檔距離上一份持股滿 7 天才再抓（每次只取最新一份）
+    # 單元 2 對照表台股那一欄的 ETF（config/ui.yml attribution.tailwind）→ 發行投信（端點與解析器見 active_etf.issuers）
+    etfs: { "0050": yuanta, "0051": yuanta, "00940": yuanta, "00713": yuanta, "00733": fubon, "00938": kgi, "009816": kgi }
 
   # ---------- 選配 ----------
   twse_insider:

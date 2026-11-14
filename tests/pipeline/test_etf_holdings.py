@@ -204,7 +204,7 @@ def test_issuer_detection_from_config():
         else:
             assert cfg["status"] in ("skipped", "pending") and cfg.get("reason"), iid
     # 沒有清單端點的投信：config 的 funds 要涵蓋文件列出的主動式 ETF
-    assert set(issuers["kgi"]["funds"]) == {"00407A"}
+    assert set(issuers["kgi"]["funds"]) == {"00407A", "00938", "009816"}  # 後兩檔是順風檢查的風格 ETF（style_etf）
     assert set(issuers["fsitc"]["funds"]) == {"00408A", "00994A"}
     assert set(issuers["fhtrust"]["funds"]) == {"00409A", "00991A", "00998A"}
 
@@ -234,7 +234,7 @@ class JsonFakeClient:
         return self._hit(url)
 
     def post_bytes(self, url: str, data: dict[str, str]) -> bytes:
-        return self._hit(url)
+        return self._hit(url + " " + " ".join(f"{k}={v}" for k, v in data.items()))
 
     def post_json(self, url: str, body: dict[str, object], headers: dict[str, str] | None = None) -> bytes:
         self.headers.append(headers or {})
@@ -318,7 +318,7 @@ def test_fetcher_builds_requests_for_new_issuers(tmp_path):
     assert f.fetch("fhtrust", "00409A", date(2026, 10, 3)).no_data  # 「查無資料」不是錯誤
     assert "funds 沒有" in f.fetch("fhtrust", "00986D", date(2026, 10, 1)).message  # config 沒列的代號不請求
     calls = ctx.client.calls  # type: ignore[attr-defined]
-    assert any(c.endswith("RedemptionVC") for c in calls)  # 凱基：POST 表單（本文不在網址）
+    assert any("RedemptionVC fundID=J024" in c for c in calls)  # 凱基：POST 表單（本文不在網址）
     assert "https://www.fsitc.com.tw/WebAPI.aspx/Get_hd pStrFundID=183 pStrDate=" in calls  # 第一金：POST JSON
     assert "https://www.fsitc.com.tw/WebAPI.aspx/Get_BuySellA pStrFundID=183 pStrDate=" in calls
     assert not any("00986D" in c for c in calls)
@@ -564,3 +564,34 @@ def test_backfill_starts_with_etfs_that_have_least_data(tmp_path):
     first_capital = next(i for i, c in enumerate(calls) if "capitalfund" in c)
     first_nomura = next(i for i, c in enumerate(calls) if "GetFundAssets" in c)
     assert first_capital < first_nomura  # 群益 00982A 沒有資料，排在已有 3 天的野村 00980A 之前
+
+
+def test_style_etf_holdings_latest_only_and_weekly_interval(tmp_path):
+    """順風檢查的風格 ETF 持股：每檔只取最新一份、代號不讀成數字、滿 7 天才再抓、一檔失敗不影響其他檔。"""
+    routes: dict[str, bytes | Exception] = {
+        "ticker=0050": FetchError("HTTP 500"),
+        "yuantaetfs": sample("etf_yuanta_00990A.json"),
+        "FubonETF": sample("etf_fubon_00405A.html"),
+        "kgifund": sample("etf_kgi_J024.html"),
+    }
+    # 樣本的持股日：元大 9/22、富邦 9/24、凱基 10/2
+    ctx = _ctx(tmp_path, routes, now=datetime(2026, 9, 25, 21, 45, tzinfo=TPE))
+    tasks_advanced.run_style_etf_holdings(ctx, date(2026, 9, 25))
+    cfg = config.source("style_etf")
+    assert len(ctx.client.calls) == len(cfg["etfs"])  # type: ignore[attr-defined]
+    assert any("fundID=J017" in c for c in ctx.client.calls) and any("fundID=J023" in c for c in ctx.client.calls)  # type: ignore[attr-defined]
+    res = ctx.results[-1]
+    assert res["source"] == "style_etf" and res["status"] == "ok" and "失敗 1 檔" in res["message"]
+    stored = ctx.store.read_range("style_etf_holdings")
+    assert set(stored["etf"]) == set(cfg["etfs"]) - {"0050"}  # 字串代號（0051、00940…），沒有讀成 51、940
+    assert not stored["foreign"].astype(bool).any()
+    # 隔天：已經有的未滿 7 天不重抓，只補昨天失敗的那一檔
+    ctx.client.calls.clear()  # type: ignore[attr-defined]
+    ctx.client.routes.pop("ticker=0050")  # type: ignore[attr-defined]
+    tasks_advanced.run_style_etf_holdings(ctx, date(2026, 9, 28))
+    assert len(ctx.client.calls) == 1 and "ticker=0050" in ctx.client.calls[0]  # type: ignore[attr-defined]
+    assert "0050" in set(ctx.store.read_range("style_etf_holdings")["etf"])
+    # 滿 7 天：元大的 4 檔（持股日 9/22）到期重抓，富邦（9/24）與凱基（10/2）還沒到
+    ctx.client.calls.clear()  # type: ignore[attr-defined]
+    tasks_advanced.run_style_etf_holdings(ctx, date(2026, 9, 30))
+    assert len(ctx.client.calls) == 4 and all("yuantaetfs" in c for c in ctx.client.calls)  # type: ignore[attr-defined]

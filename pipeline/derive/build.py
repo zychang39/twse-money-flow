@@ -345,6 +345,10 @@ def build_attribution(ds: Dataset, p: Panels, fine_of: dict[str, list[str]], out
             fine_of=fine_of,
             out=out,
             cfg=attribution.demo_settings() if ds.manifest.get("demo") else None,
+            index=ds.index,
+            holdings=ds.table("style_etf_holdings"),
+            markets=p.markets,
+            names=p.names,
         )
     except Exception as exc:  # 新功能失敗不擋部署（執行紀錄看得到）
         log.exception("報酬拆解失敗")

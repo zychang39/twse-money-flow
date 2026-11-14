@@ -33,3 +33,12 @@
 .attr-bars .ui-row.br-row { grid-template-columns: 5.5em minmax(3rem, 1fr) 9em; }
 .attr-bars .br-name .br-sub { white-space: nowrap; }
 .attr-more { height: var(--s-8); } /* 個股頁 › 報酬來源：連到因子順逆風前與上一區塊隔開 */
+/* 順風檢查 › 自己算一次（2026-11-13）：兩個數字並排 */
+.wind-try { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
+.wind-try .field { margin: 0; }
+.wind-try input { width: 100%; }
+/* 順風檢查的橫條列：名稱欄放得下「電腦及週邊設備」「009816・暫定順風」，數值欄只放「排除後 +65.2%」 */
+.attr-bars.wind-bars .ui-row.br-row { grid-template-columns: 7.5em minmax(2.5rem, 1fr) 7em; }
+.wind-lines > span { display: block; }
+.wind-try-out { margin: var(--s-3) 0 0; font-size: var(--fs-sub); line-height: var(--lh-sub); color: var(--text-2); }
+.wind-try-out strong { color: var(--text-1); }

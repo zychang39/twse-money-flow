@@ -1,14 +1,18 @@
 """報酬拆解：市場 Beta、因子與產業、Alpha（探索 › 報酬拆解；2026-10-27；定義見 METHODOLOGY §4.12）。
 
 三層（Sharpe 1964 CAPM、Jensen 1968、Fama–French 1993／2015、Carhart 1997）：
-  R_i − R_f = α_i + β_i (R_m − R_f) + b_ind · IND_i + Σ_k b_k F_k + ε_i
+  R_i − R_f = α_i + β_i (R_m − R_f) + Σ_k b_k X_k + ε_i
 - 市場：發行量加權股價「報酬指數」（含息），無風險利率為設定的固定年利率（`config/ui.yml` attribution.rf_annual）。
-- 因子：台股自建的多空因子（每月底依特徵分組，下個月等權報酬）：
-  規模 SMB、價值 HML（淨值市價比）、動能 UMD（12−1 個月報酬）、獲利 RMW（ROE，財報公布期限後才用）、低波動 LV。
-  一律 2×3 分組（市值中位數 × 特徵 30／70 百分位）、組內等權——台股市值高度集中，市值加權會讓單一權值股主導因子（課文「尺會失真」）。
-- 產業：IND_i＝同業籃子 − 大盤。同業籃子不是族群輪動的分組：候選來自官方產業與細產業，再依「扣掉大盤後的週報酬相關」
-  挑出最貼近的 5～10 家等權（課文：同產業的公司股價常常一起漲跌；同業籃子至少 5 家，避免單一家公司出事尺就歪）。
-- Alpha：期間總超額報酬 − 市場 − 產業 − 因子（＝α 加上殘差；單一期間分不出能力和運氣，另附 t 值與所需年數）。
+  β 用最近 5 年的月報酬估（CAPM）。
+- 第二層（2026-11-13 起改用查得到的尺；單元 2、3）：X_k＝尺的報酬扣掉它自己的市場 Beta。
+  產業：同業籃子——扣掉大盤後股價最常一起動的 5～10 家等權（細尺、不含自己，量 Alpha 用）；
+  風格：單元 2 對照表的台股 ETF（價值、品質、動能、規模、低波動；`pipeline/derive/tailwind.py`）。
+  證交所的類股報酬指數是看風向的粗尺（順風狀態、三把尺、貼合度），不放進迴歸：大型股自己就是類股指數的大半。
+  曝險 b_k 用近 2 年的週報酬估（ETF 掛牌時間短，月報酬只有二、三十筆，估出來的曝險不穩）；
+  資料起點太晚、湊不滿 exposure_min_weeks 的尺先不放進模型並寫出來。
+- Alpha：期間總超額報酬 − 市場 − 第二層（＝α 加上殘差；單一期間分不出能力和運氣，另附 t 值與所需年數）。
+- 台股自建的多空因子（規模 SMB、價值 HML、動能 UMD、獲利 RMW、低波動 LV；2×3 分組、組內等權）只留作對照：
+  學術因子是多空組合，ETF 只有作多的那一半（探索 › 報酬拆解 › 順風檢查的最下方）。
 
 只用收盤後已知的資料（月底分組、財報依法定公布期限生效）；同業籃子以最新資料挑選後回頭量歷史（事後歸因，不是訊號）。
 """
@@ -25,6 +29,7 @@ import pandas as pd
 
 from pipeline.core import config
 from pipeline.core.normalize import is_common_stock
+from pipeline.derive import tailwind
 
 log = logging.getLogger(__name__)
 
@@ -38,8 +43,6 @@ FACTOR_LABELS = {
     "rmw": "獲利（高 ROE − 低 ROE）",
     "lv": "低波動（低 − 高）",
 }
-STYLE_SIZE = ["小型", "中型", "大型"]
-STYLE_VALUE = ["成長", "中性", "價值"]
 
 
 def settings() -> dict[str, Any]:
@@ -57,6 +60,8 @@ def demo_settings() -> dict[str, Any]:
         "peer_min_corr": -1.0,
         "peer_cover": 0.5,
         "liquidity_pctile": 0,
+        "exposure_min_weeks": 30,
+        "model_min_months": 6,
     }
 
 
@@ -77,10 +82,11 @@ class FactorSet:
     mkt: np.ndarray  # 市場報酬（未扣無風險）
     f: dict[str, np.ndarray]
     ret: pd.DataFrame  # 個股月報酬（月 × 代號）
-    style: pd.DataFrame  # 期初的風格組（0–8；月 × 代號，NaN＝不在樣本內）
-    style_ret: np.ndarray  # 9 組等權月報酬（月 × 9）
     universe: pd.DataFrame  # 期初是否在樣本內（流動性）
     counts: dict[str, list[int]] = field(default_factory=dict)
+    pos: list[int] = field(default_factory=list)  # 每個月最後一個交易日的位置
+    chars_now: dict[str, pd.Series] = field(default_factory=dict)  # 最新一天的特徵（越高越屬於那一種風格；樣本內）
+    mcap_now: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
 
 
 def _pct_rank_breaks(x: pd.Series, lo: float, hi: float) -> tuple[float, float]:
@@ -139,8 +145,6 @@ def build_factors(
     mcap = close * pd.Series(shares).reindex(codes)
     n = len(pos)
     f = {k: np.full(n, np.nan) for k in FACTORS}
-    style = pd.DataFrame(np.nan, index=labels, columns=codes)
-    style_ret = np.full((n, 9), np.nan)
     universe = pd.DataFrame(False, index=labels, columns=codes)
     counts: dict[str, list[int]] = {k: [0] * n for k in ["universe", *FACTORS]}
     lo, hi = float(cfg["break_low"]), float(cfg["break_high"])
@@ -172,19 +176,21 @@ def build_factors(
             a, b = _pct_rank_breaks(ch, lo, hi)
             f[k][j] = _two_by_three(rr, size, med, ch, a, b, corner)
             counts[k][j] = int(ch.notna().sum())
-        # 風格組（規模三分 × 價值三分）：期初分組，三把尺的「同風格籃子」
-        bm = chars["hml"]
-        if int(bm.notna().sum()) >= min_univ:
-            s1, s2 = _pct_rank_breaks(size, 1 / 3, 2 / 3)
-            v1, v2 = _pct_rank_breaks(bm, 1 / 3, 2 / 3)
-            si = np.where(size <= s1, 0, np.where(size <= s2, 1, 2))
-            vi = np.where(bm <= v1, 0, np.where(bm <= v2, 1, 2))
-            g = pd.Series(si * 3 + vi, index=codes).where(size.notna() & bm.notna())
-            style.iloc[j] = g.to_numpy()
-            for gi in range(9):
-                m = g == gi
-                if int(m.sum()) >= corner:
-                    style_ret[j, gi] = float(rr[m].mean())
+    # 最新一天的特徵（順風檢查：個股屬於哪一種風格）：樣本＝近 60 日成交值不在最低的一段；動能跳過最近 1 個月
+    t = pos[-1]
+    lq = liq.iloc[t]
+    ok = mcap.iloc[t].notna() & lq.notna()
+    if int(ok.sum()) >= min_univ:
+        ok &= lq >= float(lq[ok].quantile(float(cfg["liquidity_pctile"]) / 100))
+        chars_now = {
+            "value": (1 / pb.iloc[t]).where((pb.iloc[t] > 0) & ok),
+            "quality": roe.iloc[t].where(ok),
+            "momentum": (me.iloc[n - 2] / me.iloc[n - 13] - 1).where(ok) if n >= 13 else pd.Series(np.nan, index=codes),
+            "size": (-mcap.iloc[t]).where(ok),
+            "lowvol": (-vol.iloc[t]).where(ok),
+        }
+    else:
+        chars_now = {}
     return FactorSet(
         labels=labels,
         end_dates=[str(pd.Timestamp(d).date()) for d in ends],
@@ -193,10 +199,11 @@ def build_factors(
         mkt=mkt,
         f=f,
         ret=ret,
-        style=style,
-        style_ret=style_ret,
         universe=universe,
         counts=counts,
+        pos=pos,
+        chars_now=chars_now,
+        mcap_now=mcap.iloc[pos[-1]],
     )
 
 
@@ -338,54 +345,169 @@ def _arr(a: np.ndarray | pd.Series, d: int = 5) -> list[float | None]:
     return [_r(float(v), d) for v in np.asarray(a, dtype=float)]
 
 
+@dataclass
+class Weekly:
+    """近 N 週的週報酬（曝險用）：個股、大盤超額、各把尺（類股指數、風格 ETF）扣掉自己市場 Beta 後的報酬。"""
+
+    ends: list[str]
+    ret: pd.DataFrame  # 個股週報酬（週 × 代號）
+    rf: np.ndarray
+    mk: np.ndarray  # 大盤週超額報酬
+    xw: dict[str, np.ndarray]  # 尺的週報酬 − 自己的 β × 大盤（style:{key}、sector:{名稱}）
+    xm: dict[str, np.ndarray]  # 同一把尺的月報酬 − 自己的 β × 大盤（對齊 FactorSet.labels）
+    beta: dict[str, float]  # 尺自己的市場 Beta（週）
+    raw_m: dict[str, np.ndarray]  # 尺的月報酬（未扣；貼合度用）
+
+
+def _slope(y: np.ndarray, x: np.ndarray, min_n: int) -> float:
+    ok = np.isfinite(y) & np.isfinite(x)
+    if int(ok.sum()) < min_n:
+        return float("nan")
+    xx = x[ok] - x[ok].mean()
+    den = float((xx**2).sum())
+    return float((xx * (y[ok] - y[ok].mean())).sum() / den) if den > 0 else float("nan")
+
+
+def build_weekly(adj: pd.DataFrame, th: tailwind.Thermos | None, fs: FactorSet, cfg: dict[str, Any]) -> Weekly:
+    weeks, min_w = int(cfg.get("exposure_weeks", 104)), int(cfg.get("exposure_min_weeks", 52))
+    idx = pd.DatetimeIndex(adj.index)
+    wk = pd.Series(range(len(idx)), index=idx).groupby(idx.to_period("W-FRI")).max().to_numpy()[-(weeks + 1) :]
+    p = adj.iloc[wk]
+    ret = (p / p.shift(1) - 1).iloc[1:]
+    ends = [str(pd.Timestamp(d).date()) for d in idx[wk][1:]]
+    days = np.diff(idx[wk].values).astype("timedelta64[D]").astype(float)
+    rf = (1 + float(cfg["rf_annual"])) ** (days / 365.0) - 1
+
+    def weekly(s: pd.Series) -> np.ndarray:
+        q = s.ffill(limit=3).iloc[wk]
+        return (q / q.shift(1) - 1).to_numpy(dtype=float)[1:]
+
+    def monthly(s: pd.Series) -> np.ndarray:
+        q = s.ffill(limit=3).iloc[fs.pos]
+        return (q / q.shift(1) - 1).to_numpy(dtype=float)
+
+    n = len(ends)
+    mkt = th.col("mkt") if th is not None else None
+    mk = weekly(mkt) - rf if mkt is not None else np.full(n, np.nan)
+    xw: dict[str, np.ndarray] = {}
+    xm: dict[str, np.ndarray] = {}
+    beta: dict[str, float] = {}
+    raw_m: dict[str, np.ndarray] = {}
+    mk_m = fs.mkt - fs.rf
+    daily = th.daily if th is not None else pd.DataFrame()
+    for col in [c for c in daily.columns if str(c).startswith(("style:", "sector:"))]:
+        w = weekly(daily[col]) - rf
+        b = _slope(w, mk, min_w)
+        raw_m[col] = monthly(daily[col])
+        if not np.isfinite(b):
+            continue
+        beta[col] = b
+        xw[col] = w - b * mk
+        xm[col] = raw_m[col] - fs.rf - b * mk_m
+    return Weekly(ends=ends, ret=ret, rf=rf, mk=mk, xw=xw, xm=xm, beta=beta, raw_m=raw_m)
+
+
 def stock_report(
     code: str,
     fs: FactorSet,
     peers: Peers | None,
     rulers: dict[str, pd.Series],
     cfg: dict[str, Any] | None = None,
+    wk: Weekly | None = None,
+    sector: str | None = None,
+    style_keys: list[str] | None = None,
 ) -> dict[str, Any] | None:
-    """單一股票：月報酬、同業籃子、各把尺的貼合度（R²）、CAPM 與多因子迴歸。rulers：其他尺的月報酬（官方產業、主要細產業）。"""
+    """單一股票：月報酬、同業籃子、各把尺的貼合度（R²）、CAPM 與第二層（同業籃子、風格 ETF）。
+
+    rulers：其他尺的月報酬（類股指數、官方產業等權、主要細產業等權）。wk：週報酬（曝險用）；sector：所屬類股名稱。
+    """
     cfg = cfg or settings()
     if code not in fs.ret.columns:
         return None
     r = fs.ret[code].to_numpy(dtype=float)
     n = len(r)
     peer_r = np.full(n, np.nan)
+    peer_cols: list[str] = []
     if peers and peers.codes:
-        cols = [c for c in peers.codes if c in fs.ret.columns]
-        peer_r = fs.ret[cols].mean(axis=1, skipna=True).to_numpy(dtype=float).copy()
-        cnt = fs.ret[cols].notna().sum(axis=1).to_numpy()
+        peer_cols = [c for c in peers.codes if c in fs.ret.columns]
+        peer_r = fs.ret[peer_cols].mean(axis=1, skipna=True).to_numpy(dtype=float).copy()
+        cnt = fs.ret[peer_cols].notna().sum(axis=1).to_numpy()
         peer_r[cnt < max(3, int(cfg["peer_min"]) // 2)] = np.nan
     complete = np.arange(n) < (n - 1 if fs.partial else n)
     y = r - fs.rf
     mk = fs.mkt - fs.rf
-    peer_x = peer_r - fs.rf
-    # 因子資料起點不同（價值、獲利要等淨值比與財報）：樣本不足 min_months 時，先拿掉最晚才有資料的因子
-    used = [k for k in FACTORS if np.nanstd(fs.f[k]) > 1e-9]  # 沒有變化的因子（資料不足）不放進迴歸
-    base_ok = complete & np.isfinite(y) & np.isfinite(mk) & np.isfinite(peer_x)
-    while True:
-        fac = np.column_stack([fs.f[k] for k in used]) if used else np.zeros((n, 0))
-        ok = base_ok & np.isfinite(fac).all(axis=1)
-        idx = np.where(ok)[0][-int(cfg["window_months"]) :]
-        if len(idx) >= int(cfg["min_months"]) or not used:
-            break
-        used.remove(max(used, key=lambda k: int(np.argmax(np.isfinite(fs.f[k])))))
-    capm = full = None
+    min_m, win_m = int(cfg["min_months"]), int(cfg["window_months"])
+    # 第一層：CAPM（β 就是課文的市場 Beta；最近 5 年月報酬）
+    idx = np.where(complete & np.isfinite(y) & np.isfinite(mk))[0][-win_m:]
+    capm = ols(y[idx], mk[idx, None]) if len(idx) >= min_m else None
+    full: dict[str, Any] | None = None
+    names: list[str] = []
+    dropped: list[str] = []
     ind = np.full(n, np.nan)
-    if len(idx) >= int(cfg["min_months"]):
-        # 第一層：CAPM（β 就是課文的市場 Beta）
-        capm = ols(y[idx], mk[idx, None])
-        # 產業：同業籃子扣掉它自己的市場 Beta（課文進階試算：產業領先大盤的一部分只是波動本來就比較大）
-        pc = ols(peer_x[idx], mk[idx, None])
-        if capm is not None and pc is not None:
-            ind = peer_x - float(pc["coef"][1]) * mk
-            # 第二層：扣掉市場那一段後，再用產業與因子解釋（β 固定為 CAPM 的值，層與層不互相搶功勞）
-            y2 = y - float(capm["coef"][1]) * mk
-            full = ols(y2[idx], np.column_stack([ind[idx], fac[idx]]))
-            if full is not None:
-                tss = float(((y[idx] - y[idx].mean()) ** 2).sum())
-                full["r2"] = 1 - (full["sd"] ** 2) * (full["n"] - fac.shape[1] - 2) / tss if tss > 0 else float("nan")
+    if capm is not None and wk is not None and code in wk.ret.columns:
+        beta = float(capm["coef"][1])
+        min_w = int(cfg.get("exposure_min_weeks", 52))
+        yw = wk.ret[code].to_numpy(dtype=float) - wk.rf
+        y2 = yw - beta * wk.mk
+        # 各把尺都先扣掉它自己的市場 Beta（層與層不互相搶功勞）：同業籃子 → 風格 ETF。
+        # 類股報酬指數不放進來：大型股自己就是類股指數的大半（台積電占半導體類七成以上），拿它解釋自己沒有意義；
+        # 跟同業籃子一起放又高度共線，兩個係數會一正一負互相抵消。類股指數只當看風向的粗尺（三把尺、順風狀態、貼合度）。
+        cand: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+        cols_w = [c for c in peer_cols if c in wk.ret.columns]
+        if cols_w:
+            pw = wk.ret[cols_w].mean(axis=1, skipna=True).to_numpy(dtype=float).copy()
+            pw[wk.ret[cols_w].notna().sum(axis=1).to_numpy() < max(3, int(cfg["peer_min"]) // 2)] = np.nan
+            pw -= wk.rf
+            bp = _slope(pw, wk.mk, min_w)
+            if np.isfinite(bp):
+                ind = peer_r - fs.rf - bp * mk
+                cand["ind"] = (pw - bp * wk.mk, ind)
+        for k in style_keys or []:
+            if f"style:{k}" in wk.xw:
+                cand[k] = (wk.xw[f"style:{k}"], wk.xm[f"style:{k}"])
+            else:
+                dropped.append(k)
+        names = [k for k, (w, _) in cand.items() if np.nanstd(w) > 1e-9]
+        while True:
+            xs = np.column_stack([cand[k][0] for k in names]) if names else np.zeros((len(y2), 0))
+            okw = np.isfinite(y2) & np.isfinite(xs).all(axis=1)
+            iw = np.where(okw)[0]
+            if len(iw) >= min_w or not names:
+                break
+            # 湊不滿一年：先拿掉資料最少（起點最晚）的那一把尺
+            worst = min(names, key=lambda k: int(np.isfinite(cand[k][0]).sum()))
+            names.remove(worst)
+            if worst in (style_keys or []):
+                dropped.append(worst)
+        res = ols(y2[iw], xs[iw]) if names and len(iw) >= min_w else None
+        if res is not None:
+            b = {k: float(res["coef"][i + 1]) for i, k in enumerate(names)}
+            # 月 Alpha：月報酬扣掉市場與第二層後剩下的（含殘差）；t 值看它離 0 多遠
+            e = y - beta * mk - sum(b[k] * cand[k][1] for k in names)
+            im = np.where(complete & np.isfinite(e))[0][-win_m:]
+            # R²：市場加第二層能解釋的週報酬變動比例（曝險是用週報酬估的，貼合度也用同一批資料量）
+            ew = y2[iw] - xs[iw] @ res["coef"][1:] - float(res["coef"][0])
+            tss_w = float(((yw[iw] - yw[iw].mean()) ** 2).sum())
+            full = {
+                "alpha": None,
+                "alpha_t": None,
+                "b": {k: _r(b[k], 3) for k in names},
+                "t": {k: _r(res["t"][i + 1], 2) for i, k in enumerate(names)},
+                "r2": _r(max(0.0, 1 - float(ew @ ew) / tss_w), 3) if tss_w > 0 else None,
+                "resid_sd": None,
+                "n": len(im),
+                "weeks": int(res["n"]),
+                "wwindow": [wk.ends[int(iw[0])], wk.ends[int(iw[-1])]],
+                "window": [fs.labels[int(im[0])], fs.labels[int(im[-1])]] if len(im) else None,
+            }
+            if len(im) >= int(cfg.get("model_min_months", 12)):
+                em = e[im]
+                sd = float(em.std(ddof=1))
+                full.update(
+                    alpha=_r(float(em.mean()), 5),
+                    alpha_t=_r(float(em.mean() / (sd / np.sqrt(len(em)))), 2) if sd > 0 else None,
+                    resid_sd=_r(sd, 5),
+                )
     fit = {}
     okm = complete & np.isfinite(y) & np.isfinite(mk)
     for name, series in {
@@ -395,19 +517,18 @@ def stock_report(
     }.items():
         x = np.asarray(series, dtype=float) - fs.rf
         m = okm & np.isfinite(x)
-        mi = np.where(m)[0][-int(cfg["window_months"]) :]
-        res = ols(y[mi], x[mi, None]) if len(mi) >= int(cfg["min_months"]) else None
+        mi = np.where(m)[0][-win_m:]
+        res = ols(y[mi], x[mi, None]) if len(mi) >= min_m else None
         fit[name] = None if res is None else {"r2": _r(res["r2"], 3), "n": res["n"]}
-    style_g = fs.style[code].to_numpy(dtype=float)
 
-    def pack(res: dict[str, Any] | None, names: list[str]) -> dict[str, Any] | None:
+    def pack(res: dict[str, Any] | None, keys: list[str]) -> dict[str, Any] | None:
         if res is None:
             return None
         return {
             "alpha": _r(res["coef"][0], 5),
             "alpha_t": _r(res["t"][0], 2),
-            "b": {k: _r(res["coef"][i + 1], 3) for i, k in enumerate(names)},
-            "t": {k: _r(res["t"][i + 1], 2) for i, k in enumerate(names)},
+            "b": {k: _r(res["coef"][i + 1], 3) for i, k in enumerate(keys)},
+            "t": {k: _r(res["t"][i + 1], 2) for i, k in enumerate(keys)},
             "r2": _r(res["r2"], 3),
             "resid_sd": _r(res["sd"], 5),
             "n": res["n"],
@@ -418,15 +539,15 @@ def stock_report(
         "r": _arr(r),
         "peer": _arr(peer_r),
         "ind": _arr(ind),
-        "style": [None if not np.isfinite(v) else int(v) for v in style_g],
+        "sector": sector,
         "peers": None
         if peers is None
         else {"kind": peers.kind, "codes": peers.codes, "corr": peers.corr, "cross": peers.cross},
         "fit": fit,
         "window": [fs.labels[int(idx[0])], fs.labels[int(idx[-1])]] if len(idx) else None,
         "capm": pack(capm, ["mkt"]),
-        "full": pack(full, ["ind", *used]),
-        "dropped": [k for k in FACTORS if k not in used],
+        "full": full,
+        "dropped": dropped,
     }
 
 
@@ -442,11 +563,11 @@ def factors_json(fs: FactorSet, cfg: dict[str, Any]) -> dict[str, Any]:
         "f": {k: _arr(v) for k, v in fs.f.items()},
         "start": cover,
         "labels": FACTOR_LABELS,
-        "style_labels": [f"{s}・{v}" for s in STYLE_SIZE for v in STYLE_VALUE],
-        "style_ret": [_arr(fs.style_ret[:, k]) for k in range(9)],
         "universe": fs.counts["universe"],
         "window_months": int(cfg["window_months"]),
         "min_months": int(cfg["min_months"]),
+        "exposure_weeks": int(cfg.get("exposure_weeks", 104)),
+        "exposure_min_weeks": int(cfg.get("exposure_min_weeks", 52)),
         "peer_min": int(cfg["peer_min"]),
         "peer_max": int(cfg["peer_max"]),
         "peer_min_corr": float(cfg["peer_min_corr"]),
@@ -475,11 +596,20 @@ def build(
     fine_of: dict[str, list[str]],
     out: Path,
     cfg: dict[str, Any] | None = None,
+    index: pd.DataFrame | None = None,
+    holdings: pd.DataFrame | None = None,
+    markets: dict[str, str] | None = None,
+    names: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """寫出 attribution/factors.json 與 attribution/{代號}.json（普通股）。"""
+    """寫出 attribution/factors.json、tailwind.json（順風檢查）、tags.json（每檔的風格與類股）與 {代號}.json（普通股）。
+
+    index：指數表（類股報酬指數、ETF 追蹤的報酬指數）；holdings：風格 ETF 的持股（沒有也能算，只是少了類股超配）。
+    """
     from pipeline.derive.export import write_json
 
     cfg = cfg or settings()
+    tw_cfg = dict(cfg.get("tailwind") or tailwind.settings())
+    markets, names = markets or {}, names or {}
     base = out / "attribution"
     if base.exists():
         for old in base.glob("*.json"):
@@ -489,11 +619,37 @@ def build(
         log.info("報酬拆解：月數不足（%d）", len(fs.labels))
         return {"stocks": 0}
     write_json(base / "factors.json", factors_json(fs, cfg))
-    resid = weekly_residuals(
-        adj[[c for c in adj.columns if is_common_stock(str(c))]],
-        int(cfg["peer_weeks"]),
-        float(cfg.get("peer_cover", 0.9)),
+    commons = [c for c in adj.columns if is_common_stock(str(c))]
+    dates = [str(d) for d in adj.index]
+    th = tailwind.build_thermos(adj, index if index is not None else pd.DataFrame(), dates, names, tw_cfg)
+    if "mkt" not in th.daily.columns:
+        th.daily["mkt"] = market.reindex(adj.index).to_numpy(dtype=float)
+    wk = build_weekly(adj[commons], th, fs, cfg)
+    style_keys = [str(st["key"]) for st in th.styles]
+    tw = tailwind.build(
+        th=th,
+        adj=adj,
+        mcap=fs.mcap_now,
+        industries=industries,
+        markets=markets,
+        names=names,
+        commons=commons,
+        holdings=holdings,
+        month_pos=fs.pos,
+        cfg=tw_cfg,
     )
+    # 各把尺的月報酬扣掉自己的市場 Beta（前端期間拆解用）與 Beta
+    for item in tw["styles"]:
+        col = f"style:{item['key']}"
+        item["x"] = _arr(wk.xm[col]) if col in wk.xm else None
+        item["beta"] = _r(wk.beta.get(col), 3)
+    for item in tw["sectors"]:
+        col = f"sector:{item['key']}"
+        item["x"] = _arr(wk.xm[col]) if col in wk.xm else None
+        item["beta"] = _r(wk.beta.get(col), 3)
+    write_json(base / "tailwind.json", tw)
+
+    resid = weekly_residuals(adj[commons], int(cfg["peer_weeks"]), float(cfg.get("peer_cover", 0.9)))
     by_ind: dict[str, set[str]] = {}
     by_fine: dict[str, set[str]] = {}
     codes = [c for c in fs.ret.columns]
@@ -507,18 +663,42 @@ def build(
         for c in codes
     }
     peers = select_peers(resid, cands, cfg)
+    pct = tailwind.style_percentiles(fs.chars_now) if fs.chars_now else pd.DataFrame()
+    held = tailwind.holdings_by_code(holdings, th.styles)
+    cut = float(tw_cfg["style_pct"])
+    tags: list[list[Any]] = []
     n = 0
     for c in codes:
+        sec = tailwind.sector_key(industries.get(c))
+        sec = sec if sec in th.sectors else None
         rulers = {}
+        if sec:
+            rulers["sector"] = pd.Series(wk.raw_m[f"sector:{sec}"], index=fs.ret.index)
         if industries.get(c):
             rulers["official"] = equal_weight_monthly(fs.ret, sorted(by_ind[industries[c]]), c)
         fine = fine_of.get(c) or []
         if fine:
             rulers["fine"] = equal_weight_monthly(fs.ret, sorted(by_fine.get(fine[0], set())), c)
-        rep = stock_report(c, fs, peers.get(c), rulers, cfg)
+        rep = stock_report(c, fs, peers.get(c), rulers, cfg, wk, sec, style_keys)
         if rep is None or not any(v is not None for v in rep["r"]):
             continue
+        p: dict[str, float | None] = {
+            str(k): (None if c not in pct.index or not np.isfinite(pct.at[c, k]) else round(float(pct.at[c, k])))
+            for k in pct
+        }
+        rep["styles"] = p
+        rep["held"] = held.get(c, {})
+        rep["main"] = tailwind.main_style(p, rep["held"], style_keys, cut)
+        tags.append([c, rep["main"], sec])
         write_json(base / f"{c}.json", rep)
         n += 1
+    write_json(base / "tags.json", {"date": dates[-1], "columns": ["code", "style", "sector"], "rows": tags})
     log.info("報酬拆解：%d 檔、%d 個月（%s～%s）", n, len(fs.labels), fs.labels[0], fs.labels[-1])
-    return {"stocks": n, "months": len(fs.labels), "start": fs.labels[0], "end": fs.labels[-1]}
+    return {
+        "stocks": n,
+        "months": len(fs.labels),
+        "start": fs.labels[0],
+        "end": fs.labels[-1],
+        "styles": {s["key"]: s.get("state") or (s.get("since") or {}).get("state") for s in tw["styles"]},
+        "sectors": len(tw["sectors"]),
+    }

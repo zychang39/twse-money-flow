@@ -58,13 +58,17 @@ def test_build_recovers_beta_and_peers(tmp_path):
     )
     assert res["stocks"] == 90 and res["months"] >= 30
     f = json.loads((tmp_path / "attribution" / "factors.json").read_text(encoding="utf-8"))
-    assert set(f["f"]) == {"smb", "hml", "umd", "rmw", "lv"} and len(f["style_ret"]) == 9
+    assert set(f["f"]) == {"smb", "hml", "umd", "rmw", "lv"} and "style_ret" not in f
     assert len(f["mkt"]) == len(f["months"]) == len(f["rf"])
 
     s = json.loads((tmp_path / "attribution" / "1101.json").read_text(encoding="utf-8"))
-    assert abs(s["capm"]["b"]["mkt"] - 1.6) < 0.35  # 月報酬估出來的 β 接近真值
+    b, t = s["capm"]["b"]["mkt"], s["capm"]["t"]["mkt"]
+    assert abs(b - 1.6) < 2.5 * b / t  # 月報酬估出來的 β 落在真值的 2.5 個標準誤內
     assert s["capm"]["n"] >= 18 and s["full"] is not None
-    assert {"ind", "smb", "hml", "umd"} <= set(s["full"]["b"])
+    # 沒有指數表與 ETF：第二層只有同業籃子（曝險用週報酬估；同產業的衝擊是共同的 → 曝險為正且顯著）
+    assert set(s["full"]["b"]) == {"ind"} and s["full"]["b"]["ind"] > 0.5 and s["full"]["t"]["ind"] > 3
+    assert s["full"]["weeks"] >= 78 and s["full"]["alpha"] is not None and 0 < s["full"]["r2"] <= 1
+    assert s["sector"] is None and s["dropped"] == ["value", "quality", "momentum", "size", "lowvol"]  # 沒有 ETF 資料
     # 同業：5～10 家、全部來自同一個真正的產業
     peers = s["peers"]
     assert peers["kind"] == "peer" and 5 <= len(peers["codes"]) <= 10
@@ -84,3 +88,77 @@ def test_ols_and_month_ends():
     assert A.ols(y[:3], x[:3]) is None  # 樣本太少
     pos, labels = A.month_ends(pd.Index(["2026-01-29", "2026-01-30", "2026-02-02", "2026-02-27", "2026-03-02"]))
     assert pos == [1, 3, 4] and labels == ["2026-01", "2026-02", "2026-03"]
+
+
+def _index_table(dates: list[str], series: dict[str, np.ndarray]) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {"date": d, "name": name, "kind": "return", "close": float(v)}
+            for name, vals in series.items()
+            for d, v in zip(dates, vals, strict=True)
+            if np.isfinite(v)
+        ]
+    )
+
+
+def test_layer2_uses_peer_basket_and_style_etfs(tmp_path):
+    """第二層：同業籃子＋風格 ETF（週報酬）；類股指數只當尺；掛牌太短的 ETF 先不放進模型並寫出來。"""
+    adj, m_tr, value, shares, pb, roe, industries, _group = _market()
+    dates = list(adj.index)
+    rng = np.random.default_rng(11)
+    mkt = np.diff(np.log(m_tr.to_numpy()), prepend=np.log(m_tr.iloc[0]))
+    tilt = rng.normal(0, 0.006, len(dates))  # 「價值」這個特徵自己的報酬
+    # 1101 另外帶 0.8 倍的價值特徵；價值 ETF＝0.7 × 市場＋特徵；動能 ETF 只有最後 200 天（不到 78 週）
+    adj = adj.copy()
+    adj["1101"] = adj["1101"] * np.exp(np.cumsum(0.8 * tilt))
+    etf_value = 20 * np.exp(np.cumsum(0.7 * mkt + tilt))
+    etf_mom = np.where(np.arange(len(dates)) >= len(dates) - 200, 15 * np.exp(np.cumsum(1.1 * mkt)), np.nan)
+    adj["00940"] = etf_value
+    adj["009816"] = etf_mom
+    index = _index_table(
+        dates,
+        {
+            "發行量加權股價報酬指數": m_tr.to_numpy(),
+            "產業0類報酬指數": 100 * np.exp(np.cumsum(mkt + rng.normal(0, 0.004, len(dates)))),
+        },
+    )
+    cfg = {
+        **CFG,
+        "tailwind": {
+            **A.tailwind.settings(),
+            "styles": [
+                {"key": "value", "label": "價值", "etf": "00940", "index": "不存在的指數"},
+                {"key": "momentum", "label": "動能", "etf": "009816", "index": "不存在的指數"},
+            ],
+        },
+    }
+    A.build(
+        adj=adj,
+        close=adj,
+        value=value.reindex(columns=adj.columns),
+        shares=shares,
+        pb=pb,
+        roe=roe,
+        market=m_tr,
+        industries=industries,
+        fine_of={},
+        out=tmp_path,
+        cfg=cfg,
+        index=index,
+        markets={c: "twse" for c in adj.columns},
+        names={"00940": "價值 ETF", "009816": "動能 ETF"},
+    )
+    s = json.loads((tmp_path / "attribution" / "1101.json").read_text(encoding="utf-8"))
+    assert set(s["full"]["b"]) == {"ind", "value"} and s["dropped"] == ["momentum"]
+    assert abs(s["full"]["b"]["value"] - 0.8) < 0.3 and s["full"]["t"]["value"] > 3
+    assert s["sector"] == "產業0" and s["fit"]["sector"]["r2"] > 0
+    tw = json.loads((tmp_path / "attribution" / "tailwind.json").read_text(encoding="utf-8"))
+    by = {x["key"]: x for x in tw["styles"]}
+    assert by["value"]["source"] == "etf" and abs(by["value"]["beta"] - 0.7) < 0.15
+    assert len(by["value"]["x"]) == len(by["value"]["m"]) == len(s["r"])
+    # 未滿 12 個月：沒有 12 個月報酬，改用有資料以來的同一段期間（暫定）
+    assert by["momentum"]["r"]["12"] is None and by["momentum"]["since"]["state"] in ("tail", "neutral", "head")
+    assert [x["key"] for x in tw["sectors"]] == ["產業0"] and tw["sectors"][0]["n"] == 30
+    tags = json.loads((tmp_path / "attribution" / "tags.json").read_text(encoding="utf-8"))
+    assert tags["columns"] == ["code", "style", "sector"] and ["1101", s["main"], "產業0"] in tags["rows"]
+    assert set(s["styles"]) == {"value", "quality", "momentum", "size", "lowvol"}

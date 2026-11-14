@@ -420,6 +420,11 @@ def task_daily(ctx: RunContext, sources: list[str] | None = None, heal_days: int
         from pipeline import tasks_advanced
 
         tasks_advanced.run_etf_holdings(ctx, target)
+    # 7) 風格與大盤 ETF 持股（順風檢查；每檔滿 7 天才再抓）
+    if not sources or "style_etf" in sources:
+        from pipeline import tasks_advanced
+
+        tasks_advanced.run_style_etf_holdings(ctx, target)
 
 
 #: 2026-10-08：補抓（catchup）只抓資料新鮮度表上的每日來源；每日任務其餘的來源（區間型、快照、美債、主動式 ETF 持股）
@@ -438,6 +443,7 @@ def task_daily_extras(ctx: RunContext) -> None:
         run_snapshot(ctx, SPECS[sid], target)
     tasks_advanced.run_ust(ctx, target.year)
     tasks_advanced.run_etf_holdings(ctx, target)
+    tasks_advanced.run_style_etf_holdings(ctx, target)
 
 
 def _after_financial_deadline(today: date) -> bool:

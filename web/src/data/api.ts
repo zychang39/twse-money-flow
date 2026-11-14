@@ -146,6 +146,9 @@ export const loadMarginDay = (date: string) => getJson<import('./types').MarginD
 
 /** 報酬拆解（2026-10-27）：月因子與個股檔（只有報酬拆解頁載入）；舊版部署或該股沒有檔案時為 null。 */
 export const loadAttrFactors = () => getJson<import('./types').AttrFactors>('attribution/factors.json').catch(() => null);
+/** 順風檢查（風格 ETF 與類股的狀態）；舊版資料沒有這個檔 → null */
+export const loadAttrTailwind = () => getJson<import('./types').Tailwind>('attribution/tailwind.json').catch(() => null);
+export const loadAttrTags = () => getJson<import('./types').AttrTags>('attribution/tags.json').catch(() => null);
 export const loadAttrStock = (code: string) => getJson<import('./types').AttrStock>(`attribution/${encodeURIComponent(code)}.json`).catch((e: unknown) => {
   if (isNotFound(e)) return null;
   throw e;
