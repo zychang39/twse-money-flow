@@ -150,8 +150,12 @@ export function GroupEditor({ focus, focusNew, onClose, groups, counts, prefs, h
   const grab = useRef<{ y: number; from: number; h: number } | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const refocus = useRef<string | null>(null);
-  useEffect(() => { setLocal(null); }, [groups.join('\u0000')]);
-  const shown = local && local.length === groups.length && local.every((g) => groups.includes(g)) ? local : groups;
+  // local 留到設定追上為止（順序一樣了），或群組增減了才放掉。不能「groups 一變就放掉」：
+  // 連續移動兩次時，第一次的重讀結果會晚到，那一刻放掉 local 會讓清單先跳回舊順序、焦點也跟著掉
+  const sameSet = !!local && local.length === groups.length && local.every((g) => groups.includes(g));
+  const caughtUp = sameSet && local!.every((g, i) => groups[i] === g);
+  useEffect(() => { if (local && (!sameSet || caughtUp)) setLocal(null); }, [local, sameSet, caughtUp]);
+  const shown = sameSet ? local! : groups;
   useEffect(() => {
     // 鍵盤移動後節點換了位置，焦點放回同一個把手
     if (!refocus.current) return;
@@ -215,7 +219,7 @@ export function GroupEditor({ focus, focusNew, onClose, groups, counts, prefs, h
   // 開關按下去先照新狀態顯示（hotLocal），等設定重讀後交還——不然重讀前的畫面更新會讓開關彈回去一下
   const [hotLocal, setHotLocal] = useState<boolean | null>(null);
   const hotStored = prefs.hidden.includes(HOT_LIST);
-  useEffect(() => { setHotLocal(null); }, [hotStored]);
+  useEffect(() => { if (hotLocal !== null && hotLocal === hotStored) setHotLocal(null); }, [hotLocal, hotStored]); // 設定追上了才交還
   const hotHidden = hotLocal ?? hotStored;
   const setHot = (hidden: boolean) => { setHotLocal(hidden); void setWatchListHidden(HOT_LIST, hidden); };
   const quick: { key: string; label: string; add: () => void }[] = [];
