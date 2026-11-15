@@ -1,17 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { GROUP_NAME_MAX, cleanGroupName, defaultMoveTarget, effectiveGroups, groupCounts, groupNameError } from './watchGroups';
+import { GROUP_NAME_MAX, cleanGroupName, defaultMoveTarget, effectiveGroups, groupCounts, groupNameError, moveItem, normWatchPrefs } from './watchGroups';
 
 const w = (...groups: string[]) => groups.map((group) => ({ group }));
 
 describe('自選群組', () => {
   it('順序：有股票的依第一檔的順序（預設排最前面），建立但還沒有股票的排在後面', () => {
-    expect(effectiveGroups(w('Latest', '預設', 'Latest', 'ETF'), { groups: ['觀察中', 'ETF'], hidden: [] })).toEqual(['預設', 'Latest', 'ETF', '觀察中']);
+    expect(effectiveGroups(w('Latest', '預設', 'Latest', 'ETF'), { groups: ['觀察中', 'ETF'], hidden: [], order: [] })).toEqual(['預設', 'Latest', 'ETF', '觀察中']);
   });
 
   it('「預設」沒有股票就不出現；使用者自己建立的「預設」會出現', () => {
     expect(effectiveGroups(w('Latest'), null)).toEqual(['Latest']);
-    expect(effectiveGroups([], { groups: ['預設'], hidden: [] })).toEqual(['預設']);
+    expect(effectiveGroups([], { groups: ['預設'], hidden: [], order: [] })).toEqual(['預設']);
     expect(effectiveGroups([], undefined)).toEqual([]);
+  });
+
+  it('拖曳排過：照排好的順序；之後才出現的群組接在後面；已經不存在的名稱略過', () => {
+    const prefs = { groups: ['觀察中'], hidden: [], order: ['Latest', '已刪除', '觀察中', '預設'] };
+    expect(effectiveGroups(w('預設', 'Latest', 'ETF'), prefs)).toEqual(['Latest', '觀察中', '預設', 'ETF']);
+    // 舊資料沒有 order 欄位也能用
+    expect(effectiveGroups(w('預設', 'Latest'), { groups: [] })).toEqual(['預設', 'Latest']);
+    expect(normWatchPrefs({ hidden: ['hot'] })).toEqual({ groups: [], hidden: ['hot'], order: [] });
+  });
+
+  it('移動一個項目（拖曳的落點）', () => {
+    expect(moveItem(['a', 'b', 'c', 'd'], 0, 2)).toEqual(['b', 'c', 'a', 'd']);
+    expect(moveItem(['a', 'b', 'c', 'd'], 3, 0)).toEqual(['d', 'a', 'b', 'c']);
+    expect(moveItem(['a', 'b', 'c'], 1, 9)).toEqual(['a', 'c', 'b']); // 超出範圍夾在尾端
+    expect(moveItem(['a', 'b', 'c'], 5, 0)).toEqual(['a', 'b', 'c']);
   });
 
   it('每個群組的檔數', () => {

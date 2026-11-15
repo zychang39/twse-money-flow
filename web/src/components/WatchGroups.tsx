@@ -3,15 +3,16 @@
  *
  * 操作方式參考 iOS 的清單管理（股市 App 的「管理觀察清單」、提醒事項的列表）：
  * - 膠囊列最後一顆是「＋」（新群組）；「編輯」固定在列的右邊；長按（桌機按右鍵）任一個群組＝直接編輯那一個。
- * - 編輯面板：每列左邊是圓圈減號（刪除）、右邊是鉛筆（改名）；系統清單用開關顯示或隱藏；
+ * - 編輯面板：每列左邊是圓圈減號（刪除）、右邊是鉛筆（改名）與三條線的把手（按住上下拖曳排序；鍵盤用上下鍵）；
+ *   系統清單用開關顯示或隱藏；
  *   不在列上的「預設」與隱藏的系統清單出現在「快速加入」，一點就回來。
  * - 刪除不跳確認視窗：空群組直接刪；有股票的群組在那一列展開兩個選擇（股票移到別的群組／一起移除）。
  *   刪除後頁面底部出現「復原」（可逆的動作用復原，不用「你確定嗎？」）。
  */
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { createWatchGroup, deleteWatchGroup, renameWatchGroup, setWatchListHidden, type WatchGroupUndo } from '../db/db';
-import { ALL_GROUPS, DEFAULT_GROUP, GROUP_NAME_MAX, HOT_LIST, cleanGroupName, defaultMoveTarget, groupNameError, type WatchPrefs } from '../lib/watchGroups';
-import { IconMinusCircle, IconPencil, IconPlus } from './Icons';
+import { createWatchGroup, deleteWatchGroup, renameWatchGroup, setWatchGroupOrder, setWatchListHidden, type WatchGroupUndo } from '../db/db';
+import { ALL_GROUPS, DEFAULT_GROUP, GROUP_NAME_MAX, HOT_LIST, cleanGroupName, defaultMoveTarget, groupNameError, moveItem, type WatchPrefs } from '../lib/watchGroups';
+import { IconGrip, IconMinusCircle, IconPencil, IconPlus } from './Icons';
 import { Sheet } from './Sheet';
 
 const LONG_MS = 480;
@@ -136,6 +137,69 @@ export function ManageGroupsSheet({ mode, focus, onClose, groups, counts, prefs,
   const [target, setTarget] = useState('');
   const [msg, setMsg] = useState('');
   const open = mode !== null;
+  // 拖曳排序：drag＝正在拖的那一列（from 原位置、to 目前落點、dy 位移、h 一列的高度）；
+  // local＝放開後先照新順序顯示，等設定重讀（groups 變了）再交還
+  const [drag, setDrag] = useState<{ from: number; to: number; dy: number; h: number } | null>(null);
+  const [local, setLocal] = useState<string[] | null>(null);
+  const grab = useRef<{ y: number; from: number; h: number } | null>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const refocus = useRef<string | null>(null);
+  useEffect(() => { setLocal(null); }, [groups.join('\u0000')]);
+  const shown = local && local.length === groups.length && local.every((g) => groups.includes(g)) ? local : groups;
+  useEffect(() => {
+    // 鍵盤移動後節點換了位置，焦點放回同一個把手
+    if (!refocus.current) return;
+    listRef.current?.querySelector<HTMLElement>(`[data-grip="${CSS.escape(refocus.current)}"]`)?.focus();
+    refocus.current = null;
+  });
+  async function reorder(from: number, to: number, viaKey = false) {
+    if (to === from || to < 0 || to >= shown.length) return;
+    const next = moveItem(shown, from, to);
+    setLocal(next);
+    setMsg(`「${shown[from]}」移到第 ${to + 1} 個`);
+    if (viaKey) refocus.current = shown[from];
+    await setWatchGroupOrder(next);
+  }
+  /** 位移夾在清單範圍內（第一列的上緣到最後一列的下緣） */
+  const clampDy = (g: { y: number; from: number; h: number }, y: number) => Math.max(-g.from * g.h, Math.min((shown.length - 1 - g.from) * g.h, y - g.y));
+  const gripEvents = (i: number) => ({
+    onPointerDown: (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      setRenaming(null); setDeleting(null); setErr('');
+      const row = (e.currentTarget as HTMLElement).closest('.group-row') as HTMLElement | null;
+      const h = (row?.getBoundingClientRect().height ?? 56) + 1; // 一列＋分隔線
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      grab.current = { y: e.clientY, from: i, h };
+      setDrag({ from: i, to: i, dy: 0, h });
+    },
+    onPointerMove: (e: PointerEvent) => {
+      const g = grab.current;
+      if (!g) return;
+      const dy = clampDy(g, e.clientY);
+      setDrag({ from: g.from, to: g.from + Math.round(dy / g.h), dy, h: g.h });
+    },
+    // 落點用放開那一刻的位置算（不靠上一次畫面更新的狀態：手指動得快時畫面可能還沒跟上）
+    onPointerUp: (e: PointerEvent) => {
+      const g = grab.current;
+      grab.current = null; setDrag(null);
+      if (g) void reorder(g.from, g.from + Math.round(clampDy(g, e.clientY) / g.h));
+    },
+    onPointerCancel: () => { grab.current = null; setDrag(null); },
+    onKeyDown: (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      void reorder(i, i + (e.key === 'ArrowUp' ? -1 : 1), true);
+    },
+  });
+  /** 拖曳中的位移：被拖的那一列跟著手指；它經過的列讓出一格 */
+  const shift = (j: number): string | undefined => {
+    if (!drag) return undefined;
+    if (j === drag.from) return `translateY(${drag.dy}px)`;
+    if (drag.from < drag.to && j > drag.from && j <= drag.to) return `translateY(${-drag.h}px)`;
+    if (drag.from > drag.to && j >= drag.to && j < drag.from) return `translateY(${drag.h}px)`;
+    return undefined;
+  };
   useEffect(() => {
     if (!open) return;
     setDeleting(null); setErr(''); setMsg('');
@@ -205,11 +269,11 @@ export function ManageGroupsSheet({ mode, focus, onClose, groups, counts, prefs,
 
       <h3 class="eyebrow group-h">我的群組</h3>
       {groups.length ? (
-        <ul class="group-list" data-testid="group-list">
-          {groups.map((g) => {
+        <ul class={`group-list ${drag ? 'sorting' : ''}`} data-testid="group-list" ref={listRef}>
+          {shown.map((g, i) => {
             const n = counts.get(g) ?? 0;
             return (
-              <li key={g} class="group-row-wrap" data-testid={`group-row-${g}`}>
+              <li key={g} class={`group-row-wrap ${drag?.from === i ? 'dragging' : ''}`} data-testid={`group-row-${g}`} style={{ transform: shift(i) }}>
                 <div class="group-row">
                   <button class="icon-btn group-del" aria-label={`刪除群組「${g}」`} aria-expanded={n ? deleting === g : undefined} onClick={() => askDelete(g)}><IconMinusCircle /></button>
                   {renaming === g ? (
@@ -223,6 +287,10 @@ export function ManageGroupsSheet({ mode, focus, onClose, groups, counts, prefs,
                     <>
                       <span class="grow group-name"><span class="body ellipsis">{g}</span><span class="caption muted">{n ? `${n} 檔` : '還沒有股票'}</span></span>
                       <button class="icon-btn group-edit" aria-label={`把「${g}」改名`} onClick={() => { setDeleting(null); setErr(''); setRenaming(g); setDraft(g); }}><IconPencil /></button>
+                      {shown.length > 1 ? (
+                        <button class="icon-btn group-grip" data-grip={g} aria-label={`調整「${g}」的順序`} aria-description={`第 ${i + 1} 個，共 ${shown.length} 個；按住上下拖曳，或用上下鍵移動`}
+                          {...gripEvents(i)}><IconGrip /></button>
+                      ) : null}
                     </>
                   )}
                 </div>
@@ -265,7 +333,7 @@ export function ManageGroupsSheet({ mode, focus, onClose, groups, counts, prefs,
           </div>
         </>
       ) : null}
-      <p class="caption muted group-tip">長按群組列上的任一個群組，可以直接編輯它。刪除後可以按「復原」。</p>
+      <p class="caption muted group-tip">按住右邊的三條線上下拖曳，可以調整群組順序。長按群組列上的任一個群組，可以直接編輯它。刪除後可以按「復原」。</p>
     </Sheet>
   );
 }

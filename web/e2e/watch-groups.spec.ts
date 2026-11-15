@@ -125,4 +125,40 @@ test.describe('自選群組管理', () => {
     await chip(page, '預設').click({ button: 'right' });
     await expect(page.getByLabel('「預設」的新名稱')).toHaveValue('預設');
   });
+  test('拖曳排序：按住三條線上下拖；鍵盤用上下鍵；順序記得住', async ({ page }) => {
+    await seed(page);
+    await page.getByTestId('group-new').click();
+    await page.getByTestId('group-new-name').fill('觀察中');
+    await page.getByTestId('group-new-submit').click();
+    await expect(page.locator('.sheet-backdrop')).toHaveCount(0);
+    const names = async () => (await chips(page).getByRole('button').allTextContents()).filter((t) => t && t !== '全部' && !t.startsWith('熱門動能'));
+    expect(await names()).toEqual(['預設', 'Latest', '觀察中']);
+    await page.getByTestId('group-edit').click();
+    const rows = () => page.getByTestId('group-list').locator('.group-name .body').allTextContents();
+    // 把最後一個（觀察中）拖到最前面
+    const grip = page.getByRole('button', { name: '調整「觀察中」的順序' });
+    await expect(page.locator('.sheet')).toHaveCSS('transform', /matrix\(1, 0, 0, 1, 0, 0\)|none/); // 面板滑入完成，位置才量得準
+    const first = await page.getByTestId('group-row-預設').boundingBox();
+    const g = await grip.boundingBox();
+    expect(g!.width).toBeGreaterThanOrEqual(44);
+    await page.mouse.move(g!.x + g!.width / 2, g!.y + g!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(g!.x + g!.width / 2, first!.y + first!.height / 2, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(rows).toEqual(['觀察中', '預設', 'Latest']);
+    await expect(page.getByTestId('group-msg')).toHaveText('「觀察中」移到第 1 個');
+    // 鍵盤：Latest 往上一格；焦點留在同一個把手上，可以連續移動
+    const key = page.getByRole('button', { name: '調整「Latest」的順序' });
+    await key.focus();
+    await key.press('ArrowUp');
+    await expect.poll(rows).toEqual(['觀察中', 'Latest', '預設']);
+    await expect(key).toBeFocused();
+    await key.press('ArrowUp');
+    await expect.poll(rows).toEqual(['Latest', '觀察中', '預設']);
+    await page.getByRole('button', { name: '關閉' }).click();
+    expect(await names()).toEqual(['Latest', '觀察中', '預設']);
+    await page.reload();
+    await expect(chip(page, 'Latest')).toBeVisible();
+    expect(await names()).toEqual(['Latest', '觀察中', '預設']);
+  });
 });

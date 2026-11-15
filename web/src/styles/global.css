@@ -328,6 +328,11 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 .group-edit { color: var(--brand); }
 .group-row .icon-btn svg { width: 1.375rem; height: 1.375rem; }
 .group-name { display: flex; flex-direction: column; min-width: 0; }
+.group-grip { color: var(--text-2); cursor: grab; touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+.group-list.sorting .group-row-wrap { transition: transform var(--dur-fast) var(--ease-out); }
+.group-list.sorting .group-row-wrap.dragging { transition: none; position: relative; z-index: 1; background: var(--surface-3); border-radius: var(--r-md); border-top-color: transparent; box-shadow: var(--shadow-float); }
+.group-list.sorting .group-row-wrap.dragging + .group-row-wrap { border-top-color: transparent; }
+.group-list.sorting .group-grip { cursor: grabbing; }
 .group-rename { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
 .group-rename .input { min-width: 0; }
 .group-confirm { padding: 0 0 var(--s-3) calc(var(--tap) + var(--s-2)); display: flex; flex-direction: column; gap: var(--s-2); }

@@ -11,9 +11,13 @@ export interface WatchPrefs {
   groups: string[];
   /** 隱藏的系統清單 id（目前只有 'hot'） */
   hidden: string[];
+  /** 使用者拖曳排好的群組順序（2026-11-15）；沒排過是空的。不在裡面的群組排在後面 */
+  order: string[];
 }
 
-export const DEFAULT_WATCH_PREFS: WatchPrefs = { groups: [], hidden: [] };
+export const DEFAULT_WATCH_PREFS: WatchPrefs = { groups: [], hidden: [], order: [] };
+/** 舊資料或備份裡少欄位時補齊 */
+export const normWatchPrefs = (p: Partial<WatchPrefs> | null | undefined): WatchPrefs => ({ groups: [...(p?.groups ?? [])], hidden: [...(p?.hidden ?? [])], order: [...(p?.order ?? [])] });
 export const DEFAULT_GROUP = '預設';
 export const ALL_GROUPS = '全部';
 /** 系統清單的 id（存在 watchPrefs.hidden） */
@@ -21,15 +25,28 @@ export const HOT_LIST = 'hot';
 export const GROUP_NAME_MAX = 12;
 
 /**
- * 畫面上的群組順序：有股票的群組依第一檔股票的順序（「預設」排最前面，與原本相同），
- * 接著是使用者建立、還沒有股票的群組（依建立順序）。
+ * 畫面上的群組順序。
+ * - 沒排過：有股票的群組依第一檔股票的順序（「預設」排最前面，與原本相同），接著是使用者建立、還沒有股票的群組（依建立順序）。
+ * - 拖曳排過（prefs.order）：照排好的順序；之後才出現的群組（不在 order 裡）依上面的規則接在後面。
  */
-export function effectiveGroups(watch: { group: string }[], prefs: WatchPrefs | null | undefined): string[] {
+export function effectiveGroups(watch: { group: string }[], prefs: Partial<WatchPrefs> | null | undefined): string[] {
   const used = new Set(watch.map((w) => w.group));
-  const out: string[] = [];
-  if (used.has(DEFAULT_GROUP)) out.push(DEFAULT_GROUP);
-  for (const w of watch) if (!out.includes(w.group)) out.push(w.group);
-  for (const g of prefs?.groups ?? []) if (!out.includes(g)) out.push(g);
+  const base: string[] = [];
+  if (used.has(DEFAULT_GROUP)) base.push(DEFAULT_GROUP);
+  for (const w of watch) if (!base.includes(w.group)) base.push(w.group);
+  for (const g of prefs?.groups ?? []) if (!base.includes(g)) base.push(g);
+  const order = prefs?.order ?? [];
+  if (!order.length) return base;
+  const rank = new Map(order.map((g, i) => [g, i] as const));
+  return [...base.filter((g) => rank.has(g)).sort((a, b) => rank.get(a)! - rank.get(b)!), ...base.filter((g) => !rank.has(g))];
+}
+
+/** 把第 from 個移到第 to 個（拖曳排序）；超出範圍會夾在頭尾 */
+export function moveItem<T>(list: T[], from: number, to: number): T[] {
+  const out = [...list];
+  if (from < 0 || from >= out.length) return out;
+  const [x] = out.splice(from, 1);
+  out.splice(Math.max(0, Math.min(out.length, to)), 0, x);
   return out;
 }
 

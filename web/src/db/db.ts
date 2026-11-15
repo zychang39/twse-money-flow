@@ -6,7 +6,7 @@
 import { normCode } from '../lib/code';
 import { prepareTrade } from '../lib/ritual';
 import { DEFAULT_PORTFOLIO, riskLimitOf, type PortfolioSettings } from '../lib/settings';
-import { DEFAULT_WATCH_PREFS, cleanGroupName, type WatchPrefs } from '../lib/watchGroups';
+import { DEFAULT_WATCH_PREFS, cleanGroupName, normWatchPrefs, type WatchPrefs } from '../lib/watchGroups';
 import { migrateV5 } from './migrations';
 import type { Strategy, TrackedSignal } from '../lib/tracking';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
@@ -434,8 +434,7 @@ export async function putWatchInGroup(codes: string[], group: string): Promise<{
 const WATCH_PREFS_KEY = 'watchPrefs';
 
 export async function getWatchPrefs(): Promise<WatchPrefs> {
-  const p = await getSetting<Partial<WatchPrefs>>(WATCH_PREFS_KEY, DEFAULT_WATCH_PREFS);
-  return { groups: [...(p.groups ?? [])], hidden: [...(p.hidden ?? [])] };
+  return normWatchPrefs(await getSetting<Partial<WatchPrefs>>(WATCH_PREFS_KEY, DEFAULT_WATCH_PREFS));
 }
 
 /** 建立一個還沒有股票的群組（已存在就不動）。回傳整理後的名稱。 */
@@ -446,6 +445,12 @@ export async function createWatchGroup(raw: string): Promise<string> {
   return name;
 }
 
+/** 記下拖曳排好的群組順序（整份清單，依畫面由左到右）。 */
+export async function setWatchGroupOrder(order: string[]): Promise<void> {
+  const prefs = await getWatchPrefs();
+  await setSetting(WATCH_PREFS_KEY, { ...prefs, order: order.filter((g, i, a) => a.indexOf(g) === i) });
+}
+
 /** 群組改名；新名稱已經有群組時＝合併（股票都移過去）。回傳移動的檔數。 */
 export async function renameWatchGroup(from: string, rawTo: string): Promise<number> {
   const to = cleanGroupName(rawTo);
@@ -454,10 +459,14 @@ export async function renameWatchGroup(from: string, rawTo: string): Promise<num
   const tx = db.transaction(['watchlist', 'settings'], 'readwrite');
   const items = await tx.objectStore('watchlist').index('group').getAll(from);
   for (const w of items) await tx.objectStore('watchlist').put({ ...w, group: to, origin: w.origin === 'sample' ? 'user' : w.origin });
-  const prefs = ((await tx.objectStore('settings').get(WATCH_PREFS_KEY))?.value ?? DEFAULT_WATCH_PREFS) as WatchPrefs;
-  const groups = (prefs.groups ?? []).map((g) => (g === from ? to : g)).filter((g, i, a) => a.indexOf(g) === i);
-  // 改名後即使沒有股票也保留（使用者剛替它取了名字）
-  await tx.objectStore('settings').put({ key: WATCH_PREFS_KEY, value: { groups: groups.includes(to) || items.length ? groups : [...groups, to], hidden: prefs.hidden ?? [] } });
+  const prefs = normWatchPrefs((await tx.objectStore('settings').get(WATCH_PREFS_KEY))?.value as Partial<WatchPrefs> | undefined);
+  const swap = (list: string[]) => list.map((g) => (g === from ? to : g)).filter((g, i, a) => a.indexOf(g) === i);
+  const groups = swap(prefs.groups);
+  // 改名後即使沒有股票也保留（使用者剛替它取了名字）；排好的位置跟著新名稱（合併時留在較前面的那一個位置）
+  await tx.objectStore('settings').put({
+    key: WATCH_PREFS_KEY,
+    value: { ...prefs, groups: groups.includes(to) || items.length ? groups : [...groups, to], order: swap(prefs.order) },
+  });
   await tx.done;
   notify();
   return items.length;
@@ -475,13 +484,15 @@ export async function deleteWatchGroup(name: string, moveTo: string | null): Pro
   const tx = db.transaction(['watchlist', 'settings'], 'readwrite');
   const store = tx.objectStore('watchlist');
   const items = (await store.index('group').getAll(name)).sort((a, b) => a.order - b.order);
-  const raw = ((await tx.objectStore('settings').get(WATCH_PREFS_KEY))?.value ?? DEFAULT_WATCH_PREFS) as Partial<WatchPrefs>;
-  const prefs: WatchPrefs = { groups: [...(raw.groups ?? [])], hidden: [...(raw.hidden ?? [])] };
+  const prefs = normWatchPrefs((await tx.objectStore('settings').get(WATCH_PREFS_KEY))?.value as Partial<WatchPrefs> | undefined);
   for (const w of items) {
     if (moveTo && moveTo !== name) await store.put({ ...w, group: moveTo, origin: w.origin === 'sample' ? 'user' : w.origin });
     else await store.delete(w.code);
   }
-  await tx.objectStore('settings').put({ key: WATCH_PREFS_KEY, value: { ...prefs, groups: prefs.groups.filter((g) => g !== name) } });
+  await tx.objectStore('settings').put({
+    key: WATCH_PREFS_KEY,
+    value: { ...prefs, groups: prefs.groups.filter((g) => g !== name), order: prefs.order.filter((g) => g !== name) },
+  });
   await tx.done;
   notify();
   return { name, items, prefs, movedTo: moveTo && moveTo !== name ? moveTo : null };
@@ -492,11 +503,12 @@ export async function restoreWatchGroup(u: WatchGroupUndo): Promise<void> {
   const db = await getDb();
   const tx = db.transaction(['watchlist', 'settings'], 'readwrite');
   for (const w of u.items) await tx.objectStore('watchlist').put(w);
-  const raw = ((await tx.objectStore('settings').get(WATCH_PREFS_KEY))?.value ?? DEFAULT_WATCH_PREFS) as Partial<WatchPrefs>;
-  // 只把這個群組放回去：刪除之後使用者做的其他變更（建立別的群組、隱藏清單）不動
-  const groups = [...(raw.groups ?? [])];
-  if (u.prefs.groups.includes(u.name) && !groups.includes(u.name)) groups.push(u.name);
-  await tx.objectStore('settings').put({ key: WATCH_PREFS_KEY, value: { groups, hidden: [...(raw.hidden ?? [])] } });
+  const cur = normWatchPrefs((await tx.objectStore('settings').get(WATCH_PREFS_KEY))?.value as Partial<WatchPrefs> | undefined);
+  // 只把這個群組放回去：刪除之後使用者做的其他變更（建立別的群組、隱藏清單、重新排序）不動
+  if (u.prefs.groups.includes(u.name) && !cur.groups.includes(u.name)) cur.groups.push(u.name);
+  const at = u.prefs.order.indexOf(u.name);
+  if (at >= 0 && !cur.order.includes(u.name)) cur.order.splice(Math.min(at, cur.order.length), 0, u.name); // 回到原本排的位置
+  await tx.objectStore('settings').put({ key: WATCH_PREFS_KEY, value: cur });
   await tx.done;
   notify();
 }

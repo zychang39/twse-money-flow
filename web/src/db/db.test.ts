@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { addWatch, addWatchMany, clearSampleWatch, createWatchGroup, deleteGroup, deleteWatchGroup, getWatchPrefs, renameWatchGroup, restoreWatchGroup, setWatchListHidden, getSetting, listActivity, listGroups, listRecentSearches, listTrades, listWatch, pushRecentSearch, putWatchInGroup, resetDbConnection, saveGroup, saveTrade, setSetting, DB_VERSION, RECENT_MAX } from './db';
+import { addWatch, addWatchMany, clearSampleWatch, createWatchGroup, deleteGroup, deleteWatchGroup, getWatchPrefs, renameWatchGroup, restoreWatchGroup, setWatchGroupOrder, setWatchListHidden, getSetting, listActivity, listGroups, listRecentSearches, listTrades, listWatch, pushRecentSearch, putWatchInGroup, resetDbConnection, saveGroup, saveTrade, setSetting, DB_VERSION, RECENT_MAX } from './db';
 import { flowLevel, flowXp } from '../lib/ritual';
 import { makeCalendar } from '../lib/tradingCalendar';
 import { EXPORT_MIGRATIONS, exportAll, importAll, migrateBackup, previewImport, type BackupFile } from './backup';
@@ -281,8 +281,18 @@ describe('IndexedDB 與備份', () => {
     await createWatchGroup('另一個');
     await setWatchListHidden('hot', true);
     await restoreWatchGroup(empty);
-    expect(await getWatchPrefs()).toEqual({ groups: ['另一個', '觀察中'], hidden: ['hot'] });
+    expect(await getWatchPrefs()).toEqual({ groups: ['另一個', '觀察中'], hidden: ['hot'], order: [] });
     await setWatchListHidden('hot', false);
     expect((await getWatchPrefs()).hidden).toEqual([]);
+
+    // 拖曳排序：順序存在設定；改名後位置跟著新名稱；刪除後從順序拿掉，復原回到原本排的位置
+    await setWatchGroupOrder(['最新', '觀察中', '預設', '另一個']);
+    await renameWatchGroup('觀察中', '觀察');
+    expect((await getWatchPrefs()).order).toEqual(['最新', '觀察', '預設', '另一個']);
+    const del = await deleteWatchGroup('觀察', null);
+    expect((await getWatchPrefs()).order).toEqual(['最新', '預設', '另一個']);
+    await setWatchGroupOrder(['另一個', '最新', '預設']); // 刪除後又排了一次
+    await restoreWatchGroup(del);
+    expect((await getWatchPrefs()).order).toEqual(['另一個', '觀察', '最新', '預設']);
   });
 });
