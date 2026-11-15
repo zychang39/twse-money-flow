@@ -26,6 +26,11 @@ export const IconBack = () => base(<path d="M14.8 5.2 8 12l6.8 6.8" />);
 export const IconChevron = () => base(<path d="m9.5 6.5 5.5 5.5-5.5 5.5" />);
 export const IconChevronDown = () => base(<path d="m6.5 9.5 5.5 5.5 5.5-5.5" />);
 export const IconPlus = () => base(<path d="M12 5.5v13M5.5 12h13" />);
+/** 刪除（清單編輯模式的「圓圈減號」）與改名（鉛筆） */
+export const IconMinusCircle = () => base(<><circle cx="12" cy="12" r="8.6" /><path d="M8 12h8" /></>);
+export const IconPencil = () => base(<><path d="m5 19 .9-3.9L15.6 5.4a1.7 1.7 0 0 1 2.4 0l.6.6a1.7 1.7 0 0 1 0 2.4L8.9 18.1 5 19Z" /><path d="m14.2 6.8 3 3" /></>);
+/** 拖曳排序的把手（三條橫線） */
+export const IconGrip = () => base(<path d="M5.5 8h13M5.5 12h13M5.5 16h13" />);
 export const IconClose = () => base(<path d="m6.5 6.5 11 11M17.5 6.5l-11 11" />);
 export const IconCheck = () => base(<path d="m5.5 12.5 4.2 4.2 8.8-9.4" />, 1.8);
 export const IconStar = () => base(<path d="m12 4.2 2.3 4.8 5.2.7-3.8 3.6.9 5.2L12 16l-4.6 2.5.9-5.2-3.8-3.6 5.2-.7L12 4.2Z" />);

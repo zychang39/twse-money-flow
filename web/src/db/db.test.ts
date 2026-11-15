@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { addWatch, addWatchMany, clearSampleWatch, deleteGroup, getSetting, listActivity, listGroups, listRecentSearches, listTrades, listWatch, pushRecentSearch, putWatchInGroup, resetDbConnection, saveGroup, saveTrade, setSetting, DB_VERSION, RECENT_MAX } from './db';
+import { addWatch, addWatchMany, clearSampleWatch, createWatchGroup, deleteGroup, deleteWatchGroup, getWatchPrefs, renameWatchGroup, restoreWatchGroup, setWatchGroupOrder, setWatchListHidden, getSetting, listActivity, listGroups, listRecentSearches, listTrades, listWatch, pushRecentSearch, putWatchInGroup, resetDbConnection, saveGroup, saveTrade, setSetting, DB_VERSION, RECENT_MAX } from './db';
 import { flowLevel, flowXp } from '../lib/ritual';
 import { makeCalendar } from '../lib/tradingCalendar';
 import { EXPORT_MIGRATIONS, exportAll, importAll, migrateBackup, previewImport, type BackupFile } from './backup';
@@ -239,5 +239,60 @@ describe('IndexedDB 與備份', () => {
     expect(by.get('2603')).toMatchObject({ group: 'Latest', origin: 'user' }); // 範例移過來後算自己的
     expect(by.get('2330')?.order).toBe(0); // 移動不改順序與加入時間
     expect(await putWatchInGroup(['2330', '2454'], 'Latest')).toEqual({ added: 0, moved: 0, same: 2 });
+  });
+  it('自選群組管理：建立空群組、改名（含合併）、刪除（移走或一起移除）、復原、隱藏系統清單', async () => {
+    await addWatchMany(['2330', '2317'], '預設');
+    await addWatchMany(['2454', '6930'], 'Latest');
+    await addWatchMany(['2603'], '範例', 'sample');
+    // 建立：名稱會整理；重複建立不會多一個
+    expect(await createWatchGroup('  觀察   中 ')).toBe('觀察 中');
+    await createWatchGroup('觀察 中');
+    expect((await getWatchPrefs()).groups).toEqual(['觀察 中']);
+
+    // 改名：股票跟著走；建立過的空群組改名後還在
+    expect(await renameWatchGroup('Latest', '最新')).toBe(2);
+    expect(await renameWatchGroup('觀察 中', '觀察中')).toBe(0);
+    expect((await getWatchPrefs()).groups).toEqual(['觀察中']);
+    // 改成已存在的名稱＝合併；範例移過去後算自己的
+    expect(await renameWatchGroup('範例', '最新')).toBe(1);
+    const by = async () => new Map((await listWatch()).map((w) => [w.code, w] as const));
+    expect([...(await by()).values()].filter((w) => w.group === '最新').map((w) => w.code)).toEqual(['2454', '6930', '2603']);
+    expect((await by()).get('2603')?.origin).toBe('user');
+
+    // 刪除並把股票移到別的群組 → 復原後回到原本的群組，順序與加入時間照舊
+    const before = (await by()).get('2454');
+    const moved = await deleteWatchGroup('最新', '預設');
+    expect(moved).toMatchObject({ name: '最新', movedTo: '預設' });
+    expect(moved.items.map((w) => w.code)).toEqual(['2454', '6930', '2603']);
+    expect((await listWatch()).every((w) => w.group === '預設')).toBe(true);
+    await restoreWatchGroup(moved);
+    expect((await by()).get('2454')).toEqual(before);
+
+    // 刪除並連股票一起移除 → 復原後股票回來
+    const gone = await deleteWatchGroup('最新', null);
+    expect(gone.movedTo).toBeNull();
+    expect((await listWatch()).map((w) => w.code)).toEqual(['2330', '2317']);
+    await restoreWatchGroup(gone);
+    expect((await listWatch()).map((w) => w.code)).toEqual(['2330', '2317', '2454', '6930', '2603']);
+
+    // 刪除建立過的空群組 → 復原後還是空群組；復原不會蓋掉刪除之後做的其他設定
+    const empty = await deleteWatchGroup('觀察中', null);
+    expect((await getWatchPrefs()).groups).toEqual([]);
+    await createWatchGroup('另一個');
+    await setWatchListHidden('hot', true);
+    await restoreWatchGroup(empty);
+    expect(await getWatchPrefs()).toEqual({ groups: ['另一個', '觀察中'], hidden: ['hot'], order: [] });
+    await setWatchListHidden('hot', false);
+    expect((await getWatchPrefs()).hidden).toEqual([]);
+
+    // 拖曳排序：順序存在設定；改名後位置跟著新名稱；刪除後從順序拿掉，復原回到原本排的位置
+    await setWatchGroupOrder(['最新', '觀察中', '預設', '另一個']);
+    await renameWatchGroup('觀察中', '觀察');
+    expect((await getWatchPrefs()).order).toEqual(['最新', '觀察', '預設', '另一個']);
+    const del = await deleteWatchGroup('觀察', null);
+    expect((await getWatchPrefs()).order).toEqual(['最新', '預設', '另一個']);
+    await setWatchGroupOrder(['另一個', '最新', '預設']); // 刪除後又排了一次
+    await restoreWatchGroup(del);
+    expect((await getWatchPrefs()).order).toEqual(['另一個', '觀察', '最新', '預設']);
   });
 });
