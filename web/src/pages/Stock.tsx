@@ -27,7 +27,7 @@ import { useAsync, useDb, useInvestStyle, useSegParam, useStockData } from '../h
 import { STYLE_PERIOD } from '../lib/style';
 import { useScoredSummary } from '../data/useSummary';
 import { addWatch, isWatched, removeWatch } from '../db/db';
-import type { Period } from '../lib/periods';
+import { LONG_PERIODS, type Period } from '../lib/periods';
 import { usePeriod } from '../components/HeroChart';
 import { type RangeBasis, getRangeBasis, setRangeBasis } from '../lib/rangeReturn';
 import { isNotFound, loadInactive, loadLongHistory, loadMeta, loadStockIntraday, loadStockIntradayIndex } from '../data/api';
@@ -91,8 +91,8 @@ function StockHero({ code, fallbackName, fallbackIndustry, status, period, onPer
   const hasIntra = !!idx.data?.codes.includes(code);
   const intraOn = INTRADAY_PERIODS.includes(period);
   const intra = useAsync(() => (intraOn && hasIntra ? loadStockIntraday(code) : Promise.resolve(null)), [code, intraOn, hasIntra]);
-  // 5Y／ALL：折線需要長歷史；K 線的月 K 也要用長歷史補齊個股檔以前的月份
-  const needLong = !!h && (period === '5Y' || period === 'ALL');
+  // 5Y／10Y／ALL：折線需要長歷史；K 線的月 K 也要用長歷史補齊個股檔以前的月份
+  const needLong = !!h && LONG_PERIODS.includes(period);
   const long = useAsync(() => (needLong ? loadLongHistory(code) : Promise.resolve(null)), [code, needLong]);
   const series = useMemo(() => {
     if (!h) return null;
@@ -346,7 +346,7 @@ export default function Stock({ code }: { code: string }) {
           </List>
           <div class="ui-prose">
             <p>還原價：除權息、分割、減資前的價格乘上還原因子，報酬含股利再投入；原始價：官方收盤價，只看價差。</p>
-            <p>走勢圖手勢：長按查價（主角數字跟著變）；兩指（桌機：按住拖曳）看兩點間的區間報酬，放開後保留 2 秒。1D／1W 為 5 分 K（非官方來源），虛線為前一交易日收盤。K 線：1M／3M 日 K、YTD／1Y 週 K、5Y／ALL 月 K。</p>
+            <p>走勢圖手勢：長按查價（主角數字跟著變）；兩指（桌機：按住拖曳）看兩點間的區間報酬，放開後保留 2 秒。1D／1W 為 5 分 K（非官方來源），虛線為前一交易日收盤。K 線：1M／3M 日 K、6M／YTD／1Y 週 K、2Y 以上月 K。期間列可以左右拖動。</p>
           </div>
         </div>
       </Sheet>

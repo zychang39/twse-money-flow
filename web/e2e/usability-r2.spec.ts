@@ -39,7 +39,7 @@ test('#3 個股頁頁首的當日漲跌：切換任何期間（含週 K、長歷
   const dateText = await dateLabel.textContent();
   const base = await today.textContent();
   const names = await group.getByRole('button').allTextContents();
-  expect(names).not.toContain('10Y');
+  expect(names).toEqual(['1D', '1W', '1M', '3M', '6M', 'YTD', '1Y', '2Y', '5Y', '10Y', 'ALL']);
   for (const p of names) {
     await group.getByRole('button', { name: p, exact: true }).click();
     await page.waitForTimeout(150);

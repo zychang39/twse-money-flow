@@ -21,7 +21,7 @@
 import { type LabelBox, type Placed, type Rect, anchored, placeLabels, textWidth } from '../lib/chartLabels';
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { PERIODS, PERIOD_LABEL, change, windowDayChange, type Dir, type Period, type Window } from '../lib/periods';
+import { PERIODS, PERIODS_FIT, PERIOD_LABEL, change, windowDayChange, type Dir, type Period, type Window } from '../lib/periods';
 import { areaD, extent, lerpPts, nearestIndex, points, resample, smoothD, springEase, yOf, type Frame } from '../lib/chartMath';
 import { Term } from './kit';
 import { arrow, fmtNum, md } from '../lib/format';
@@ -110,9 +110,56 @@ function rangeCaption(rr: RangeResult, intraday: boolean): string {
   return intraday ? '區間' : `區間 ${rr.days} 個交易日`;
 }
 
+/**
+ * 期間選擇器。期間不多（≤ PERIODS_FIT 個）時平分整列；多的時候（個股頁 11 個，同 iOS 股市 App）改成可以左右拖動的一列：
+ * - 每個按鈕固定寬度；手指直接左右拖（瀏覽器原生捲動），滑鼠按住拖曳也可以。
+ * - 選到的期間用動畫滑到正中間（最前面與最後面的幾個靠邊，捲不過頭）；第一次顯示直接到位、不播動畫；
+ *   「減少動態效果」時不播動畫。左右還有沒顯示的期間時，那一側邊緣淡出。
+ */
 export function PeriodSelector({ value, onChange, label = '期間', periods = PERIODS, testid }: { value: Period; onChange: (p: Period) => void; label?: string; periods?: Period[]; testid?: string }) {
+  const scroll = periods.length > PERIODS_FIT;
+  const ref = useRef<HTMLDivElement>(null);
+  const first = useRef(true);
+  const drag = useRef<{ x: number; left: number; moved: boolean } | null>(null);
+  const suppress = useRef(false);
+  /** 左右兩側還有沒有內容（決定邊緣要不要淡出） */
+  const edges = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.toggleAttribute('data-more-l', el.scrollLeft > 1);
+    el.toggleAttribute('data-more-r', el.scrollLeft < el.scrollWidth - el.clientWidth - 1);
+  };
+  useEffect(() => {
+    const el = ref.current;
+    if (!scroll || !el) return;
+    const btn = el.querySelector<HTMLElement>('button[aria-pressed="true"]');
+    if (btn) {
+      const left = Math.max(0, Math.min(el.scrollWidth - el.clientWidth, btn.offsetLeft - (el.clientWidth - btn.offsetWidth) / 2));
+      const instant = first.current || reduceMotion();
+      if (typeof el.scrollTo === 'function') el.scrollTo({ left, behavior: instant ? 'auto' : 'smooth' });
+      else el.scrollLeft = left;
+    }
+    first.current = false;
+    edges();
+  }, [value, scroll, periods.length]);
+  // 滑鼠按住拖曳（觸控用原生捲動，不走這裡）；拖過就不算點擊
+  const mouse = scroll ? {
+    onPointerDown: (e: PointerEvent) => { if (e.pointerType === 'mouse' && e.button === 0 && ref.current) drag.current = { x: e.clientX, left: ref.current.scrollLeft, moved: false }; },
+    onPointerMove: (e: PointerEvent) => {
+      const d = drag.current;
+      if (!d || !ref.current) return;
+      const dx = e.clientX - d.x;
+      if (!d.moved && Math.abs(dx) < 5) return;
+      d.moved = true;
+      ref.current.scrollLeft = d.left - dx;
+    },
+    onPointerUp: () => { suppress.current = !!drag.current?.moved; drag.current = null; },
+    onPointerLeave: () => { drag.current = null; },
+    onClickCapture: (e: Event) => { if (suppress.current) { suppress.current = false; e.stopPropagation(); e.preventDefault(); } },
+    onScroll: edges,
+  } : {};
   return (
-    <div class="periods" role="group" aria-label={label} data-testid={testid}>
+    <div class={`periods ${scroll ? 'scroll' : ''}`} role="group" aria-label={label} data-testid={testid} ref={ref} {...mouse}>
       {periods.map((p) => (
         <button key={p} aria-pressed={value === p} aria-description={PERIOD_LABEL[p]} onClick={() => onChange(p)}>{p}</button>
       ))}

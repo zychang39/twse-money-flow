@@ -2,7 +2,7 @@
  * 個股頁走勢圖的資料（SPEC §5.4，stock 2026-10）：純函式。
  * - 1M 以上：日 K（開高低收、成交量張）＋ 20／60 日均線；K 棒超過 MAX_DAILY_BARS 根時合成週 K（開＝週首開、高低＝週內極值、
  *   收＝週末收、量＝週合計），均線取每週最後一天的值。價格基準（還原／原始）由頁面決定：還原＝開高低收 × 當日還原因子。
- * - 5Y／ALL 超過個股檔範圍時改用長歷史檔（只有收盤）：只能畫折線、沒有成交量；ALL 為週線取樣。
+ * - 5Y／10Y／ALL 超過個股檔範圍時改用長歷史檔（只有收盤）：只能畫折線、沒有成交量；10Y、ALL 為週線取樣。
  * - 1D／1W：個股 5 分 K（原始價、量為股 → 換成張）；1D＝最近一個交易日、1W＝最近 5 個交易日；虛線＝前收（1W 為第一天的前收）。
  * - 區間漲跌＝最後收盤 ÷ 基準 − 1；日 K 的基準＝區間第一根（區間開始前最後一個交易日）收盤，與 HeroChart 相同。
  */
@@ -50,7 +50,8 @@ export interface ChartSeries {
   synthUntil?: string | null;
 }
 
-export const STOCK_CHART_PERIODS: Period[] = ['1D', '1W', '1M', '3M', 'YTD', '1Y', '5Y', 'ALL'];
+/** 2026-11-16：與 iOS 股市 App 相同的 11 個期間（加上 6M、2Y、10Y） */
+export const STOCK_CHART_PERIODS: Period[] = ['1D', '1W', '1M', '3M', '6M', 'YTD', '1Y', '2Y', '5Y', '10Y', 'ALL'];
 export const INTRADAY_PERIODS: Period[] = ['1D', '1W'];
 /** 日 K 超過這麼多根改畫週 K（370pt 寬約 1.2pt／根以下已看不出 K 棒） */
 export const MAX_DAILY_BARS = 300;
@@ -239,20 +240,20 @@ const monthKey = (iso: string) => iso.slice(0, 7);
 const quarterKey = (iso: string) => `${iso.slice(0, 4)}Q${Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1}`;
 
 /**
- * K 線模式的視窗（D2）：1M／3M 日 K、YTD／1Y 週 K、5Y／ALL 月 K（超過 MAX_K_BARS 根改季 K）。
- * 5Y／ALL 早於個股檔的部分用長歷史檔的收盤合成（開＝高＝低＝收），synthUntil 標出合成到哪一天。
+ * K 線模式的視窗（D2）：1M／3M 日 K、6M／YTD／1Y 週 K、2Y／5Y／10Y／ALL 月 K（超過 MAX_K_BARS 根改季 K）。
+ * 5Y／10Y／ALL 早於個股檔的部分用長歷史檔的收盤合成（開＝高＝低＝收），synthUntil 標出合成到哪一天。
  */
 export function kSeries(h: Pick<StockHistory, 'd' | 'o' | 'h' | 'l' | 'c' | 'v' | 'af'>, period: Period, basis: RangeBasis, long?: LongHistory | null): ChartSeries | null {
   if (period === '1M' || period === '3M') {
     return dailySeries(h, period, basis, null);
   }
-  if (period === 'YTD' || period === '1Y') {
+  if (period === '6M' || period === 'YTD' || period === '1Y') {
     const s = dailySeries(h, period, basis, null);
     if (!s || s.kind !== 'daily') return s;
     const w = weeklyAggregate(s.bars, s.ma20, s.ma60);
     return { ...s, kind: 'weekly', bars: w.bars, ma20: w.ma20, ma60: w.ma60 };
   }
-  // 5Y／ALL：長歷史（只有收盤）＋個股檔（開高低收量）接起來
+  // 2Y／5Y／10Y／ALL：月 K。長歷史（只有收盤）＋個股檔（開高低收量）接起來
   const f = (a: (number | null)[], i: number) => (basis === 'adj' ? a[i] ?? 1 : 1);
   const daily: Bar[] = [];
   const first = h.d[0];

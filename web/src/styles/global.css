@@ -365,6 +365,18 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 }
 .periods button[aria-pressed='true'] { color: var(--on-brand); }
 .periods button[aria-pressed='true']::before { opacity: 1; transform: none; }
+/* 2026-11-16：期間多的時候（個股頁 11 個）改成可以左右拖動的一列——每個按鈕固定寬度，選到的由程式捲到中間；
+   左右還有內容的那一側邊緣淡出（data-more-l／r 由 PeriodSelector 依捲動位置設定） */
+.periods.scroll {
+  justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  cursor: grab; --fade-l: 0px; --fade-r: 0px;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
+}
+.periods.scroll::-webkit-scrollbar { display: none; }
+.periods.scroll[data-more-l] { --fade-l: var(--s-6); }
+.periods.scroll[data-more-r] { --fade-r: var(--s-6); }
+.periods.scroll button { flex: 0 0 auto; min-width: 3.5rem; padding: 0 var(--s-2); -webkit-user-select: none; user-select: none; }
 
 /* ---------- 主角數字與走勢圖 ---------- */
 .hero-block { position: relative; }
