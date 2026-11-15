@@ -6,6 +6,7 @@
 import { normCode } from '../lib/code';
 import { prepareTrade } from '../lib/ritual';
 import { DEFAULT_PORTFOLIO, riskLimitOf, type PortfolioSettings } from '../lib/settings';
+import { DEFAULT_WATCH_PREFS, cleanGroupName, type WatchPrefs } from '../lib/watchGroups';
 import { migrateV5 } from './migrations';
 import type { Strategy, TrackedSignal } from '../lib/tracking';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
@@ -427,6 +428,85 @@ export async function putWatchInGroup(codes: string[], group: string): Promise<{
   await tx.done;
   if (res.added || res.moved) notify();
   return res;
+}
+
+// ------------------------------------------------------------------ 自選群組的管理（2026-11-15；DECISIONS #466）
+const WATCH_PREFS_KEY = 'watchPrefs';
+
+export async function getWatchPrefs(): Promise<WatchPrefs> {
+  const p = await getSetting<Partial<WatchPrefs>>(WATCH_PREFS_KEY, DEFAULT_WATCH_PREFS);
+  return { groups: [...(p.groups ?? [])], hidden: [...(p.hidden ?? [])] };
+}
+
+/** 建立一個還沒有股票的群組（已存在就不動）。回傳整理後的名稱。 */
+export async function createWatchGroup(raw: string): Promise<string> {
+  const name = cleanGroupName(raw);
+  const prefs = await getWatchPrefs();
+  if (name && !prefs.groups.includes(name)) await setSetting(WATCH_PREFS_KEY, { ...prefs, groups: [...prefs.groups, name] });
+  return name;
+}
+
+/** 群組改名；新名稱已經有群組時＝合併（股票都移過去）。回傳移動的檔數。 */
+export async function renameWatchGroup(from: string, rawTo: string): Promise<number> {
+  const to = cleanGroupName(rawTo);
+  if (!to || to === from) return 0;
+  const db = await getDb();
+  const tx = db.transaction(['watchlist', 'settings'], 'readwrite');
+  const items = await tx.objectStore('watchlist').index('group').getAll(from);
+  for (const w of items) await tx.objectStore('watchlist').put({ ...w, group: to, origin: w.origin === 'sample' ? 'user' : w.origin });
+  const prefs = ((await tx.objectStore('settings').get(WATCH_PREFS_KEY))?.value ?? DEFAULT_WATCH_PREFS) as WatchPrefs;
+  const groups = (prefs.groups ?? []).map((g) => (g === from ? to : g)).filter((g, i, a) => a.indexOf(g) === i);
+  // 改名後即使沒有股票也保留（使用者剛替它取了名字）
+  await tx.objectStore('settings').put({ key: WATCH_PREFS_KEY, value: { groups: groups.includes(to) || items.length ? groups : [...groups, to], hidden: prefs.hidden ?? [] } });
+  await tx.done;
+  notify();
+  return items.length;
+}
+
+/** 刪除群組前的狀態（復原用）：這個群組的股票與群組設定 */
+export interface WatchGroupUndo { name: string; items: WatchItem[]; prefs: WatchPrefs; movedTo: string | null }
+
+/**
+ * 刪除群組。moveTo＝把股票移到哪個群組（只刪群組）；null＝股票一起從自選移除。
+ * 回傳刪除前的狀態，交給 restoreWatchGroup 可以完整復原。
+ */
+export async function deleteWatchGroup(name: string, moveTo: string | null): Promise<WatchGroupUndo> {
+  const db = await getDb();
+  const tx = db.transaction(['watchlist', 'settings'], 'readwrite');
+  const store = tx.objectStore('watchlist');
+  const items = (await store.index('group').getAll(name)).sort((a, b) => a.order - b.order);
+  const raw = ((await tx.objectStore('settings').get(WATCH_PREFS_KEY))?.value ?? DEFAULT_WATCH_PREFS) as Partial<WatchPrefs>;
+  const prefs: WatchPrefs = { groups: [...(raw.groups ?? [])], hidden: [...(raw.hidden ?? [])] };
+  for (const w of items) {
+    if (moveTo && moveTo !== name) await store.put({ ...w, group: moveTo, origin: w.origin === 'sample' ? 'user' : w.origin });
+    else await store.delete(w.code);
+  }
+  await tx.objectStore('settings').put({ key: WATCH_PREFS_KEY, value: { ...prefs, groups: prefs.groups.filter((g) => g !== name) } });
+  await tx.done;
+  notify();
+  return { name, items, prefs, movedTo: moveTo && moveTo !== name ? moveTo : null };
+}
+
+/** 復原剛刪除的群組：股票放回原本的群組（順序、加入日期、來源都照舊），群組設定還原。 */
+export async function restoreWatchGroup(u: WatchGroupUndo): Promise<void> {
+  const db = await getDb();
+  const tx = db.transaction(['watchlist', 'settings'], 'readwrite');
+  for (const w of u.items) await tx.objectStore('watchlist').put(w);
+  const raw = ((await tx.objectStore('settings').get(WATCH_PREFS_KEY))?.value ?? DEFAULT_WATCH_PREFS) as Partial<WatchPrefs>;
+  // 只把這個群組放回去：刪除之後使用者做的其他變更（建立別的群組、隱藏清單）不動
+  const groups = [...(raw.groups ?? [])];
+  if (u.prefs.groups.includes(u.name) && !groups.includes(u.name)) groups.push(u.name);
+  await tx.objectStore('settings').put({ key: WATCH_PREFS_KEY, value: { groups, hidden: [...(raw.hidden ?? [])] } });
+  await tx.done;
+  notify();
+}
+
+/** 顯示或隱藏系統清單（熱門動能）。 */
+export async function setWatchListHidden(id: string, hidden: boolean): Promise<void> {
+  const prefs = await getWatchPrefs();
+  const next = prefs.hidden.filter((x) => x !== id);
+  if (hidden) next.push(id);
+  await setSetting(WATCH_PREFS_KEY, { ...prefs, hidden: next });
 }
 
 /** 寫入新觸發或出場後的價格；不通知（避免畫面重複計算），由呼叫端決定何時重新讀取。 */

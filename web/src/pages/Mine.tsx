@@ -2,11 +2,12 @@
  * 我的股票：自選與持股合併在同一頁（分段控制「自選｜持股」，自選在左、預設）。
  * 自選股異動與持倉狀態（2026-10-03：頁首與說明套用共用元件）。
  * - 自選：使用者群組＋系統清單「熱門動能」（唯讀，依規則產生，非推薦；可一鍵複製成自己的群組或挑幾檔加入）。
+ *   群組的建立、改名、刪除（可復原）與系統清單的顯示／隱藏在 components/WatchGroups（2026-11-15；DECISIONS #466）。
  * - 新用戶還沒有自選時顯示歡迎卡：主要動作「搜尋並加入股票」（與右上角「＋」同一個搜尋面板）；
  *   次要：加入範例自選（config/ui.yml，標示「範例」、可一鍵清除）或從熱門動能挑選。
  * - 持股：組合走勢（環境光與走勢線同一個期間、同一個顏色）。
  */
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { HotItem, Lists } from '../data/types';
 import { Ambient, TopBar } from '../components/Chrome';
 import { Info, PageTitle, Seg as UiSeg } from '../components/ui';
@@ -25,7 +26,9 @@ import { useAsync, useDb, useHistories, useRestoredState } from '../hooks';
 import { loadInactive, loadLists, loadMeta } from '../data/api';
 import { useScoredSummary } from '../data/useSummary';
 import { useUser } from '../data/useUser';
-import { addWatch, addWatchMany, clearSampleWatch, getSetting, putWatchInGroup, removeWatch, updateWatch, type Trade, type WatchItem } from '../db/db';
+import { addWatch, addWatchMany, clearSampleWatch, getSetting, putWatchInGroup, removeWatch, restoreWatchGroup, updateWatch, type Trade, type WatchGroupUndo, type WatchItem } from '../db/db';
+import { GroupChips, ManageGroupsSheet, UndoToast, undoText } from '../components/WatchGroups';
+import { ALL_GROUPS, DEFAULT_GROUP, DEFAULT_WATCH_PREFS, HOT_LIST, effectiveGroups, groupCounts } from '../lib/watchGroups';
 import type { StockRow } from '../data/types';
 import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
 import { DEFAULT_COSTS, type CostSettings } from '../lib/costs';
@@ -267,7 +270,23 @@ export default function Mine() {
   const open = useMemo(() => (user?.trades ?? []).filter((t) => t.status === 'open'), [user]);
   const holdCodes = useMemo(() => [...new Set(open.map((t) => t.code))], [open]);
   const watch = user?.watch ?? [];
-  const groups = useMemo(() => Array.from(new Set(['預設', ...watch.map((w) => w.group)])), [watch]);
+  // 群組＝有股票的＋使用者建立、還沒有股票的（lib/watchGroups）；「預設」沒有股票時不顯示
+  const watchPrefs = user?.watchPrefs ?? DEFAULT_WATCH_PREFS;
+  const groups = useMemo(() => effectiveGroups(watch, watchPrefs), [watch, watchPrefs]);
+  const counts = useMemo(() => groupCounts(watch), [watch]);
+  const hotHidden = watchPrefs.hidden.includes(HOT_LIST);
+  const [groupEdit, setGroupEdit] = useState<{ mode: 'new' | 'manage'; focus?: string | null } | null>(null);
+  const [undo, setUndo] = useState<WatchGroupUndo | null>(null);
+  // 目前看的群組被刪除、改名或隱藏 → 回到「全部」
+  // （剛建立或剛改名的群組要等資料重讀後才在清單裡：pendingGroup 記著，這段期間不跳走）
+  const pendingGroup = useRef<string | null>(null);
+  const pickNewGroup = (g: string) => { pendingGroup.current = g; setGroup(g); };
+  useEffect(() => {
+    if (!user) return;
+    if (pendingGroup.current && groups.includes(pendingGroup.current)) pendingGroup.current = null;
+    if (group === pendingGroup.current) return;
+    if (group === HOT ? hotHidden : group !== ALL_GROUPS && !groups.includes(group)) setGroup(ALL_GROUPS);
+  }, [!!user, group, groups, hotHidden]);
   const watchShown = group === HOT ? [] : watch.filter((w) => group === '全部' || w.group === group);
   const hotItems = useMemo(() => hotSorted(lists.data?.hot_momentum.items ?? [], hotSort), [lists.data, hotSort]);
   const watchedSet = useMemo(() => new Set(watch.map((w) => w.code)), [watch]);
@@ -389,7 +408,12 @@ export default function Mine() {
   };
 
   // 新用戶（還沒有自選）只看到歡迎卡；有自選後才出現群組膠囊（含系統清單「熱門動能」）
-  const showChips = seg === 'watch' && watch.length > 0;
+  // 有自選、或已經建立過群組，就顯示群組列（含「＋」與「編輯」）
+  // 移到群組、加入自選的群組選單：一定有「預設」可以選
+  const moveGroups = groups.includes(DEFAULT_GROUP) ? groups : [DEFAULT_GROUP, ...groups];
+  const showChips = seg === 'watch' && (watch.length > 0 || groups.length > 0);
+  const hotLabel = lists.data?.hot_momentum.label ?? '熱門動能';
+  const emptyGroup = seg === 'watch' && !!user && group !== ALL_GROUPS && group !== HOT && groups.includes(group) && !(counts.get(group) ?? 0);
   const sortable = rows.length > 0 && group !== HOT;
   return (
     <div class="page">
@@ -417,21 +441,14 @@ export default function Mine() {
         </div>
       ) : null}
 
-      {seg === 'watch' && user && !watch.length ? (
+      {seg === 'watch' && user && !watch.length && !groups.length ? (
         <WelcomeCard onSearch={() => setAdding(true)} onSample={addSamples} onHot={() => setPicking(true)} hotCount={hotItems.length} sampleNames={sampleNames} />
       ) : null}
 
       {showChips ? (
-        <div class="chips" role="group" aria-label="群組" style={{ marginTop: 'var(--s-3)' }}>
-          {(watch.length ? ['全部', ...groups.filter((g) => g === '預設' ? watch.some((w) => w.group === '預設') : true)] : []).map((g) => (
-            <button key={g} class="chip" aria-pressed={group === g} onClick={() => setGroup(g)}>{g}</button>
-          ))}
-          {hotItems.length ? (
-            <button class="chip system" aria-pressed={group === HOT} onClick={() => setGroup(HOT)}>
-              {lists.data?.hot_momentum.label ?? '熱門動能'}<span class="sys-mark">系統</span>
-            </button>
-          ) : null}
-        </div>
+        <GroupChips groups={groups} group={group} onPick={setGroup}
+          hot={hotItems.length && !hotHidden ? { id: HOT, label: hotLabel } : null}
+          onNew={() => setGroupEdit({ mode: 'new' })} onEdit={(focus) => setGroupEdit({ mode: 'manage', focus })} />
       ) : null}
 
       {seg === 'watch' && samples.length && group !== HOT ? (
@@ -506,10 +523,24 @@ export default function Mine() {
         })}
       </div>
 
-      {seg === 'watch' && group === '全部' && watch.length && hotItems.length ? (
+      {emptyGroup ? (
+        <div class="card group-empty" data-testid="group-empty">
+          <p class="body">「{group}」還沒有股票</p>
+          <p class="caption muted">可以搜尋、貼上代號，或從券商庫存截圖加入。</p>
+          <button class="btn primary" onClick={() => setAdding(true)}>加入股票</button>
+        </div>
+      ) : null}
+      {seg === 'watch' && user && group === ALL_GROUPS && !watch.length && groups.length ? (
+        <div class="card group-empty" data-testid="watch-empty">
+          <p class="body">還沒有自選股</p>
+          <button class="btn primary" onClick={() => setAdding(true)}>加入股票</button>
+        </div>
+      ) : null}
+
+      {seg === 'watch' && group === '全部' && watch.length && hotItems.length && !hotHidden ? (
         <button class="card row between system-teaser" onClick={() => { setGroup(HOT); window.scrollTo({ top: 0 }); }}>
           <span>
-            <span class="body" style={{ display: 'block' }}>{lists.data?.hot_momentum.label ?? '熱門動能'}・{hotItems.length} 檔</span>
+            <span class="body" style={{ display: 'block' }}>{hotLabel}・{hotItems.length} 檔</span>
             <span class="caption muted">系統清單：依規則產生，非推薦；可複製成自己的群組或挑幾檔加入</span>
           </span>
           <span class="brand" style={{ width: '1.25rem', display: 'inline-flex' }}><IconChevron /></span>
@@ -523,10 +554,17 @@ export default function Mine() {
       {summary.data && prefs ? (
         seg === 'hold'
           ? <ChecklistSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.rows} portfolio={prefs.portfolio} day={summary.data.date} />
-          : <AddWatchSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.all} group={group === '全部' ? '預設' : group} explicit={group !== '全部'} groups={groups} watchGroup={watchGroupOf} />
+          : <AddWatchSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.all} group={group === ALL_GROUPS || group === HOT ? DEFAULT_GROUP : group} explicit={group !== ALL_GROUPS && group !== HOT} groups={moveGroups} watchGroup={watchGroupOf} />
       ) : null}
       <CloseSheet trade={closing} onClose={() => setClosing(null)} costs={prefs?.costs ?? DEFAULT_COSTS} price={closing ? byCode?.get(closing.code)?.close ?? null : null} day={summary.data?.date ?? ''} />
-      <GroupSheet item={moving} groups={groups} onClose={() => setMoving(null)} />
+      <GroupSheet item={moving} groups={moveGroups} onClose={() => setMoving(null)} />
+      <ManageGroupsSheet mode={groupEdit?.mode ?? null} focus={groupEdit?.focus} onClose={() => setGroupEdit(null)}
+        groups={groups} counts={counts} prefs={watchPrefs} hot={hotItems.length ? { label: hotLabel, count: hotItems.length } : null}
+        onCreated={(g) => { if (groupEdit?.mode === 'new') pickNewGroup(g); }}
+        onRenamed={(from, to) => { if (group === from) pickNewGroup(to); }}
+        onDeleted={(u) => { setUndo(u); if (group === u.name) setGroup(ALL_GROUPS); }}
+        undo={undo} onUndo={() => { if (undo) void restoreWatchGroup(undo); setUndo(null); }} />
+      {undo ? <UndoToast text={undoText(undo)} onDone={() => setUndo(null)} onUndo={() => { void restoreWatchGroup(undo); setUndo(null); }} /> : null}
       <HotPickSheet open={picking} onClose={() => setPicking(false)} items={hotItems} byCode={byCode} watched={watchedSet} />
     </div>
   );
