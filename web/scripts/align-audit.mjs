@@ -167,10 +167,19 @@ function measure() {
 
   // ---------- 4. 溢出、單行 ----------
   if (document.documentElement.scrollWidth > vw + 0.5) V.push({ rule: 'h-overflow', msg: `頁面水平溢出 ${document.documentElement.scrollWidth - vw}px` });
+  // 在「自己沒有超出畫面、會裁切或可左右捲動」的容器裡的元素不算超出（例：可拖動的期間列、群組列裡還沒捲進來的按鈕）；
+  // 容器本身超出畫面時照樣會被抓到
+  const clippedByScroller = (el) => {
+    for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+      const ox = getComputedStyle(a).overflowX;
+      if ((ox === 'auto' || ox === 'scroll' || ox === 'hidden' || ox === 'clip') && a.getBoundingClientRect().right <= vw + 0.5) return true;
+    }
+    return false;
+  };
   for (const el of page.querySelectorAll('*')) {
     if (el.closest('svg, .chart-wrap, .chart-box, .lw-chart, [data-audit-skip], .sheet')) continue;
     const r = el.getBoundingClientRect();
-    if (r.width && r.right > vw + 0.5 && visible(el)) { V.push({ rule: 'h-overflow', msg: `元素超出畫面右緣 ${(r.right - vw).toFixed(1)}px`, at: label(el), y: Math.round(r.top + scrollY) }); break; }
+    if (r.width && r.right > vw + 0.5 && visible(el) && !clippedByScroller(el)) { V.push({ rule: 'h-overflow', msg: `元素超出畫面右緣 ${(r.right - vw).toFixed(1)}px`, at: label(el), y: Math.round(r.top + scrollY) }); break; }
   }
   const lines = (el) => {
     const tops = new Set();
