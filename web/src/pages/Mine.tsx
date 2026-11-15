@@ -21,14 +21,14 @@ import { Sheet } from '../components/Sheet';
 import { WatchImport } from '../components/WatchImport';
 import { StockSearch } from '../components/StockSearch';
 import { ChecklistSheet, CloseSheet } from '../components/Trades';
-import { IconChevron, IconChevronDown, IconPlus } from '../components/Icons';
+import { IconChevron, IconPlus } from '../components/Icons';
 import { useAsync, useDb, useHistories, useRestoredState } from '../hooks';
 import { loadInactive, loadLists, loadMeta } from '../data/api';
 import { useScoredSummary } from '../data/useSummary';
 import { useUser } from '../data/useUser';
 import { addWatch, addWatchMany, clearSampleWatch, getSetting, putWatchInGroup, removeWatch, restoreWatchGroup, updateWatch, type Trade, type WatchGroupUndo, type WatchItem } from '../db/db';
-import { GroupChips, ManageGroupsSheet, UndoToast, undoText } from '../components/WatchGroups';
-import { ALL_GROUPS, DEFAULT_GROUP, DEFAULT_WATCH_PREFS, HOT_LIST, effectiveGroups, groupCounts } from '../lib/watchGroups';
+import { GroupBar, GroupEditor, UndoToast, undoText } from '../components/WatchGroups';
+import { DEFAULT_GROUP, DEFAULT_WATCH_PREFS, HOT_LIST, currentGroup, effectiveGroups, groupCounts, lastGroup, rememberGroup } from '../lib/watchGroups';
 import type { StockRow } from '../data/types';
 import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
 import { DEFAULT_COSTS, type CostSettings } from '../lib/costs';
@@ -66,11 +66,13 @@ export function hotSub(h: HotItem): string {
   if (h.ma20_gap !== null && h.ma20_gap !== undefined) parts.push(`乖離\u00a0${pctSigned(h.ma20_gap)}`);
   return parts.join('・');
 }
-const SORTS: [SortKey, string][] = [['change', '依變化'], ['pct', '漲跌幅'], ['rs', 'RS 百分位'], ['foreign', '外資'], ['trust', '投信'], ['custom', '自訂順序']];
+/** 2026-11-15：預設依加入順序、全部列出（不再預設「依變化」，也不收合未達門檻的）；「變化在前」是選項之一 */
+const SORTS: [SortKey, string][] = [['custom', '加入順序'], ['change', '變化在前'], ['pct', '漲跌幅'], ['rs', 'RS 百分位'], ['foreign', '外資'], ['trust', '投信']];
 
 /**
  * 加入自選股。群組：輸入框裡打的名稱（沒有這個群組就建立——有股票放進去就存在），沒打就用目前所在的群組。
- * 2026-11-15：有指定群組時（打了名稱，或目前不在「全部」），已在別的群組的股票會移過來；沒指定時不動已在自選的股票。
+ * 2026-11-15：有指定群組時（打了名稱，或正在看某個群組），已在別的群組的股票可以移過來；
+ * 沒有群組可指定時（還沒有任何群組、或正在看系統清單）不動已在自選的股票。
  */
 function AddWatchSheet({ open, onClose, rows, group, explicit, groups, watchGroup }: {
   open: boolean; onClose: () => void; rows: StockRow[]; group: string; explicit: boolean; groups: string[]; watchGroup: Map<string, string>;
@@ -249,13 +251,14 @@ export default function Mine() {
     costs: await getSetting<CostSettings>('costs', DEFAULT_COSTS),
   }));
   const [period, setPeriod] = usePeriod('portfolio');
-  const [group, setGroup] = useRestoredState('mine.group', '全部');
+  // 目前看的群組（沒有「全部」；2026-11-15）：返回時還原，否則用上次看的（localStorage），都沒有就是第一個群組
+  const [groupRaw, setGroupRaw] = useRestoredState('mine.group', lastGroup());
+  const setGroup = (g: string) => { rememberGroup(g); setGroupRaw(g); };
   const [adding, setAdding] = useState(route.query.get('add') === '1');
   const [preview, setPreview] = useState<string | null>(null);
   const [closing, setClosing] = useState<Trade | null>(null);
   const [moving, setMoving] = useState<WatchItem | null>(null);
-  const [showQuiet, setShowQuiet] = useRestoredState('mine.showQuiet', false);
-  const [sort, setSort] = useRestoredState<SortKey>('mine.sort', 'change');
+  const [sort, setSort] = useRestoredState<SortKey>('mine.sort2', 'custom');
   const [hotSort, setHotSort] = useRestoredState<HotSortKey>('mine.hotSort', 'rs');
   const [snap, setSnap] = useState<Snapshot | null | undefined>(undefined);
   const [seen, setSeen] = useState<number | null | undefined>(undefined);
@@ -275,20 +278,18 @@ export default function Mine() {
   const groups = useMemo(() => effectiveGroups(watch, watchPrefs), [watch, watchPrefs]);
   const counts = useMemo(() => groupCounts(watch), [watch]);
   const hotHidden = watchPrefs.hidden.includes(HOT_LIST);
-  const [groupEdit, setGroupEdit] = useState<{ mode: 'new' | 'manage'; focus?: string | null } | null>(null);
+  // 群組的編輯直接在頁面上展開（不另開面板）：focus＝直接改名哪一個（長按帶入）；focusNew＝按「＋」進來，游標在新群組名稱
+  const [groupEdit, setGroupEdit] = useState<{ focus?: string | null; focusNew?: boolean } | null>(null);
   const [undo, setUndo] = useState<WatchGroupUndo | null>(null);
-  // 目前看的群組被刪除、改名或隱藏 → 回到「全部」
-  // （剛建立或剛改名的群組要等資料重讀後才在清單裡：pendingGroup 記著，這段期間不跳走）
-  const pendingGroup = useRef<string | null>(null);
-  const pickNewGroup = (g: string) => { pendingGroup.current = g; setGroup(g); };
-  useEffect(() => {
-    if (!user) return;
-    if (pendingGroup.current && groups.includes(pendingGroup.current)) pendingGroup.current = null;
-    if (group === pendingGroup.current) return;
-    if (group === HOT ? hotHidden : group !== ALL_GROUPS && !groups.includes(group)) setGroup(ALL_GROUPS);
-  }, [!!user, group, groups, hotHidden]);
-  const watchShown = group === HOT ? [] : watch.filter((w) => group === '全部' || w.group === group);
   const hotItems = useMemo(() => hotSorted(lists.data?.hot_momentum.items ?? [], hotSort), [lists.data, hotSort]);
+  const hotShown = hotItems.length > 0 && !hotHidden;
+  // 剛建立或剛改名的群組要等資料重讀後才在清單裡：pendingGroup 記著，這段期間不跳走
+  const pendingGroup = useRef<string | null>(null);
+  if (pendingGroup.current && groups.includes(pendingGroup.current)) pendingGroup.current = null;
+  const pickNewGroup = (g: string) => { pendingGroup.current = g; setGroup(g); };
+  // 目前看的群組被刪除、改名或隱藏 → 換到第一個群組（都沒有就是系統清單）
+  const group = currentGroup(groupRaw, groups, hotShown ? HOT : null, pendingGroup.current);
+  const watchShown = group === HOT ? [] : watch.filter((w) => w.group === group);
   const watchedSet = useMemo(() => new Set(watch.map((w) => w.code)), [watch]);
   const watchGroupOf = useMemo(() => new Map(watch.map((w) => [w.code, w.group] as const)), [watch]);
   const samples = watch.filter((w) => w.origin === 'sample');
@@ -319,12 +320,12 @@ export default function Mine() {
     else if (watch.length) trackMovers(moverKey ? moverKey.split(',') : []);
   }, [seg, !!user, !!byCode, snap === undefined, moverKey, watch.length]);
   const changes = useMemo(() => (snap === undefined ? [] : diffAll(rows, snap)), [rows, snap]);
-  const ordered = seg === 'hold'
-    ? [...changes].sort((a, b) => Number(risky.has(b.code)) - Number(risky.has(a.code)) || Number(b.significant) - Number(a.significant) || b.score - a.score)
-    : changes;
+  // 持股沒有「加入順序」：預設是風險與變化在前
+  const sortKey: SortKey = seg === 'hold' && sort === 'custom' ? 'change' : sort;
+  const ordered = [...changes].sort((a, b) => (seg === 'hold' ? Number(risky.has(b.code)) - Number(risky.has(a.code)) : 0) || Number(b.significant) - Number(a.significant) || b.score - a.score);
   const val = (c: (typeof changes)[number]): number => {
     const r = c.row;
-    switch (sort) {
+    switch (sortKey) {
       case 'pct': return r.change_pct ?? -Infinity;
       case 'rs': return (r.rs_percentile as number | null) ?? -Infinity;
       case 'foreign': return r.foreign_net_lots ?? -Infinity;
@@ -333,10 +334,8 @@ export default function Mine() {
       default: return 0;
     }
   };
-  const sortedAll = sort === 'change' ? ordered : [...changes].sort((a, b) => val(b) - val(a));
-  // 依變化排序時，沒有顯著變化的收合；改用其他排序時全部列出
-  const main = sort === 'change' ? ordered.filter((c) => c.significant || risky.has(c.code)) : sortedAll;
-  const quiet = sort === 'change' ? ordered.filter((c) => !c.significant && !risky.has(c.code)) : [];
+  // 2026-11-15：一律全部列出，不收合「未達門檻」的（有顯著變化的那幾檔，原因仍然寫在名稱下面）
+  const main = sortKey === 'change' ? ordered : [...changes].sort((a, b) => val(b) - val(a));
   // U-01：沒有最新資料的股票（下市、長期停牌、代號錯誤）在自選與持股分段都要列出，不能無聲消失
   const missing = !byCode ? [] : seg === 'watch' ? watchShown.filter((w) => !byCode.get(w.code)).map((w) => w.code) : holdCodes.filter((c) => !byCode.get(c));
   const inactive = useAsync(loadInactive, []);
@@ -353,7 +352,7 @@ export default function Mine() {
   const sampleNames = sample.codes.map((c) => byCode?.get(c)?.name ?? c).join('、');
   async function addSamples() {
     await addWatchMany(sample.codes.filter((c) => !byCode || byCode.has(c)), sample.group, 'sample');
-    setGroup('全部');
+    setGroup(sample.group);
   }
   async function copyHot() {
     const name = `熱門動能 ${mdLabel(lists.data?.date)}`;
@@ -362,7 +361,7 @@ export default function Mine() {
     setCopied(`已建立群組「${name}」：加入 ${n} 檔${skipped ? `（${skipped} 檔原本就在自選，維持原群組）` : ''}`);
   }
   // 個股頁分頁器的清單＝列表上顯示的順序與檔數（顯著 → 未達門檻 → 沒有最新資料的股票），兩邊的數量一致
-  const listCodes = [...(group === HOT ? rows.map((r) => r.code) : [...main, ...quiet].map((c) => c.code)), ...(group === HOT ? [] : missing)];
+  const listCodes = [...(group === HOT ? rows.map((r) => r.code) : main.map((c) => c.code)), ...(group === HOT ? [] : missing)];
   const openStock = (code: string) => { setListContext({ name: seg === 'hold' ? '持股' : group === HOT ? '熱門動能' : '自選', codes: listCodes }); navigate(`/stock/${code}`); };
   const previewRow = preview ? byCode?.get(preview) : undefined;
   const previewTrade = preview ? open.find((t) => t.code === preview) : undefined;
@@ -404,7 +403,7 @@ export default function Mine() {
       return h.marks?.length ? <span>{hotSub(h)} <span class="tag risk">{h.marks.join('・')}</span></span> : hotSub(h);
     }
     const w = watch.find((x) => x.code === code);
-    return w?.origin === 'sample' ? '範例' : w?.group ?? '';
+    return w?.origin === 'sample' ? '範例' : ''; // 清單一次只看一個群組，不用再寫群組名稱
   };
 
   // 新用戶（還沒有自選）只看到歡迎卡；有自選後才出現群組膠囊（含系統清單「熱門動能」）
@@ -413,7 +412,7 @@ export default function Mine() {
   const moveGroups = groups.includes(DEFAULT_GROUP) ? groups : [DEFAULT_GROUP, ...groups];
   const showChips = seg === 'watch' && (watch.length > 0 || groups.length > 0);
   const hotLabel = lists.data?.hot_momentum.label ?? '熱門動能';
-  const emptyGroup = seg === 'watch' && !!user && group !== ALL_GROUPS && group !== HOT && groups.includes(group) && !(counts.get(group) ?? 0);
+  const emptyGroup = seg === 'watch' && !!user && group !== HOT && groups.includes(group) && !(counts.get(group) ?? 0);
   const sortable = rows.length > 0 && group !== HOT;
   return (
     <div class="page">
@@ -446,9 +445,17 @@ export default function Mine() {
       ) : null}
 
       {showChips ? (
-        <GroupChips groups={groups} group={group} onPick={setGroup}
-          hot={hotItems.length && !hotHidden ? { id: HOT, label: hotLabel } : null}
-          onNew={() => setGroupEdit({ mode: 'new' })} onEdit={(focus) => setGroupEdit({ mode: 'manage', focus })} />
+        <>
+          <GroupBar groups={groups} group={group} onPick={setGroup} hot={hotShown ? { id: HOT, label: hotLabel } : null}
+            editing={!!groupEdit} onNew={() => setGroupEdit({ focusNew: true })} onEdit={(focus) => setGroupEdit({ focus })} onDone={() => setGroupEdit(null)} />
+          {groupEdit ? (
+            <GroupEditor focus={groupEdit.focus} focusNew={!!groupEdit.focusNew} onClose={() => setGroupEdit(null)}
+              groups={groups} counts={counts} prefs={watchPrefs} hot={hotItems.length ? { label: hotLabel, count: hotItems.length } : null}
+              onCreated={(g) => { if (groupEdit.focusNew) { pickNewGroup(g); setGroupEdit(null); } }}
+              onRenamed={(from, to) => { if (group === from) pickNewGroup(to); }}
+              onDeleted={setUndo} />
+          ) : null}
+        </>
       ) : null}
 
       {seg === 'watch' && samples.length && group !== HOT ? (
@@ -464,8 +471,8 @@ export default function Mine() {
 
       {sortable ? (
         <div class="row between" style={{ marginTop: 'var(--s-4)', alignItems: 'flex-start' }}>
-          <p class="caption muted grow">{sort === 'change' ? `依${watchSum.basis}的變化排序` : `依${SORTS.find((x) => x[0] === sort)![1]}排序`}・左滑可{seg === 'hold' ? '平倉' : '移除或移到其他群組'}・長按快速預覽</p>
-          <select class="select sort-select" aria-label="排序" value={sort} onChange={(e) => setSort((e.target as HTMLSelectElement).value as SortKey)}>
+          <p class="caption muted grow">{rows.length} 檔・左滑可{seg === 'hold' ? '平倉' : '移除或移到其他群組'}・長按快速預覽</p>
+          <select class="select sort-select" aria-label="排序" value={sortKey} onChange={(e) => setSort((e.target as HTMLSelectElement).value as SortKey)}>
             {SORTS.filter(([k]) => seg === 'watch' || k !== 'custom').map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
         </div>
@@ -496,17 +503,6 @@ export default function Mine() {
           <StockListRow key={c.code} code={c.code} row={c.row} hist={hist.get(c.code)} sub={sub(c.code, c.reasons)}
             onOpen={() => openStock(c.code)} onPreview={() => setPreview(c.code)} actions={actionsFor(c.code)} ariaExtra={c.reasons.map((r) => r.text).join('、')} />
         )) : null}
-        {group !== HOT && quiet.length ? (
-          <>
-            <button class="collapsed-row" aria-expanded={showQuiet || !main.length} onClick={() => setShowQuiet(!showQuiet)}>
-              <span>{main.length ? `其餘 ${quiet.length} 檔未達門檻` : `${quiet.length} 檔未達門檻`}</span><IconChevronDown />
-            </button>
-            {showQuiet || !main.length ? quiet.map((c) => (
-              <StockListRow key={c.code} code={c.code} row={c.row} hist={hist.get(c.code)} sub={sub(c.code, [])}
-                onOpen={() => openStock(c.code)} onPreview={() => setPreview(c.code)} actions={actionsFor(c.code)} />
-            )) : null}
-          </>
-        ) : null}
         {missing.map((code) => {
           const info = inactive.data?.get(code);
           const t = seg === 'hold' ? open.find((x) => x.code === code) : undefined;
@@ -530,23 +526,6 @@ export default function Mine() {
           <button class="btn primary" onClick={() => setAdding(true)}>加入股票</button>
         </div>
       ) : null}
-      {seg === 'watch' && user && group === ALL_GROUPS && !watch.length && groups.length ? (
-        <div class="card group-empty" data-testid="watch-empty">
-          <p class="body">還沒有自選股</p>
-          <button class="btn primary" onClick={() => setAdding(true)}>加入股票</button>
-        </div>
-      ) : null}
-
-      {seg === 'watch' && group === '全部' && watch.length && hotItems.length && !hotHidden ? (
-        <button class="card row between system-teaser" onClick={() => { setGroup(HOT); window.scrollTo({ top: 0 }); }}>
-          <span>
-            <span class="body" style={{ display: 'block' }}>{hotLabel}・{hotItems.length} 檔</span>
-            <span class="caption muted">系統清單：依規則產生，非推薦；可複製成自己的群組或挑幾檔加入</span>
-          </span>
-          <span class="brand" style={{ width: '1.25rem', display: 'inline-flex' }}><IconChevron /></span>
-        </button>
-      ) : null}
-
       <QuickPreview code={preview} row={previewRow} onClose={() => setPreview(null)} onOpen={() => { const c = preview!; setPreview(null); openStock(c); }}
         actions={previewTrade ? <button class="btn" onClick={() => { setPreview(null); setClosing(previewTrade); }}>平倉</button>
           : previewWatch ? <button class="btn danger" onClick={() => { removeWatch(previewWatch.code); setPreview(null); }}>移除自選</button>
@@ -554,16 +533,10 @@ export default function Mine() {
       {summary.data && prefs ? (
         seg === 'hold'
           ? <ChecklistSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.rows} portfolio={prefs.portfolio} day={summary.data.date} />
-          : <AddWatchSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.all} group={group === ALL_GROUPS || group === HOT ? DEFAULT_GROUP : group} explicit={group !== ALL_GROUPS && group !== HOT} groups={moveGroups} watchGroup={watchGroupOf} />
+          : <AddWatchSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.all} group={!group || group === HOT ? DEFAULT_GROUP : group} explicit={!!group && group !== HOT} groups={moveGroups} watchGroup={watchGroupOf} />
       ) : null}
       <CloseSheet trade={closing} onClose={() => setClosing(null)} costs={prefs?.costs ?? DEFAULT_COSTS} price={closing ? byCode?.get(closing.code)?.close ?? null : null} day={summary.data?.date ?? ''} />
       <GroupSheet item={moving} groups={moveGroups} onClose={() => setMoving(null)} />
-      <ManageGroupsSheet mode={groupEdit?.mode ?? null} focus={groupEdit?.focus} onClose={() => setGroupEdit(null)}
-        groups={groups} counts={counts} prefs={watchPrefs} hot={hotItems.length ? { label: hotLabel, count: hotItems.length } : null}
-        onCreated={(g) => { if (groupEdit?.mode === 'new') pickNewGroup(g); }}
-        onRenamed={(from, to) => { if (group === from) pickNewGroup(to); }}
-        onDeleted={(u) => { setUndo(u); if (group === u.name) setGroup(ALL_GROUPS); }}
-        undo={undo} onUndo={() => { if (undo) void restoreWatchGroup(undo); setUndo(null); }} />
       {undo ? <UndoToast text={undoText(undo)} onDone={() => setUndo(null)} onUndo={() => { void restoreWatchGroup(undo); setUndo(null); }} /> : null}
       <HotPickSheet open={picking} onClose={() => setPicking(false)} items={hotItems} byCode={byCode} watched={watchedSet} />
     </div>

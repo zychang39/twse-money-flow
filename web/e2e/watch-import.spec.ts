@@ -57,7 +57,7 @@ test.describe('從截圖加入自選', () => {
     await expect(page.getByTestId('import-msg')).toHaveText('已加入 4 檔到「券商庫存」');
     await page.getByRole('button', { name: '關閉' }).click();
     await page.getByRole('group', { name: '群組' }).getByRole('button', { name: '券商庫存' }).click();
-    await expect(page.locator('.page').first()).toContainText('自選 4 檔'); // 清單只列有顯著變化的，其餘收在「未達門檻」
+    await expect(page.locator('.page').first()).toContainText('自選 4 檔');
     expect(outside).toEqual([]); // 辨識工具自託管：不向任何外部網址取檔
     expect(errors).toEqual([]);
   });
@@ -72,10 +72,10 @@ test.describe('從截圖加入自選', () => {
     await page.getByTestId('import-2317').locator('input').uncheck();
     await page.getByTestId('import-add').click();
     await expect(page.getByTestId('import-msg')).toHaveText('已加入 2 檔到「預設」');
-    // 再貼一次：已加入的兩檔標「已在自選」，只剩鴻海可以加
+    // 再貼一次（現在正在看「預設」這個群組）：已加入的兩檔標「已在『預設』」，只剩鴻海可以加
     await page.getByTestId('import-paste').click();
-    await expect(page.getByTestId('import-summary')).toContainText('其中 2 檔已在自選');
-    await expect(page.getByTestId('import-2330')).toContainText('已在自選');
+    await expect(page.getByTestId('import-summary')).toContainText('其中 2 檔已在「預設」');
+    await expect(page.getByTestId('import-2330')).toContainText('已在「預設」');
     await expect(page.getByTestId('import-2330').locator('input')).toBeDisabled();
     await expect(page.getByTestId('import-add')).toHaveText('加入 1 檔到「預設」');
   });

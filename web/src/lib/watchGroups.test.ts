@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GROUP_NAME_MAX, cleanGroupName, defaultMoveTarget, effectiveGroups, groupCounts, groupNameError, moveItem, normWatchPrefs } from './watchGroups';
+import { GROUP_NAME_MAX, cleanGroupName, currentGroup, defaultMoveTarget, effectiveGroups, groupCounts, groupNameError, moveItem, normWatchPrefs } from './watchGroups';
 
 const w = (...groups: string[]) => groups.map((group) => ({ group }));
 
@@ -33,10 +33,10 @@ describe('自選群組', () => {
     expect([...groupCounts(w('A', 'B', 'A'))]).toEqual([['A', 2], ['B', 1]]);
   });
 
-  it('名稱檢查：空白、保留字「全部」、太長、重複', () => {
+  it('名稱檢查：空白、太長、重複（沒有「全部」這個總覽了，可以當群組名稱）', () => {
     expect(cleanGroupName('  半導體   設備 ')).toBe('半導體 設備');
     expect(groupNameError('   ')).toBe('請輸入群組名稱');
-    expect(groupNameError('全部')).toContain('總覽');
+    expect(groupNameError('全部')).toBeNull();
     expect(groupNameError('一'.repeat(GROUP_NAME_MAX))).toBeNull();
     expect(groupNameError('一'.repeat(GROUP_NAME_MAX + 1))).toContain(`最多 ${GROUP_NAME_MAX} 個字`);
     expect(groupNameError(' Latest ', ['Latest'])).toBe('已經有「Latest」這個群組');
@@ -48,5 +48,18 @@ describe('自選群組', () => {
     expect(defaultMoveTarget('Latest', ['Latest'])).toBe('預設'); // 「預設」會自動出現
     expect(defaultMoveTarget('預設', ['預設', 'Latest', 'ETF'])).toBe('Latest');
     expect(defaultMoveTarget('預設', ['預設'])).toBeNull();
+  });
+  it('目前顯示的群組（沒有「全部」）：想看的還在就用它，不在了換第一個；沒有群組時什麼都不選', () => {
+    expect(currentGroup('Latest', ['預設', 'Latest'], 'hot')).toBe('Latest');
+    expect(currentGroup('', ['預設', 'Latest'], 'hot')).toBe('預設'); // 第一次進來
+    expect(currentGroup('已刪除', ['預設', 'Latest'], 'hot')).toBe('預設');
+    expect(currentGroup('全部', ['Latest'], null)).toBe('Latest'); // 舊版記下的「全部」
+    expect(currentGroup('hot', ['預設'], 'hot')).toBe('hot');
+    expect(currentGroup('hot', ['預設'], null)).toBe('預設'); // 系統清單被隱藏
+    expect(currentGroup('新群組', ['預設'], null, '新群組')).toBe('新群組'); // 剛建立、資料還沒重讀
+    // 還沒有任何群組（新用戶）：什麼都不選，系統清單不會自己跑出來
+    expect(currentGroup('', [], 'hot')).toBe('');
+    expect(currentGroup('hot', [], 'hot')).toBe('');
+    expect(currentGroup('', [], null)).toBe('');
   });
 });
