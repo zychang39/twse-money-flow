@@ -149,10 +149,10 @@ test.describe('M1-4 只做深色（2026-10 恢復環境光改版）', () => {
 });
 
 test.describe('M1-5 個股頁期間', () => {
-  test('D3：期間 1D～ALL 一律顯示（沒有 10Y）；沒有分 K 檔時 1D 說明原因、主角數字仍是收盤價；預設 1Y；主角數字下方兩行', async ({ page }) => {
+  test('D3：期間 1D～ALL 一律顯示（2026-11-16 起 11 個，同 iOS 股市 App）；沒有分 K 檔時 1D 說明原因、主角數字仍是收盤價；預設 1Y；主角數字下方兩行', async ({ page }) => {
     await page.goto('#/stock/2330');
     const group = page.getByRole('group', { name: '股價走勢期間' }).first();
-    await expect(group.getByRole('button')).toHaveText(['1D', '1W', '1M', '3M', 'YTD', '1Y', '5Y', 'ALL']);
+    await expect(group.getByRole('button')).toHaveText(['1D', '1W', '1M', '3M', '6M', 'YTD', '1Y', '2Y', '5Y', '10Y', 'ALL']);
     await expect(group.getByRole('button', { name: '1Y', exact: true })).toHaveAttribute('aria-pressed', 'true');
     const hero = page.getByTestId('stock-hero').first();
     await expect(hero.getByTestId('hero-change-date').first()).toHaveText(/^\d{1,2}\/\d{1,2}$/);

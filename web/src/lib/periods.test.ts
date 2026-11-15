@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { change, fillForward, periodStart, sliceWindow } from './periods';
+import { PERIODS, PERIOD_LABEL, PERIOD_NAME, change, fillForward, periodStart, sliceWindow } from './periods';
 import { extent, nearestIndex, points, resample } from './chartMath';
 
 const dates = ['2025-12-30', '2025-12-31', '2026-01-02', '2026-01-05', '2026-06-01', '2026-08-24', '2026-09-17', '2026-09-23', '2026-09-24'];
@@ -11,6 +11,14 @@ describe('期間選擇器', () => {
     expect(dates[periodStart(dates, '1W').start]).toBe('2026-09-17');
     expect(dates[periodStart(dates, '1M').start]).toBe('2026-08-24');
     expect(periodStart(dates, 'ALL').start).toBe(0);
+  });
+  it('6M、2Y（2026-11-16；跨度與 iOS 股市 App 相同）：以 6、24 個月前最後一個交易日為基準', () => {
+    const ds = ['2024-09-23', '2024-09-24', '2024-09-25', '2026-03-23', '2026-03-24', '2026-03-25', '2026-09-24'];
+    expect(ds[periodStart(ds, '6M').start]).toBe('2026-03-24');
+    expect(ds[periodStart(ds, '2Y').start]).toBe('2024-09-24');
+    expect(periodStart(ds.slice(3), '2Y')).toEqual({ start: 0, truncated: true }); // 不滿 2 年
+    expect(PERIODS).toEqual(['1D', '1W', '1M', '3M', '6M', 'YTD', '1Y', '2Y', '5Y', '10Y', 'ALL']);
+    expect(PERIODS.every((p) => PERIOD_LABEL[p] && PERIOD_NAME[p])).toBe(true);
   });
   it('資料不足所選期間時標示 truncated', () => {
     expect(periodStart(dates, '1Y').truncated).toBe(true);

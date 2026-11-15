@@ -1,7 +1,10 @@
 /** 期間選擇器（1D～ALL）：依日期切出區間。基準點＝區間開始前最後一個交易日的收盤，與漲跌計算一致。 */
 
-export type Period = '1D' | '1W' | '1M' | '3M' | 'YTD' | '1Y' | '5Y' | '10Y' | 'ALL';
-export const PERIODS: Period[] = ['1D', '1W', '1M', '3M', 'YTD', '1Y', '5Y', '10Y', 'ALL'];
+export type Period = '1D' | '1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | '2Y' | '5Y' | '10Y' | 'ALL';
+/** 2026-11-16：加上 6M、2Y（個股頁再加回 10Y），跨度與 iOS 股市 App 相同：1 天、1 週、1／3／6 個月、今年以來、1／2／5／10 年、全部 */
+export const PERIODS: Period[] = ['1D', '1W', '1M', '3M', '6M', 'YTD', '1Y', '2Y', '5Y', '10Y', 'ALL'];
+/** 期間超過這麼多個時，期間列改成可以左右拖動（每個按鈕固定寬度），選到的滑到中間；以內則平分整列 */
+export const PERIODS_FIT = 8;
 /** 今晚頁：1D 用盤後取得的證交所每 5 秒指數統計（每分鐘一點，M2 2026-10-03）；其餘為日資料；預設 3M。 */
 export const TONIGHT_PERIODS: Period[] = ['1D', '1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
 /** 盤中走勢 → 視窗：dates 為「日期T時:分」（HeroChart timeAxis 以時間標示），daily 給日漲跌用。 */
@@ -24,13 +27,15 @@ export const PERIOD_LABEL: Record<Period, string> = {
   '1W': '近 1 週',
   '1M': '近 1 個月',
   '3M': '近 3 個月',
+  '6M': '近 6 個月',
   YTD: '今年以來',
   '1Y': '近 1 年',
+  '2Y': '近 2 年',
   '5Y': '近 5 年',
   '10Y': '近 10 年',
   ALL: '全部期間',
 };
-export const PERIOD_NAME: Record<Period, string> = { '1D': '1 日', '1W': '1 週', '1M': '1 個月', '3M': '3 個月', YTD: '今年以來', '1Y': '1 年', '5Y': '5 年', '10Y': '10 年', ALL: '全部' };
+export const PERIOD_NAME: Record<Period, string> = { '1D': '1 日', '1W': '1 週', '1M': '1 個月', '3M': '3 個月', '6M': '6 個月', YTD: '今年以來', '1Y': '1 年', '2Y': '2 年', '5Y': '5 年', '10Y': '10 年', ALL: '全部' };
 
 function shiftDate(iso: string, months: number, days = 0): string {
   const d = new Date(`${iso}T12:00:00Z`);
@@ -60,7 +65,9 @@ export function periodStart(dates: string[], p: Period): { start: number; trunca
     case '1W': target = shiftDate(last, 0, 7); break;
     case '1M': target = shiftDate(last, 1); break;
     case '3M': target = shiftDate(last, 3); break;
+    case '6M': target = shiftDate(last, 6); break;
     case '1Y': target = shiftDate(last, 12); break;
+    case '2Y': target = shiftDate(last, 24); break;
     case '5Y': target = shiftDate(last, 60); break;
     case '10Y': target = shiftDate(last, 120); break;
     case 'YTD': target = `${Number(last.slice(0, 4)) - 1}-12-31`; break;
