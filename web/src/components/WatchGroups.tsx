@@ -1,11 +1,13 @@
 /**
- * 自選群組：群組列與頁面上直接展開的編輯區（2026-11-15；DECISIONS #466、#467）。
+ * 自選群組：群組列與頁面上直接展開的編輯區（2026-11-15／16；DECISIONS #466、#467、#469）。
  *
- * 操作方式參考 iOS 的清單管理（股市 App 的觀察清單、提醒事項的列表）：
- * - 群組列：每個群組一樣寬（放得下時平分整列；放不下才橫向捲動），最後一顆是「＋」；右邊固定「編輯」。沒有「全部」。
- * - 按「編輯」（或長按、桌機按右鍵某個群組）：群組列原地換成編輯區，不另開一層面板——
- *   每列左邊圓圈減號（刪除）、右邊鉛筆（改名）與三條線的把手（按住上下拖曳排序；鍵盤用上下鍵）；
- *   系統清單用開關顯示或隱藏；不在列上的「預設」與隱藏的系統清單出現在「快速加入」；右上「完成」收起來。
+ * 操作方式參考 iOS 的清單管理（股市 App 的觀察清單、提醒事項的列表、主畫面排列 App）：
+ * - 群組列：小膠囊（依名稱寬度，放不下才橫向捲動），最後一顆是「＋」；右邊固定「編輯」。沒有「全部」。
+ * - 換順序：在群組列上按住一個群組約 0.3 秒，它會浮起來，直接左右拖到想要的位置放開（#469）。
+ *   按住不會進編輯；按住後沒有移動就放開＝一般的點選。
+ * - 按「編輯」：群組列原地換成編輯區，不另開一層面板——每列左邊圓圈減號（刪除）、右邊鉛筆（改名）
+ *   與三條線的把手（上下拖曳排序；鍵盤用上下鍵）；系統清單用開關顯示或隱藏；
+ *   不在列上的「預設」與隱藏的系統清單出現在「快速加入」；右上「完成」收起來。
  * - 刪除不跳確認視窗：空群組直接刪；有股票的群組在那一列展開兩個選擇（股票移到別的群組／一起移除）。
  *   刪除後頁面底部出現「復原」（可逆的動作用復原，不用「你確定嗎？」）。
  */
@@ -14,52 +16,28 @@ import { createWatchGroup, deleteWatchGroup, renameWatchGroup, setWatchGroupOrde
 import { DEFAULT_GROUP, GROUP_NAME_MAX, HOT_LIST, cleanGroupName, defaultMoveTarget, groupNameError, moveItem, type WatchPrefs } from '../lib/watchGroups';
 import { IconGrip, IconMinusCircle, IconPencil, IconPlus } from './Icons';
 
-const LONG_MS = 480;
+/** 按住多久算「拿起來」（比一般點選久一點，又不用等太久） */
+const HOLD_MS = 300;
+/** 按住期間手指移動超過這個距離＝在捲動群組列，不拿起來 */
+const HOLD_SLOP = 8;
+/** 拖到群組列邊緣這麼近時自動捲動（群組多、有一部分在畫面外時） */
+const EDGE = 28;
 /** 改名的輸入框一出現就取得焦點並全選（ref callback；只在掛上時執行一次） */
 const focusOnMount = (el: HTMLInputElement | null) => { if (el && document.activeElement !== el) { el.focus(); el.select(); } };
 
-/** 長按（觸控）或右鍵（滑鼠）：回傳要綁在按鈕上的事件；長按觸發後那一次點擊不算。 */
-function useLongPress(onLong: () => void) {
-  const t = useRef<{ timer: number; x: number; y: number; fired: boolean } | null>(null);
-  const clear = () => { if (t.current) clearTimeout(t.current.timer); };
-  return {
-    onPointerDown: (e: PointerEvent) => {
-      if (e.button !== 0) return;
-      clear();
-      const s = { timer: 0, x: e.clientX, y: e.clientY, fired: false };
-      s.timer = window.setTimeout(() => { s.fired = true; if (navigator.vibrate) navigator.vibrate(8); onLong(); }, LONG_MS);
-      t.current = s;
-    },
-    onPointerMove: (e: PointerEvent) => {
-      const s = t.current;
-      if (s && !s.fired && Math.hypot(e.clientX - s.x, e.clientY - s.y) > 10) clear(); // 在捲動膠囊列
-    },
-    onPointerUp: clear,
-    onPointerCancel: clear,
-    onPointerLeave: clear,
-    // 右鍵（桌機）或系統的長按選單（Android）：計時器還沒觸發才由這裡觸發，兩邊不會重複
-    onContextMenu: (e: Event) => {
-      e.preventDefault(); clear();
-      const fired = !!t.current?.fired;
-      if (t.current) t.current.fired = true;
-      if (!fired) onLong();
-    },
-    /** 長按已經觸發 → 這次點擊略過 */
-    consumed: () => { const f = !!t.current?.fired; if (t.current) t.current.fired = false; return f; },
-  };
+/**
+ * 排序先在畫面上生效：local 留到設定追上為止（順序一樣了），或群組增減了才放掉。
+ * 不能「groups 一變就放掉」：連續移動兩次時，第一次的重讀結果會晚到，那一刻放掉會讓順序先跳回去。
+ */
+function useOptimisticOrder(groups: string[]): [string[], (next: string[]) => void] {
+  const [local, setLocal] = useState<string[] | null>(null);
+  const sameSet = !!local && local.length === groups.length && local.every((g) => groups.includes(g));
+  const caughtUp = sameSet && local!.every((g, i) => groups[i] === g);
+  useEffect(() => { if (local && (!sameSet || caughtUp)) setLocal(null); }, [local, sameSet, caughtUp]);
+  return [sameSet ? local! : groups, setLocal];
 }
 
-function GroupChip({ name, label, pressed, system, onPick, onEdit }: { name: string; label?: string; pressed: boolean; system?: boolean; onPick: () => void; onEdit?: () => void }) {
-  const lp = useLongPress(() => onEdit?.());
-  const { consumed, ...events } = lp;
-  return (
-    <button class={`chip ${system ? 'system' : ''}`} aria-pressed={pressed} {...(onEdit ? events : {})}
-      aria-description={onEdit ? '長按可編輯' : undefined}
-      onClick={() => { if (onEdit && consumed()) return; onPick(); }} data-group={name}>
-      {label ?? name}{system ? <span class="sys-mark">系統</span> : null}
-    </button>
-  );
-}
+interface BarDrag { from: number; to: number; dx: number; w: number; gap: number }
 
 /** 群組列：使用者群組…｜系統清單｜＋；右邊固定「編輯」。編輯中換成標題與「完成」。 */
 export function GroupBar({ groups, group, onPick, hot, editing, onNew, onEdit, onDone }: {
@@ -70,10 +48,111 @@ export function GroupBar({ groups, group, onPick, hot, editing, onNew, onEdit, o
   hot: { id: string; label: string } | null;
   editing: boolean;
   onNew: () => void;
-  /** focus＝直接編輯哪一個（長按帶入）；不給＝展開整個編輯區 */
-  onEdit: (focus?: string) => void;
+  onEdit: () => void;
   onDone: () => void;
 }) {
+  const [shown, setLocal] = useOptimisticOrder(groups);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<BarDrag | null>(null);
+  const [said, setSaid] = useState('');
+  // 按住中的狀態：active＝已經拿起來；rects＝拿起來那一刻每個群組的位置（之後的位移都以它為準）
+  const hold = useRef<{ id: number; el: HTMLElement; from: number; x0: number; y0: number; x: number; timer: number; active: boolean; moved: boolean; rects: { left: number; width: number }[]; scroll0: number; raf: number } | null>(null);
+  const skipClick = useRef(false);
+
+  // 拿起來之後擋掉瀏覽器的捲動（觸控）：這時手指還沒移動，捲動還沒開始，擋得住
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    const stop = (e: TouchEvent) => { if (hold.current?.active) e.preventDefault(); };
+    row.addEventListener('touchmove', stop, { passive: false });
+    return () => row.removeEventListener('touchmove', stop);
+  }, [editing]);
+  useEffect(() => () => { if (hold.current) { clearTimeout(hold.current.timer); cancelAnimationFrame(hold.current.raf); } }, []);
+
+  /** 依目前手指位置算位移與落點（位移夾在第一個到最後一個群組之間） */
+  function place(h: NonNullable<typeof hold.current>): BarDrag {
+    const row = rowRef.current!;
+    const r = h.rects, me = r[h.from], last = r[r.length - 1];
+    const raw = h.x - h.x0 + (row.scrollLeft - h.scroll0);
+    const dx = Math.max(r[0].left - me.left, Math.min(last.left + last.width - (me.left + me.width), raw));
+    // 落點用手指實際的位置算（沒有夾住的位移）：膠囊寬度不一，用夾住後的位置會讓比較寬的那一顆拖不到最前面或最後面
+    const center = me.left + me.width / 2 + raw;
+    let to = 0;
+    r.forEach((x, j) => { if (j !== h.from && x.left + x.width / 2 < center) to++; });
+    const gap = r.length > 1 ? Math.max(0, r[1].left - (r[0].left + r[0].width)) : 0;
+    return { from: h.from, to, dx, w: me.width, gap };
+  }
+  /** 拖到列的邊緣：自動捲動，露出還在畫面外的群組 */
+  function autoScroll() {
+    const h = hold.current, row = rowRef.current;
+    if (!h?.active || !row) return;
+    const box = row.getBoundingClientRect();
+    const v = h.x < box.left + EDGE ? -6 : h.x > box.right - EDGE ? 6 : 0;
+    if (v) {
+      const before = row.scrollLeft;
+      row.scrollLeft += v;
+      if (row.scrollLeft !== before) setDrag(place(h));
+    }
+    h.raf = requestAnimationFrame(autoScroll);
+  }
+  function lift() {
+    const h = hold.current, row = rowRef.current;
+    if (!h || !row) return;
+    h.active = true;
+    h.rects = [...row.querySelectorAll<HTMLElement>('[data-drag]')].map((el) => { const b = el.getBoundingClientRect(); return { left: b.left, width: b.width }; });
+    h.scroll0 = row.scrollLeft;
+    try { h.el.setPointerCapture(h.id); } catch { /* 指標已經放開 */ }
+    if (navigator.vibrate) navigator.vibrate(8);
+    setDrag(place(h));
+    h.raf = requestAnimationFrame(autoScroll);
+  }
+  function end(commit: boolean) {
+    const h = hold.current;
+    hold.current = null;
+    if (!h) return;
+    clearTimeout(h.timer); cancelAnimationFrame(h.raf);
+    if (!h.active) return;
+    const d = place(h);
+    setDrag(null);
+    skipClick.current = h.moved; // 拿起來又移動過＝排序，不算點選；沒移動就放開＝一般的點選
+    if (commit && d.to !== d.from) {
+      const next = moveItem(shown, d.from, d.to);
+      setLocal(next);
+      setSaid(`「${shown[d.from]}」移到第 ${d.to + 1} 個`);
+      void setWatchGroupOrder(next);
+    }
+  }
+  const dragEvents = (i: number) => (shown.length > 1 ? {
+    onPointerDown: (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      if (hold.current) end(false);
+      const el = e.currentTarget as HTMLElement;
+      hold.current = { id: e.pointerId, el, from: i, x0: e.clientX, y0: e.clientY, x: e.clientX, timer: window.setTimeout(lift, HOLD_MS), active: false, moved: false, rects: [], scroll0: 0, raf: 0 };
+    },
+    onPointerMove: (e: PointerEvent) => {
+      const h = hold.current;
+      if (!h || e.pointerId !== h.id) return;
+      if (!h.active) {
+        if (Math.hypot(e.clientX - h.x0, e.clientY - h.y0) > HOLD_SLOP) end(false); // 在捲動，不是按住
+        return;
+      }
+      h.x = e.clientX;
+      if (Math.abs(e.clientX - h.x0) > 3) h.moved = true;
+      setDrag(place(h));
+    },
+    onPointerUp: (e: PointerEvent) => { if (hold.current) { hold.current.x = e.clientX; end(true); } },
+    onPointerCancel: () => end(false),
+    onContextMenu: (e: Event) => e.preventDefault(), // 長按不要跳系統選單
+  } : {});
+  /** 拖曳中的位移：被拖的跟著手指；它經過的群組往旁邊讓出它的寬度 */
+  const shift = (j: number): string | undefined => {
+    if (!drag) return undefined;
+    if (j === drag.from) return `translateX(${drag.dx}px) scale(1.06)`;
+    if (drag.from < drag.to && j > drag.from && j <= drag.to) return `translateX(${-(drag.w + drag.gap)}px)`;
+    if (drag.from > drag.to && j >= drag.to && j < drag.from) return `translateX(${drag.w + drag.gap}px)`;
+    return undefined;
+  };
+
   if (editing) {
     return (
       <div class="group-bar editing">
@@ -84,13 +163,22 @@ export function GroupBar({ groups, group, onPick, hot, editing, onNew, onEdit, o
   }
   return (
     <div class="group-bar">
-      <div class="chips group-chips" role="group" aria-label="群組">
-        {groups.map((g) => <GroupChip key={g} name={g} pressed={group === g} onPick={() => onPick(g)} onEdit={() => onEdit(g)} />)}
-        {hot ? <GroupChip name={hot.id} label={hot.label} system pressed={group === hot.id} onPick={() => onPick(hot.id)} onEdit={() => onEdit(HOT_LIST)} /> : null}
+      <div class={`chips group-chips ${drag ? 'sorting' : ''}`} role="group" aria-label="群組" ref={rowRef}>
+        {shown.map((g, i) => (
+          <button key={g} class={`chip ${drag?.from === i ? 'dragging' : ''}`} aria-pressed={group === g} data-group={g} data-drag=""
+            aria-description={shown.length > 1 ? '按住可以左右拖曳換順序' : undefined} style={{ transform: shift(i) }} {...dragEvents(i)}
+            onClick={() => { if (skipClick.current) { skipClick.current = false; return; } onPick(g); }}>{g}</button>
+        ))}
+        {hot ? (
+          <button class="chip system" aria-pressed={group === hot.id} data-group={hot.id} onClick={() => onPick(hot.id)}>
+            {hot.label}<span class="sys-mark">系統</span>
+          </button>
+        ) : null}
         <button class="chip chip-icon" aria-label="新增群組" onClick={onNew} data-testid="group-new"><IconPlus /></button>
       </div>
       {/* 「編輯」固定在右邊，群組再多也看得到（群組在它左邊橫向捲動） */}
-      <button class="text-btn group-edit-btn" onClick={() => onEdit()} data-testid="group-edit">編輯</button>
+      <button class="text-btn group-edit-btn" onClick={onEdit} data-testid="group-edit">編輯</button>
+      <span class="sr-only" role="status">{said}</span>
     </div>
   );
 }
@@ -119,8 +207,6 @@ function NewGroup({ existing, onCreate, autoFocus }: { existing: string[]; onCre
 }
 
 export interface GroupEditorProps {
-  /** 直接展開哪一個群組的改名（長按帶入） */
-  focus?: string | null;
   /** 按「＋」進來：游標放在新群組名稱 */
   focusNew: boolean;
   onClose: () => void;
@@ -135,7 +221,7 @@ export interface GroupEditorProps {
 }
 
 /** 群組的編輯區：直接接在群組列下面（不是面板）。Esc 或「完成」收起來。 */
-export function GroupEditor({ focus, focusNew, onClose, groups, counts, prefs, hot, onCreated, onRenamed, onDeleted }: GroupEditorProps) {
+export function GroupEditor({ focusNew, onClose, groups, counts, prefs, hot, onCreated, onRenamed, onDeleted }: GroupEditorProps) {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [err, setErr] = useState('');
@@ -143,19 +229,12 @@ export function GroupEditor({ focus, focusNew, onClose, groups, counts, prefs, h
   const [target, setTarget] = useState('');
   const [msg, setMsg] = useState('');
   const rootRef = useRef<HTMLElement>(null);
-  // 拖曳排序：drag＝正在拖的那一列（from 原位置、to 目前落點、dy 位移、h 一列的高度）；
-  // local＝放開後先照新順序顯示，等設定重讀（groups 變了）再交還
+  // 拖曳排序：drag＝正在拖的那一列（from 原位置、to 目前落點、dy 位移、h 一列的高度）；順序先在畫面上生效（useOptimisticOrder）
   const [drag, setDrag] = useState<{ from: number; to: number; dy: number; h: number } | null>(null);
-  const [local, setLocal] = useState<string[] | null>(null);
+  const [shown, setLocal] = useOptimisticOrder(groups);
   const grab = useRef<{ y: number; from: number; h: number } | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const refocus = useRef<string | null>(null);
-  // local 留到設定追上為止（順序一樣了），或群組增減了才放掉。不能「groups 一變就放掉」：
-  // 連續移動兩次時，第一次的重讀結果會晚到，那一刻放掉 local 會讓清單先跳回舊順序、焦點也跟著掉
-  const sameSet = !!local && local.length === groups.length && local.every((g) => groups.includes(g));
-  const caughtUp = sameSet && local!.every((g, i) => groups[i] === g);
-  useEffect(() => { if (local && (!sameSet || caughtUp)) setLocal(null); }, [local, sameSet, caughtUp]);
-  const shown = sameSet ? local! : groups;
   useEffect(() => {
     // 鍵盤移動後節點換了位置，焦點放回同一個把手
     if (!refocus.current) return;
@@ -210,18 +289,14 @@ export function GroupEditor({ focus, focusNew, onClose, groups, counts, prefs, h
     if (drag.from > drag.to && j >= drag.to && j < drag.from) return `translateY(${drag.h}px)`;
     return undefined;
   };
-  useEffect(() => {
-    const g = focus && focus !== HOT_LIST && groups.includes(focus) ? focus : null;
-    setRenaming(g); setDraft(g ?? '');
-    rootRef.current?.scrollIntoView({ block: 'nearest' });
-  }, [focus]);
+  useEffect(() => { rootRef.current?.scrollIntoView({ block: 'nearest' }); }, []);
 
   // 開關按下去先照新狀態顯示（hotLocal），等設定重讀後交還——不然重讀前的畫面更新會讓開關彈回去一下
   const [hotLocal, setHotLocal] = useState<boolean | null>(null);
   const hotStored = prefs.hidden.includes(HOT_LIST);
   useEffect(() => { if (hotLocal !== null && hotLocal === hotStored) setHotLocal(null); }, [hotLocal, hotStored]); // 設定追上了才交還
   const hotHidden = hotLocal ?? hotStored;
-  const setHot = (hidden: boolean) => { setHotLocal(hidden); void setWatchListHidden(HOT_LIST, hidden); };
+  const setHot = (hidden: boolean) => { setHotLocal(hidden); setMsg(''); void setWatchListHidden(HOT_LIST, hidden); }; // 之前的訊息（例：已加回）不再適用
   const quick: { key: string; label: string; add: () => void }[] = [];
   if (!groups.includes(DEFAULT_GROUP)) quick.push({ key: 'default', label: DEFAULT_GROUP, add: () => create(DEFAULT_GROUP) });
   if (hot && hotHidden) quick.push({ key: 'hot', label: `${hot.label}（系統）`, add: () => { setHot(false); setMsg(`已加回「${hot.label}」`); } });
@@ -335,7 +410,7 @@ export function GroupEditor({ focus, focusNew, onClose, groups, counts, prefs, h
           </div>
         </>
       ) : null}
-      <p class="caption muted group-tip">按住三條線上下拖曳可以調整順序；刪除後畫面下方可以按「復原」。平常長按某個群組，也能直接編輯它。</p>
+      <p class="caption muted group-tip">按住三條線上下拖曳可以調整順序；刪除後畫面下方可以按「復原」。平常在群組列上按住一個群組，也可以直接左右拖曳換順序。</p>
     </section>
   );
 }
