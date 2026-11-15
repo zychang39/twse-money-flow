@@ -278,8 +278,8 @@ export default function Mine() {
   const groups = useMemo(() => effectiveGroups(watch, watchPrefs), [watch, watchPrefs]);
   const counts = useMemo(() => groupCounts(watch), [watch]);
   const hotHidden = watchPrefs.hidden.includes(HOT_LIST);
-  // 群組的編輯直接在頁面上展開（不另開面板）：focus＝直接改名哪一個（長按帶入）；focusNew＝按「＋」進來，游標在新群組名稱
-  const [groupEdit, setGroupEdit] = useState<{ focus?: string | null; focusNew?: boolean } | null>(null);
+  // 群組的編輯直接在頁面上展開（不另開面板）：focusNew＝按「＋」進來，游標在新群組名稱
+  const [groupEdit, setGroupEdit] = useState<{ focusNew?: boolean } | null>(null);
   const [undo, setUndo] = useState<WatchGroupUndo | null>(null);
   const hotItems = useMemo(() => hotSorted(lists.data?.hot_momentum.items ?? [], hotSort), [lists.data, hotSort]);
   const hotShown = hotItems.length > 0 && !hotHidden;
@@ -447,9 +447,9 @@ export default function Mine() {
       {showChips ? (
         <>
           <GroupBar groups={groups} group={group} onPick={setGroup} hot={hotShown ? { id: HOT, label: hotLabel } : null}
-            editing={!!groupEdit} onNew={() => setGroupEdit({ focusNew: true })} onEdit={(focus) => setGroupEdit({ focus })} onDone={() => setGroupEdit(null)} />
+            editing={!!groupEdit} onNew={() => setGroupEdit({ focusNew: true })} onEdit={() => setGroupEdit({})} onDone={() => setGroupEdit(null)} />
           {groupEdit ? (
-            <GroupEditor focus={groupEdit.focus} focusNew={!!groupEdit.focusNew} onClose={() => setGroupEdit(null)}
+            <GroupEditor focusNew={!!groupEdit.focusNew} onClose={() => setGroupEdit(null)}
               groups={groups} counts={counts} prefs={watchPrefs} hot={hotItems.length ? { label: hotLabel, count: hotItems.length } : null}
               onCreated={(g) => { if (groupEdit.focusNew) { pickNewGroup(g); setGroupEdit(null); } }}
               onRenamed={(from, to) => { if (group === from) pickNewGroup(to); }}

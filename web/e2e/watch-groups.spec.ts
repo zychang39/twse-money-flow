@@ -2,7 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 
 // 自選群組（2026-11-15；DECISIONS #466、#467）。
 // 群組列：群組…｜系統清單｜＋；右邊固定「編輯」。沒有「全部」：一次看一個群組，清單全部列出、依加入順序。
-// 編輯直接在頁面上展開（不另開面板）：改名、刪除（可復原）、拖曳排序、顯示或隱藏系統清單。長按（或右鍵）群組＝直接編輯那一個。
+// 換順序：在群組列上按住一個群組，直接左右拖曳（#469）；按住不會進編輯。
+// 編輯直接在頁面上展開（不另開面板）：改名、刪除（可復原）、拖曳排序、顯示或隱藏系統清單。
 
 async function seed(page: Page) {
   await page.goto('#/mine?seg=watch');
@@ -25,6 +26,12 @@ const chip = (page: Page, name: string | RegExp) => chips(page).getByRole('butto
 const editor = (page: Page) => page.getByTestId('group-editor');
 /** 群組列上使用者群組的名稱（不含系統清單與「＋」） */
 const names = async (page: Page) => (await chips(page).getByRole('button').allTextContents()).filter((t) => t && !t.startsWith('熱門動能'));
+/** 可點範圍的高度（視覺上較小的膠囊用 ::before 往上下擴大） */
+const hitHeight = (l: import('@playwright/test').Locator) => l.evaluate((el) => {
+  const r = el.getBoundingClientRect(), b = getComputedStyle(el, '::before');
+  if (!b.content || b.content === 'none' || b.position !== 'absolute') return r.height;
+  return r.height - parseFloat(b.top) - parseFloat(b.bottom);
+});
 const rowNames = (page: Page) => page.locator('.stock-list .srow').evaluateAll((els) => els.map((el) => el.querySelector('.body')?.textContent ?? ''));
 
 test.describe('自選群組', () => {
@@ -46,20 +53,15 @@ test.describe('自選群組', () => {
     // 重新整理後還在 Latest
     await page.reload();
     await expect(chip(page, 'Latest')).toHaveAttribute('aria-pressed', 'true');
-    // 群組一樣寬（放得下時平分整列）；點擊區域至少 44pt
-    const a = await chip(page, '預設').boundingBox();
-    const b = await chip(page, 'Latest').boundingBox();
-    expect(a!.height).toBeGreaterThanOrEqual(44);
-    expect((await page.getByTestId('group-new').boundingBox())!.width).toBeGreaterThanOrEqual(44);
+    // 群組是小膠囊（不拉滿整列）：看起來高 36、寬度依名稱；可點範圍仍然至少 44pt
+    const a = (await chip(page, '預設').boundingBox())!;
+    const b = (await chip(page, 'Latest').boundingBox())!;
+    expect(Math.round(a.height)).toBe(36);
+    expect(a.width).toBeLessThan(90);
+    expect(b.width).toBeLessThan(100);
+    expect(await hitHeight(chip(page, '預設'))).toBeGreaterThanOrEqual(44);
+    expect(await hitHeight(page.getByTestId('group-new'))).toBeGreaterThanOrEqual(44);
     expect((await page.getByTestId('group-edit').boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    await page.getByTestId('group-edit').click();
-    await page.getByRole('switch', { name: '在群組列顯示熱門動能' }).uncheck(); // 拿掉系統清單後，兩個群組平分整列
-    await page.getByTestId('group-done').click();
-    const a2 = await chip(page, '預設').boundingBox();
-    const b2 = await chip(page, 'Latest').boundingBox();
-    expect(Math.abs(a2!.width - b2!.width)).toBeLessThanOrEqual(1);
-    expect(a2!.width).toBeGreaterThan(a!.width);
-    expect(b!.width).toBeGreaterThan(0);
   });
 
   test('按「＋」：編輯區在頁面上展開（不是面板），打名字建立後直接切到新群組；空狀態可以加股票', async ({ page }) => {
@@ -132,6 +134,14 @@ test.describe('自選群組', () => {
     // 系統清單：關掉開關就從群組列消失
     await page.getByRole('switch', { name: '在群組列顯示熱門動能' }).uncheck();
     await expect(page.getByTestId('group-quick-hot')).toBeVisible();
+    // 「快速加入」的按鈕是小膠囊（看起來高 32），可點範圍仍然至少 44pt
+    expect(Math.round((await page.getByTestId('group-quick-hot').boundingBox())!.height)).toBe(32);
+    expect(await hitHeight(page.getByTestId('group-quick-hot'))).toBeGreaterThanOrEqual(44);
+    // 加回來之後又關掉：「已加回」的訊息不會留在畫面上
+    await page.getByTestId('group-quick-hot').click();
+    await expect(page.getByTestId('group-msg')).toHaveText('已加回「熱門動能」');
+    await page.getByRole('switch', { name: '在群組列顯示熱門動能' }).uncheck();
+    await expect(page.getByTestId('group-msg')).toHaveCount(0);
     // 刪除「預設」連同股票：正在看的群組換成剩下的第一個
     await page.getByRole('button', { name: '刪除群組「預設」' }).click();
     await page.getByTestId('group-delete-all').click();
@@ -153,19 +163,55 @@ test.describe('自選群組', () => {
     await expect(chip(page, /熱門動能/)).toBeVisible();
   });
 
-  test('長按（或右鍵）群組：直接展開那個群組的改名，不會切換群組', async ({ page }) => {
+  test('在群組列上按住一個群組，直接左右拖曳換順序；按住不會進編輯；沒移動就放開＝點選；順序記得住', async ({ page }) => {
     await seed(page);
-    const box = await chip(page, 'Latest').boundingBox();
-    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.getByTestId('group-new').click();
+    await page.getByTestId('group-new-name').fill('觀察中');
+    await page.getByTestId('group-new-submit').click();
+    await expect(editor(page)).toHaveCount(0);
+    await expect.poll(() => names(page)).toEqual(['預設', 'Latest', '觀察中']);
+    await chip(page, '預設').click();
+    const center = async (name: string) => { const r = (await chip(page, name).boundingBox())!; return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; };
+    // 按住「觀察中」0.4 秒 → 浮起來（不是進編輯）→ 往左拖過「預設」→ 放開
+    const from = await center('觀察中');
+    const to = await center('預設');
+    await page.mouse.move(from.x, from.y);
     await page.mouse.down();
-    await page.waitForTimeout(650);
+    await page.waitForTimeout(400);
+    await expect(chip(page, '觀察中')).toHaveClass(/dragging/);
+    await expect(editor(page)).toHaveCount(0);
+    await page.mouse.move(to.x - 12, to.y, { steps: 8 });
     await page.mouse.up();
-    await expect(page.getByLabel('「Latest」的新名稱')).toHaveValue('Latest');
-    await page.getByTestId('group-done').click();
-    await expect(chip(page, '預設')).toHaveAttribute('aria-pressed', 'true'); // 長按不會切換群組
-    // 右鍵（桌機）
+    await expect.poll(() => names(page)).toEqual(['觀察中', '預設', 'Latest']);
+    await expect(chip(page, '預設')).toHaveAttribute('aria-pressed', 'true'); // 拖曳不會切換群組
+    // 往右拖一格：把「觀察中」拖到「預設」後面
+    const f2 = await center('觀察中');
+    const t2 = await center('預設');
+    await page.mouse.move(f2.x, f2.y);
+    await page.mouse.down();
+    await page.waitForTimeout(400);
+    await page.mouse.move(t2.x + 12, t2.y, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(() => names(page)).toEqual(['預設', '觀察中', 'Latest']);
+    // 按住但沒有移動就放開：當成一般的點選（不排序、不進編輯）
+    const f3 = await center('Latest');
+    await page.mouse.move(f3.x, f3.y);
+    await page.mouse.down();
+    await page.waitForTimeout(400);
+    await page.mouse.up();
+    await expect(chip(page, 'Latest')).toHaveAttribute('aria-pressed', 'true');
+    await expect(editor(page)).toHaveCount(0);
+    expect(await names(page)).toEqual(['預設', '觀察中', 'Latest']);
+    // 右鍵（或系統的長按選單）也不會進編輯
     await chip(page, '預設').click({ button: 'right' });
-    await expect(page.getByLabel('「預設」的新名稱')).toHaveValue('預設');
+    await expect(editor(page)).toHaveCount(0);
+    // 快速點一下照常切換群組
+    await chip(page, '預設').click();
+    await expect(chip(page, '預設')).toHaveAttribute('aria-pressed', 'true');
+    // 重新整理後順序還在
+    await page.reload();
+    await expect(chip(page, '預設')).toBeVisible();
+    expect(await names(page)).toEqual(['預設', '觀察中', 'Latest']);
   });
 
   test('拖曳排序：按住三條線上下拖；鍵盤用上下鍵；順序記得住', async ({ page }) => {
