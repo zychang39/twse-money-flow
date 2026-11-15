@@ -1,19 +1,18 @@
 /**
- * 自選群組：膠囊列與「編輯群組」面板（2026-11-15；DECISIONS #466）。
+ * 自選群組：群組列與頁面上直接展開的編輯區（2026-11-15；DECISIONS #466、#467）。
  *
- * 操作方式參考 iOS 的清單管理（股市 App 的「管理觀察清單」、提醒事項的列表）：
- * - 膠囊列最後一顆是「＋」（新群組）；「編輯」固定在列的右邊；長按（桌機按右鍵）任一個群組＝直接編輯那一個。
- * - 編輯面板：每列左邊是圓圈減號（刪除）、右邊是鉛筆（改名）與三條線的把手（按住上下拖曳排序；鍵盤用上下鍵）；
- *   系統清單用開關顯示或隱藏；
- *   不在列上的「預設」與隱藏的系統清單出現在「快速加入」，一點就回來。
+ * 操作方式參考 iOS 的清單管理（股市 App 的觀察清單、提醒事項的列表）：
+ * - 群組列：每個群組一樣寬（放得下時平分整列；放不下才橫向捲動），最後一顆是「＋」；右邊固定「編輯」。沒有「全部」。
+ * - 按「編輯」（或長按、桌機按右鍵某個群組）：群組列原地換成編輯區，不另開一層面板——
+ *   每列左邊圓圈減號（刪除）、右邊鉛筆（改名）與三條線的把手（按住上下拖曳排序；鍵盤用上下鍵）；
+ *   系統清單用開關顯示或隱藏；不在列上的「預設」與隱藏的系統清單出現在「快速加入」；右上「完成」收起來。
  * - 刪除不跳確認視窗：空群組直接刪；有股票的群組在那一列展開兩個選擇（股票移到別的群組／一起移除）。
  *   刪除後頁面底部出現「復原」（可逆的動作用復原，不用「你確定嗎？」）。
  */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { createWatchGroup, deleteWatchGroup, renameWatchGroup, setWatchGroupOrder, setWatchListHidden, type WatchGroupUndo } from '../db/db';
-import { ALL_GROUPS, DEFAULT_GROUP, GROUP_NAME_MAX, HOT_LIST, cleanGroupName, defaultMoveTarget, groupNameError, moveItem, type WatchPrefs } from '../lib/watchGroups';
+import { DEFAULT_GROUP, GROUP_NAME_MAX, HOT_LIST, cleanGroupName, defaultMoveTarget, groupNameError, moveItem, type WatchPrefs } from '../lib/watchGroups';
 import { IconGrip, IconMinusCircle, IconPencil, IconPlus } from './Icons';
-import { Sheet } from './Sheet';
 
 const LONG_MS = 480;
 /** 改名的輸入框一出現就取得焦點並全選（ref callback；只在掛上時執行一次） */
@@ -62,32 +61,41 @@ function GroupChip({ name, label, pressed, system, onPick, onEdit }: { name: str
   );
 }
 
-/** 群組膠囊列：全部｜使用者群組…｜系統清單｜＋｜編輯 */
-export function GroupChips({ groups, group, onPick, hot, onNew, onEdit }: {
+/** 群組列：使用者群組…｜系統清單｜＋；右邊固定「編輯」。編輯中換成標題與「完成」。 */
+export function GroupBar({ groups, group, onPick, hot, editing, onNew, onEdit, onDone }: {
   groups: string[];
   group: string;
   onPick: (g: string) => void;
   /** 系統清單（熱門動能）：null＝沒有資料或已隱藏 */
   hot: { id: string; label: string } | null;
+  editing: boolean;
   onNew: () => void;
-  /** focus＝直接編輯哪一個（長按帶入）；不給＝打開整個編輯面板 */
+  /** focus＝直接編輯哪一個（長按帶入）；不給＝展開整個編輯區 */
   onEdit: (focus?: string) => void;
+  onDone: () => void;
 }) {
+  if (editing) {
+    return (
+      <div class="group-bar editing">
+        <h2 class="body w6 grow group-bar-title">編輯群組</h2>
+        <button class="text-btn group-edit-btn w6" onClick={onDone} data-testid="group-done">完成</button>
+      </div>
+    );
+  }
   return (
     <div class="group-bar">
       <div class="chips group-chips" role="group" aria-label="群組">
-        <GroupChip name={ALL_GROUPS} pressed={group === ALL_GROUPS} onPick={() => onPick(ALL_GROUPS)} />
         {groups.map((g) => <GroupChip key={g} name={g} pressed={group === g} onPick={() => onPick(g)} onEdit={() => onEdit(g)} />)}
         {hot ? <GroupChip name={hot.id} label={hot.label} system pressed={group === hot.id} onPick={() => onPick(hot.id)} onEdit={() => onEdit(HOT_LIST)} /> : null}
         <button class="chip chip-icon" aria-label="新增群組" onClick={onNew} data-testid="group-new"><IconPlus /></button>
       </div>
-      {/* 「編輯」固定在右邊，群組再多也看得到（膠囊在它左邊橫向捲動） */}
+      {/* 「編輯」固定在右邊，群組再多也看得到（群組在它左邊橫向捲動） */}
       <button class="text-btn group-edit-btn" onClick={() => onEdit()} data-testid="group-edit">編輯</button>
     </div>
   );
 }
 
-/** 新群組的輸入列（面板最上面；mode＝new 時只有這一塊） */
+/** 新群組的輸入列（編輯區最上面） */
 function NewGroup({ existing, onCreate, autoFocus }: { existing: string[]; onCreate: (name: string) => void; autoFocus: boolean }) {
   const [name, setName] = useState('');
   const [err, setErr] = useState('');
@@ -110,11 +118,11 @@ function NewGroup({ existing, onCreate, autoFocus }: { existing: string[]; onCre
   );
 }
 
-export interface ManageGroupsProps {
-  /** null＝關閉；new＝只建立新群組；manage＝完整的編輯面板 */
-  mode: 'new' | 'manage' | null;
-  /** manage 時直接展開哪一個群組的改名（長按帶入）；HOT_LIST＝捲到系統清單 */
+export interface GroupEditorProps {
+  /** 直接展開哪一個群組的改名（長按帶入） */
   focus?: string | null;
+  /** 按「＋」進來：游標放在新群組名稱 */
+  focusNew: boolean;
   onClose: () => void;
   groups: string[];
   counts: Map<string, number>;
@@ -124,19 +132,17 @@ export interface ManageGroupsProps {
   onCreated: (name: string) => void;
   onRenamed: (from: string, to: string) => void;
   onDeleted: (undo: WatchGroupUndo) => void;
-  /** 剛刪除、還可以復原的群組（面板開著時復原鈕顯示在面板裡；頁面底部的提示被面板蓋住） */
-  undo: WatchGroupUndo | null;
-  onUndo: () => void;
 }
 
-export function ManageGroupsSheet({ mode, focus, onClose, groups, counts, prefs, hot, onCreated, onRenamed, onDeleted, undo, onUndo }: ManageGroupsProps) {
+/** 群組的編輯區：直接接在群組列下面（不是面板）。Esc 或「完成」收起來。 */
+export function GroupEditor({ focus, focusNew, onClose, groups, counts, prefs, hot, onCreated, onRenamed, onDeleted }: GroupEditorProps) {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [err, setErr] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
   const [target, setTarget] = useState('');
   const [msg, setMsg] = useState('');
-  const open = mode !== null;
+  const rootRef = useRef<HTMLElement>(null);
   // 拖曳排序：drag＝正在拖的那一列（from 原位置、to 目前落點、dy 位移、h 一列的高度）；
   // local＝放開後先照新順序顯示，等設定重讀（groups 變了）再交還
   const [drag, setDrag] = useState<{ from: number; to: number; dy: number; h: number } | null>(null);
@@ -144,8 +150,12 @@ export function ManageGroupsSheet({ mode, focus, onClose, groups, counts, prefs,
   const grab = useRef<{ y: number; from: number; h: number } | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const refocus = useRef<string | null>(null);
-  useEffect(() => { setLocal(null); }, [groups.join('\u0000')]);
-  const shown = local && local.length === groups.length && local.every((g) => groups.includes(g)) ? local : groups;
+  // local 留到設定追上為止（順序一樣了），或群組增減了才放掉。不能「groups 一變就放掉」：
+  // 連續移動兩次時，第一次的重讀結果會晚到，那一刻放掉 local 會讓清單先跳回舊順序、焦點也跟著掉
+  const sameSet = !!local && local.length === groups.length && local.every((g) => groups.includes(g));
+  const caughtUp = sameSet && local!.every((g, i) => groups[i] === g);
+  useEffect(() => { if (local && (!sameSet || caughtUp)) setLocal(null); }, [local, sameSet, caughtUp]);
+  const shown = sameSet ? local! : groups;
   useEffect(() => {
     // 鍵盤移動後節點換了位置，焦點放回同一個把手
     if (!refocus.current) return;
@@ -201,16 +211,20 @@ export function ManageGroupsSheet({ mode, focus, onClose, groups, counts, prefs,
     return undefined;
   };
   useEffect(() => {
-    if (!open) return;
-    setDeleting(null); setErr(''); setMsg('');
     const g = focus && focus !== HOT_LIST && groups.includes(focus) ? focus : null;
     setRenaming(g); setDraft(g ?? '');
-  }, [open, focus]);
+    rootRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [focus]);
 
-  const hotHidden = prefs.hidden.includes(HOT_LIST);
+  // 開關按下去先照新狀態顯示（hotLocal），等設定重讀後交還——不然重讀前的畫面更新會讓開關彈回去一下
+  const [hotLocal, setHotLocal] = useState<boolean | null>(null);
+  const hotStored = prefs.hidden.includes(HOT_LIST);
+  useEffect(() => { if (hotLocal !== null && hotLocal === hotStored) setHotLocal(null); }, [hotLocal, hotStored]); // 設定追上了才交還
+  const hotHidden = hotLocal ?? hotStored;
+  const setHot = (hidden: boolean) => { setHotLocal(hidden); void setWatchListHidden(HOT_LIST, hidden); };
   const quick: { key: string; label: string; add: () => void }[] = [];
   if (!groups.includes(DEFAULT_GROUP)) quick.push({ key: 'default', label: DEFAULT_GROUP, add: () => create(DEFAULT_GROUP) });
-  if (hot && hotHidden) quick.push({ key: 'hot', label: `${hot.label}（系統）`, add: () => { void setWatchListHidden(HOT_LIST, false); setMsg(`已加回「${hot.label}」`); } });
+  if (hot && hotHidden) quick.push({ key: 'hot', label: `${hot.label}（系統）`, add: () => { setHot(false); setMsg(`已加回「${hot.label}」`); } });
 
   async function create(name: string) {
     const g = await createWatchGroup(name);
@@ -240,18 +254,11 @@ export function ManageGroupsSheet({ mode, focus, onClose, groups, counts, prefs,
     setDeleting(deleting === name ? null : name);
   }
 
-  if (mode === 'new') {
-    return (
-      <Sheet open onClose={onClose} title="新群組">
-        <NewGroup existing={groups} autoFocus onCreate={(n) => { void create(n).then(onClose); }} />
-        <p class="caption muted">建立後就可以把股票加進來；一檔股票只在一個群組。</p>
-      </Sheet>
-    );
-  }
   const others = (name: string) => [...new Set([DEFAULT_GROUP, ...groups])].filter((g) => g !== name);
   return (
-    <Sheet open={open} onClose={onClose} title="編輯群組" detent="full">
-      <NewGroup existing={groups} autoFocus={false} onCreate={(n) => void create(n)} />
+    <section class="card group-editor" aria-label="編輯群組" ref={rootRef} data-testid="group-editor"
+      onKeyDown={(e) => { if (e.key === 'Escape' && !renaming) onClose(); }}>
+      <NewGroup existing={groups} autoFocus={focusNew} onCreate={(n) => void create(n)} />
       {quick.length ? (
         <div class="group-quick" role="group" aria-label="快速加入">
           <span class="caption muted">快速加入</span>
@@ -260,12 +267,7 @@ export function ManageGroupsSheet({ mode, focus, onClose, groups, counts, prefs,
           ))}
         </div>
       ) : null}
-      {undo ? (
-        <div class="group-undo" role="status" data-testid="group-undo">
-          <span class="caption grow">{undoText(undo)}</span>
-          <button class="text-btn" onClick={onUndo}>復原</button>
-        </div>
-      ) : msg ? <p class="caption muted" role="status" data-testid="group-msg">{msg}</p> : null}
+      {msg ? <p class="caption muted" role="status" data-testid="group-msg">{msg}</p> : null}
 
       <h3 class="eyebrow group-h">我的群組</h3>
       {groups.length ? (
@@ -329,12 +331,12 @@ export function ManageGroupsSheet({ mode, focus, onClose, groups, counts, prefs,
             <span class="grow"><span class="body">{hot.label}<span class="sys-mark">系統</span></span>
               <span class="caption muted" style={{ display: 'block' }}>{hot.count} 檔・每天依規則產生，非推薦</span></span>
             <label class="switch"><input type="checkbox" role="switch" aria-label={`在群組列顯示${hot.label}`} checked={!hotHidden}
-              onChange={(e) => void setWatchListHidden(HOT_LIST, !(e.target as HTMLInputElement).checked)} /><span /></label>
+              onChange={(e) => setHot(!(e.target as HTMLInputElement).checked)} /><span /></label>
           </div>
         </>
       ) : null}
-      <p class="caption muted group-tip">按住右邊的三條線上下拖曳，可以調整群組順序。長按群組列上的任一個群組，可以直接編輯它。刪除後可以按「復原」。</p>
-    </Sheet>
+      <p class="caption muted group-tip">按住三條線上下拖曳可以調整順序；刪除後畫面下方可以按「復原」。平常長按某個群組，也能直接編輯它。</p>
+    </section>
   );
 }
 

@@ -27,6 +27,9 @@ test('第 3 步看自選異動：開過清單後，依步驟卡逐一開啟異�
   await expect(page.getByTestId('step-movers')).toContainText('待辦');
   await page.goto('#/mine?seg=watch');
   await expect(page.getByTestId('watch-basis')).toBeVisible();
+  // 「開過異動清單」要等行情也載入後才記（清單畫出來＝行情到了）；只等上面那一行，慢的機器會在記下之前就離開
+  await expect(page.locator('.srow').first()).toBeVisible();
+  await page.waitForTimeout(300);
   for (let i = 0; i < 6; i++) {
     await page.goto('#/discipline');
     const card = page.getByTestId('step-movers');

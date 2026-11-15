@@ -12,7 +12,7 @@ const NOTE: Record<string, string> = { code: '名稱沒對到，請確認', name
 
 /**
  * watchGroup：已在自選的股票 → 所在群組。move＝使用者有指定群組：已在別的群組的可以勾選移過來；
- * 沒指定時（在「全部」底下、也沒打群組名稱）已在自選的一律略過。
+ * 沒指定時（還沒有任何群組或正在看系統清單，也沒打群組名稱）已在自選的一律略過。
  */
 export function WatchImport({ rows, watchGroup, group, move, open }: { rows: StockRow[]; watchGroup: Map<string, string>; group: string; move: boolean; open: boolean }) {
   /** 這一檔不能動：已在目標群組，或已在自選而沒有指定群組 */

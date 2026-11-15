@@ -5,6 +5,7 @@
  *   ①的群組清空後自動消失；②的群組清空後還在，要自己刪。
  * - 「預設」是一般群組：沒指定群組時加入的股票放在這裡；清空或刪除後不顯示，再加股票時自動出現。
  * - 系統清單（熱門動能）可以隱藏（watchPrefs.hidden），在「編輯群組」裡一鍵加回來。
+ * - 沒有「全部」（2026-11-15 使用者要求移除）：一次看一個群組；記得上次看的是哪一個。
  */
 export interface WatchPrefs {
   /** 使用者建立的群組（沒有股票也保留），依建立順序 */
@@ -19,7 +20,6 @@ export const DEFAULT_WATCH_PREFS: WatchPrefs = { groups: [], hidden: [], order: 
 /** 舊資料或備份裡少欄位時補齊 */
 export const normWatchPrefs = (p: Partial<WatchPrefs> | null | undefined): WatchPrefs => ({ groups: [...(p?.groups ?? [])], hidden: [...(p?.hidden ?? [])], order: [...(p?.order ?? [])] });
 export const DEFAULT_GROUP = '預設';
-export const ALL_GROUPS = '全部';
 /** 系統清單的 id（存在 watchPrefs.hidden） */
 export const HOT_LIST = 'hot';
 export const GROUP_NAME_MAX = 12;
@@ -67,7 +67,6 @@ export const cleanGroupName = (s: string): string => s.replace(/\s+/g, ' ').trim
 export function groupNameError(raw: string, existing: string[] = []): string | null {
   const name = cleanGroupName(raw);
   if (!name) return '請輸入群組名稱';
-  if (name === ALL_GROUPS) return `「${ALL_GROUPS}」是所有自選的總覽，請換一個名稱`;
   if ([...name].length > GROUP_NAME_MAX) return `名稱最多 ${GROUP_NAME_MAX} 個字`;
   if (existing.includes(name)) return `已經有「${name}」這個群組`;
   return null;
@@ -77,4 +76,25 @@ export function groupNameError(raw: string, existing: string[] = []): string | n
 export function defaultMoveTarget(deleting: string, groups: string[]): string | null {
   if (deleting !== DEFAULT_GROUP) return DEFAULT_GROUP;
   return groups.find((g) => g !== deleting) ?? null;
+}
+
+/**
+ * 目前要顯示哪一個群組（沒有「全部」）：想看的那個還在就用它（pending＝剛建立或剛改名、資料還沒重讀的群組）；
+ * 不在了（被刪除、改名、隱藏）就換成第一個群組；一個群組都沒有時是空字串（頁面顯示歡迎卡）。
+ * 系統清單（hot）要有群組列才選得到，所以沒有群組時不會停在系統清單。
+ */
+export function currentGroup(wanted: string, groups: string[], hot: string | null, pending: string | null = null): string {
+  if (wanted && (groups.includes(wanted) || wanted === pending)) return wanted;
+  // 還沒有任何群組（新用戶的歡迎卡）：什麼都不選，系統清單不會自己跑出來
+  if (!groups.length) return '';
+  return hot !== null && wanted === hot ? wanted : groups[0];
+}
+
+const LAST_GROUP_KEY = 'tmf-watch-group';
+/** 上次看的群組（localStorage；讀不到就是空字串＝第一個群組） */
+export function lastGroup(): string {
+  try { return localStorage.getItem(LAST_GROUP_KEY) ?? ''; } catch { return ''; }
+}
+export function rememberGroup(g: string): void {
+  try { localStorage.setItem(LAST_GROUP_KEY, g); } catch { /* 私密瀏覽等情況存不了：不影響使用 */ }
 }

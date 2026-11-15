@@ -184,7 +184,7 @@ test.describe('3. 我的股票：自選優先與新用戶', () => {
     const welcome = page.getByRole('region', { name: '無自選股' });
     await expect(welcome).toBeVisible();
     await welcome.getByRole('button', { name: '加入範例自選' }).click();
-    await page.getByRole('combobox', { name: '排序' }).selectOption('pct'); // 列出全部（不收合低於門檻的）
+    // 2026-11-15：清單一律全部列出（不用再換排序才看得到全部）
     await expect(page.locator('.srow', { hasText: '台積電' })).toBeVisible();
     await expect(page.locator('.srow', { hasText: '鴻海' })).toBeVisible();
     await expect(page.getByRole('button', { name: '範例', exact: true })).toBeVisible(); // 範例群組

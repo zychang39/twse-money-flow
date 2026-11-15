@@ -308,9 +308,14 @@ label.field > span, div.field > label { display: block; font-size: var(--fs-capt
 .group-bar { display: flex; align-items: center; gap: var(--s-1); margin-top: var(--s-3); }
 .group-chips { flex: 1 1 auto; min-width: 0; align-items: center; padding-right: var(--s-5); -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--s-5)), transparent); mask-image: linear-gradient(to right, #000 calc(100% - var(--s-5)), transparent); }
 .group-edit-btn { flex: none; }
-.group-undo { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-3); padding: 0 var(--s-1) 0 var(--s-3); border-radius: var(--r-md); background: var(--surface-2); }
+/* 2026-11-15（DECISIONS #467）：每個群組一樣寬——放得下時平分整列（flex-basis 0），名稱比較長的至少跟字一樣寬；放不下才橫向捲動 */
+.group-chips .chip:not(.chip-icon) { flex: 1 0 0; min-width: max-content; max-width: 11rem; text-align: center; justify-content: center; }
+.group-bar.editing { min-height: var(--tap); }
+.group-bar-title { margin: 0; }
+/* 編輯區直接接在群組列下面（不是面板） */
+.group-editor { margin-top: var(--s-2); }
 .group-chips .chip { min-height: var(--tap); -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
-.chip-icon { width: var(--tap); padding: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--brand); }
+.chip-icon { flex: 0 0 var(--tap); width: var(--tap); padding: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--brand); }
 .chip-icon svg { width: 1.25rem; height: 1.25rem; }
 .chip-add { display: inline-flex; align-items: center; gap: var(--s-1); min-height: var(--tap); color: var(--brand); background: var(--surface-2); }
 .chip-add svg { width: 1rem; height: 1rem; }
