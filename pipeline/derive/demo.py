@@ -191,6 +191,8 @@ def _demo_quality_cols(code: str, k: int, q: int, base: float) -> dict[str, floa
             "total_liab",
             "equity_total",
             "treasury",
+            "cfo",
+            "cfi",
         )
     )
     prof = DEMO_ROIC.get(code)
@@ -216,6 +218,9 @@ def _demo_quality_cols(code: str, k: int, q: int, base: float) -> dict[str, floa
         "total_liab": ic / 0.7 - ic * 0.75,
         "equity_total": ic * 0.75,
         "treasury": 0.0,
+        # 營業現金流：多數公司是淨利（示範：每季 base × 3,000）的 115%；「報酬連年降」的兩檔只有 45%
+        "cfo": base * 3e3 * q * (0.45 if code in ("1101", "3105") else 1.15),
+        "cfi": -base * 3e3 * q * 0.6,
     }
 
 
@@ -656,6 +661,27 @@ def _advanced(store: DataStore, dates: list[date], rng: np.random.Generator, pat
             ]
         ),
     )
+    # 2026-11 生意體質：董監持股與設質（每家公司一列；穩懋設質比例較高）
+    for sid, mkt in (("twse_directors", "twse"), ("tpex_directors", "tpex")):
+        store.write(
+            sid,
+            date(last.year, last.month, 1),
+            pd.DataFrame(
+                [
+                    {
+                        "ym": f"{last.year}-{last.month:02d}",
+                        "code": c,
+                        "name": n,
+                        "directors": 9,
+                        "shares": 2.0e7,
+                        "pledged": 8.0e6 if c == "3105" else 0.0,
+                        "pledge_pct": 40.0 if c == "3105" else 0.0,
+                    }
+                    for c, n, m, _, _ in DEMO_STOCKS
+                    if m == mkt and c in DEMO_ROIC
+                ]
+            ),
+        )
     att = pd.DataFrame(
         [
             {"date": dates[-k].isoformat(), "code": "6182", "name": "合晶", "count": 3 - k, "reason": "示範：漲幅異常"}

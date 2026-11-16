@@ -8,9 +8,11 @@ from statistics import median
 import pandas as pd
 import pytest
 
-from pipeline import financials
+from pipeline import financials, tasks_advanced
 from pipeline.derive import flags, quality
+from pipeline.sources import optional
 from tests.pipeline.conftest import sample
+from tests.pipeline.test_tasks import make_ctx
 
 
 def _fin(rows: list[dict]) -> pd.DataFrame:
@@ -271,3 +273,52 @@ def test_payout_uses_prior_year_eps_and_skips_current_year():
     fin_q = {"status": "fin"}
     quality.attach_payout(fin_q, rows, divs, "2026-11-13")
     assert "payout" not in fin_q
+
+
+def test_cash_flow_summary_real_sample_and_conversion():
+    """現金流量表彙總（t163sb20，2026 上半年真實樣本）：台積電營業現金流 ÷ 歸屬母公司淨利 ≈ 116%。"""
+    cash = financials.parse_statement(sample("mops_t163sb20_get.html"), "cash")
+    inc = financials.parse_statement(sample("mops_t163sb04_get.html"), "income")
+    tsmc_c, tsmc_i = cash[cash["code"] == "2330"].iloc[0], inc[inc["code"] == "2330"].iloc[0]
+    assert tsmc_c["cfo"] > 0 > tsmc_c["cfi"]
+    assert tsmc_c["cfo"] / tsmc_i["ni_parent"] * 100 == pytest.approx(116, abs=1)
+    assert cash[cash["code"] == "2801"].iloc[0]["cfo"] < 0  # 金融業同一種表頭
+    assert set(financials.CASH_EXTRA) <= set(financials.FIN_COLS)
+    # 近四季營業現金流 ÷ 淨利；淨利 ≤ 0 或沒有現金流欄位時不計算
+    rows = [_row("A", 2024, q, cfo=60.0 * q) for q in (1, 2, 3, 4)] + [
+        _row("A", 2025, q, cfo=100.0 * q) for q in (1, 2)
+    ]
+    d = quality.detail(quality.rows_by_code(_fin(rows))["A"])
+    assert d["cash_conv"] == pytest.approx((200 + 240 - 120) / 320 * 100, abs=0.5)
+    assert quality.detail(quality.rows_by_code(_fin([_row("B", 2024, 4)]))["B"])["cash_conv"] is None
+    loss = quality.detail(quality.rows_by_code(_fin([_row("C", 2024, 4, cfo=50.0, ni_parent=-10.0)]))["C"])
+    assert loss["cash_conv"] is None
+
+
+def test_directors_real_samples_and_weekly_task(tmp_path):
+    twse = optional.parse_directors(sample("twse_openapi_t187ap11_L.json")).df.set_index("code")
+    # 只算董事與監察人（含獨立董事、法人代表人），經理人與大股東不計；同一人只算一次
+    assert list(twse.columns) == ["ym", "name", "directors", "shares", "pledged", "pledge_pct"]
+    assert twse.loc["2330", "ym"] == "2026-10" and twse.loc["2330", "directors"] == 11
+    assert twse.loc["2330", "pledged"] == 1600000 and twse.loc["2330", "pledge_pct"] == pytest.approx(0.09, abs=0.01)
+    assert twse.loc["2454", "pledge_pct"] == 0
+    tpex = optional.parse_directors(sample("tpex_openapi_t187ap11_O.json")).df  # 上櫃欄名沒有尾端空白，同一個解析器
+    assert len(tpex) == 3 and tpex["pledge_pct"].max() == pytest.approx(23.37, abs=0.01)
+    assert optional.parse_directors(b"[]").no_data
+    with pytest.raises(optional.ParseError):
+        optional.parse_directors(b"<html>maintenance</html>")
+    # 每週檢查：該月已存在就不重寫；來源失敗只記錄、不中斷另一個市場
+    ctx = make_ctx(tmp_path, {"t187ap11_L": sample("twse_openapi_t187ap11_L.json"), "t187ap11_O": b"<html>busy</html>"})
+    tasks_advanced.run_directors(ctx)
+    stored = ctx.store.read("twse_directors", date(2026, 10, 1))
+    assert stored is not None and len(stored) == 4
+    assert [f["source"] for f in ctx.failures] == ["tpex_directors"]
+    tasks_advanced.run_directors(ctx)
+    assert any(r["source"] == "twse_directors" and r["message"] == "本月已存在" for r in ctx.results)
+    # 個股檔：董監持股 ÷ 發行股數、設質比例
+    q = {"status": "ok"}
+    quality.attach_insiders(q, quality.directors_by_code(stored)["2330"], 25_930_380_458)
+    assert q["insiders"] == {"ym": "2026-10", "hold_pct": 6.5, "pledge_pct": 0.1}
+    none = {"status": "fin"}
+    quality.attach_insiders(none, {"shares": 1.0}, 10.0)
+    assert "insiders" not in none

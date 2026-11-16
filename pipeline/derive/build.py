@@ -415,6 +415,7 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
 
     fin_rows = qualitymod.rows_by_code(ds.table("financials"))
     qual = qualitymod.build(ds.table("financials"), p.codes, fin_rows)
+    directors = qualitymod.directors_by_code(ds.table("directors"))
     flags = flagmod.build_flags(ds, p, mp, quality=qual)
     flags_prev = flagmod.build_flags(ds, p, mp, at=-2, quality=qual) if len(p.dates) >= 2 else {}
     flags_week = flagmod.build_flags(ds, p, mp, at=-6, quality=qual) if len(p.dates) >= 6 else {}
@@ -487,6 +488,7 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
         divs = stockdetail.dividends_for(ds, code)
         # 生意體質：盈餘配發率（當年除息的現金股利 ÷ 前一年度 EPS）
         qualitymod.attach_payout(qual.get(code), fin_rows.get(code), divs, last_date)
+        qualitymod.attach_insiders(qual.get(code), directors.get(code), p.shares.get(code))
         extra_file = {
             "scores": scores.factor_detail(mp, sc, code),
             "fair": fair,

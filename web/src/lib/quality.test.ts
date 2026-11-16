@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { qualityConfig } from './config';
 import {
-  bizOverview, bizRows, earnSentence, gapSentence, historyGap, incrSentence, kindName, kindOf, lastSentence, marketVsBiz,
+  bizOverview, bizRows, cashSentence, earnSentence, gapSentence, historyGap, incrSentence, kindName, kindOf, lastSentence, marketVsBiz,
   overviewSentence, quadOf, qualityOf, qualitySeries, seriesSummary, tierOf, type Quality,
 } from './quality';
 
@@ -57,6 +57,14 @@ describe('一句話結論', () => {
     expect(gapSentence({ ...base, gap: 23.8, roe: 30.6 })).toBe('ROE 30.6%：負債、租賃或業外收益放大了 ROE');
     expect(gapSentence({ ...base, gap: -9, roe: 6 })).toBe('ROE 6.0%：業外損失或閒置資金拉低了股東報酬');
     expect(gapSentence({ ...base, gap: null })).toBeNull();
+  });
+  it('現金跟得上獲利嗎：沒有現金流量表 → null；淨利不是正的 → 說明不計算', () => {
+    expect(cashSentence(base)).toBeNull();
+    expect(cashSentence({ ...base, has_cash: true, cash_conv: 116 })).toBe('營業現金流不少於淨利，獲利有變成現金');
+    expect(cashSentence({ ...base, has_cash: true, cash_conv: 85 })).toBe('營業現金流略少於淨利');
+    expect(cashSentence({ ...base, has_cash: true, cash_conv: 45 })).toBe('營業現金流明顯少於淨利：獲利還沒有變成現金');
+    expect(cashSentence({ ...base, has_cash: true, cash_conv: -20 })).toBe('營業現金流是負的：本業在流出現金');
+    expect(cashSentence({ ...base, has_cash: true, cash_conv: null })).toBe('近四季淨利不是正的，不計算');
   });
   it('新增投入的報酬', () => {
     expect(incrSentence(base)).toBe('近 3 年多投入的資本，報酬高於門檻 8%');

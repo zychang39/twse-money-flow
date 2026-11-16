@@ -116,6 +116,7 @@ def load(store: DataStore) -> Dataset:
         "intraday_index": ["twse_intraday_index"],  # 只需要最新一天（首頁 1D）
         "insider": ["twse_insider", "tpex_insider"],
         "cbc_money": ["cbc_money"],
+        "directors": ["twse_directors", "tpex_directors"],  # 董監持股與設質（每月；取最新一份）
     }.items():
         frames = [latest[1] for latest in (store.latest(s) for s in sources) if latest is not None]
         ds.tables[name] = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()

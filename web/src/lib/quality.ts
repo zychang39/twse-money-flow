@@ -38,8 +38,14 @@ export interface Quality {
   type?: 'steady' | 'cyclical' | 'fading' | null;
   /** ROIC 在全市場可計算者的百分位（0–100） */
   pct?: number;
-  /** 盈餘配發（M5；上市公司）：[股利年度, 每股現金股利, 配發率 %] */
+  /** 盈餘配發：[發放年度, 當年除息的每股現金股利合計, 配發率 %] */
   payout?: [number, number | null, number | null][];
+  /** 現金流量表有資料（近四季營業現金流算得出來） */
+  has_cash?: boolean;
+  /** 近四季營業現金流 ÷ 歸屬母公司淨利（%）；淨利 ≤ 0 時為空值 */
+  cash_conv?: number | null;
+  /** 董監持股（每月）：資料年月、董監持股 ÷ 發行股數（%）、設質股數 ÷ 董監持股（%） */
+  insiders?: { ym: string | null; hold_pct: number | null; pledge_pct: number | null } | null;
 }
 
 export const HURDLE = qualityConfig.hurdle_pct;
@@ -101,6 +107,16 @@ export function gapSentence(q: Quality): string | null {
   // 差距的數字在列的右邊；這裡只補 ROE 與可能的原因，不重複同一個數字
   if (g < GAP_WIDE) return `ROE ${num(q.roe)}%，和 ROIC 接近，報酬不是靠舉債放大`;
   return q.gap > 0 ? `ROE ${num(q.roe)}%：負債、租賃或業外收益放大了 ROE` : `ROE ${num(q.roe)}%：業外損失或閒置資金拉低了股東報酬`;
+}
+
+/** 現金跟得上獲利嗎：營業現金流和淨利比（數字在列的右邊，這裡只說結論）；沒有現金流量表時回傳 null */
+export function cashSentence(q: Quality): string | null {
+  if (!q.has_cash) return null;
+  if (!ok(q.cash_conv)) return '近四季淨利不是正的，不計算';
+  const { ok: good, low } = qualityConfig.cash;
+  if (q.cash_conv < 0) return '營業現金流是負的：本業在流出現金';
+  if (q.cash_conv >= good) return '營業現金流不少於淨利，獲利有變成現金';
+  return q.cash_conv >= low ? '營業現金流略少於淨利' : '營業現金流明顯少於淨利：獲利還沒有變成現金';
 }
 
 /** 新增投入的報酬：下一塊錢還賺不賺 */

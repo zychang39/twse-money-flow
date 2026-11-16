@@ -25,7 +25,18 @@ Row = dict[str, float | None]
 Key = tuple[int, int]
 Rows = dict[Key, Row]
 
-FIELDS = ("revenue", "ni_parent", "equity_parent", "op_income", "pretax", "tax", "total_assets", "cur_liab", "eps")
+FIELDS = (
+    "revenue",
+    "ni_parent",
+    "equity_parent",
+    "op_income",
+    "pretax",
+    "tax",
+    "total_assets",
+    "cur_liab",
+    "eps",
+    "cfo",
+)
 # 選股欄位（config/screener.yml）＝逐日面板
 PANEL_FIELDS = ("roic", "roic_min5", "roic_chg3", "op_margin", "roe_roic_gap", "revenue_chg_3y")
 
@@ -111,6 +122,9 @@ class Points:
         ni, eq = ttm(rows, y, q, "ni_parent"), rows[(y, q)]["equity_parent"]
         roe = ni / eq * 100 if ni is not None and eq is not None and eq > 0 else None
         has_rev = rev is not None and rev > 0
+        # 現金跟得上獲利嗎：近四季營業現金流 ÷ 歸屬母公司淨利（淨利 ≤ 0 不計算）
+        cfo = ttm(rows, y, q, "cfo")
+        cash_conv = cfo / ni * 100 if cfo is not None and ni is not None and ni > 0 else None
         return {
             "y": y,
             "q": q,
@@ -123,6 +137,8 @@ class Points:
             "turnover": rev / avg if has_rev else None,  # type: ignore[operator]
             "roe": roe,
             "gap": roe - roic if roe is not None else None,
+            "cash_conv": cash_conv,
+            "has_cash": cfo is not None,
         }
 
     def quarters(self) -> list[Key]:
@@ -270,6 +286,9 @@ def detail(rows: Rows) -> dict[str, Any]:
         "turnover": _r(cur["turnover"], 2),
         "roe": _r(cur["roe"]),
         "gap": _r(cur["gap"]),
+        # 現金流量表有資料才有 has_cash；淨利 ≤ 0 時 cash_conv 為空值（不是資料缺漏）
+        "has_cash": bool(cur["has_cash"]),
+        "cash_conv": _r(cur["cash_conv"], 0),
         # [年度, ROIC %, 營收（億）, 營業利益率 %]
         "years": [
             [p["y"], _r(p["roic"]), _r(p["rev"] / 1e5 if p["rev"] else None), _r(p["op_margin"])] for p in annual
@@ -374,6 +393,22 @@ def payout_rows(rows: Rows, dividends: list[dict[str, Any]], last_date: str, yea
 def attach_payout(q: dict[str, Any] | None, rows: Rows | None, dividends: list[dict[str, Any]], last_date: str) -> None:
     if q is not None and q.get("status") == "ok" and rows:
         q["payout"] = payout_rows(rows, dividends, last_date)
+
+
+def directors_by_code(directors: pd.DataFrame) -> dict[str, dict[str, Any]]:
+    """董監持股（每家公司一列）→ {代號: {ym, shares, pledge_pct}}。"""
+    if directors.empty or "code" not in directors.columns:
+        return {}
+    return {str(r["code"]): r for r in directors.to_dict("records")}
+
+
+def attach_insiders(q: dict[str, Any] | None, rec: dict[str, Any] | None, issued: float | None) -> None:
+    """quality 區塊加上 insiders：{ym, hold_pct（董監持股 ÷ 發行股數）, pledge_pct（設質股數 ÷ 董監持股）}。"""
+    if q is None or q.get("status") != "ok" or not rec:
+        return
+    shares = _f(rec.get("shares"))
+    hold = shares / issued * 100 if shares is not None and issued and issued == issued and issued > 0 else None
+    q["insiders"] = {"ym": rec.get("ym"), "hold_pct": _r(hold), "pledge_pct": _r(_f(rec.get("pledge_pct")))}
 
 
 def chip(d: dict[str, Any]) -> str | None:

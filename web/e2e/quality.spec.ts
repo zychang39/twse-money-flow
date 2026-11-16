@@ -37,7 +37,10 @@ test.describe('生意體質', () => {
     expect(widths[0]).toBe(widths[1]);
     await expect(page.getByTestId('q-years').locator('tbody tr')).toHaveCount(11); // 10 個年度＋近四季
     await expect(page.getByTestId('q-kind')).toContainText('報酬高且穩');
-    await expect(page.getByTestId('q-pending')).toHaveText('尚未接入：現金流量、董監持股設質、買回庫藏股（資料源待處理）'); // 說明原因、不留白，也不排一列「—」
+    // 現金流量表與董監持股有資料 → 各一列；還沒接入的（庫藏股）收成一行說明，不排一列「—」
+    await expect(page.getByTestId('q-cash')).toContainText('營業現金流不少於淨利');
+    await expect(page.getByTestId('q-pledge')).toContainText('董事與監察人合計持股');
+    await expect(page.getByTestId('q-pending')).toHaveText('尚未接入：買回庫藏股（資料源待處理）');
     await expect(page.getByTestId('q-years')).toContainText('近四季（2026Q2）');
     await page.getByRole('link', { name: /返回|上一頁/ }).first().click();
     await expect(page).toHaveURL(/#\/stock\/2330\?seg=f/);
@@ -47,6 +50,10 @@ test.describe('生意體質', () => {
     await page.goto('#/stock/6182?seg=f');
     await expect(page.getByTestId('quality-last')).toContainText('資料累積中：目前只有 2 年（自 2024 年起），滿 5 年才分類');
     await expect(page.getByTestId('quality-kind')).toHaveCount(0); // 分不出類型時不放標籤（結論句已經說了高於門檻）
+    // 「報酬連年降」的示範股：現金明顯少於淨利、設質比例 40%
+    await page.goto('#/stock/3105/q');
+    await expect(page.getByTestId('q-cash')).toContainText('營業現金流明顯少於淨利');
+    await expect(page.getByTestId('q-pledge')).toContainText('40.0');
     await page.goto('#/stock/2882?seg=f');
     await expect(page.getByTestId('quality-concl')).toHaveText(/^金融業改看 ROE \d+\.\d%$/);
     await page.goto('#/stock/0050?seg=f');

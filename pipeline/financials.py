@@ -1,4 +1,4 @@
-"""季財報：MOPS 綜合損益表（t163sb04）與資產負債表（t163sb05）彙總（GET 帶參數，Actions 實測可用）。
+"""季財報：MOPS 綜合損益表（t163sb04）、資產負債表（t163sb05）、現金流量表（t163sb20）彙總（GET 帶參數，Actions 實測可用）。
 
 損益項目為「年初至該季」累計（YTD），單季值 = 本季 YTD − 上季 YTD（Q1 即 YTD）。
 儲存：financials/{YYYY}/{YYYY}{季末月}01.csv.gz（Q1=03、Q2=06、Q3=09、Q4=12）。
@@ -32,7 +32,9 @@ BASE_COLS = [
 ]
 INCOME_EXTRA = ["op_income", "pretax", "tax"]
 BALANCE_EXTRA = ["total_assets", "cur_liab", "noncur_liab", "total_liab", "equity_total", "treasury"]
-FIN_COLS = [*BASE_COLS, *INCOME_EXTRA, *BALANCE_EXTRA]
+# 現金流量表彙總（t163sb20；2026-11-16 以 Actions 抓回的真實樣本確認格式）：營業活動、投資活動的淨現金流（累計值）
+CASH_EXTRA = ["cfo", "cfi"]
+FIN_COLS = [*BASE_COLS, *INCOME_EXTRA, *BALANCE_EXTRA, *CASH_EXTRA]
 # 舊檔（2026-11 以前寫入）沒有這個欄位 → run_history／upgrade_stale 會重抓
 UPGRADE_MARK = "total_assets"
 _TABLE = re.compile(r"<table class='hasBorder'.*?</table>", re.S)
@@ -50,7 +52,7 @@ def _find(cols: list[str], *preds: Any) -> int | None:
 
 
 def parse_statement(html: bytes | str, kind: str) -> pd.DataFrame:
-    """kind：income（損益）或 balance（資產負債）。回傳 code 與關鍵欄位（跨產業格式）。"""
+    """kind：income（損益）、balance（資產負債）或 cash（現金流量）。回傳 code 與關鍵欄位（跨產業格式）。"""
     text = html.decode("utf-8", errors="replace") if isinstance(html, bytes) else html
     tables = _TABLE.findall(text)
     if not tables:
@@ -71,6 +73,9 @@ def parse_statement(html: bytes | str, kind: str) -> pd.DataFrame:
             i_op = _find(cols, lambda c: c in ("營業利益（損失）", "營業利益"))
             i_pre = _find(cols, lambda c: c.startswith("稅前淨利"), lambda c: c.startswith("繼續營業單位稅前"))
             i_tax = _find(cols, lambda c: c.startswith("所得稅"))
+        elif kind == "cash":
+            i_cfo = _find(cols, lambda c: c.startswith("營業活動之淨現金流入"))
+            i_cfi = _find(cols, lambda c: c.startswith("投資活動之淨現金流入"))
         else:
             i_eq = _find(cols, lambda c: "歸屬於母公司業主" in c and "權益" in c and "合計" in c)
             i_bal = {
@@ -94,6 +99,9 @@ def parse_statement(html: bytes | str, kind: str) -> pd.DataFrame:
                 rec["op_income"] = to_num(cells[i_op]) if i_op is not None else None
                 rec["pretax"] = to_num(cells[i_pre]) if i_pre is not None else None
                 rec["tax"] = to_num(cells[i_tax]) if i_tax is not None else None
+            elif kind == "cash":
+                rec["cfo"] = to_num(cells[i_cfo]) if i_cfo is not None and i_cfo < len(cells) else None
+                rec["cfi"] = to_num(cells[i_cfi]) if i_cfi is not None and i_cfi < len(cells) else None
             else:
                 rec["equity_parent"] = to_num(cells[i_eq]) if i_eq is not None else None
                 for name, i in i_bal.items():
@@ -107,7 +115,7 @@ def quarter_key(year: int, quarter: int) -> date:
 
 
 def fetch_quarter(ctx: Any, year: int, quarter: int) -> pd.DataFrame:
-    from pipeline.tasks import _fetch
+    from pipeline.tasks import SOURCE_ERRORS, _fetch
 
     frames = []
     for market, typek in (("twse", "sii"), ("tpex", "otc")):
@@ -124,6 +132,18 @@ def fetch_quarter(ctx: Any, year: int, quarter: int) -> pd.DataFrame:
             inc.merge(bal[["code", *bal_cols]], on="code", how="left")
             if not bal.empty
             else inc.assign(**dict.fromkeys(bal_cols))
+        )
+        # 現金流量表：取不到（來源暫時失敗或該市場沒有這張表）不影響損益與資產負債，欄位留空
+        try:
+            cash = parse_statement(
+                _fetch(ctx, MOPS.format(sb="t163sb20", typek=typek, roc=year - 1911, season=quarter)), "cash"
+            )
+        except SOURCE_ERRORS:
+            cash = pd.DataFrame()
+        df = (
+            df.merge(cash[["code", *CASH_EXTRA]], on="code", how="left")
+            if not cash.empty
+            else df.assign(**dict.fromkeys(CASH_EXTRA))
         )
         df["market"] = market
         df["year"] = year

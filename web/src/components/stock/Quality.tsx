@@ -10,7 +10,7 @@ import type { JSX } from 'preact';
 import type { StockHistory, StockRow } from '../../data/types';
 import { fmtNum, glueNumbers, MINUS } from '../../lib/format';
 import {
-  earnSentence, gapSentence, historyGap, HURDLE, incrSentence, kindName, kindOf, kindRule, lastSentence, marketVsBiz, MIN_YEARS,
+  cashSentence, earnSentence, gapSentence, historyGap, HURDLE, incrSentence, kindName, kindOf, kindRule, lastSentence, marketVsBiz, MIN_YEARS,
   qualityOf, qualitySeries, seriesSummary, TTM_LABEL, type Quality,
 } from '../../lib/quality';
 import { qualityConfig } from '../../lib/config';
@@ -25,8 +25,11 @@ const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite
 const pct = (v: N, d = 1) => <Num v={ok(v) ? v : null} digits={d} unit="%" />;
 /** 橫條的固定尺度上限（%）：每一檔都用同一把尺，左右滑動換股時圓點的位置可以直接比較 */
 const SCALE_MAX = 40;
-/** 還沒有接入的資料：收成一行說明（原則 5：說明原因，不留白；也不讓一排「—」佔版面） */
-const PENDING = '尚未接入：現金流量、董監持股設質、買回庫藏股（資料源待處理）';
+/** 還沒有接入（或這一檔還沒有）的資料：收成一行說明（原則 5：說明原因，不留白；也不讓一排「—」佔版面） */
+export function pendingText(q: Quality): string {
+  const items = [q.has_cash ? null : '現金流量', q.insiders ? null : '董監持股設質', '買回庫藏股'].filter(Boolean);
+  return `尚未接入：${items.join('、')}（資料源待處理）`;
+}
 
 /** ⓘ：計算方式（公式、門檻、限制都放這裡，畫面上只留結論） */
 function QualityInfo() {
@@ -37,7 +40,8 @@ function QualityInfo() {
       <p>資金成本門檻 {c.hurdle_pct}% 全站相同；ROIC 在門檻上下 {c.near_band} 個百分點以內算「接近門檻」。</p>
       <p>簡式沒有扣掉帳上多餘的現金（現金多的公司會偏低），短期借款也沒有算進投入資本。金融業的報表沒有營業利益與流動負債，不計算。</p>
       <p>類型依規則分類，每季財報公布後重算，不是推薦：{(['steady', 'cyclical', 'fading'] as const).map((k) => `「${c.labels[k].name}」＝${c.labels[k].rule}`).join('；')}。年度資料滿 {c.history.min_years} 年才分類。</p>
-      <p>資料來源：公開資訊觀測站季財報彙總表。</p>
+      <p>營業現金流 ÷ 淨利＝近四季營業活動的淨現金流 ÷ 歸屬母公司淨利：長期明顯低於 100%，代表帳上的獲利還沒有收到現金。</p>
+      <p>資料來源：公開資訊觀測站季財報彙總表（損益、資產負債、現金流量）。</p>
     </>
   );
 }
@@ -166,6 +170,8 @@ export function QualityDetail({ h }: { h: StockHistory }) {
   const kind = kindOf(q);
   const years = s.labels.map((label, i) => ({ label: label === TTM_LABEL ? `${TTM_LABEL}（${q.period}）` : label, roic: s.roic[i], revenue: s.revenue[i], margin: s.margin[i] })).reverse();
   const pay = payoutText(q);
+  const cash = cashSentence(q);
+  const ins = q.insiders ?? null;
   const spread = ok(q.spread) ? `${q.spread > 0 ? '+' : q.spread < 0 ? MINUS : ''}${fmtNum(Math.abs(q.spread), 1)}` : '—';
   return (
     <>
@@ -178,6 +184,7 @@ export function QualityDetail({ h }: { h: StockHistory }) {
           <Row label={<Term id="capital_turnover">資本周轉</Term>} sub="每 1 元投入資本做多少營收" value={<Num v={q.turnover} digits={2} unit="次" />} />
           <Row label={<Term id="roe_roic_gap">ROE 與 ROIC 的差距</Term>} sub={gapSentence(q) ?? 'ROE 未公布'} subWide
             value={ok(q.gap) ? <Signed v={q.gap} digits={1} unit="百分點" tone="plain" /> : '—'} />
+          {cash ? <Row label={<Term id="cash_conversion">營業現金流 ÷ 淨利</Term>} sub={cash} subWide value={pct(q.cash_conv, 0)} testid="q-cash" /> : null}
         </List>
       </Section>
 
@@ -222,7 +229,8 @@ export function QualityDetail({ h }: { h: StockHistory }) {
       <Section title="賺的錢去哪" id="q-pay" testid="q-pay" info={
         <>
           <p>盈餘配發率＝當年除息的每股現金股利合計 ÷ 前一年度每股盈餘；今年還沒過完，不列。前一年度虧損時不計算。</p>
-          <p>現金流量表、董監持股設質、庫藏股還沒有接入；接上之前如實標示「資料源待處理」。</p>
+          <p>董監持股設質＝董事與監察人設質的股數 ÷ 他們的持股合計（每月公布；經理人與大股東不計）。設質比例高，代表大股東把持股拿去借錢，股價下跌時可能被迫處分。</p>
+          <p>買回庫藏股還沒有接入，如實標示「資料源待處理」。</p>
         </>
       }>
         {pay ? <Conclusion testid="q-pay-concl">{glueNumbers(pay)}</Conclusion> : <List><EmptyRow testid="q-pay-empty">配息資料累積中：還沒有完整年度的配息與財報</EmptyRow></List>}
@@ -235,7 +243,13 @@ export function QualityDetail({ h }: { h: StockHistory }) {
             ]} />
           </div>
         ) : null}
-        <p class="ui-foot ui-muted qv-pending" data-testid="q-pending">{PENDING}</p>
+        {ins ? (
+          <List>
+            <Row label={<Term id="pledge">董監持股設質</Term>} testid="q-pledge" value={pct(ins.pledge_pct)}
+              sub={`董事與監察人合計持股 ${ok(ins.hold_pct) ? `${fmtNum(ins.hold_pct, 1)}%` : '未公布'}${ins.ym ? `・${ins.ym.replace('-', '/')}` : ''}`} subWide />
+          </List>
+        ) : null}
+        <p class="ui-foot ui-muted qv-pending" data-testid="q-pending">{pendingText(q)}</p>
       </Section>
 
       <List chev>

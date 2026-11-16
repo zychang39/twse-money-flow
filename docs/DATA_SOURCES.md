@@ -109,7 +109,11 @@
 
 > **季財報欄位（2026-11，DECISIONS #470）**：同一份彙總表多留 9 欄——損益：`op_income`（營業利益）、`pretax`（稅前淨利）、`tax`（所得稅）；資產負債：`total_assets`（資產總計）、`cur_liab`（流動負債）、`noncur_liab`（非流動負債）、`total_liab`（負債總計）、`equity_total`（權益總計）、`treasury`（庫藏股票）。單位千元、損益為累計值。金融業的表沒有營業利益與流動負債（空值）。2026-11 以前寫入的季別沒有這些欄位：回補（`backfill --source financials`）遇到舊檔會重抓，每季排程也會順便補 4 季。
 >
-> **生意體質的候選資料源（待看真實格式；`tests/fixtures/capture-list.txt`）**：上市董監持股餘額 `openapi.twse.com.tw/v1/opendata/t187ap11_L`、上櫃 `mopsfin_t187ap11_O`、上櫃股利分派 `mopsfin_t187ap45_O`、現金流量表彙總 MOPS `ajax_t163sb20`、庫藏股 MOPS `ajax_t35sc09`。格式確認並寫好解析器之前，個股頁的董監持股設質、買回庫藏股、現金跟得上獲利嗎三列標示「資料源待處理」。盈餘配發率不需要新資料源（用除權息紀錄與季財報）。
+> **現金流量表彙總（2026-11-16 Actions 實測）**：MOPS `ajax_t163sb20`（參數同 t163sb04），各產業同一種表頭；`financials` 多留 `cfo`（營業活動之淨現金流）、`cfi`（投資活動之淨現金流），累計值、千元。取不到時這兩欄留空，不影響損益與資產負債。
+>
+> **董監事持股餘額與設質（2026-11-16 Actions 實測）**：`twse_directors`＝`openapi.twse.com.tw/v1/opendata/t187ap11_L`（約 10MB，一列一位內部人）、`tpex_directors`＝`www.tpex.org.tw/openapi/v1/mopsfin_t187ap11_O`（回應較慢；取樣時 60 秒逾時被截斷，欄位與上市相同）。每月公布，每週檢查一次，只存每家公司彙總後的一列（`ym, code, name, directors, shares, pledged, pledge_pct`）。
+>
+> **仍待處理**：買回庫藏股（MOPS `ajax_t35sc09` 有回應，但表格版面與其他彙總表不同，尚未寫解析器）；上櫃股利分派 `mopsfin_t187ap45_O` 回的是網頁不是 JSON（端點名稱不對）。盈餘配發率不需要這兩個來源（用除權息紀錄與季財報）。
 
 | active_etf | 主動式 ETF 每日持股 | 各發行投信官網的持股揭露／申購買回清單（PCF），逐家實作（見下方「主動式 ETF 持股」） | 每日（多為當晚或次一營業日） | 🟡 已實作 14 家投信（對應 30／32 檔；國泰、兆豐依 User-Agent 擋本工具，2026-10-09）；實際有持股資料的檔數與投信家數依每日抓取結果（市場頁「涵蓋 N/32 檔」、資料健康頁）；2026-10-03 起同時保存受益權單位數（聯博未揭露）（DECISIONS #22、#242；2026-10-03 新增台新、凱基、聯博、第一金、復華） |
 | style_etf | 風格與大盤 ETF 持股（順風檢查的類股超配） | 同上三家投信的 PCF 端點：元大（0050、0051、00940、00713）、富邦（00733）、凱基（00938→J017、009816→J023） | 每週（每檔距上一份持股滿 7 天才再抓，只取最新一份） | ✅ 2026-11-13 本環境實測 7 檔皆可解析（沿用 active_etf 的解析器；存 `raw/style_etf_holdings`，與主動式 ETF 的 `etf_holdings` 分開）；DECISIONS #463 |

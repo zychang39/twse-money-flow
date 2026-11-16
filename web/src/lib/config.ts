@@ -125,6 +125,7 @@ export interface QualityConfig {
   tax: { min: number; max: number; default: number };
   history: { min_years: number; max_years: number; start_year: number };
   incremental: { years: number; min_capital_growth_pct: number };
+  cash: { ok: number; low: number };
   change_years: number;
   types: { steady: { years: number; margin: number }; cyclical: { swing: number; legs: number }; fading: { down_years: number } };
   labels: Record<BizKind, QualityLabel>;
