@@ -1,9 +1,8 @@
 {
- "task": "backfill",
- "at": "2026-11-16T17:22:17+08:00",
- "requests": 0,
- "ok": 0,
+ "task": "periodic",
+ "at": "2026-11-16T17:25:16+08:00",
+ "requests": 2,
+ "ok": 2,
  "failed": [],
- "pending": [],
- "deferred": true
+ "pending": []
 }
