@@ -30,7 +30,8 @@ export type Tone = 'risk' | 'neutral' | 'strong';
 
 export const AUTO_KEYS: AutoKey[] = ['market', 'trend', 'revenue', 'valuation', 'reasonType'];
 
-export const REASONS = ['籌碼', '動能', '營收', '估值', '事件', '其他'];
+/** 2026-11：加上「生意體質」（符合 ROIC 類內建條件時自動帶出；舊紀錄不受影響） */
+export const REASONS = ['籌碼', '動能', '營收', '估值', '生意體質', '事件', '其他'];
 
 /** 各題的選項（存進紀錄的文字）與列上的短標籤 */
 export function optionsFor(key: AutoKey, cfg = uiConfig.checklist): { value: string; short: string }[] {
@@ -197,7 +198,7 @@ const lookbackYears = () => Math.round(Number(thresholds.indicators.valuation_pe
 
 // ------------------------------------------------------------------ 5. 理由類型
 
-const GROUP_REASON: Record<string, string> = { 籌碼: '籌碼', 動能: '動能', 基本面: '營收', 估值: '估值' };
+const GROUP_REASON: Record<string, string> = { 籌碼: '籌碼', 動能: '動能', 基本面: '營收', 估值: '估值', 生意體質: '生意體質' };
 const RING_REASON: Record<string, string> = { chip: '籌碼', momentum: '動能', fundamental: '營收', valuation: '估值' };
 
 /** 內建條件的理由類型：條件欄位分組（config/screener.yml fields.group）最多的一組；流動性不算 */
@@ -297,7 +298,7 @@ export function itemDoc(key: AutoKey, row: StockRow | undefined, cfg = uiConfig.
       source: sourcesConfig[row?.market === 'tpex' ? 'tpex_valuation' : 'twse_valuation']?.label ?? '本益比／殖利率／淨值比',
     };
     case 'reasonType': return {
-      what: '這筆持倉的理由分類：籌碼、動能、營收、估值、事件、其他。',
+      what: `這筆持倉的理由分類：${REASONS.join('、')}。`,
       why: '日後復盤時，用來統計哪一類理由的成效較好（個人統計頁「依理由類型」）。',
       rules: [
         ...screenerConfig.presets.map((p) => `符合內建條件「${p.label}」（${p.subtitle}）→ ${presetReason(p.conditions) ?? '—'}`),

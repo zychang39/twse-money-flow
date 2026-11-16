@@ -2,7 +2,7 @@
 import { TopBar } from '../components/Chrome';
 import { Card, PageTitle, Section as UiSection } from '../components/ui';
 import '../styles/strategy.css';
-import { CATEGORY_IDS, costsConfig, scoresConfig, thresholds, uiConfig, type Mapping } from '../lib/config';
+import { CATEGORY_IDS, costsConfig, qualityConfig, scoresConfig, thresholds, uiConfig, type Mapping } from '../lib/config';
 
 function mappingText(m: Mapping, unit: string): string {
   switch (m.type) {
@@ -33,6 +33,7 @@ export default function Methodology() {
   const bt = th.backtest;
   const fv = th.fair_value;
   const ind = th.indicators;
+  const qc = qualityConfig;
   return (
     <div class="page">
       <TopBar back="/" avatar={false} />
@@ -90,6 +91,18 @@ export default function Methodology() {
           <li>淨值比：股價 ÷ 每股淨值，與自身近 3 年比較的百分位。</li>
           <li>殖利率：近 {fv.dividend_years} 年平均現金股利 ÷ 股價。</li>
           <li>只顯示數值與百分位，不換算價格區間。</li>
+        </ul>
+      </Section>
+
+      <Section title="生意體質（簡式 ROIC）">
+        <ul class="small md-list">
+          <li>稅後營業利益＝近四季營業利益 ×（1 − 有效稅率）；有效稅率＝所得稅 ÷ 稅前淨利，限制在 {qc.tax.min * 100}%～{qc.tax.max * 100}%（稅前淨利 ≤ 0 時用 {qc.tax.default * 100}%）。營業虧損時不計稅盾。</li>
+          <li>投入資本（簡式）＝資產總計 − 流動負債，取期初與期末的平均。沒有扣帳上多餘的現金，短期借款不算在內。</li>
+          <li>ROIC＝稅後營業利益 ÷ 投入資本＝稅後營業利益率 × 資本周轉。資金成本門檻 {qc.hurdle_pct}%（全站相同）；上下 {qc.near_band} 個百分點以內標示「接近門檻」。</li>
+          <li>年度 ROIC 最多看 {qc.history.max_years} 年；滿 {qc.history.min_years} 年才計算中位數與分類。新增投入的報酬＝（現在 − {qc.incremental.years} 年前的稅後營業利益）÷（現在 − {qc.incremental.years} 年前的投入資本），投入資本增加不到 {qc.incremental.min_capital_growth_pct}% 時不計算。</li>
+          {(['steady', 'cyclical', 'fading'] as const).map((k) => <li key={k}>{qc.labels[k].name}：{qc.labels[k].rule}。</li>)}
+          <li>盈餘配發率＝當年除息的每股現金股利合計 ÷ 前一年度每股盈餘。</li>
+          <li>金融業的報表沒有營業利益與流動負債，不計算 ROIC。財報數字依法定申報期限生效。類型與高低只描述過去的財報數字，不是推薦。</li>
         </ul>
       </Section>
 

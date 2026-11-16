@@ -515,6 +515,31 @@ def run_cbc_money(ctx: RunContext) -> None:
     ctx.note("cbc_money", "ok", data_date=key, rows=len(df))
 
 
+DIRECTOR_SOURCES = ("twse_directors", "tpex_directors")
+
+
+def run_directors(ctx: RunContext) -> None:
+    """董監事持股餘額與設質（每月一份；每週檢查一次，已有該月就不再存）。每家公司彙總成一列。"""
+    from pipeline.sources import optional
+
+    for sid in DIRECTOR_SOURCES:
+        try:
+            df = optional.parse_directors(_fetch(ctx, str(config.source(sid)["url"]))).df
+        except SOURCE_ERRORS as exc:
+            ctx.note(sid, "failed", message=err_text(exc)[:300])
+            continue
+        if df.empty:
+            ctx.note(sid, "no_data", message="沒有資料")
+            continue
+        ym = str(df["ym"].max())
+        key = date(int(ym[:4]), int(ym[5:7]), 1)
+        if ctx.store.exists(sid, key):
+            ctx.note(sid, "ok", data_date=key, rows=len(df), message="本月已存在")
+            continue
+        ctx.store.write(sid, key, df)
+        ctx.note(sid, "ok", data_date=key, rows=len(df))
+
+
 def run_conference(ctx: RunContext, month: date) -> None:
     """公開資訊觀測站法人說明會（上市＋上櫃），依召開月份存檔。"""
     from pipeline.sources import optional

@@ -1,0 +1,42 @@
+/* 生意體質（2026-11）：ROIC 對門檻的橫條、總覽的兩條橫條、探索頁的四個走向。只用 tokens；灰階表示高低，琥珀只給風險。 */
+
+/* 類型標籤＋「依規則分類，非推薦」 */
+.qv-kind { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-bottom: var(--s-3); }
+
+/* ROIC 對門檻：軌道＋填色＋門檻刻線＋ROIC 圓點；下方同一尺度的刻度文字 */
+.qv-bar { display: block; padding-top: var(--s-2); }
+.qv-track { position: relative; display: block; height: 0.5rem; border-radius: var(--r-pill); background: var(--track); }
+.qv-fill { position: absolute; top: 0; bottom: 0; border-radius: var(--r-pill); background: var(--d-3); }
+.qv-tick { position: absolute; top: 50%; width: 2px; height: 1.25rem; transform: translate(-50%, -50%); border-radius: 1px; background: var(--d-2); }
+.qv-dot { position: absolute; top: 50%; width: 0.875rem; height: 0.875rem; transform: translate(-50%, -50%); border-radius: 50%; background: var(--d-1); box-shadow: 0 0 0 2px var(--surface-1); }
+.qv-scale { position: relative; display: flex; justify-content: space-between; margin-top: var(--s-3); font-variant-numeric: tabular-nums; }
+.qv-scale-h { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; color: var(--text-1); }
+
+/* 總覽：兩條橫條（標籤｜橫條｜數字） */
+.qv-meters { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; align-items: center; gap: var(--s-3) var(--s-3); }
+.qv-num { text-align: right; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.qv-link { padding: 0; border: 0; background: none; font: inherit; font-size: var(--fs-foot); line-height: var(--lh-foot); cursor: pointer; text-align: left; }
+
+/* 探索 › 生意體質：四個走向（2 × 2，可點；選中的那一格用分段控制的選中底色） */
+.qx-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); }
+.qx-cell { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-1); min-height: 4.5rem; padding: var(--s-3) var(--card-pad); border: 1px solid var(--card-edge); border-radius: var(--r-md); background: var(--surface-1); color: var(--text-1); font: inherit; text-align: left; cursor: pointer; }
+.qx-cell[aria-pressed='true'] { background: var(--surface-3); }
+.qx-cell-n { font-size: var(--fs-key); line-height: var(--lh-key); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.qx-cell-n .ui-unit { color: var(--text-2); font-size: calc(1em * var(--unit-scale)); font-weight: var(--fw-medium); }
+.qx-cell-l { font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--brand); }
+.qx-axis { display: flex; justify-content: space-between; margin-top: var(--s-2); }
+.qx-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.qx-chip { display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 var(--s-3); border: 0; border-radius: var(--r-pill); background: var(--surface-1); color: var(--brand); font: inherit; font-size: var(--fs-sub); line-height: var(--lh-sub); cursor: pointer; white-space: nowrap; }
+.qx-chip[aria-pressed='true'] { background: var(--brand-fill); color: var(--on-brand); }
+.qx-more { margin-top: var(--s-2); }
+/* 清單：名稱一行、代號一行（列高一致，不因名稱長短有的一行有的兩行） */
+.qx-name, .qx-code { display: block; }
+.qx-code { font-variant-numeric: tabular-nums; }
+/* 兩條橫條的分界細線（34、67：前段／中段／後段） */
+.qv-tier { position: relative; display: block; }
+.qv-cut { position: absolute; top: -0.1875rem; bottom: -0.1875rem; width: 1px; background: var(--d-3); }
+.qv-num .ui-unit { font-size: var(--fs-foot); font-weight: var(--fw-regular); color: var(--text-2); }
+/* 還沒有接入的資料：一行說明 */
+.qv-pending { margin: var(--s-3) 0 0; }
+/* 清單表頭第二行的小單位 */
+.qx-th-u { display: block; font-weight: var(--fw-regular); }

@@ -490,7 +490,7 @@ export function completionRate(days: DayDot[]): { done: number; total: number; r
 }
 
 // ------------------------------------------------------------------ 經驗值（§8.5）
-export type XpKind = 'legacy' | 'brief' | 'screener' | 'term' | 'onboard' | 'entry' | 'review' | 'plan_exit' | 'weekly_review' | 'backup' | 'backtest_own';
+export type XpKind = 'legacy' | 'brief' | 'screener' | 'term' | 'onboard' | 'entry' | 'review' | 'plan_exit' | 'weekly_review' | 'backup' | 'backtest_own' | 'thesis' | 'thesis_review';
 export const XP_LABEL: Record<XpKind, string> = {
   legacy: '既有經驗值',
   brief: '步驟 1–3 完成',
@@ -503,7 +503,14 @@ export const XP_LABEL: Record<XpKind, string> = {
   weekly_review: '週檢討',
   backup: '備份',
   backtest_own: '回測自己的條件',
+  thesis: '研究筆記寫完第一版',
+  thesis_review: '提醒出現後回頭看筆記',
 };
+/** 研究筆記的經驗值與每日上限（2026-11；config/ui.yml gamification.xp／caps 的 thesis、thesis_review；舊設定沒有時用預設值） */
+function thesisXp(cfg: Gcfg): { done: number; review: number; doneCap: number; reviewCap: number } {
+  const xp = cfg.xp as Record<string, number>, caps = cfg.caps as Record<string, number>;
+  return { done: xp.thesis ?? 15, review: xp.thesis_review ?? 10, doneCap: caps.thesis_per_day ?? 1, reviewCap: caps.thesis_review_per_day ?? 2 };
+}
 export interface XpEntry { kind: XpKind; xp: number; at: number; day: string; ref?: string }
 
 /** 經驗值表（等級卡 ⓘ 用）：每項的點數與限制 */
@@ -519,6 +526,8 @@ export function xpTable(cfg: Gcfg = uiConfig.gamification): { kind: XpKind; labe
     { kind: 'backtest_own', label: XP_LABEL.backtest_own, xp: cfg.xp.backtest_own, limit: '每週 1 次' },
     { kind: 'term', label: XP_LABEL.term, xp: cfg.xp.term, limit: `每個名詞 1 次；每日最多 ${cfg.caps.term_per_day} 個` },
     { kind: 'onboard', label: XP_LABEL.onboard, xp: cfg.xp.onboard, limit: '每項 1 次' },
+    { kind: 'thesis', label: XP_LABEL.thesis, xp: thesisXp(cfg).done, limit: `每檔 1 次；每日最多 ${thesisXp(cfg).doneCap} 份` },
+    { kind: 'thesis_review', label: XP_LABEL.thesis_review, xp: thesisXp(cfg).review, limit: `每檔每日 1 次；每日最多 ${thesisXp(cfg).reviewCap} 份` },
   ];
 }
 
@@ -584,6 +593,25 @@ export function xpLedger(input: FlowInput): XpEntry[] {
     .map((t) => ({ at: msOf(t.closedRecordedAt, tpeNoonMs((t.closedAt ?? t.openedAt).slice(0, 10))), day: closeDayOf(t, cal) ?? t.openedAt, ref: t.id })),
   'plan_exit', cfg.xp.plan_exit, cfg.caps.plan_exit_per_day);
   capped(termItems, 'term', cfg.xp.term, cfg.caps.term_per_day);
+  // 研究筆記：寫完第一版（每檔一次）、提醒出現後回頭看（每檔每天一次）；只獎勵研究與回顧，和有沒有交易、賺賠無關
+  const tx = thesisXp(cfg);
+  const noteItems = (type: Activity['type'], perDay: boolean) => {
+    const seen = new Set<string>();
+    const items: { at: number; day: string; ref: string }[] = [];
+    for (const a of input.activities.filter((x) => x.type === type).sort((x, y) => msOf(x.at, 0) - msOf(y.at, 0))) {
+      const at = msOf(a.at, NaN);
+      const code = String(a.meta?.code ?? '');
+      if (!Number.isFinite(at) || !code) continue;
+      const day = tpeDate(a.at);
+      const k = perDay ? `${code}:${day}` : code;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      items.push({ at, day, ref: code });
+    }
+    return items;
+  };
+  capped(noteItems('thesis_done', false), 'thesis', tx.done, tx.doneCap);
+  capped(noteItems('thesis_review', true), 'thesis_review', tx.review, tx.reviewCap);
   // 週檢討（每週）、備份（每日曆月）、回測自己的條件（每週）
   const once = (type: Activity['type'], kind: XpKind, xp: number, key: (day: string) => string) => {
     const seen = new Set<string>();

@@ -263,6 +263,9 @@ def summary_columns() -> list[str]:
         "turnover",
         "price_change_5d",
         "fair_position",
+        # 2026-11 生意體質：類型（或高於／接近／低於門檻；文字）、ROIC 全市場百分位
+        "biz_type",
+        "roic_pct",
         *[f"{c}_chg" for c in SCORE_COLUMNS],
         "short_change",
         "vol_ratio",
@@ -407,9 +410,15 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
     extra = {"fair_value_position": fv["position"], **adv}
     mp = metrics.build_metrics(p, ds.revenue, extra)
     sc = scores.compute_scores(mp)
-    flags = flagmod.build_flags(ds, p, mp)
-    flags_prev = flagmod.build_flags(ds, p, mp, at=-2) if len(p.dates) >= 2 else {}
-    flags_week = flagmod.build_flags(ds, p, mp, at=-6) if len(p.dates) >= 6 else {}
+    # 2026-11：生意體質（個股檔的 quality 區塊、summary 的 biz_type／roic_pct、兩個風險旗標）
+    from pipeline.derive import quality as qualitymod
+
+    fin_rows = qualitymod.rows_by_code(ds.table("financials"))
+    qual = qualitymod.build(ds.table("financials"), p.codes, fin_rows)
+    directors = qualitymod.directors_by_code(ds.table("directors"))
+    flags = flagmod.build_flags(ds, p, mp, quality=qual)
+    flags_prev = flagmod.build_flags(ds, p, mp, at=-2, quality=qual) if len(p.dates) >= 2 else {}
+    flags_week = flagmod.build_flags(ds, p, mp, at=-6, quality=qual) if len(p.dates) >= 6 else {}
     cols = SUMMARY_COLUMNS
     rows: list[list[Any]] = []
     written = 0
@@ -449,6 +458,10 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
                 m[name] = clean(sc[name][code].iloc[-1], 0)
             elif name == "fair_position":
                 m[name] = clean(fv["position"][code].iloc[-1], 1)
+            elif name == "biz_type":
+                m[name] = qualitymod.chip(qual.get(code, {}))
+            elif name == "roic_pct":
+                m[name] = qual.get(code, {}).get("pct")
             else:
                 m[name] = clean(mp.last(name, code), 2)
         m["flags"] = flags.get(code, [])
@@ -472,6 +485,10 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
         fair = fairvalue.fair_detail(fv, p.close, code)
         idx = [d for d, ok in zip(p.dates, p.close[code].notna(), strict=True) if ok]
         rev_now = {k: mp.last(k, code) for k in ("revenue_high_ratio", "revenue_yoy_3m", "revenue_growth_months")}
+        divs = stockdetail.dividends_for(ds, code)
+        # 生意體質：盈餘配發率（當年除息的現金股利 ÷ 前一年度 EPS）
+        qualitymod.attach_payout(qual.get(code), fin_rows.get(code), divs, last_date)
+        qualitymod.attach_insiders(qual.get(code), directors.get(code), p.shares.get(code))
         extra_file = {
             "scores": scores.factor_detail(mp, sc, code),
             "fair": fair,
@@ -480,7 +497,7 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
             "cost": stockdetail.cost_lines(p, code, idx) or None,
             "summary_text": stockdetail.health_summary(code, m, m["flags"], fair, rev_now),
             "flags": m["flags"],
-            "dividends": stockdetail.dividends_for(ds, code),
+            "dividends": divs,
             "series": {
                 k: arr(mp.get(k)[code].reindex(idx).to_numpy(), 2)
                 for k in ("rs_percentile", "pe_percentile", "pb_percentile")
@@ -499,6 +516,7 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
                 if name in mp.panels and mp.get(name)[code].notna().any()
             },
             "quarters": fundamentals.latest_table(ds.table("financials"), code),
+            "quality": qual.get(code) or {"status": "none"},
             "short_halt": short_halt_for(ds, code),
             "etf_holders": etf_holders.get(code),
             "etf": etf_summary.get(code),

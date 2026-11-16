@@ -57,11 +57,15 @@ gamification:
     weekly_review: 30   # 週檢討（週報頁按下完成；每週一次）
     backup: 10          # 備份（每日曆月一次）
     backtest_own: 10    # 回測自己的條件（每週一次）
+    thesis: 15          # 研究筆記寫完第一版（判斷、市場可能看錯什麼、驗證事件、推翻條件、證據都有內容；每檔一次）
+    thesis_review: 10   # 提醒出現後（碰到推翻條件、驗證事件到了）回頭看筆記並按「已回頭看過」（每檔每天一次）
   caps:                 # 每日上限（筆數）
     entry_per_day: 2
     review_per_day: 3
     plan_exit_per_day: 3
     term_per_day: 5     # 名詞每日最多計 5 個（10 經驗值）
+    thesis_per_day: 1          # 研究筆記第一版每日最多計 1 份
+    thesis_review_per_day: 2   # 回頭看筆記每日最多計 2 份
   level_base: 100       # 升到等級 n 所需累計經驗值 = base × (2^(n−1) − 1)
   level_max: 10
   badges:

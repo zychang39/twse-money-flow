@@ -20,6 +20,7 @@ import { adjustTrade, eventsFor, unrealizedPnl, type AdjEvent } from '../lib/cor
 import { alignTo, correlation, equityCurve, maxDrawdown, monthlyReturns, normalize, type DividendEvent } from '../lib/portfolio';
 import { adjClose } from '../lib/history';
 import { orMissing, pctSigned, ratioText } from '../lib/format';
+import { verdictMatrix } from '../lib/thesis';
 
 function Portfolio({ trades, capital, byCode }: { trades: Trade[]; capital: number; byCode: Map<string, StockRow> }) {
   const codes = [...new Set(trades.map((t) => t.code))];
@@ -196,6 +197,29 @@ function FlowStats({ flow }: { flow: FlowState }) {
   );
 }
 
+/** 論點與結果（2026-11）：平倉檢討回答過「原本的論點對了嗎」才出現；把賺賠和論點對錯分開看 */
+function VerdictTable({ trades }: { trades: Trade[] }) {
+  const m = verdictMatrix(trades);
+  if (!m.answered) return null;
+  const rows = [
+    { k: '賺', right: m.winRight, wrong: m.winWrong },
+    { k: '賠', right: m.lossRight, wrong: m.lossWrong },
+  ];
+  return (
+    <Section title="論點與結果" aside={`${m.answered} 筆回答過`} testid="stats-verdict"
+      info={<p>平倉檢討時回答「原本的論點對了嗎」的交易（只有寫過研究筆記的股票會問）。賺錢但論點錯，是運氣；賠錢但論點對，可能是價格或時機的問題——兩種要分開記。賺賠以實現損益（含手續費與證交稅）計。</p>}>
+      <Card>
+        <Table cols={[
+          { key: 'k', label: '結果', render: (x) => x.k },
+          { key: 'r', label: '論點對', align: 'r', render: (x) => <Num v={x.right} unit="筆" /> },
+          { key: 'w', label: '論點錯', align: 'r', render: (x) => <Num v={x.wrong} unit="筆" /> },
+        ]} rows={rows} rowKey={(x) => x.k} caption="論點對錯與賺賠的筆數" />
+        {m.unknown ? <p class="ui-foot ui-muted" style={{ marginTop: 'var(--s-2)' }}>另有 {m.unknown} 筆回答「還不知道」</p> : null}
+      </Card>
+    </Section>
+  );
+}
+
 export default function Stats() {
   const summary = useScoredSummary();
   const user = useUser();
@@ -232,6 +256,7 @@ export default function Stats() {
               ]} rows={byReason(trades)} rowKey={(x) => x.reason} caption="各理由類型績效" />
             </Card>
           </Section>
+          <VerdictTable trades={trades} />
           <Section title="組合分析" info={<p>以期初資金為 100 標準化；權益曲線計入除息現金股利與除權配股。</p>}>
             <Portfolio trades={trades} capital={portfolio.capital} byCode={byCode} />
           </Section>

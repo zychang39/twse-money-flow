@@ -482,6 +482,9 @@ def task_periodic(ctx: RunContext, sources: list[str] | None = None) -> None:
     weekly = not wanted and ctx.today.weekday() in (5, 6)
     if "cbc_money" in wanted or weekly:
         tasks_advanced.run_cbc_money(ctx)
+    # 2026-11 生意體質：董監事持股餘額與設質（每月公布；每週檢查一次）
+    if wanted & {"directors", "twse_directors", "tpex_directors"} or weekly:
+        tasks_advanced.run_directors(ctx)
     if "tpex_delisted" in wanted or weekly:
         tasks_advanced.run_tpex_delisted(ctx)
     if "investor_conference" in wanted or weekly:

@@ -16,6 +16,10 @@ import '../styles/entry.css';
 import type { FactDoc, FactRow, EnvSummary } from '../lib/entryFacts';
 import { stanceTone } from '../lib/entryFacts';
 import { AUTO_KEYS, AUTO_LABEL, optionsFor, shortOf, type AutoItem, type AutoKey, type ItemDoc, type Overrides } from '../lib/checklistAuto';
+import type { StockRow } from '../data/types';
+import type { Thesis } from '../db/db';
+import { md } from '../lib/format';
+import { breakerStatus, completeness, sortEvents, thesisSub, type BizItem } from '../lib/thesis';
 
 // ---------------------------------------------------------------- 面板內推入／返回
 
@@ -314,6 +318,63 @@ export function ItemDetail({ k, item, doc, override, onSet }: {
         </div>
         <p class="ck-source ui-foot ui-muted">手動調整後，該列顯示「手動」；儲存時兩者都會記錄（自動判定與手動結果），供日後復盤。</p>
       </Section>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- 生意類型、論點（2026-11；只記錄，不算進檢查表完成）
+
+/**
+ * 1–5 下方的兩列：
+ * - 生意類型：由每日資料自動帶出（lib/thesis.bizItem）；沒有資料時寫出原因，不留白。
+ * - 論點：這檔有沒有寫研究筆記（選填）；點開在面板內看摘要，不會離開檢查表。
+ * 兩列都不影響「加入持倉」，也不算進「進場前完成檢查表」。
+ */
+export function ExtraRows({ biz, thesis, onOpenThesis }: { biz: BizItem; thesis: Thesis | null | undefined; onOpenThesis: () => void }) {
+  const written = !!thesis && !completeness(thesis).empty;
+  return (
+    <List tags chev testid="ck-extra" label="生意類型與論點" class="ck-extra">
+      <Row label="生意類型" testid="ck-row-biz" ariaLabel={`生意類型：${biz.short}`}
+        value={biz.kind ? biz.short : <span class="ui-muted">{biz.short}</span>} subWide sub={biz.basis} />
+      <Row label="論點" testid="ck-row-thesis" onClick={onOpenThesis} ariaLabel={`論點：${written ? '已寫' : '未寫'}`}
+        value={written ? '已寫' : <span class="ui-muted">未寫</span>} subWide sub={written && thesis ? thesisSub(thesis) : '選填・研究筆記，不影響送出'} />
+    </List>
+  );
+}
+
+/** 論點的說明頁（面板內推入）：有筆記時列出判斷、推翻條件的現況、驗證事件；沒有時說明這是什麼。編輯要到研究筆記頁。 */
+export function ThesisDetail({ code, thesis, row }: { code: string; thesis: Thesis | null | undefined; row: StockRow | undefined }) {
+  const written = !!thesis && !completeness(thesis).empty;
+  return (
+    <div class="ck ck-doc" data-testid="thesis-doc">
+      {written && thesis ? (
+        <>
+          <Section title="我的判斷">
+            <Card><p class="ui-prose">{thesis.view.trim() || '還沒有寫'}</p></Card>
+          </Section>
+          <Section title="市場可能看錯什麼">
+            <Card><p class="ui-prose">{thesis.gap.trim() || '還沒有寫'}</p></Card>
+          </Section>
+          <Section title="什麼情況代表我錯了">
+            <List tags>
+              {thesis.breakers.length ? thesis.breakers.map((b, i) => {
+                const st = breakerStatus(b, row);
+                return <Row key={i} label={st.label} sub={st.currentText} tag={st.triggered ? <Tag tone="risk">已觸發</Tag> : <Tag>{st.known ? '未觸發' : '累積中'}</Tag>} />;
+              }) : <EmptyRow>還沒有設定</EmptyRow>}
+            </List>
+          </Section>
+          <Section title="什麼事會驗證">
+            <List>
+              {thesis.events.length ? sortEvents(thesis.events).map((e) => <Row key={e.date + e.label} label={e.label} value={md(e.date)} />) : <EmptyRow>還沒有設定</EmptyRow>}
+            </List>
+          </Section>
+        </>
+      ) : (
+        <Para title="這是什麼">研究筆記把「為什麼看這家公司」寫成四件事：我的判斷、市場可能看錯什麼、什麼事會驗證、什麼情況代表我錯了。選填，不影響加入持倉；寫了之後，驗證事件快到或推翻條件成立時，簡報會提醒。</Para>
+      )}
+      <div class="ck-actions">
+        <a class="btn block" href={`#/discipline/thesis/${code}`} data-testid="thesis-edit">{written ? '到研究筆記頁編輯' : '到研究筆記頁寫一份'}（會離開檢查表）</a>
+      </div>
     </div>
   );
 }

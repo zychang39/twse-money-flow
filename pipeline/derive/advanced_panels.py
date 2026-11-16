@@ -75,4 +75,8 @@ def advanced_panels(ds: Any, p: Any) -> dict[str, pd.DataFrame]:
         out["daytrade_pct"] = (wide(dt, "dt_volume") / p.volume * 100).where(p.volume > 0)
     out.update(whale_panels(ds.table("tdcc"), dates, codes))
     out.update(fundamental_panels(ds.table("financials"), dates, codes))
+    # 2026-11：生意體質（簡式 ROIC 與變化；選股欄位，依法定期限生效）
+    from pipeline.derive import quality
+
+    out.update(quality.panels(ds.table("financials"), dates, codes))
     return out

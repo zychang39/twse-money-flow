@@ -1,4 +1,4 @@
-"""選配資料解析：央行貨幣總計數（M1B／M2）、公開資訊觀測站法人說明會。"""
+"""選配資料解析：央行貨幣總計數（M1B／M2）、公開資訊觀測站法人說明會、董監事持股餘額與設質。"""
 
 from __future__ import annotations
 
@@ -16,7 +16,9 @@ from pipeline.sources.base import (
     ParseResult,
     cell,
     col,
+    frame_from_records,
     last_position,
+    load_json,
     opt,
     resolve_fields,
 )
@@ -135,3 +137,57 @@ def parse_conference(html: bytes | str) -> ParseResult:
         )
     df = pd.DataFrame(out, columns=CONF_COLS).drop_duplicates(["date", "code", "time"])
     return ParseResult(df.sort_values(["date", "code"]).reset_index(drop=True))
+
+
+# ------------------------------------------------------------------ 董監事持股餘額與設質（每月；生意體質「賺的錢去哪」）
+# 上市 openapi.twse.com.tw t187ap11_L、上櫃 tpex mopsfin_t187ap11_O（2026-11-16 Actions 實測；欄位相同，
+# 上市的「選任時持股 」欄名尾端多一個空白——那一欄用不到）。一列＝一位內部人（董事、監察人、經理人、大股東…）。
+DIRECTOR_COLS = ["ym", "code", "name", "directors", "shares", "pledged", "pledge_pct"]
+_DIRECTOR_FIELDS: dict[str, FieldSpec] = {
+    "ym": col("資料年月"),
+    "code": "公司代號",
+    "name": opt("公司名稱"),
+    "role": col("職稱"),
+    "holder": col("姓名"),
+    "shares": col("目前持股"),
+    "pledged": col("設質股數"),
+}
+_DIRECTOR_ROLES = ("董事", "監察人")
+
+
+def parse_directors(payload: bytes | str | list[dict[str, object]]) -> ParseResult:
+    """每家公司一列：董事與監察人（含獨立董事、法人代表人）的持股合計、設質股數合計、設質比例（%）。
+
+    經理人與大股東不計入；同一個人掛兩個職稱（例：董事兼總經理）只算一次（取持股較多的那一列）。
+    資料年月為民國年月（11510＝2026-10）。
+    """
+    rows = load_json(payload)
+    if not isinstance(rows, list):
+        raise ParseError("董監持股：回應不是 JSON 陣列")
+    if not rows:
+        return ParseResult(pd.DataFrame(columns=DIRECTOR_COLS), no_data=True)
+    raw = frame_from_records(rows, _DIRECTOR_FIELDS, source="董監持股餘額", infer_types=False)
+    raw = raw[raw["role"].astype(str).str.contains("|".join(_DIRECTOR_ROLES), na=False)].copy()
+    raw["code"] = raw["code"].map(clean_code)
+    raw = raw[raw["code"].astype(bool)]
+    for c in ("shares", "pledged"):
+        raw[c] = raw[c].map(to_num).fillna(0.0)
+    raw = raw.sort_values("shares", ascending=False).drop_duplicates(["code", "holder"], keep="first")
+    out = []
+    for code, part in raw.groupby("code", sort=True):
+        ym = str(part["ym"].iloc[0]).strip()
+        if not ym.isdigit() or len(ym) < 5:
+            raise ParseError(f"董監持股：資料年月格式不符（{ym!r}）")
+        shares, pledged = float(part["shares"].sum()), float(part["pledged"].sum())
+        out.append(
+            {
+                "ym": f"{int(ym[:-2]) + 1911}-{ym[-2:]}",
+                "code": code,
+                "name": strip_tags(str(part["name"].iloc[0] or "")),
+                "directors": len(part),
+                "shares": shares,
+                "pledged": pledged,
+                "pledge_pct": round(pledged / shares * 100, 2) if shares > 0 else None,
+            }
+        )
+    return ParseResult(pd.DataFrame(out, columns=DIRECTOR_COLS))

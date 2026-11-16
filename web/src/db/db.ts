@@ -12,7 +12,7 @@ import type { Strategy, TrackedSignal } from '../lib/tracking';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
 
 export const DB_NAME = 'twse-money-flow';
-export const DB_VERSION = 6;
+export const DB_VERSION = 7;
 
 /** 自選的來源：自己加入、歡迎卡的範例（可一鍵清除）、從系統清單「熱門動能」複製或挑選。 */
 export type WatchOrigin = 'user' | 'sample' | 'hot';
@@ -67,7 +67,10 @@ export interface ChecklistSnapshot {
   at: string;
   /** 當時的最新交易日（summary 的資料日） */
   dataDate: string | null;
-  items: Partial<Record<'market' | 'trend' | 'revenue' | 'valuation' | 'reasonType', ChecklistSnapshotItem>>;
+  /** biz（2026-11，選填）：生意類型——只記錄當時的判定，不算進「檢查表完成」（lib/checklistAuto.bizItem） */
+  items: Partial<Record<'market' | 'trend' | 'revenue' | 'valuation' | 'reasonType' | 'biz', ChecklistSnapshotItem>>;
+  /** 2026-11：存檔當下這檔股票有沒有寫研究筆記（舊紀錄沒有） */
+  thesis?: boolean;
 }
 
 /** 出場原因（v5）：停損、時間停損、規則出場（含達目標價）屬於「依計畫出場」；其他＝主觀判斷或未列在計畫中的原因。 */
@@ -114,6 +117,39 @@ export interface Trade {
   reviewedAt?: string;
   /** 記錄平倉的時間（ISO）；舊交易補為平倉日 12:00（台北），且不晚於遷移時間 */
   closedRecordedAt?: string;
+  /** v7（研究筆記）：平倉檢討時回答「原本的論點對了嗎」；只有這檔有研究筆記時才會問，選填 */
+  thesisVerdict?: ThesisVerdict;
+}
+
+// ------------------------------------------------------------------ 研究筆記（v7，2026-11）
+export type ThesisVerdict = 'right' | 'wrong' | 'unknown';
+/** 驗證事件：calendar＝從個股的近期事件挑的（月營收公布、法說會、除權息…）；custom＝自己輸入 */
+export interface ThesisEvent { date: string; label: string; source: 'calendar' | 'custom' }
+/** 推翻條件：選股條件的格式（欄位、比較、數值）；「條件成立」＝已觸發 */
+export interface ThesisBreaker { field: string; op: '>' | '>=' | '<' | '<=' | '==' | 'between'; value: number | [number, number] }
+/** 一條證據與三個標籤（config/quality.yml evidence 的 id；空字串＝還沒選） */
+export interface ThesisEvidence { text: string; source: string; directness: string; timing: string }
+/**
+ * 研究筆記：一檔股票一份（主鍵 code），不綁在某一筆交易上——研究了但沒有進場也留得下來。
+ * 所有欄位選填；acks＝已經回頭看過的提醒（lib/thesis.ackKey），看過後簡報不再提醒同一件事。
+ */
+export interface Thesis {
+  code: string;
+  name: string;
+  /** 一句話判斷 */
+  view: string;
+  /** 市場可能看錯什麼 */
+  gap: string;
+  events: ThesisEvent[];
+  breakers: ThesisBreaker[];
+  evidence: ThesisEvidence[];
+  /** 競爭優勢自問的回答：{ 組別 id: 每題的回答 }（config/quality.yml moat；只記錄、不計分） */
+  moat: Record<string, string[]>;
+  acks?: string[];
+  createdAt: string;
+  updatedAt: string;
+  /** 最近一次按「已回頭看過」的時間（ISO） */
+  reviewedAt?: string;
 }
 
 /**
@@ -122,6 +158,8 @@ export interface Trade {
  * - ritual_done、checklist_done、review_done 是舊版紀錄：保留，不再計經驗值；ritual_done 只用來保留遷移前的連續天數。
  */
 export type ActivityType = 'brief_read' | 'checklist_done' | 'review_done' | 'ritual_done' | 'backup' | 'backtest_own' | 'weekly_review' | 'legacy_xp'
+  // v7 研究筆記：寫完第一版（meta.code；每檔一次）、提醒出現後回頭看筆記（meta.code；每檔每天一次）
+  | 'thesis_done' | 'thesis_review'
   // M6 每日步驟與新手導覽（2026-10）：看大盤、看持倉、看自選異動（meta.codes＝當時的異動代號，逗號分隔）、開個股（meta.code）、
   // 看選股、讀名詞（meta.id；每個名詞只記一次）、新手任務（meta.task；每項只記一次）
   | 'market_viewed' | 'holdings_viewed' | 'movers_viewed' | 'stock_viewed' | 'screener_viewed' | 'term_read' | 'onboard';
@@ -166,10 +204,11 @@ interface Schema extends DBSchema {
   strategies: { key: string; value: Strategy };
   tracked: { key: string; value: TrackedSignal; indexes: { strategyId: string } };
   groups: { key: string; value: UserGroup };
+  theses: { key: string; value: Thesis };
 }
 
-export type StoreName = 'watchlist' | 'settings' | 'screens' | 'trades' | 'activity' | 'strategies' | 'tracked' | 'groups';
-export const STORES: StoreName[] = ['watchlist', 'settings', 'screens', 'trades', 'activity', 'strategies', 'tracked', 'groups'];
+export type StoreName = 'watchlist' | 'settings' | 'screens' | 'trades' | 'activity' | 'strategies' | 'tracked' | 'groups' | 'theses';
+export const STORES: StoreName[] = ['watchlist', 'settings', 'screens', 'trades', 'activity', 'strategies', 'tracked', 'groups', 'theses'];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type UpgradeTx = IDBPTransaction<Schema, any, 'versionchange'>;
@@ -219,6 +258,10 @@ export const MIGRATIONS: Record<number, Migration> = {
   // v6：自訂族群與內建族群的編輯（M4）
   6: (db) => {
     db.createObjectStore('groups', { keyPath: 'id' });
+  },
+  // v7：研究筆記（一檔一份；2026-11）。只新增 store，既有資料不動
+  7: (db) => {
+    db.createObjectStore('theses', { keyPath: 'code' });
   },
 };
 
@@ -543,6 +586,27 @@ export async function saveGroup(g: UserGroup): Promise<void> {
 }
 export async function deleteGroup(id: string): Promise<void> {
   await (await getDb()).delete('groups', id);
+  notify();
+}
+
+// ------------------------------------------------------------------ 研究筆記（v7）
+export async function listTheses(): Promise<Thesis[]> {
+  const all = await (await getDb()).getAll('theses');
+  return all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+export async function getThesis(code: string): Promise<Thesis | undefined> {
+  return (await getDb()).get('theses', normCode(code));
+}
+/** 儲存研究筆記（代號正規化、更新時間自動帶入；第一次儲存時補上建立時間）。 */
+export async function saveThesis(t: Thesis): Promise<Thesis> {
+  const now = new Date().toISOString();
+  const next: Thesis = { ...t, code: normCode(t.code), createdAt: t.createdAt || now, updatedAt: now };
+  await (await getDb()).put('theses', next);
+  notify();
+  return next;
+}
+export async function deleteThesis(code: string): Promise<void> {
+  await (await getDb()).delete('theses', normCode(code));
   notify();
 }
 

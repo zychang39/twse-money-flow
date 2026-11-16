@@ -46,7 +46,7 @@ export default function Backup() {
         return;
       }
       const counts = await importAll(raw, mode);
-      setMsg(`匯入完成：自選 ${counts.watchlist}、交易 ${counts.trades}、選股組合 ${counts.screens}、設定 ${counts.settings}、流程紀錄 ${counts.activity ?? 0}。`);
+      setMsg(`匯入完成：自選 ${counts.watchlist}、交易 ${counts.trades}、選股組合 ${counts.screens}、設定 ${counts.settings}、流程紀錄 ${counts.activity ?? 0}、研究筆記 ${counts.theses ?? 0}。`);
     } catch (err) {
       setMsg(`匯入失敗：${(err as Error).message}`);
     }

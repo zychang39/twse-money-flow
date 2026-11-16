@@ -29,7 +29,14 @@ fields:
   revenue_high_ratio:   { label: 營收相對 12 月高點, unit: "%", group: 基本面 }
   revenue_growth_months: { label: 營收連續成長月數, unit: 月, group: 基本面 }
   roe:                  { label: ROE（年化）, unit: "%", group: 基本面 }
-  pe:                   { label: 本益比, unit: 倍, group: 估值 }
+  # 2026-11 生意體質（簡式 ROIC；定義見 METHODOLOGY §13、參數在 config/quality.yml）。金融業沒有這些欄位
+  roic:                 { label: ROIC（簡式）, unit: "%", group: 生意體質 }
+  roic_min5:            { label: ROIC 近 5 年最低, unit: "%", group: 生意體質 }
+  roic_chg3:            { label: ROIC 3 年變化, unit: 百分點, group: 生意體質 }
+  op_margin:            { label: 營業利益率（近四季）, unit: "%", group: 生意體質 }
+  roe_roic_gap:         { label: ROE 減 ROIC, unit: 百分點, group: 生意體質 }
+  revenue_chg_3y:       { label: 營收 3 年變化, unit: "%", group: 生意體質 }
+  pe:                  { label: 本益比, unit: 倍, group: 估值 }
   pb:                   { label: 股價淨值比, unit: 倍, group: 估值 }
   dividend_yield:       { label: 殖利率, unit: "%", group: 估值 }
   pe_percentile:        { label: 本益比歷史百分位, unit: 百分位, group: 估值 }
@@ -85,3 +92,22 @@ presets:
       - { field: pb_percentile, op: "<=", value: 40 }
       - { field: dividend_yield, op: ">=", value: 5 }
       - { field: value_million, op: ">=", value: 10 }
+  # 2026-11 生意體質（DECISIONS #470）
+  - id: roic_steady
+    evidence_test: null   # 效度檢定待財報回補到 2016 後加入（BACKLOG）
+    label: 高報酬穩定
+    subtitle: ROIC 近 5 年都 ≥ 15%・營收 3 年成長
+    description: 簡式 ROIC 近 5 個年度每年都 ≥ 15%、近四季營收比 3 年前成長，成交值 ≥ 2,000 萬。金融業不適用。
+    conditions:
+      - { field: roic_min5, op: ">=", value: 15 }
+      - { field: revenue_chg_3y, op: ">", value: 0 }
+      - { field: value_million, op: ">=", value: 20 }
+  - id: roic_recover
+    evidence_test: null
+    label: 報酬率回升
+    subtitle: ROIC ≥ 10%・比 3 年前高 3 個百分點以上
+    description: 簡式 ROIC ≥ 10%，而且比 3 年前同期高 3 個百分點以上，成交值 ≥ 2,000 萬。金融業不適用。
+    conditions:
+      - { field: roic, op: ">=", value: 10 }
+      - { field: roic_chg3, op: ">=", value: 3 }
+      - { field: value_million, op: ">=", value: 20 }

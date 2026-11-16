@@ -12,7 +12,8 @@ const titles = (page: Page) => page.locator('.stock-lower .ui-sec-title').allTex
 test('預設波段動能：總覽分段（分數 → 重點指標 → 策略訊號）；預設 1Y；區塊標題是名詞（沒有問句）', async ({ page }) => {
   await gotoStock(page, '#/stock/2330');
   await expect(page.getByTestId('stock-seg').getByRole('button', { name: '總覽', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  expect(await titles(page)).toEqual(['分數', '重點指標', '策略訊號']);
+  // 2026-11：分數之後新增「生意與市場」（可以計算 ROIC 的公司才有；DECISIONS #470）
+  expect(await titles(page)).toEqual(['分數', '生意與市場', '重點指標', '策略訊號']);
   for (const t of await titles(page)) expect(t).not.toMatch(/？|\?/);
   await expect(page.getByTestId('stock-periods').first().getByRole('button', { name: '1Y', exact: true })).toHaveAttribute('aria-pressed', 'true');
   const stats = page.getByTestId('stock-stats');

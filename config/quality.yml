@@ -1,0 +1,95 @@
+# 生意體質（2026-11；DECISIONS #470）：簡式 ROIC、十年走勢、生意類型、研究筆記的提問。
+# pipeline（pipeline/derive/quality.py）與前端（web/src/lib/quality.ts、lib/thesis.ts）共用；改這裡兩邊一起變。
+# 計算定義見 docs/METHODOLOGY.md §13。全部是「依規則計算」的描述，不是推薦。
+version: 1
+
+# 資金成本門檻（%）：全站同一個，不逐家估 WACC（β 隨基準與期間變動；差距大時不需要精確，差距小時顯示「接近門檻」）
+hurdle_pct: 8
+# ROIC 在門檻上下這麼多個百分點以內 →「接近門檻」，不硬判高低
+near_band: 2
+
+tax:
+  min: 0            # 有效稅率下限
+  max: 0.4          # 有效稅率上限（單期異常值，例：稅前淨利很小時稅率會超過 100%）
+  default: 0.2      # 稅前淨利 ≤ 0 或缺所得稅時使用
+
+history:
+  min_years: 5      # 年度 ROIC 不足這麼多年 → 不分類、不算中位數，顯示「資料累積中：目前只有 N 年」
+  max_years: 10     # 走勢與中位數最多看幾個年度
+  start_year: 2016  # 回補起點（python -m pipeline backfill --source financials --start 2016-01-01）
+
+incremental:
+  years: 3                  # 新增投入的報酬：和幾年前比
+  min_capital_growth_pct: 5 # 投入資本增加不到這個比例 → 不計算（分母太小）
+
+# 現金跟得上獲利嗎：近四季營業現金流 ÷ 歸屬母公司淨利（%）
+cash:
+  ok: 100           # 以上＝獲利有變成現金
+  low: 70           # 以下＝明顯少於淨利
+
+change_years: 3     # ROIC 變化、營收變化（探索頁的四個走向、選股欄位）和幾年前比
+
+types:
+  steady:           # 報酬高且穩
+    years: 5        # 近幾個年度
+    margin: 5       # 每年都高於門檻這麼多個百分點
+  cyclical:         # 跟著景氣走
+    swing: 8        # 一段上升或下降至少這麼多個百分點才算一段
+    legs: 2         # 至少有幾段（例：先降後升）
+  fading:           # 營收增・報酬降
+    down_years: 3   # ROIC 連續下滑幾個年度
+
+# 類型與高低的名稱：直接寫出條件，不用比喻（產品原則 9）；course 是課程裡的對應名稱，只放在說明面板
+labels:
+  steady:   { name: 報酬高且穩,   rule: 近 5 年每年 ROIC 都高於門檻 5 個百分點以上，營收成長, course: 長期複利型 }
+  cyclical: { name: 跟著景氣走,   rule: 近 10 年 ROIC 至少有兩段 8 個百分點以上的升降, course: 景氣循環型 }
+  fading:   { name: 報酬連年降, rule: ROIC 連續 3 年下滑且低於門檻，營收卻還在成長, course: 價值陷阱的前兆 }
+  above:    { name: 高於門檻,     rule: ROIC 比門檻高 2 個百分點以上 }
+  near:     { name: 接近門檻,     rule: ROIC 在門檻上下 2 個百分點以內 }
+  below:    { name: 低於門檻,     rule: ROIC 比門檻低 2 個百分點以上 }
+  fin:      { name: 金融業另計,   rule: 銀行、保險、證券的報表沒有營業利益與流動負債，不算 ROIC，改看 ROE }
+
+# 風險旗標的判定（標籤文字在 config/thresholds.yml 的 risk_flags）
+flags:
+  low_percentile: 30        # 本益比或淨值比在自身歷史的這個百分位以下 → 算「低估值」
+  peak_margin_percentile: 80 # 近四季營業利益率在自身年度紀錄的這個百分位以上 → 算「獲利在高檔」
+
+# 研究筆記：每條證據的三個標籤（課程 1-2 的證據品質檢查，改寫成選項）
+evidence:
+  source:
+    - { id: official, name: 官方資料 }
+    - { id: company,  name: 公司自己說, ask: 說的人有誘因。有沒有不是公司自己說的證據？ }
+    - { id: broker,   name: 券商或媒體, ask: 提供的人有沒有立場？數字查得到原始出處嗎？ }
+    - { id: self,     name: 自己觀察,   ask: 這是單一個案，還是整體的情況？ }
+  directness:
+    - { id: direct, name: 直接證據 }
+    - { id: proxy,  name: 代理變數, ask: 它離你想證明的結果有多遠？ }
+  timing:
+    - { id: leading, name: 領先指標, ask: 領先指標變動快，適合提出假設，還需要後續數字確認。 }
+    - { id: lagging, name: 落後指標 }
+  # 全部證據都屬於同一類時的提醒（只提醒、不擋存檔）
+  same_kind_ask: 目前的證據都屬於同一類。有沒有另一種證據，能分辨你的判斷和相反的解釋？
+
+# 研究筆記：競爭優勢自問（課程 2-4～2-6 的檢核方向，自行改寫；只記錄回答，不計分）
+moat:
+  - id: scale
+    name: 規模經濟
+    questions:
+      - 哪一項單位成本會隨規模下降？
+      - 這個優勢的範圍是全球、全國，還是只在單一地區或工廠？
+      - 規模變大之後，ROIC 有沒有跟著改善？
+      - 新的技術或做法能不能繞過這個規模？
+  - id: network
+    name: 網路效應
+    questions:
+      - 使用者變多，其他使用者得到的價值有沒有提高？
+      - 後來加入的人，用到的產品有沒有比早期完整？
+      - 新使用者是自己來的，還是靠廣告與補貼？
+      - 使用者同時用好幾個平台的成本高不高？
+  - id: brand
+    name: 品牌
+    questions:
+      - 同樣的產品，掛上這個品牌能不能賣比較貴？
+      - 顧客下次還會不會買？
+      - 品牌有沒有降低找客戶、留客戶的成本？
+      - 產品是不是要常常打折才賣得掉？
