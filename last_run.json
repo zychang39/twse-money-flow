@@ -1,20 +1,18 @@
 {
  "task": "catchup",
- "at": "2026-11-17T00:58:18+08:00",
- "requests": 4,
- "ok": 1,
+ "at": "2026-11-17T02:45:07+08:00",
+ "requests": 0,
+ "ok": 0,
  "failed": [],
  "pending": [],
- "revised": [
-  "twse_insti 2026-11-16"
- ],
+ "revised": [],
  "missing_before": [],
  "missing_after": [],
  "fixed": [],
  "attempt": 1,
  "retry": false,
  "poll_at": null,
- "progressed": true,
+ "progressed": false,
  "quick": false,
- "relay": "2026-11-17T05:58+08:00"
+ "relay": "skip:2026-11-17T05:58+08:00"
 }

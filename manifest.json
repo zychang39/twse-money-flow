@@ -981,7 +981,7 @@
  "digest_date": "2026-10-02",
  "esb_history_progress": {},
  "freshness": {
-  "at": "2026-11-17T00:57+08:00",
+  "at": "2026-11-17T02:45+08:00",
   "attempt": 1,
   "fixed": [],
   "missing": [],
@@ -2092,35 +2092,6 @@
  },
  "runs": [
   {
-   "at": "2026-11-13T17:25:28+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [],
-   "missing_after": [
-    "valuation",
-    "qfii"
-   ],
-   "missing_before": [
-    "valuation",
-    "qfii"
-   ],
-   "ok": 1,
-   "pending": [
-    "tpex_qfii",
-    "tpex_valuation",
-    "twse_qfii",
-    "tpex_valuation",
-    "twse_qfii"
-   ],
-   "poll_at": null,
-   "progressed": true,
-   "quick": false,
-   "relay": "skip:2026-11-13T18:02+08:00",
-   "requests": 4,
-   "retry": true,
-   "task": "catchup"
-  },
-  {
    "at": "2026-11-13T18:02:15+08:00",
    "attempt": 3,
    "failed": [],
@@ -2884,6 +2855,24 @@
     "twse_insti 2026-11-16"
    ],
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-17T02:45:07+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "relay": "skip:2026-11-17T05:58+08:00",
+   "requests": 0,
+   "retry": false,
+   "revised": [],
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3607,6 +3596,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-17T00:58:18+08:00",
+ "updated_at": "2026-11-17T02:45:07+08:00",
  "version": 1
 }
