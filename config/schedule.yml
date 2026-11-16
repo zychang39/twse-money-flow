@@ -49,6 +49,13 @@ freshness:
     # 輪詢不算失敗重試、不重跑每日任務的其他來源。只抓到融資時走快速部署（deploy.yml quick：只重算 margin/*.json）。
     # credit／margin_total 仍是 22:00（頁首「資料至」與個股融資欄由 22:00 後的完整部署更新）。
     margin_flash: { label: 融資增減, time: "20:50", sources: [twse_margin, tpex_margin], poll: { minutes: 5, until: "22:00" } }
+  # 複查（2026-11-16；pipeline/freshness.py recheck）：這些來源第一次公布後當天還會被官方修正（證交所三大法人的投信，
+  # 15:00 初版與晚間定版可差數十億元）。資料日的每個 times 之後各重抓一次，內容有變才覆蓋；days＝往回複查幾個交易日
+  # （當天沒跑到的隔天補）。時間對齊補抓接力（17:00 外資持股比、22:00 融資融券），不另外加排程。
+  recheck:
+    sources: [twse_insti, tpex_insti, twse_insti_amount, tpex_insti_amount]
+    times: ["17:00", "22:00"]
+    days: 2
   # 頁首「資料至 …」與橫幅只看這幾個資料集（其餘在資料健康頁）
   banner: [quotes, insti, credit, taifex]
   # 補抓排程（data.yml；台北時間）：每次只抓「依規則應已公布但還沒拿到」的資料集；有缺漏時 1 小時後再試，最多 3 次

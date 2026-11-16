@@ -238,6 +238,45 @@ def run_daily_source(ctx: RunContext, spec: Spec, d: date, *, overwrite: bool = 
     return "ok"
 
 
+def recheck_daily_source(ctx: RunContext, spec: Spec, d: date) -> str:
+    """重抓「已存檔」的交易日，官方事後修正時才覆蓋（2026-11-16）。回傳 changed / same / failed。
+
+    證交所三大法人在 15:00 左右第一次公布後當天還會修正（主要是投信；11/9 上市投信買賣超 267 億 → 313 億），
+    只抓一次就會一直留著初版。抓不到、無資料或驗證失敗 → 保留原檔、不記失敗（已有資料，不是缺漏），下次補抓再試。
+    """
+    old = ctx.store.path(spec.id, d)
+    if not old.exists():
+        return "failed"
+    try:
+        res: ParseResult = spec.parse(_fetch(ctx, build_url(spec.id, d)))
+    except SOURCE_ERRORS as exc:
+        log.info("%s %s 複查失敗（保留原檔）：%s", spec.id, d, err_text(exc)[:200])
+        return "failed"
+    if res.no_data or res.df.empty:
+        return "failed"
+    cfg = config.thresholds()["validation"]
+    check = validate_frame(
+        res.df,
+        request_date=d,
+        response_date=res.response_date,
+        key_cols=spec.keys,
+        numeric_cols=spec.numeric,
+        prev_rows=_prev_rows(ctx, spec.id, d),
+        tolerance=float(cfg["row_change_tolerance"]),
+        min_parse_ratio=float(cfg["min_parse_ratio"]),
+        min_rows=spec.min_rows,
+    )
+    if not check.ok:
+        log.info("%s %s 複查驗證失敗（保留原檔）：%s", spec.id, d, check.summary())
+        return "failed"
+    before = old.read_bytes()
+    ctx.store.write(spec.id, d, res.df)
+    if old.read_bytes() == before:
+        return "same"
+    ctx.note(spec.id, "ok", data_date=d, rows=len(res.df), message="官方修正後更新")
+    return "changed"
+
+
 # ------------------------------------------------------------------ 區間型（事件，依月存檔）
 def run_range_source(ctx: RunContext, spec: Spec, start: date, end: date) -> str:
     try:
