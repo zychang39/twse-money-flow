@@ -1711,8 +1711,8 @@
   "weeks": 52
  },
  "kbar": {
-  "at": "2026-11-16T15:11+08:00",
-  "covered": 2348,
+  "at": "2026-11-17T00:44+08:00",
+  "covered": 2349,
   "empty": [
    "00625K",
    "00662",
@@ -1748,12 +1748,43 @@
    "9960"
   ],
   "failed": [],
-  "no_trade": [],
+  "no_trade": [
+   "00625K",
+   "00682U",
+   "00707R",
+   "00844B",
+   "00870B",
+   "00986B",
+   "1538",
+   "2064",
+   "2948",
+   "3064",
+   "3067",
+   "3226",
+   "3259",
+   "3593",
+   "4305",
+   "5345",
+   "5523",
+   "5601",
+   "5703",
+   "6236",
+   "6592A",
+   "6592B",
+   "6597",
+   "6641",
+   "6662",
+   "6881",
+   "8077",
+   "8424",
+   "8923",
+   "9960"
+  ],
   "remaining": 0,
-  "rounds": 1,
+  "rounds": 2,
   "stopped": null,
   "target": "2026-11-16",
-  "total": 2380,
+  "total": 2381,
   "unfinished": 0
  },
  "last_target_date": "2026-11-13",
@@ -2048,51 +2079,6 @@
   ]
  },
  "runs": [
-  {
-   "at": "2026-11-13T16:11:06+08:00",
-   "attempt": 1,
-   "failed": [
-    "twse_parchange 2026-11-13 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/change/TWTB8U?startDate=20261103&endDate=20261113&response=json",
-    "twse_etfsplit 2026-11-13 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/split/TWTCAU?startDate=20261103&endDate=20261113&response=json",
-    "twse_exright 2026-11-13 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/exRight/TWT49U?startDate=20261103&endDate=20261113&response=json",
-    "twse_capreduce 2026-11-13 斷路器開啟：www.twse.com.tw 連續失敗 5 次",
-    "twse_attention 2026-11-13 斷路器開啟：www.twse.com.tw 連續失敗 5 次",
-    "twse_disposition 2026-11-13 斷路器開啟：www.twse.com.tw 連續失敗 5 次",
-    "twse_fulldelivery 2026-11-13 斷路器開啟：www.twse.com.tw 連續失敗 5 次",
-    "twse_exright_notice 2026-11-13 斷路器開啟：www.twse.com.tw 連續失敗 5 次",
-    "twse_delisted 2026-11-13 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://openapi.twse.com.tw/v1/company/suspendListingCsvAndHtml",
-    "twse_short_halt 2026-11-13 斷路器開啟：www.twse.com.tw 連續失敗 5 次"
-   ],
-   "fixed": [
-    "insti_amount",
-    "taifex"
-   ],
-   "missing_after": [
-    "insti",
-    "valuation"
-   ],
-   "missing_before": [
-    "insti",
-    "insti_amount",
-    "taifex",
-    "valuation"
-   ],
-   "ok": 27,
-   "pending": [
-    "tpex_valuation",
-    "twse_insti",
-    "twse_valuation",
-    "twse_insti",
-    "twse_valuation"
-   ],
-   "poll_at": null,
-   "progressed": true,
-   "quick": false,
-   "relay": "2026-11-13T17:02+08:00",
-   "requests": 93,
-   "retry": true,
-   "task": "catchup"
-  },
   {
    "at": "2026-11-13T17:09:29+08:00",
    "attempt": 2,
@@ -2880,6 +2866,28 @@
    "remaining": 0,
    "requests": 144,
    "task": "backfill"
+  },
+  {
+   "at": "2026-11-17T00:44:17+08:00",
+   "by_tier": {
+    "1": 1,
+    "2": 0,
+    "3": 0
+   },
+   "covered": 2349,
+   "failed": [],
+   "fetched": 1,
+   "kbar_target": "2026-11-16",
+   "ok": 1,
+   "pending": [],
+   "progressed": true,
+   "pruned": 0,
+   "remaining": 0,
+   "requests": 0,
+   "rows": 205,
+   "task": "kbar",
+   "total": 2381,
+   "unfinished": 0
   }
  ],
  "sources": {
@@ -3576,12 +3584,12 @@
   },
   "yahoo_kbar": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-11-16T15:43:37+08:00",
-   "last_message": "涵蓋 2348/2380 檔；本次 2380 檔請求、失敗 0、查無 32、當日無成交略過 0",
+   "last_attempt": "2026-11-17T00:44:17+08:00",
+   "last_message": "涵蓋 2349/2381 檔；本次 1 檔請求、失敗 0、查無 32、當日無成交略過 30",
    "last_status": "ok",
    "last_success": "2026-11-16",
-   "last_success_at": "2026-11-16T15:43:37+08:00",
-   "rows": 2348,
+   "last_success_at": "2026-11-17T00:44:17+08:00",
+   "rows": 2349,
    "validation": "ok"
   }
  },
@@ -3603,6 +3611,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-16T23:18:42+08:00",
+ "updated_at": "2026-11-17T00:44:17+08:00",
  "version": 1
 }
