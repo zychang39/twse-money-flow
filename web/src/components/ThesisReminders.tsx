@@ -27,8 +27,9 @@ export function ReminderRow({ r, showName }: { r: Reminder; showName: boolean })
   if (!showName) {
     return <Row label={r.text} sub={risk ? undefined : r.when} value={risk ? when : undefined} tag={risk ? <Tag tone="risk">已觸發</Tag> : null} testid={`th-due-${r.kind}`} />;
   }
+  // 清單：內容與時間（或現值）合成一行副資訊；琥珀只留給「已觸發」標籤（2026-11-16 審查：一件事不亮兩個琥珀）
   return (
-    <Row label={<>{r.name}<span class="ui-muted"> {r.code}</span></>} sub={r.text} subWide value={when} tag={risk ? <Tag tone="risk">已觸發</Tag> : null}
+    <Row label={<>{r.name}<span class="ui-muted"> {r.code}</span></>} sub={risk ? `${r.text}・現在 ${r.when}` : `${r.text}・${r.when}`} subWide tag={risk ? <Tag tone="risk">已觸發</Tag> : null}
       href={`#/discipline/thesis/${r.code}`} testid={`th-due-${r.kind}`} />
   );
 }

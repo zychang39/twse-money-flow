@@ -13,7 +13,7 @@
 .qv-scale-h { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; color: var(--text-1); }
 
 /* 總覽：兩條橫條（標籤｜橫條｜數字） */
-.qv-meters { display: grid; grid-template-columns: max-content minmax(0, 1fr) 2.25rem; align-items: center; gap: var(--s-3) var(--s-3); }
+.qv-meters { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; align-items: center; gap: var(--s-3) var(--s-3); }
 .qv-num { text-align: right; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
 .qv-link { padding: 0; border: 0; background: none; font: inherit; font-size: var(--fs-foot); line-height: var(--lh-foot); cursor: pointer; text-align: left; }
 
@@ -22,7 +22,7 @@
 .qx-cell { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-1); min-height: 4.5rem; padding: var(--s-3) var(--card-pad); border: 1px solid var(--card-edge); border-radius: var(--r-md); background: var(--surface-1); color: var(--text-1); font: inherit; text-align: left; cursor: pointer; }
 .qx-cell[aria-pressed='true'] { background: var(--surface-3); }
 .qx-cell-n { font-size: var(--fs-key); line-height: var(--lh-key); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
-.qx-cell-n .ui-unit { color: var(--text-2); }
+.qx-cell-n .ui-unit { color: var(--text-2); font-size: calc(1em * var(--unit-scale)); font-weight: var(--fw-medium); }
 .qx-cell-l { font-size: var(--fs-foot); line-height: var(--lh-foot); color: var(--brand); }
 .qx-axis { display: flex; justify-content: space-between; margin-top: var(--s-2); }
 .qx-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
@@ -32,3 +32,11 @@
 /* 清單：名稱一行、代號一行（列高一致，不因名稱長短有的一行有的兩行） */
 .qx-name, .qx-code { display: block; }
 .qx-code { font-variant-numeric: tabular-nums; }
+/* 兩條橫條的分界細線（34、67：前段／中段／後段） */
+.qv-tier { position: relative; display: block; }
+.qv-cut { position: absolute; top: -0.1875rem; bottom: -0.1875rem; width: 1px; background: var(--d-3); }
+.qv-num .ui-unit { font-size: var(--fs-foot); font-weight: var(--fw-regular); color: var(--text-2); }
+/* 還沒有接入的資料：一行說明 */
+.qv-pending { margin: var(--s-3) 0 0; }
+/* 清單表頭第二行的小單位 */
+.qx-th-u { display: block; font-weight: var(--fw-regular); }

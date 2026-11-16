@@ -152,9 +152,10 @@ function Events({ t, update, hist, today, cal }: { t: Thesis; update: (p: Partia
   const add = (date: string, label: string, source: 'calendar' | 'custom') => { if (date && label.trim() && !has(date, label.trim())) update({ events: sortEvents([...t.events, { date, label: label.trim(), source }]) }); };
   const next = events.find((e) => eventStatus(e, today, cal).state !== 'past');
   return (
-    <Section title="什麼事會驗證" testid="th-events"
+    <Section title="什麼事會驗證" aside={events.length ? `${events.length} 件` : undefined} testid="th-events"
       info={<p>接下來哪一件事會告訴你判斷對不對？日期到了（3 個交易日內）簡報會提醒。可以從這檔股票的近期事件挑，也可以自己輸入。「還有幾天」用交易日算，休市日不算。</p>}>
-      <Conclusion>{next ? `下一件：${next.label}，${md(next.date)}` : events.length ? '事件都已經過了' : '還沒有設定'}</Conclusion>
+      {/* 有下一件事時清單本身就是答案，不再多一行標題句（2026-11-16 審查：同一件事不重複三次） */}
+      {next ? null : <Conclusion>{events.length ? '事件都已經過了' : '還沒有設定'}</Conclusion>}
       {events.length ? (
         <List>
           {events.map((e) => {
@@ -163,7 +164,7 @@ function Events({ t, update, hist, today, cal }: { t: Thesis; update: (p: Partia
             return (
               <div key={k} class="th-item">
                 <Row label={e.label} sub={st.text} value={md(e.date)} onClick={() => setOpen(open === k ? null : k)} noChev expanded={open === k} testid="th-event" />
-                {open === k ? <div class="th-inline"><button type="button" class="btn small" onClick={() => { update({ events: t.events.filter((x) => x !== e) }); setOpen(null); }}>移除這個事件</button></div> : null}
+                {open === k ? <div class="th-inline"><button type="button" class="btn small danger" onClick={() => { update({ events: t.events.filter((x) => x !== e) }); setOpen(null); }}>移除這個事件</button></div> : null}
               </div>
             );
           })}
@@ -171,9 +172,9 @@ function Events({ t, update, hist, today, cal }: { t: Thesis; update: (p: Partia
       ) : null}
       <div class="chips th-chips" role="group" aria-label="加入驗證事件">
         {picks.map((p) => (
-          <button key={p.date + p.label} type="button" class="chip" onClick={() => add(p.date, p.label, 'calendar')} data-testid="th-event-pick">＋ {md(p.date)} {p.label}</button>
+          <button key={p.date + p.label} type="button" class="chip" onClick={() => add(p.date, p.label, 'calendar')} data-testid="th-event-pick">＋ {p.label}（{md(p.date)}）</button>
         ))}
-        <button type="button" class="chip" aria-pressed={custom} onClick={() => setCustom(!custom)} data-testid="th-event-custom">自己輸入</button>
+        <button type="button" class="chip" aria-pressed={custom} onClick={() => setCustom(!custom)} data-testid="th-event-custom">＋ 自己輸入</button>
       </div>
       {custom ? (
         <Card class="th-form">
@@ -193,10 +194,11 @@ function Breakers({ t, update, row }: { t: Thesis; update: (p: Partial<Thesis>) 
   const set = (i: number, b: ThesisBreaker) => update({ breakers: t.breakers.map((x, j) => (j === i ? b : x)) });
   const hit = triggeredBreakers(t, row).length;
   return (
-    <Section title="什麼情況代表我錯了" testid="th-breakers"
+    <Section title="什麼情況代表我錯了" aside={t.breakers.length ? `${t.breakers.length} 個條件` : undefined} testid="th-breakers"
       info={<p>先寫好「看到什麼數字，就代表原本的判斷不成立」。條件從選股欄位裡挑（生意體質、基本面、估值），每天用最新資料比對；條件成立時這裡與簡報會標示「已觸發」。欄位還沒有資料時顯示「資料累積中」，不算觸發。</p>}>
-      <Conclusion>{!t.breakers.length ? '還沒有設定' : hit ? `${hit} 個條件已觸發` : `${t.breakers.length} 個條件都沒有觸發`}</Conclusion>
-      <List tags>
+      {/* 只有「還沒有設定」與「已觸發」需要一句話；都沒觸發時每列的標籤已經說了 */}
+      {!t.breakers.length ? <Conclusion>還沒有設定</Conclusion> : hit ? <Conclusion>{hit} 個條件已觸發</Conclusion> : null}
+      {t.breakers.length ? <List tags>
         {t.breakers.map((b, i) => {
           const st = breakerStatus(b, row);
           const unit = fields.find((f) => f.id === b.field)?.unit ?? '';
@@ -217,14 +219,16 @@ function Breakers({ t, update, row }: { t: Thesis; update: (p: Partial<Thesis>) 
                       onInput={(e) => { const v = Number((e.target as HTMLInputElement).value); if (Number.isFinite(v)) set(i, { ...b, value: v }); }} />
                     <span class="ui-foot ui-muted">{unit}</span>
                   </div>
-                  <button type="button" class="btn small" onClick={() => { update({ breakers: t.breakers.filter((_, j) => j !== i) }); setOpen(null); }}>移除這個條件</button>
+                  <button type="button" class="btn small danger" onClick={() => { update({ breakers: t.breakers.filter((_, j) => j !== i) }); setOpen(null); }}>移除這個條件</button>
                 </div>
               ) : null}
             </div>
           );
         })}
-        <Row label="新增條件" onClick={() => { update({ breakers: [...t.breakers, defaultBreaker(row)] }); setOpen(t.breakers.length); }} testid="th-breaker-add" />
-      </List>
+      </List> : null}
+      <div class="chips th-chips" role="group" aria-label="加入推翻條件">
+        <button type="button" class="chip" onClick={() => { update({ breakers: [...t.breakers, defaultBreaker(row)] }); setOpen(t.breakers.length); }} data-testid="th-breaker-add">＋ 新增條件</button>
+      </div>
     </Section>
   );
 }
@@ -235,39 +239,51 @@ const PICKS: { key: 'source' | 'directness' | 'timing'; label: string }[] = [
 ];
 
 function Evidence({ t, update, row, hist }: { t: Thesis; update: (p: Partial<Thesis>) => void; row: StockRow | undefined; hist: StockHistory | null | undefined }) {
+  const [open, setOpen] = useState<number | null>(null);
   const set = (i: number, e: ThesisEvidence) => update({ evidence: t.evidence.map((x, j) => (j === i ? e : x)) });
   const drafts = evidenceDrafts(row, hist).filter((d) => !t.evidence.some((e) => e.text === d.text));
   const n = t.evidence.filter((e) => e.text.trim()).length;
   const nudge = sameKindNudge(t.evidence);
+  const tagNames = (e: ThesisEvidence) => PICKS.map((p) => EV[p.key].find((o) => o.id === e[p.key])?.name).filter(Boolean).join('・');
   return (
-    <Section title="我的證據" testid="th-evidence"
+    <Section title="我的證據" aside={n ? `${n} 條` : undefined} testid="th-evidence"
       info={<p>每條證據貼三個標籤：誰說的、它是直接證據還是代理變數、是領先還是落後指標。從這檔股票帶入的數字會自動貼好。標籤只用來提醒你想一下，不評分、不擋存檔。</p>}>
-      <Conclusion>{n ? `${n} 條證據` : '還沒有寫'}</Conclusion>
-      {t.evidence.map((e, i) => {
-        const ask = e.text.trim() ? evidenceAsk(e) : null;
-        return (
-          <Card key={i} class="th-ev" testid="th-ev">
-            <textarea class="input" rows={2} aria-label={`證據 ${i + 1}`} placeholder="看到什麼事實？" value={e.text} onInput={(x) => set(i, { ...e, text: (x.target as HTMLTextAreaElement).value })} />
-            <div class="th-picks">
-              {PICKS.map((p) => (
-                <select key={p.key} class="select th-pick" aria-label={p.label} value={e[p.key]} onChange={(x) => set(i, { ...e, [p.key]: (x.target as HTMLSelectElement).value })}>
-                  <option value="">{p.label}</option>
-                  {EV[p.key].map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                </select>
-              ))}
-            </div>
-            {ask ? <p class="th-ask ui-foot ui-muted" data-testid="th-ask">{ask}</p> : null}
-            <button type="button" class="btn small th-remove" onClick={() => update({ evidence: t.evidence.filter((_, j) => j !== i) })}>移除</button>
-          </Card>
-        );
-      })}
+      {t.evidence.length ? null : <Conclusion>還沒有寫</Conclusion>}
+      {/* 每條證據一列（內容＋三個標籤的名稱），點開才出現輸入框與選單；和驗證事件、推翻條件同一種操作（2026-11-16 審查） */}
+      {t.evidence.length ? (
+        <List>
+          {t.evidence.map((e, i) => {
+            const ask = e.text.trim() ? evidenceAsk(e) : null;
+            return (
+              <div key={i} class="th-item" data-testid="th-ev">
+                <Row label={e.text.trim() || '還沒寫內容'} sub={<>{tagNames(e) || '還沒貼標籤'}{ask ? <span class="th-ask" data-testid="th-ask">{ask}</span> : null}</>} subWide
+                  onClick={() => setOpen(open === i ? null : i)} noChev expanded={open === i} testid="th-ev-row" />
+                {open === i ? (
+                  <div class="th-inline th-ev">
+                    <textarea class="input" rows={2} aria-label={`證據 ${i + 1}`} placeholder="看到什麼事實？" value={e.text} onInput={(x) => set(i, { ...e, text: (x.target as HTMLTextAreaElement).value })} />
+                    <div class="th-picks">
+                      {PICKS.map((p) => (
+                        <select key={p.key} class="select th-pick" aria-label={p.label} value={e[p.key]} onChange={(x) => set(i, { ...e, [p.key]: (x.target as HTMLSelectElement).value })}>
+                          <option value="">{p.label}</option>
+                          {EV[p.key].map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                        </select>
+                      ))}
+                    </div>
+                    <button type="button" class="btn small danger" onClick={() => { update({ evidence: t.evidence.filter((_, j) => j !== i) }); setOpen(null); }}>移除這條證據</button>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </List>
+      ) : null}
       {nudge ? <Interp testid="th-nudge">{nudge}</Interp> : null}
       <div class="chips th-chips" role="group" aria-label="加入證據">
         {drafts.map((d) => (
           <button key={d.id} type="button" class="chip" data-testid="th-ev-draft"
             onClick={() => update({ evidence: [...t.evidence, { text: d.text, source: d.source, directness: d.directness, timing: d.timing }] })}>＋ {d.label}</button>
         ))}
-        <button type="button" class="chip" onClick={() => update({ evidence: [...t.evidence, { text: '', source: '', directness: '', timing: '' }] })} data-testid="th-ev-add">＋ 自己寫一條</button>
+        <button type="button" class="chip" onClick={() => { update({ evidence: [...t.evidence, { text: '', source: '', directness: '', timing: '' }] }); setOpen(t.evidence.length); }} data-testid="th-ev-add">＋ 自己寫一條</button>
       </div>
     </Section>
   );
@@ -364,7 +380,7 @@ function Editor({ code }: { code: string }) {
         <List chev>
           <Row label="看個股頁" sub={row ? undefined : '找不到這檔股票的資料'} href={`#/stock/${code}`} testid="th-to-stock" />
         </List>
-        {exists() || !c.empty ? <button type="button" class="btn block th-delete" onClick={remove} data-testid="th-delete">刪除這份筆記</button> : null}
+        {exists() || !c.empty ? <div class="th-delete"><button type="button" class="btn small danger" onClick={remove} data-testid="th-delete">刪除這份筆記</button></div> : null}
       </div>
       {!row && !summary.loading ? <List><EmptyRow>目前的資料裡沒有 {code}，推翻條件暫時無法比對。</EmptyRow></List> : null}
     </div>

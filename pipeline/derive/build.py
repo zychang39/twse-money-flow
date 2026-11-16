@@ -413,7 +413,8 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
     # 2026-11：生意體質（個股檔的 quality 區塊、summary 的 biz_type／roic_pct、兩個風險旗標）
     from pipeline.derive import quality as qualitymod
 
-    qual = qualitymod.build(ds.table("financials"), p.codes)
+    fin_rows = qualitymod.rows_by_code(ds.table("financials"))
+    qual = qualitymod.build(ds.table("financials"), p.codes, fin_rows)
     flags = flagmod.build_flags(ds, p, mp, quality=qual)
     flags_prev = flagmod.build_flags(ds, p, mp, at=-2, quality=qual) if len(p.dates) >= 2 else {}
     flags_week = flagmod.build_flags(ds, p, mp, at=-6, quality=qual) if len(p.dates) >= 6 else {}
@@ -483,6 +484,9 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
         fair = fairvalue.fair_detail(fv, p.close, code)
         idx = [d for d, ok in zip(p.dates, p.close[code].notna(), strict=True) if ok]
         rev_now = {k: mp.last(k, code) for k in ("revenue_high_ratio", "revenue_yoy_3m", "revenue_growth_months")}
+        divs = stockdetail.dividends_for(ds, code)
+        # 生意體質：盈餘配發率（當年除息的現金股利 ÷ 前一年度 EPS）
+        qualitymod.attach_payout(qual.get(code), fin_rows.get(code), divs, last_date)
         extra_file = {
             "scores": scores.factor_detail(mp, sc, code),
             "fair": fair,
@@ -491,7 +495,7 @@ def build_all(ds: Dataset, out: Path, meta: dict[str, Any]) -> dict[str, Any]:
             "cost": stockdetail.cost_lines(p, code, idx) or None,
             "summary_text": stockdetail.health_summary(code, m, m["flags"], fair, rev_now),
             "flags": m["flags"],
-            "dividends": stockdetail.dividends_for(ds, code),
+            "dividends": divs,
             "series": {
                 k: arr(mp.get(k)[code].reindex(idx).to_numpy(), 2)
                 for k in ("rs_percentile", "pe_percentile", "pb_percentile")

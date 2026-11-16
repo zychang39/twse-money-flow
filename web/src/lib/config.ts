@@ -122,7 +122,9 @@ export interface EvidenceTag { id: string; name: string; ask?: string }
 export interface QualityConfig {
   hurdle_pct: number;
   near_band: number;
+  tax: { min: number; max: number; default: number };
   history: { min_years: number; max_years: number; start_year: number };
+  incremental: { years: number; min_capital_growth_pct: number };
   change_years: number;
   types: { steady: { years: number; margin: number }; cyclical: { swing: number; legs: number }; fading: { down_years: number } };
   labels: Record<BizKind, QualityLabel>;

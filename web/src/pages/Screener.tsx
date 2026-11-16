@@ -62,6 +62,8 @@ export default function Screener() {
         <List chev>
           <NavRow title="策略庫" sub="分級、判定卡、各期間績效" href="#/explore/strategies" />
           <NavRow title="自訂條件" sub="自己組條件篩選、一鍵回測、設為追蹤" href="#/explore/screener/custom" testid="to-custom" />
+          {/* 2026-11：全市場的簡式 ROIC（DECISIONS #470） */}
+          <NavRow title="生意體質" sub="全市場的 ROIC：四個走向、類型、由高到低" href="#/explore/quality" testid="to-quality-market" />
         </List>
       </Section>
     </div>

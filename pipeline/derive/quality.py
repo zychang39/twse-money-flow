@@ -25,7 +25,7 @@ Row = dict[str, float | None]
 Key = tuple[int, int]
 Rows = dict[Key, Row]
 
-FIELDS = ("revenue", "ni_parent", "equity_parent", "op_income", "pretax", "tax", "total_assets", "cur_liab")
+FIELDS = ("revenue", "ni_parent", "equity_parent", "op_income", "pretax", "tax", "total_assets", "cur_liab", "eps")
 # 選股欄位（config/screener.yml）＝逐日面板
 PANEL_FIELDS = ("roic", "roic_min5", "roic_chg3", "op_margin", "roe_roic_gap", "revenue_chg_3y")
 
@@ -228,6 +228,13 @@ def _r(v: float | None, nd: int = 1) -> float | None:
 def detail(rows: Rows) -> dict[str, Any]:
     """個股檔的 quality 區塊（已入庫的最新一季）。金額單位：億元。"""
     st = status_of(rows)
+    if st == "fin":
+        # 金融業不算 ROIC；附上近四季 ROE（歸屬母公司淨利 ÷ 母公司權益）讓畫面有數字可看
+        for y, q in sorted(rows, reverse=True):
+            ni, eq = ttm(rows, y, q, "ni_parent"), rows[(y, q)]["equity_parent"]
+            if ni is not None and eq is not None and eq > 0:
+                return {"status": "fin", "period": f"{y}Q{q}", "roe": _r(ni / eq * 100)}
+        return {"status": "fin"}
     if st != "ok":
         return {"status": st}
     c = cfg()
@@ -327,9 +334,9 @@ def panels(fin: pd.DataFrame, dates: list[str], codes: list[str]) -> dict[str, p
     return out
 
 
-def build(fin: pd.DataFrame, codes: list[str]) -> dict[str, dict[str, Any]]:
+def build(fin: pd.DataFrame, codes: list[str], by: dict[str, Rows] | None = None) -> dict[str, dict[str, Any]]:
     """每檔的 quality 區塊，加上 ROIC 在全市場（可計算者）的百分位 pct（0–100，越高越好）。"""
-    by = rows_by_code(fin)
+    by = rows_by_code(fin) if by is None else by
     out: dict[str, dict[str, Any]] = {code: detail(by[code]) if code in by else {"status": "none"} for code in codes}
     have = [(code, d["roic"]) for code, d in out.items() if d.get("roic") is not None]
     if have:
@@ -338,6 +345,35 @@ def build(fin: pd.DataFrame, codes: list[str]) -> dict[str, dict[str, Any]]:
         for (code, _), rank in zip(have, order, strict=True):
             out[code]["pct"] = round(float(rank) / max(len(have) - 1, 1) * 100)
     return out
+
+
+def payout_rows(rows: Rows, dividends: list[dict[str, Any]], last_date: str, years: int = 5) -> list[list[Any]]:
+    """盈餘配發率（賺的錢去哪）：[發放年度, 當年除息的每股現金股利合計, 配發率 %]，由舊到新、最多近 years 個完整年度。
+
+    配發率＝當年除息的現金股利合計 ÷ 前一年度每股盈餘（第 4 季累計 EPS）。只用已有的除權息紀錄與季財報，不增加資料源。
+    今年還沒過完（季配、半年配的公司還會再配）不列；前一年度 EPS ≤ 0 或缺值時配發率為空值。
+    """
+    cash: dict[int, float] = {}
+    for d in dividends:
+        c = _f(d.get("cash"))
+        if c and c > 0:
+            y = int(str(d["date"])[:4])
+            cash[y] = cash.get(y, 0.0) + c
+    this_year = int(last_date[:4])
+    out = []
+    for y in range(this_year - years, this_year):
+        prev = rows.get((y - 1, 4))
+        eps = prev["eps"] if prev else None
+        if eps is None and y not in cash:
+            continue  # 沒有財報、也沒有配息紀錄的年度不列
+        paid = cash.get(y, 0.0)
+        out.append([y, _r(paid, 2), _r(paid / eps * 100) if eps is not None and eps > 0 else None])
+    return out
+
+
+def attach_payout(q: dict[str, Any] | None, rows: Rows | None, dividends: list[dict[str, Any]], last_date: str) -> None:
+    if q is not None and q.get("status") == "ok" and rows:
+        q["payout"] = payout_rows(rows, dividends, last_date)
 
 
 def chip(d: dict[str, Any]) -> str | None:

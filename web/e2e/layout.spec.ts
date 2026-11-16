@@ -73,6 +73,11 @@ const PAGES: { name: string; hash: string; prepare?: (page: Page) => Promise<voi
   { name: '回測', hash: '#/explore/backtest' },
   { name: '搜尋', hash: '#/search' },
   { name: '日誌', hash: '#/discipline/journal' },
+  // 2026-11：生意體質（探索頁、個股詳情頁）與研究筆記（清單、編輯）
+  { name: '生意體質', hash: '#/explore/quality', prepare: async (p) => { await expect(p.getByTestId('quality-table')).toBeVisible(); } },
+  { name: '個股生意體質', hash: '#/stock/2330/q', prepare: async (p) => { await expect(p.getByTestId('q-years')).toBeVisible(); } },
+  { name: '研究筆記', hash: '#/discipline/thesis' },
+  { name: '研究筆記（編輯）', hash: '#/discipline/thesis/2330', prepare: async (p) => { await expect(p.getByTestId('thesis-editor')).toBeVisible(); } },
   { name: '統計', hash: '#/discipline/stats' },
   { name: '成就', hash: '#/discipline/badges' },
   { name: '週報', hash: '#/discipline/weekly' },

@@ -1,9 +1,10 @@
 /**
- * 探索 › 生意體質（2026-11；#/explore/quality?s=all|mine&q=&k=）：全市場的簡式 ROIC。
+ * 探索 › 選股 › 生意體質（2026-11；#/explore/quality?s=all|mine）：全市場的簡式 ROIC。
+ * 入口在「選股 › 更多」與個股的生意體質詳情頁；探索首頁不加第 13 格（U-06：首頁不捲動就看得到全部功能格）。
  * - 一句結論＋高於／接近／低於門檻的家數。
  * - 四個走向（營收 3 年變化 × ROIC 3 年變化）：2 × 2 的家數，點一格只看那一格——公司很多時，家數比一千多個點好讀。
  * - 類型膠囊（報酬高且穩、跟著景氣走、營收增報酬降）與清單（依 ROIC 排序）。
- * 依規則計算與分類，非推薦；金融業與資料累積中的公司不列入（定義見 METHODOLOGY §18）。
+ * 依規則計算與分類，非推薦；金融業與資料累積中的公司不列入（定義見 METHODOLOGY §13）。
  */
 import { useState } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
@@ -34,8 +35,8 @@ export default function Quality() {
   const [kind, setKind] = useState<BizKind | null>(null);
   const [shown, setShown] = useState(PAGE);
 
-  if (sum.error) return <div class="page"><TopBar back="/explore" /><ErrorState error={sum.error} /></div>;
-  if (!sum.data) return <div class="page"><TopBar back="/explore" /><PageTitle title="生意體質" /><Loading /></div>;
+  if (sum.error) return <div class="page"><TopBar back="/explore/screener" /><ErrorState error={sum.error} /></div>;
+  if (!sum.data) return <div class="page"><TopBar back="/explore/screener" /><PageTitle title="生意體質" /><Loading /></div>;
 
   const mine = new Set(watch.map((w) => w.code));
   const all = bizRows(sum.data.rows as unknown as Record<string, unknown>[]);
@@ -52,7 +53,7 @@ export default function Quality() {
 
   return (
     <div class="page" data-testid="quality-page">
-      <TopBar back="/explore" />
+      <TopBar back="/explore/screener" />
       <PageTitle title="生意體質" sub={`簡式 ROIC・門檻 ${qualityConfig.hurdle_pct}%・依規則計算，非推薦`} />
       <Seg options={SCOPES} value={scope} onChange={(v) => { setScope(v); setQuad(null); setKind(null); setShown(PAGE); }} label="範圍" testid="quality-scope" />
 
@@ -110,7 +111,7 @@ export default function Quality() {
                 <Table<BizRow> caption="ROIC（簡式）清單" testid="quality-table" rowKey={(r) => r.code} rows={rows.slice(0, shown)} onRow={(r) => open(r.code)} cols={[
                   { key: 'n', label: '公司', render: (r) => <><span class="qx-name">{r.name}</span><span class="qx-code ui-foot ui-muted">{r.code}</span></> },
                   { key: 'r', label: 'ROIC', align: 'r', width: '4.25rem', render: (r) => <Num v={r.roic} digits={1} unit="%" /> },
-                  { key: 'c', label: `${years} 年變化`, align: 'r', width: '4.75rem', render: (r) => (r.chg === null ? '—' : `${r.chg > 0 ? '+' : r.chg < 0 ? '−' : ''}${fmtNum(Math.abs(r.chg), 1)}`) },
+                  { key: 'c', label: <>{years} 年變化<span class="qx-th-u">百分點</span></>, align: 'r', width: '4.75rem', render: (r) => (r.chg === null ? '—' : `${r.chg > 0 ? '+' : r.chg < 0 ? '−' : ''}${fmtNum(Math.abs(r.chg), 1)}`) },
                   { key: 'k', label: '類型', align: 'r', width: '6.5rem', render: (r) => <Tag>{kindName(r.kind)}</Tag> },
                 ]} />
                 {rows.length > shown ? <div class="qx-more"><Button variant="plain" block onClick={() => setShown(shown + PAGE)} testid="quality-more">再看 {Math.min(PAGE, rows.length - shown)} 檔</Button></div> : null}

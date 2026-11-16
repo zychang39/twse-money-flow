@@ -69,7 +69,7 @@ export function earnSentence(q: Quality): string {
   if (q.status !== 'ok' || !ok(q.roic)) return '資料累積中';
   if (q.roic < 0) return `本業虧損：每投入 100 元，一年虧 ${yuan(q.roic)} 元`;
   const rel = q.band === 'above' ? '高於' : q.band === 'below' ? '低於' : '接近';
-  return `每投入 100 元，一年賺回 ${yuan(q.roic)} 元，${rel}門檻 ${num(q.hurdle ?? HURDLE, 0)} 元`;
+  return `每投入 100 元，一年賺回 ${yuan(q.roic)} 元，${rel} ${num(q.hurdle ?? HURDLE, 0)} 元的門檻`;
 }
 
 /** 資料累積中的說明（原則 5：說明原因、不留白）；年度足夠時回傳 null */
@@ -98,23 +98,24 @@ export const GAP_WIDE = 5;
 export function gapSentence(q: Quality): string | null {
   if (!ok(q.gap) || !ok(q.roe)) return null;
   const g = Math.abs(q.gap);
-  if (g < GAP_WIDE) return `ROE ${num(q.roe)}% 與 ROIC 接近，報酬不是靠舉債放大`;
-  return q.gap > 0
-    ? `ROE ${num(q.roe)}% 比 ROIC 高 ${num(g)} 個百分點：負債、租賃或業外收益放大了 ROE`
-    : `ROE ${num(q.roe)}% 比 ROIC 低 ${num(g)} 個百分點：業外損失或閒置資金拉低了股東報酬`;
+  // 差距的數字在列的右邊；這裡只補 ROE 與可能的原因，不重複同一個數字
+  if (g < GAP_WIDE) return `ROE ${num(q.roe)}%，和 ROIC 接近，報酬不是靠舉債放大`;
+  return q.gap > 0 ? `ROE ${num(q.roe)}%：負債、租賃或業外收益放大了 ROE` : `ROE ${num(q.roe)}%：業外損失或閒置資金拉低了股東報酬`;
 }
 
 /** 新增投入的報酬：下一塊錢還賺不賺 */
 export function incrSentence(q: Quality): string {
   if (!ok(q.incr_roic)) return '投入資本近 3 年沒有明顯增加，或資料不足 3 年';
   const h = q.hurdle ?? HURDLE;
-  return q.incr_roic >= h ? `新投入的錢報酬 ${num(q.incr_roic)}%，高於門檻` : `新投入的錢報酬 ${num(q.incr_roic)}%，低於門檻 ${num(h, 0)}%`;
+  return `近 3 年多投入的資本，報酬${q.incr_roic >= h ? '高於' : '低於'}門檻 ${num(h, 0)}%`;
 }
 
+export const TTM_LABEL = '近四季';
 /** 圖表序列：年度由舊到新，最後接近四季（不是第 4 季時）。同一張圖只有 ROIC 與門檻（同單位，一個 Y 軸）；營收另外一張 */
 export function qualitySeries(q: Quality): { labels: string[]; roic: (number | null)[]; revenue: (number | null)[]; margin: (number | null)[]; hurdle: number[] } {
   const rows: [string, number | null, number | null, number | null][] = (q.years ?? []).map(([y, r, rev, m]) => [String(y), r, rev, m]);
-  if (q.ttm) rows.push([q.ttm[0], q.ttm[1], q.ttm[2], q.ttm[3]]);
+  // 最後一點是近四季（不是完整年度），標籤寫「近四季」，不和年度混在一起
+  if (q.ttm) rows.push([TTM_LABEL, q.ttm[1], q.ttm[2], q.ttm[3]]);
   const h = q.hurdle ?? HURDLE;
   return { labels: rows.map((r) => r[0]), roic: rows.map((r) => r[1]), revenue: rows.map((r) => r[2]), margin: rows.map((r) => r[3]), hurdle: rows.map(() => h) };
 }
@@ -124,7 +125,8 @@ export function seriesSummary(q: Quality): string {
   const s = qualitySeries(q);
   const v = s.roic.filter(ok);
   if (!v.length) return '沒有年度 ROIC 資料';
-  return `${s.labels[0]} 到 ${s.labels[s.labels.length - 1]} 的 ROIC：最低 ${num(Math.min(...v))}%、最高 ${num(Math.max(...v))}%、最新 ${num(v[v.length - 1])}%；門檻 ${num(q.hurdle ?? HURDLE, 0)}%`;
+  const last = s.labels[s.labels.length - 1];
+  return `${s.labels[0]} 年到${last === TTM_LABEL ? last : ` ${last} 年`}的 ROIC：最低 ${num(Math.min(...v))}%、最高 ${num(Math.max(...v))}%、最新 ${num(v[v.length - 1])}%；門檻 ${num(q.hurdle ?? HURDLE, 0)}%`;
 }
 
 // ---------------------------------------------------------------- 市場與生意的落差（個股總覽）

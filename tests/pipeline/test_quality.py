@@ -96,7 +96,8 @@ def test_tax_rate_is_clamped_and_losses_have_no_tax_shield():
 
 def test_status_financial_and_old_schema():
     fin_rows = quality.rows_by_code(_fin([_row("B", 2025, 4, op_income=None, cur_liab=None)]))["B"]
-    assert quality.status_of(fin_rows) == "fin" and quality.detail(fin_rows) == {"status": "fin"}
+    assert quality.status_of(fin_rows) == "fin"
+    assert quality.detail(fin_rows) == {"status": "fin", "period": "2025Q4", "roe": 40.0}  # 320 ÷ 800
     # 舊檔（2026-11 以前）沒有新欄位 → none，且不出錯
     old = pd.DataFrame([{k: v for k, v in _row("C", 2025, 4).items() if k in financials.BASE_COLS}])
     by = quality.rows_by_code(old)
@@ -120,7 +121,7 @@ def _annual(code: str, roics: list[float], rev_growth: float = 1.05) -> list[dic
         ([27, 26, 24, 21, 27, 28, 35, 25, 29, 31], 1.05, "steady", "above"),
         ([10, 18, 22, 12, 9, 16, 24, 13, 10, 17], 1.05, "cyclical", "above"),
         ([10, 9.5, 9, 9.5, 9, 8.5, 9, 8, 6.5, 5], 1.05, "fading", "below"),
-        ([10, 9.5, 9, 9.5, 9, 8.5, 9, 8, 6.5, 5], 0.97, None, "below"),  # 營收也在衰退 → 不是「營收增報酬降」
+        ([10, 9.5, 9, 9.5, 9, 8.5, 9, 8, 6.5, 5], 0.97, None, "below"),  # 營收也在衰退 → 不是「報酬連年降」
         ([9, 8.5, 9, 8, 9.5, 9, 8.5, 9, 8, 8.5], 1.05, None, "near"),
         ([12, 11.5, 12, 11, 12, 11.5, 12, 11, 11.5, 12], 1.05, None, "above"),  # 高於門檻但不到「每年高 5 個百分點」
         ([27, 26, 28], 1.05, None, "above"),  # 年度不足 5 年 → 不分類
@@ -248,3 +249,25 @@ def test_stale_files_are_refetched(monkeypatch):
     fetched.clear()
     financials.run_history(ctx, date(2025, 4, 1), date(2026, 5, 20))
     assert fetched == [(2025, 2)]
+
+
+def test_payout_uses_prior_year_eps_and_skips_current_year():
+    rows = quality.rows_by_code(_fin([_row("D", y, 4, eps=e) for y, e in ((2022, 10.0), (2023, 8.0), (2024, -1.0))]))[
+        "D"
+    ]
+    divs = [
+        {"date": "2023-07-10", "cash": 6.0, "stock_ratio": 0},
+        {"date": "2024-03-14", "cash": 2.0, "stock_ratio": 0},
+        {"date": "2024-09-12", "cash": 2.0, "stock_ratio": 0},  # 半年配：同一年合計
+        {"date": "2025-07-08", "cash": 1.0, "stock_ratio": 0},
+        {"date": "2026-07-08", "cash": 3.0, "stock_ratio": 0},  # 今年還沒過完，不列
+    ]
+    got = quality.payout_rows(rows, divs, "2026-11-13")
+    # 2023 配 6 ÷ 2022 EPS 10 ＝ 60%；2024 配 4 ÷ 2023 EPS 8 ＝ 50%；2025 配 1、前一年虧損 → 配發率空值
+    assert got == [[2023, 6.0, 60.0], [2024, 4.0, 50.0], [2025, 1.0, None]]
+    q = {"status": "ok"}
+    quality.attach_payout(q, rows, divs, "2026-11-13")
+    assert q["payout"] == got
+    fin_q = {"status": "fin"}
+    quality.attach_payout(fin_q, rows, divs, "2026-11-13")
+    assert "payout" not in fin_q

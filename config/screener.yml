@@ -29,7 +29,7 @@ fields:
   revenue_high_ratio:   { label: 營收相對 12 月高點, unit: "%", group: 基本面 }
   revenue_growth_months: { label: 營收連續成長月數, unit: 月, group: 基本面 }
   roe:                  { label: ROE（年化）, unit: "%", group: 基本面 }
-  # 2026-11 生意體質（簡式 ROIC；定義見 METHODOLOGY §18、參數在 config/quality.yml）。金融業沒有這些欄位
+  # 2026-11 生意體質（簡式 ROIC；定義見 METHODOLOGY §13、參數在 config/quality.yml）。金融業沒有這些欄位
   roic:                 { label: ROIC（簡式）, unit: "%", group: 生意體質 }
   roic_min5:            { label: ROIC 近 5 年最低, unit: "%", group: 生意體質 }
   roic_chg3:            { label: ROIC 3 年變化, unit: 百分點, group: 生意體質 }

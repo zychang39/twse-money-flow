@@ -26,14 +26,14 @@
 .th-form .field:last-of-type { margin-bottom: 0; }
 .th-form + .ui-btn, .th-chips + .th-form { margin-top: var(--s-3); }
 
-/* 一條證據：文字＋三個標籤選單（等寬三欄）＋一句提問 */
+/* 一條證據：列上是內容與三個標籤的名稱（有疑問時多一行提問）；點開才是輸入框＋三個標籤選單（等寬三欄） */
 .th-ev { display: grid; gap: var(--s-2); }
-.th-ev + .th-ev, .concl + .th-ev { margin-top: var(--s-3); }
 .th-picks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); }
 .th-pick { padding: var(--s-2); font-size: var(--fs-foot); line-height: var(--lh-foot); text-overflow: ellipsis; }
-.th-ask { margin: 0; }
-.th-ev .btn.th-remove { justify-self: end; min-height: var(--tap); }
-.th-ev + .interp { margin-top: var(--s-3); }
+.th-ask { display: block; margin: 0; }
+.th-inline .btn.small { justify-self: start; }
+.ui-list + .interp { margin-top: var(--s-3); }
 
-.th-delete { margin-top: var(--s-3); }
+.th-delete { display: flex; justify-content: flex-end; margin-top: var(--s-3); }
+.th-delete .btn { min-height: var(--tap); }
 .th-page .ui-sec > .ui-list + .ui-list, .th-page .ui-sec > .ui-list + .ui-card { margin-top: var(--s-3); }

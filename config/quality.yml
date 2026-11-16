@@ -1,6 +1,6 @@
 # 生意體質（2026-11；DECISIONS #470）：簡式 ROIC、十年走勢、生意類型、研究筆記的提問。
 # pipeline（pipeline/derive/quality.py）與前端（web/src/lib/quality.ts、lib/thesis.ts）共用；改這裡兩邊一起變。
-# 計算定義見 docs/METHODOLOGY.md §18。全部是「依規則計算」的描述，不是推薦。
+# 計算定義見 docs/METHODOLOGY.md §13。全部是「依規則計算」的描述，不是推薦。
 version: 1
 
 # 資金成本門檻（%）：全站同一個，不逐家估 WACC（β 隨基準與期間變動；差距大時不需要精確，差距小時顯示「接近門檻」）
@@ -38,7 +38,7 @@ types:
 labels:
   steady:   { name: 報酬高且穩,   rule: 近 5 年每年 ROIC 都高於門檻 5 個百分點以上，營收成長, course: 長期複利型 }
   cyclical: { name: 跟著景氣走,   rule: 近 10 年 ROIC 至少有兩段 8 個百分點以上的升降, course: 景氣循環型 }
-  fading:   { name: 營收增報酬降, rule: 營收成長，但 ROIC 連續 3 年下滑且低於門檻, course: 價值陷阱的前兆 }
+  fading:   { name: 報酬連年降, rule: ROIC 連續 3 年下滑且低於門檻，營收卻還在成長, course: 價值陷阱的前兆 }
   above:    { name: 高於門檻,     rule: ROIC 比門檻高 2 個百分點以上 }
   near:     { name: 接近門檻,     rule: ROIC 在門檻上下 2 個百分點以內 }
   below:    { name: 低於門檻,     rule: ROIC 比門檻低 2 個百分點以上 }

@@ -36,9 +36,9 @@ describe('生意體質：型別與名稱', () => {
 
 describe('一句話結論', () => {
   it('賺不賺錢：每投入 100 元賺回多少、和門檻的關係', () => {
-    expect(earnSentence(base)).toBe('每投入 100 元，一年賺回 31 元，高於門檻 8 元');
-    expect(earnSentence({ ...base, roic: 8.6, band: 'near' })).toBe('每投入 100 元，一年賺回 8.6 元，接近門檻 8 元');
-    expect(earnSentence({ ...base, roic: 0.7, band: 'below' })).toBe('每投入 100 元，一年賺回 0.7 元，低於門檻 8 元');
+    expect(earnSentence(base)).toBe('每投入 100 元，一年賺回 31 元，高於 8 元的門檻');
+    expect(earnSentence({ ...base, roic: 8.6, band: 'near' })).toBe('每投入 100 元，一年賺回 8.6 元，接近 8 元的門檻');
+    expect(earnSentence({ ...base, roic: 0.7, band: 'below' })).toBe('每投入 100 元，一年賺回 0.7 元，低於 8 元的門檻');
     expect(earnSentence({ ...base, roic: -4.2, band: 'below' })).toBe('本業虧損：每投入 100 元，一年虧 4.2 元');
     expect(earnSentence({ status: 'fin', roe: 11.2 })).toBe('金融業改看 ROE 11.2%');
     expect(earnSentence({ status: 'none' })).toBe('資料累積中');
@@ -53,14 +53,14 @@ describe('一句話結論', () => {
     expect(historyGap(base)).toBeNull();
   });
   it('ROE 與 ROIC 的差距：小於 5 個百分點算接近；大的說明可能原因', () => {
-    expect(gapSentence({ ...base, gap: 2.1, roe: 11.3 })).toBe('ROE 11.3% 與 ROIC 接近，報酬不是靠舉債放大');
-    expect(gapSentence({ ...base, gap: 23.8, roe: 30.6 })).toBe('ROE 30.6% 比 ROIC 高 23.8 個百分點：負債、租賃或業外收益放大了 ROE');
-    expect(gapSentence({ ...base, gap: -9, roe: 6 })).toContain('比 ROIC 低 9.0 個百分點');
+    expect(gapSentence({ ...base, gap: 2.1, roe: 11.3 })).toBe('ROE 11.3%，和 ROIC 接近，報酬不是靠舉債放大');
+    expect(gapSentence({ ...base, gap: 23.8, roe: 30.6 })).toBe('ROE 30.6%：負債、租賃或業外收益放大了 ROE');
+    expect(gapSentence({ ...base, gap: -9, roe: 6 })).toBe('ROE 6.0%：業外損失或閒置資金拉低了股東報酬');
     expect(gapSentence({ ...base, gap: null })).toBeNull();
   });
   it('新增投入的報酬', () => {
-    expect(incrSentence(base)).toBe('新投入的錢報酬 37.2%，高於門檻');
-    expect(incrSentence({ ...base, incr_roic: 3 })).toBe('新投入的錢報酬 3.0%，低於門檻 8%');
+    expect(incrSentence(base)).toBe('近 3 年多投入的資本，報酬高於門檻 8%');
+    expect(incrSentence({ ...base, incr_roic: 3 })).toBe('近 3 年多投入的資本，報酬低於門檻 8%');
     expect(incrSentence({ ...base, incr_roic: null })).toContain('沒有明顯增加');
   });
   it('結論句沒有交易建議字眼', () => {
@@ -72,12 +72,13 @@ describe('一句話結論', () => {
 describe('圖表序列', () => {
   it('年度由舊到新，最後接近四季；門檻是同一個單位的常數線', () => {
     const s = qualitySeries(base);
-    expect(s.labels).toEqual(['2024', '2025', '2026Q2']);
+    expect(s.labels).toEqual(['2024', '2025', '近四季']);
     expect(s.roic).toEqual([29, 31, 31.3]);
     expect(s.revenue).toEqual([1132.1, 1200, 1210]);
     expect(s.hurdle).toEqual([8, 8, 8]);
     expect(qualitySeries({ ...base, ttm: null }).labels).toEqual(['2024', '2025']);
-    expect(seriesSummary(base)).toBe('2024 到 2026Q2 的 ROIC：最低 29.0%、最高 31.3%、最新 31.3%；門檻 8%');
+    expect(seriesSummary(base)).toBe('2024 年到近四季的 ROIC：最低 29.0%、最高 31.3%、最新 31.3%；門檻 8%');
+    expect(seriesSummary({ ...base, ttm: null })).toBe('2024 年到 2025 年的 ROIC：最低 29.0%、最高 31.0%、最新 31.0%；門檻 8%');
     expect(seriesSummary({ status: 'ok' })).toBe('沒有年度 ROIC 資料');
   });
 });
