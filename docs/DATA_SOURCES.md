@@ -107,6 +107,8 @@
 | fx_usdtwd | 美元兌台幣 | POST `www.taifex.com.tw/cht/3/dailyFXRateDown`（Big5 CSV） | 每日 | ✅ |
 | financials | 季財報（上市＋上櫃） | MOPS `ajax_t163sb04`（綜合損益彙總）、`ajax_t163sb05`（資產負債彙總），GET 帶 `TYPEK=sii/otc&year=民國年&season=季`；一次涵蓋一般業、金融、證券、保險等所有格式 | 法定期限後 | ✅（Actions 實測；OpenAPI t187ap06／07 只有最新一季且依產業分檔，改用 MOPS） |
 
+> **三大法人會被官方修正**（2026-11-16）：`twse_insti`、`tpex_insti`、`twse_insti_amount`、`tpex_insti_amount` 約 15:00 的初版當天稍晚會更新（上市投信金額可差數十億元），資料日 17:00、22:00 之後各複查一次（`freshness.recheck`，DECISIONS #472）。
+
 > **季財報欄位（2026-11，DECISIONS #470）**：同一份彙總表多留 9 欄——損益：`op_income`（營業利益）、`pretax`（稅前淨利）、`tax`（所得稅）；資產負債：`total_assets`（資產總計）、`cur_liab`（流動負債）、`noncur_liab`（非流動負債）、`total_liab`（負債總計）、`equity_total`（權益總計）、`treasury`（庫藏股票）。單位千元、損益為累計值。金融業的表沒有營業利益與流動負債（空值）。2026-11 以前寫入的季別沒有這些欄位：回補（`backfill --source financials`）遇到舊檔會重抓，每季排程也會順便補 4 季。
 >
 > **現金流量表彙總（2026-11-16 Actions 實測）**：MOPS `ajax_t163sb20`（參數同 t163sb04），各產業同一種表頭；`financials` 多留 `cfo`（營業活動之淨現金流）、`cfi`（投資活動之淨現金流），累計值、千元。取不到時這兩欄留空，不影響損益與資產負債。

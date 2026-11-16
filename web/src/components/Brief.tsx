@@ -303,8 +303,8 @@ function FlowsSection({ flows, flow, sum20, source }: { flows: MarketData['flows
   const f20 = flows.slice(-20);
   const items = [['外資', flow?.foreign], ['投信', flow?.trust], ['自營商', flow?.dealer]] as const;
   return (
-    <Section title={<Term id="insti">三大法人</Term>} aside={flow ? `${md(flow.date)}${flow.est ? '・估' : ''}` : undefined} testid="flows-card"
-      info={<><p>上市＋上櫃三大法人買賣超金額（億元）{flow?.est ? '；當日官方金額尚未取得，以淨買賣超張數 × 收盤價估算（標「估」）' : ''}。</p><p>資料來源：{source ?? '證交所、櫃買中心'}。</p></>}>
+    <Section title={<Term id="insti">三大法人</Term>} aside={flow ? `上市＋上櫃・${md(flow.date)}${flow.est ? '・估' : ''}` : undefined} testid="flows-card"
+      info={<><p>上市＋上櫃三大法人買賣超金額（億元）；只看加權指數（上市）的 App 不含上櫃，數字會不同{flow?.est ? '；當日官方金額尚未取得，以淨買賣超張數 × 收盤價估算（標「估」）' : ''}。</p><p>資料來源：{source ?? '證交所、櫃買中心'}。</p></>}>
       <Conclusion>近 20 日合計 <Signed v={sum20} digits={0} unit="億" /></Conclusion>
       <Card>
         <div class="flow-cells">

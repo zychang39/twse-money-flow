@@ -13,6 +13,8 @@
   在每個時段的第一次補抓一起跑（extras_due；2026-10-08，10/6 起只跑補抓時這些來源停更）。
 - 接力（2026-10-07）：每次補抓結束時預約下一次＝今天下一個還沒到的預期公布時間（或重試時間，取早的）；
   10/6、10/7 排程連續延遲 5–7 小時，當天只要有一次觸發，之後就不再依賴排程（plan_next、relay_decision）。
+- 複查（2026-11-16）：證交所三大法人第一次公布後當天還會修正（主要是投信），`recheck.sources` 在資料日的
+  `recheck.times` 之後各重抓一次，內容有變才覆蓋（recheck）；首頁與籌碼K、官方報表對不上就是因為只留著初版。
 - 每次的結果寫在 manifest `freshness`（缺哪些、第幾次、下次重試時間），資料健康頁與執行摘要看得到；不靜默失敗。
 """
 
@@ -142,6 +144,7 @@ def run_catchup(ctx: Any, *, attempt: int = 1) -> dict[str, Any]:
         tasks.run_month_query(ctx, SPECS["tpex_index"], m)
     if taifex:
         tasks_advanced.run_taifex(ctx, min(taifex), max(taifex))
+    revised = recheck(ctx)
     # 2026-10-08：每日任務的其他來源（主動式 ETF 持股、注意／處置、除權息、公司資料…）每個時段跑一次
     if extras_due(ctx.manifest, ctx.now):
         tasks.task_daily_extras(ctx)
@@ -175,6 +178,7 @@ def run_catchup(ctx: Any, *, attempt: int = 1) -> dict[str, Any]:
     sync_stages(ctx)
     ok_sources = {str(r["source"]) for r in ctx.results if r["status"] == "ok"}
     return {
+        "revised": revised,
         "missing_before": [g.key for g in before],
         "missing_after": [g.key for g in after],
         "fixed": fixed,
@@ -184,6 +188,47 @@ def run_catchup(ctx: Any, *, attempt: int = 1) -> dict[str, Any]:
         "progressed": bool(fixed) or bool(ok_sources),
         "quick": quick_deploy(fixed, ok_sources),
     }
+
+
+def recheck_due(d: date, now: datetime, times: list[str]) -> str | None:
+    """資料日 d 已經過了的最後一個複查時間（"HH:MM"）；都還沒到 → None。隔天以後視為全部已過。"""
+    passed = [t for t in sorted(times) if now.date() > d or (now.hour, now.minute) >= _hm(t)]
+    return passed[-1] if passed else None
+
+
+def recheck(ctx: Any) -> list[str]:
+    """重抓官方事後會修正的來源（config/schedule.yml freshness.recheck）；回傳內容有變的「來源 日期」。
+
+    每個（來源, 資料日）在每個複查時間之後只重抓一次（manifest `recheck`）；失敗不記，下次補抓再試。
+    """
+    from pipeline import tasks
+    from pipeline.registry import SPECS
+
+    cfg = table().get("recheck") or {}
+    times = [str(t) for t in cfg.get("times") or []]
+    n = int(cfg.get("days", 2))
+    last = ctx.now.date() if ctx.calendar.is_trading_day(ctx.now.date()) else ctx.calendar.previous(ctx.now.date())
+    days = [d for d in ctx.calendar.trading_days(last - timedelta(days=n * 2 + 10), last)[-n:]]
+    days = [d for d in days if d not in ctx.calendar.closed]
+    keep = {d.isoformat() for d in days}
+    done: dict[str, dict[str, str]] = ctx.manifest.setdefault("recheck", {})
+    changed: list[str] = []
+    for s in [str(x) for x in cfg.get("sources") or []]:
+        state = {k: v for k, v in (done.get(s) or {}).items() if k in keep}
+        for d in days:
+            due = recheck_due(d, ctx.now, times)
+            if due is None or state.get(d.isoformat()) == due or not ctx.store.exists(s, d):
+                continue
+            st = tasks.recheck_daily_source(ctx, SPECS[s], d)
+            if st == "failed":
+                continue
+            state[d.isoformat()] = due
+            if st == "changed":
+                changed.append(f"{s} {d.isoformat()}")
+        done[s] = state
+    if changed:
+        log.info("複查：官方修正 %s", "、".join(changed))
+    return changed
 
 
 def poll_time(missing: list[Gap], now: datetime) -> datetime | None:

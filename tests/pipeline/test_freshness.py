@@ -417,3 +417,95 @@ def test_catchup_margin_only_is_quick(tmp_path, monkeypatch):
     assert not freshness.quick_deploy(["margin_flash", "sbl"], {"twse_margin", "twse_sbl"})
     assert not freshness.quick_deploy(["margin_flash"], {"twse_margin", "active_etf"})
     assert not freshness.quick_deploy([], set())
+
+
+# ------------------------------------------------------------------ 複查（官方事後修正；2026-11-16）
+def _bfi(trust_net: str) -> dict:
+    """證交所 BFI82U 樣本（2026-10-02），投信買賣差額可改：模擬 15:00 初版與晚間定版。"""
+    import json
+
+    from tests.pipeline.test_tasks import sample
+
+    obj = json.loads(sample("twse_rwd_BFI82U.json"))
+    for row in obj["data"]:
+        if row[0] == "投信":
+            row[3] = trust_net
+    return obj
+
+
+def test_recheck_due():
+    d = date(2026, 10, 2)
+    times = ["17:00", "22:00"]
+    assert freshness.recheck_due(d, datetime(2026, 10, 2, 16, 30, tzinfo=TPE), times) is None
+    assert freshness.recheck_due(d, datetime(2026, 10, 2, 17, 2, tzinfo=TPE), times) == "17:00"
+    assert freshness.recheck_due(d, datetime(2026, 10, 2, 22, 2, tzinfo=TPE), times) == "22:00"
+    assert freshness.recheck_due(d, datetime(2026, 10, 5, 8, 5, tzinfo=TPE), times) == "22:00"  # 隔天以後：全部已過
+
+
+def test_recheck_overwrites_revised_figures_once_per_time(tmp_path, monkeypatch):
+    """16:13 存的是初版；17:00 後複查，官方已修正投信 → 覆蓋；同一個複查時間不重抓；22:00 後再查一次（沒變就不動）。"""
+    import json
+
+    from pipeline.registry import SPECS
+
+    day = date(2026, 10, 2)
+    ctx = make_ctx(tmp_path, {}, now=datetime(2026, 10, 2, 16, 13, tzinfo=TPE))
+    monkeypatch.setitem(
+        freshness.config.load("schedule")["freshness"],
+        "recheck",
+        {"sources": ["twse_insti_amount"], "times": ["17:00", "22:00"], "days": 2},
+    )
+    ctx.store.write("twse_insti_amount", day, SPECS["twse_insti_amount"].parse(_bfi("5,000,000,000")).df)
+    calls: list[str] = []
+
+    def fetch(c, url):
+        calls.append(url)
+        return json.dumps(_bfi("5,768,811,349")).encode()
+
+    monkeypatch.setattr(tasks, "_fetch", fetch)
+
+    def trust() -> float:
+        df = ctx.store.read("twse_insti_amount", day)
+        return float(df.set_index("item")["net"]["trust"])
+
+    assert freshness.recheck(ctx) == [] and not calls  # 還沒到複查時間
+    ctx.now = datetime(2026, 10, 2, 17, 2, tzinfo=TPE)
+    assert freshness.recheck(ctx) == ["twse_insti_amount 2026-10-02"]
+    assert trust() == 5_768_811_349 and len(calls) == 1
+    assert any(r["status"] == "ok" and r["message"] == "官方修正後更新" for r in ctx.results)
+    assert freshness.recheck(ctx) == [] and len(calls) == 1  # 這個時間查過了
+    ctx.now = datetime(2026, 10, 2, 22, 2, tzinfo=TPE)
+    n = len(ctx.results)
+    assert freshness.recheck(ctx) == [] and len(calls) == 2  # 再查一次，內容沒變 → 不記錄、不觸發部署
+    assert len(ctx.results) == n and trust() == 5_768_811_349
+
+
+def test_recheck_failure_keeps_file_and_retries(tmp_path, monkeypatch):
+    """複查時抓不到或回應日期不對 → 保留原檔、不記失敗（已有資料，不是缺漏），下次再試。"""
+    import json
+
+    from pipeline.core.http import FetchError
+    from pipeline.registry import SPECS
+
+    day = date(2026, 10, 2)
+    ctx = make_ctx(tmp_path, {}, now=datetime(2026, 10, 2, 22, 2, tzinfo=TPE))
+    monkeypatch.setitem(
+        freshness.config.load("schedule")["freshness"],
+        "recheck",
+        {"sources": ["twse_insti_amount"], "times": ["17:00", "22:00"], "days": 2},
+    )
+    ctx.store.write("twse_insti_amount", day, SPECS["twse_insti_amount"].parse(_bfi("5,000,000,000")).df)
+    before = ctx.store.path("twse_insti_amount", day).read_bytes()
+
+    def boom(c, url):
+        raise FetchError("timeout")
+
+    monkeypatch.setattr(tasks, "_fetch", boom)
+    assert freshness.recheck(ctx) == []
+    wrong = {**_bfi("5,768,811,349"), "date": "20261001"}
+    monkeypatch.setattr(tasks, "_fetch", lambda c, url: json.dumps(wrong).encode())
+    assert freshness.recheck(ctx) == []
+    assert ctx.store.path("twse_insti_amount", day).read_bytes() == before
+    assert not ctx.results and not ctx.manifest["recheck"]["twse_insti_amount"]
+    monkeypatch.setattr(tasks, "_fetch", lambda c, url: json.dumps(_bfi("5,768,811,349")).encode())
+    assert freshness.recheck(ctx) == ["twse_insti_amount 2026-10-02"]
