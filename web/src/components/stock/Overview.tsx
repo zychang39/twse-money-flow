@@ -14,6 +14,7 @@ import { Section, Signed } from '../ui';
 import { categoryName, completeness } from '../Scores';
 import { lazyPick } from '../../lazy';
 import { markOnboard } from '../../lib/flowTrack';
+import { BizVsMarket } from './Quality';
 
 const SignalPanel = lazyPick(() => import('../SignalPanel'), 'SignalPanel');
 
@@ -64,6 +65,9 @@ export function OverviewPane({ h, row, onSeg }: { h: StockHistory; row?: StockRo
         </div>
         <a class="score-link ui-foot" href={`#/stock/${h.code}/scores`} data-testid="to-scores">綜合分 {ok(composite) ? Math.round(composite) : '—'}・查看全部因子</a>
       </Section>
+
+      {/* 2026-11：市場怎麼看 vs 生意本身（只有可以計算 ROIC 的公司才出現） */}
+      <BizVsMarket h={h} row={row} onSeg={onSeg} />
 
       <Section title="重點指標" testid="stock-summary">
         <Conclusion>

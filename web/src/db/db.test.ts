@@ -1,9 +1,9 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { addWatch, addWatchMany, clearSampleWatch, createWatchGroup, deleteGroup, deleteWatchGroup, getWatchPrefs, renameWatchGroup, restoreWatchGroup, setWatchGroupOrder, setWatchListHidden, getSetting, listActivity, listGroups, listRecentSearches, listTrades, listWatch, pushRecentSearch, putWatchInGroup, resetDbConnection, saveGroup, saveTrade, setSetting, DB_VERSION, RECENT_MAX } from './db';
+import { addWatch, addWatchMany, clearSampleWatch, createWatchGroup, deleteGroup, deleteWatchGroup, getWatchPrefs, renameWatchGroup, restoreWatchGroup, setWatchGroupOrder, setWatchListHidden, getSetting, listActivity, listGroups, listRecentSearches, listTrades, listWatch, pushRecentSearch, putWatchInGroup, resetDbConnection, saveGroup, saveTrade, setSetting, deleteThesis, getThesis, listTheses, saveThesis, DB_VERSION, RECENT_MAX } from './db';
 import { flowLevel, flowXp } from '../lib/ritual';
 import { makeCalendar } from '../lib/tradingCalendar';
-import { EXPORT_MIGRATIONS, exportAll, importAll, migrateBackup, previewImport, type BackupFile } from './backup';
+import { EXPORT_MIGRATIONS, exportAll, importAll, migrateBackup, previewImport, validateBackup, type BackupFile } from './backup';
 
 beforeEach(async () => {
   await resetDbConnection();
@@ -39,11 +39,42 @@ describe('IndexedDB 與備份', () => {
     const backup = await exportAll();
     expect(backup.schemaVersion).toBe(DB_VERSION);
     const json = JSON.parse(JSON.stringify(backup));
-    await importAll({ ...json, stores: { watchlist: [], settings: [], screens: [], trades: [], activity: [], strategies: [], tracked: [], groups: [] } }, 'replace');
+    await importAll({ ...json, stores: { watchlist: [], settings: [], screens: [], trades: [], activity: [], strategies: [], tracked: [], groups: [], theses: [] } }, 'replace');
     expect(await listWatch()).toEqual([]);
     const counts = await importAll(json, 'replace');
     expect(counts.trades).toBe(1);
     expect((await listTrades())[0].code).toBe('2317');
+  });
+
+  it('研究筆記（v7）：一檔一份、代號正規化；備份往返；v6 備份匯入時補上空的 theses，v7 備份缺 theses 則拒絕', async () => {
+    const base = { name: '台積電', view: '報酬率守得住', gap: '', events: [{ date: '2026-12-10', label: '11 月營收公布', source: 'calendar' as const }],
+      breakers: [{ field: 'roic', op: '<' as const, value: 20 }], evidence: [], moat: { scale: ['固定成本'] }, createdAt: '', updatedAt: '' };
+    const saved = await saveThesis({ ...base, code: ' 2330 ' });
+    expect(saved.code).toBe('2330');
+    expect(saved.createdAt).not.toBe('');
+    await saveThesis({ ...saved, view: '改過' }); // 同一檔 → 覆蓋，不會多一份
+    await saveThesis({ ...base, code: '00631l', name: 'x' });
+    expect((await listTheses()).map((t) => t.code).sort()).toEqual(['00631L', '2330']);
+    expect((await getThesis('2330'))?.view).toBe('改過');
+    expect((await getThesis('2330'))?.createdAt).toBe(saved.createdAt);
+    const json = JSON.parse(JSON.stringify(await exportAll()));
+    expect(json.schemaVersion).toBe(7);
+    expect(json.stores.theses).toHaveLength(2);
+    await deleteThesis('2330');
+    expect(await listTheses()).toHaveLength(1);
+    await importAll(json, 'replace');
+    expect((await getThesis('2330'))?.breakers).toEqual([{ field: 'roic', op: '<', value: 20 }]);
+    // v6 備份（沒有 theses）照常匯入
+    const v6 = { ...json, schemaVersion: 6, stores: { ...json.stores } };
+    delete v6.stores.theses;
+    expect(previewImport(v6).counts.theses).toBe(0);
+    await importAll(v6, 'replace');
+    expect(await listTheses()).toEqual([]);
+    // v7 備份一定要有 theses；每一筆要有代號
+    const bad = { ...json, stores: { ...json.stores } };
+    delete bad.stores.theses;
+    expect(() => validateBackup(bad)).toThrow(/theses/);
+    expect(() => validateBackup({ ...json, stores: { ...json.stores, theses: [{ name: '沒有代號' }] } })).toThrow(/theses/);
   });
 
   it('自訂族群（v6）：備份往返；v5 備份匯入時補上空的 groups', async () => {
@@ -96,7 +127,7 @@ describe('IndexedDB 與備份', () => {
 
   it('previewImport 回傳筆數、不寫入', async () => {
     const { counts } = previewImport({ app: 'twse-money-flow', schemaVersion: 1, stores: { watchlist: [{ code: '2330' }], settings: [], screens: [], trades: [] } });
-    expect(counts).toEqual({ watchlist: 1, settings: 0, screens: 0, trades: 0, activity: 0, strategies: 0, tracked: 0, groups: 0 });
+    expect(counts).toEqual({ watchlist: 1, settings: 0, screens: 0, trades: 0, activity: 0, strategies: 0, tracked: 0, groups: 0, theses: 0 });
     expect(await listWatch()).toEqual([]);
   });
 

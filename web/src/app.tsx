@@ -35,6 +35,7 @@ const Stats = lazy(() => import('./pages/Stats'));
 const Badges = lazy(() => import('./pages/Badges'));
 const Weekly = lazy(() => import('./pages/Weekly'));
 const Tracking = lazy(() => import('./pages/Tracking'));
+const Thesis = lazy(() => import('./pages/Thesis'));
 const Me = lazy(() => import('./pages/Me'));
 const Health = lazy(() => import('./pages/Health'));
 const DataPage = lazy(() => import('./pages/Data'));
@@ -49,6 +50,8 @@ const StockDaily = lazy(() => import('./pages/StockDaily'));
 const StockMomentum = lazy(() => import('./pages/StockMomentum'));
 const StockScores = lazy(() => import('./pages/StockScores'));
 const StockChipDetail = lazy(() => import('./pages/StockChipDetail'));
+const StockQuality = lazy(() => import('./pages/StockQuality'));
+const Quality = lazy(() => import('./pages/Quality'));
 const Evidence = lazy(() => import('./pages/Evidence'));
 const Strategies = lazy(() => import('./pages/Strategies'));
 const Leverage = lazy(() => import('./pages/Leverage'));
@@ -77,6 +80,7 @@ function Page({ parts }: { parts: string[] }) {
         case 'm': return <StockMomentum code={code} card={d ?? 'returns'} />;
         case 'scores': return <StockScores code={code} />;
         case 'c': return <StockChipDetail code={code} card={d ?? 'qfii'} />;
+        case 'q': return <StockQuality code={code} />;
         default: return <Placeholder title="找不到頁面" back={`/stock/${b}`} />;
       }
     }
@@ -92,6 +96,7 @@ function Page({ parts }: { parts: string[] }) {
         case 'disposition': return <Disposition />;
         case 'margin': return <MarginFlow />;
         case 'attribution': return <Attribution />;
+        case 'quality': return <Quality />;
         case 'evidence': return <Evidence />;
         case 'strategies': return <Strategies id={c} />;
         case 'leverage': return <Leverage />;
@@ -107,6 +112,7 @@ function Page({ parts }: { parts: string[] }) {
         case 'badges': return <Badges />;
         case 'weekly': return <Weekly />;
         case 'tracking': return <Tracking />;
+        case 'thesis': return <Thesis code={c ? normCode(c) : undefined} />;
         default: return <Placeholder title="找不到頁面" back="/discipline" />;
       }
     case 'me':

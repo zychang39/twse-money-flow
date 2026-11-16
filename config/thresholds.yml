@@ -28,6 +28,12 @@ risk_flags:
     label: 融資使用率過高
     description: 融資餘額 ÷ 融資限額超過門檻。
     pct: 30
+  cheap_but_fading:
+    label: 低估值但報酬率連降
+    description: 營收成長，但 ROIC（簡式）連續 3 年下滑且低於資金成本門檻，同時本益比或淨值比在自身歷史低檔。低估值可能反映報酬率變差，不一定是便宜（判定參數在 config/quality.yml）。
+  cyclical_peak:
+    label: 本益比低但獲利在高檔
+    description: ROIC 隨景氣大幅升降的公司，本益比在自身歷史低檔，但近四季營業利益率在自身年度紀錄的高檔。獲利回到平常水準時，本益比會變高。
   stale_data:
     label: 資料過期
     description: 個股最新資料日期落後市場最新交易日超過門檻（交易日）。

@@ -6,9 +6,10 @@
 import type { ComponentChildren } from 'preact';
 import { TopBar } from '../components/Chrome';
 import { PageTitle, Signed } from '../components/ui';
-import { IconAlert, IconBooks, IconBriefcase, IconCalendar, IconFilter, IconFlask, IconHistory, IconLayers, IconMargin, IconThermo, IconAttribution } from '../components/Icons';
+import { IconAlert, IconBooks, IconBriefcase, IconCalendar, IconFilter, IconFlask, IconHistory, IconLayers, IconMargin, IconThermo, IconAttribution, IconQuality } from '../components/Icons';
 import { useAsync } from '../hooks';
-import { loadAttrTailwind, loadIndex, loadJson, loadMarginIndex, loadMarket, loadSectors } from '../data/api';
+import { loadAttrTailwind, loadIndex, loadJson, loadMarginIndex, loadMarket, loadSectors, loadSummary } from '../data/api';
+import { bizOverview, bizRows } from '../lib/quality';
 import type { MarginIndex } from '../data/types';
 import { TAIEX, TAIEX_TR, TPEX } from '../data/types';
 import { envCounts, envInfo } from '../lib/envState';
@@ -75,6 +76,8 @@ export default function Explore() {
   const mf = useAsync(() => loadMomentumSummary().catch(() => null), []);
   const margin = useAsync(loadMarginIndex, []);
   const attr = useAsync(loadAttrTailwind, []);
+  // 2026-11：生意體質（可計算 ROIC 的檔數；還沒有資料時顯示「資料累積中」）
+  const biz = useAsync(() => loadSummary().then((x) => { const o = bizOverview(bizRows(x.rows as unknown as Record<string, unknown>[])); return o.total ? o : null; }).catch(() => null), []);
   const lab = labStatus(ev.data ?? null, st.data?.strategies ?? null);
   const vc = verdictCounts(ev.data?.rows);
   const env = envInfo(market.data?.env?.lights);
@@ -110,6 +113,7 @@ export default function Explore() {
         <Tile icon={<IconAttribution />} title="報酬拆解" href="#/explore/attribution" testid="ex-attribution" value={attrTile(attr)} />
         <Tile icon={<IconMargin />} title="融資增減" href="#/explore/margin" testid="ex-margin" value={marginTile(margin)} />
         <Tile icon={<IconMomentum />} title="動能流程" href="#/explore/momentum" testid="ex-momentum" value={mf.loading ? pending(mf) : mf.data ?? '—'} />
+        <Tile icon={<IconQuality />} title="生意體質" href="#/explore/quality" testid="ex-quality" value={biz.data ? `高於門檻 ${fmtNum(biz.data.above, 0)}・共 ${fmtNum(biz.data.total, 0)} 檔` : biz.loading ? pending(biz) : '資料累積中'} />
       </nav>
     </div>
   );

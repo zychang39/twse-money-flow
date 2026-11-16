@@ -8,10 +8,10 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Sheet } from './Sheet';
 import { StockSearch } from './StockSearch';
 import { Signed } from './Change';
-import { useAsync } from '../hooks';
+import { useAsync, useDb } from '../hooks';
 import { loadMarket, loadStock } from '../data/api';
 import { adjustTrade, eventsFor } from '../lib/corpActions';
-import { logActivity, saveTrade, uid, type ExitReason, type Trade } from '../db/db';
+import { getThesis, logActivity, saveTrade, uid, type ExitReason, type ThesisVerdict, type Trade } from '../db/db';
 import { EXIT_REASON_LABEL } from '../lib/ritual';
 import type { StockHistory, StockRow } from '../data/types';
 import type { PortfolioSettings } from '../lib/settings';
@@ -19,7 +19,8 @@ import { roundTrip, type CostSettings } from '../lib/costs';
 import { checklistCalc, FIELD_LABEL, priceOf, type ChecklistPrefill } from '../lib/checklist';
 import { AUTO_LABEL, autoItems, buildSnapshot, effectiveOf, itemDoc, reasonDraft, snapshotDone, stopRefs, topSummary, type AutoKey, type Overrides } from '../lib/checklistAuto';
 import { envSummary, lightDoc, lightRow, stockFactDoc, stockFactRows } from '../lib/entryFacts';
-import { FactDetail, FactsView, ItemDetail, ItemRows, NavStack } from './EntryCheck';
+import { ExtraRows, FactDetail, FactsView, ItemDetail, ItemRows, NavStack, ThesisDetail } from './EntryCheck';
+import { VERDICTS, bizItem, bizSnapshot, completeness, normThesis } from '../lib/thesis';
 import { Section } from './ui';
 import { Skeleton } from './kit';
 import { envInfo } from '../lib/envState';
@@ -33,7 +34,7 @@ export const ERROR_TAGS = ['追高', '攤平', '提早停利', '未守停損', '
 const MIN_RR = Number(thresholds.portfolio.min_reward_risk);
 
 const EMPTY = { reason: '', entry: '', stop: '', target: '', shares: '' };
-type Detail = { kind: 'fact'; id: string } | { kind: 'item'; key: AutoKey } | null;
+type Detail = { kind: 'fact'; id: string } | { kind: 'item'; key: AutoKey } | { kind: 'thesis' } | null;
 
 /**
  * 新增持倉前檢查表（2026-10-06 重做）：檢查表是「進場前看懂現況」，不是關卡。
@@ -85,6 +86,10 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
   const latest = day || market.data?.date || null;
   const items = useMemo(() => autoItems({ row, hist, market: market.data, latest }), [row, hist, market.data, latest]);
   const draft = useMemo(() => reasonDraft(row, items), [row, items]);
+  // 2026-11：生意類型（自動帶出，只記錄）與這檔的研究筆記（選填）
+  const biz = useMemo(() => bizItem(row), [row]);
+  const noteQ = useDb(async () => (row ? (await getThesis(row.code)) ?? null : null), [row?.code]);
+  const note = noteQ ? normThesis(noteQ) : null;
   useEffect(() => { if (!reasonEdited) setF((x) => ({ ...x, reason: draft })); }, [draft, reasonEdited]);
 
   const env = market.data ? envInfo(market.data.env?.lights) : null;
@@ -110,6 +115,9 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
   async function save() {
     if (!row || !valid || entry === null) return;
     const snapshot = buildSnapshot(items, overrides, latest, new Date().toISOString());
+    // 生意類型與有沒有寫論點只記錄在快照裡，不算進檢查表完成（snapshotDone 只看 1–5）
+    snapshot.items.biz = bizSnapshot(row, latest);
+    snapshot.thesis = !!note && !completeness(note).empty;
     await saveTrade({
       id: uid(), code: row.code, name: row.name, status: 'open', openedAt: todayTpe(), entry, shares,
       // 停損、目標選填：未填存 0（hasStop＝false → 持股列表「未設停損」）
@@ -150,6 +158,9 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
     const k = detail.key;
     detailTitle = AUTO_LABEL[k].replace(/^\d\. /, '');
     detailNode = <ItemDetail k={k} item={items[k]} doc={itemDoc(k, row)} override={overrides[k]} onSet={(v) => setOverride(k, v)} />;
+  } else if (row && detail?.kind === 'thesis') {
+    detailTitle = '論點';
+    detailNode = <ThesisDetail code={row.code} thesis={note} row={row} />;
   }
 
   const root = (
@@ -165,6 +176,7 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
           {summaryLine ? <p class="ck-summary ui-foot" role="note" data-testid="ck-summary">{summaryLine}</p> : null}
           <Section title="進場前現況" aside="自動帶出・點列看依據">
             <ItemRows items={items} overrides={overrides} onOpen={(key) => setDetail({ kind: 'item', key })} onSet={setOverride} />
+            <ExtraRows biz={biz} thesis={note} onOpenThesis={() => setDetail({ kind: 'thesis' })} />
           </Section>
           <div class="field">
             <label for="ck-reason">{FIELD_LABEL.reason}</label>
@@ -206,22 +218,44 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
   );
 }
 
+/** 這檔股票有沒有寫研究筆記（有才問「原本的論點對了嗎」） */
+function useHasNote(code: string | undefined): boolean {
+  const note = useDb(async () => (code ? (await getThesis(code)) ?? null : null), [code]);
+  return !!note && !completeness(normThesis(note)).empty;
+}
+
+/** 平倉檢討多一題（選填）：把結果和論點分開看——賺錢但論點錯、賠錢但論點對是兩種要分開記的情況。再點一次取消選擇 */
+function VerdictPick({ value, onChange }: { value: ThesisVerdict | undefined; onChange: (v: ThesisVerdict | undefined) => void }) {
+  return (
+    <div class="field" data-testid="thesis-verdict">
+      <label id="thesis-verdict-l">原本的論點對了嗎？（選填；和賺賠分開看）</label>
+      <div class="chips" role="group" aria-labelledby="thesis-verdict-l">
+        {VERDICTS.map(([k, label]) => (
+          <button key={k} type="button" class="chip" aria-pressed={value === k} onClick={() => onChange(value === k ? undefined : k)}>{label}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function CloseSheet({ trade, onClose, costs, price, day }: { trade: Trade | null; onClose: () => void; costs: CostSettings; price: number | null; day: string }) {
   const [exit, setExit] = useState('');
   const [date, setDate] = useState(todayTpe());
   const [review, setReview] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [reason, setReason] = useState<ExitReason | ''>('');
+  const [verdict, setVerdict] = useState<ThesisVerdict | undefined>(undefined);
+  const hasNote = useHasNote(trade?.code);
   // D-01：持有期間的分割、減資、除權息 → 進場價與股數換算到平倉價的基準（使用者原始輸入不變，另存 adjFactor）
   const hist = useAsync(() => (trade ? loadStock(trade.code).catch(() => null) : Promise.resolve(null)), [trade?.code]);
   const adj = trade ? adjustTrade(trade, eventsFor(null, hist.data), date) : null;
-  useEffect(() => { if (trade) { setExit(String(price ?? trade.entry)); setTags([]); setReview(''); setReason(''); setDate(todayTpe()); } }, [trade?.id]);
+  useEffect(() => { if (trade) { setExit(String(price ?? trade.entry)); setTags([]); setReview(''); setReason(''); setDate(todayTpe()); setVerdict(trade.thesisVerdict); } }, [trade?.id]);
   const px = Number(exit);
   const rt = trade && adj && px > 0 ? roundTrip(adj.entry, px, trade.shares / adj.factor, trade.code, costs) : null;
   async function done() {
     if (!trade || !(px > 0) || !reason) return;
     const extra = adj && adj.factor !== 1 ? { adjFactor: adj.factor, adjNote: adj.notes.join('、') || undefined } : {};
-    await saveTrade({ ...trade, status: 'closed', closedAt: date, exit: px, exitReason: reason, review, errorTags: tags, fees: rt?.costs ?? 0, ...extra });
+    await saveTrade({ ...trade, status: 'closed', closedAt: date, exit: px, exitReason: reason, review, errorTags: tags, fees: rt?.costs ?? 0, ...extra, ...(verdict ? { thesisVerdict: verdict } : {}) });
     if (review.trim()) await logActivity('review_done', day, { trade: trade.id });
     onClose();
   }
@@ -248,6 +282,7 @@ export function CloseSheet({ trade, onClose, costs, price, day }: { trade: Trade
               <button key={t} class="chip" aria-pressed={tags.includes(t)} onClick={() => setTags(tags.includes(t) ? tags.filter((x) => x !== t) : [...tags, t])}>{t}</button>
             ))}
           </div>
+          {hasNote ? <VerdictPick value={verdict} onChange={setVerdict} /> : null}
           <button class="btn primary block" style={{ marginTop: 'var(--s-4)' }} disabled={!(px > 0) || !reason} onClick={done}>{reason ? '確認平倉' : '請選擇出場原因'}</button>
         </>
       ) : null}
@@ -258,10 +293,12 @@ export function CloseSheet({ trade, onClose, costs, price, day }: { trade: Trade
 export function ReviewSheet({ trade, onClose, day }: { trade: Trade | null; onClose: () => void; day: string }) {
   const [review, setReview] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  useEffect(() => { if (trade) { setReview(trade.review ?? ''); setTags(trade.errorTags ?? []); } }, [trade?.id]);
+  const [verdict, setVerdict] = useState<ThesisVerdict | undefined>(undefined);
+  const hasNote = useHasNote(trade?.code);
+  useEffect(() => { if (trade) { setReview(trade.review ?? ''); setTags(trade.errorTags ?? []); setVerdict(trade.thesisVerdict); } }, [trade?.id]);
   async function done() {
     if (!trade || !review.trim()) return;
-    await saveTrade({ ...trade, review: review.trim(), errorTags: tags });
+    await saveTrade({ ...trade, review: review.trim(), errorTags: tags, ...(verdict ? { thesisVerdict: verdict } : {}) });
     await logActivity('review_done', day, { trade: trade.id });
     onClose();
   }
@@ -276,6 +313,7 @@ export function ReviewSheet({ trade, onClose, day }: { trade: Trade | null; onCl
               <button key={t} class="chip" aria-pressed={tags.includes(t)} onClick={() => setTags(tags.includes(t) ? tags.filter((x) => x !== t) : [...tags, t])}>{t}</button>
             ))}
           </div>
+          {hasNote ? <VerdictPick value={verdict} onChange={setVerdict} /> : null}
           <button class="btn primary block" style={{ marginTop: 'var(--s-4)' }} disabled={!review.trim()} onClick={done}>完成檢討</button>
         </>
       ) : null}

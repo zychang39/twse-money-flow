@@ -158,6 +158,67 @@ DEMO_STYLE_HOLDINGS: dict[str, list[tuple[str, str, float]]] = {
 }
 
 
+#: 2026-11 生意體質示範：年度 ROIC（%），由 10 年前到今年共 11 個值；每一種類型至少一檔。
+#: 沒列出的代號＝沒有這些欄位（ETF）；"fin"＝金融業格式（沒有營業利益、流動負債）；("short", …)＝只有近 3 年有新欄位
+DEMO_FIN_YEARS = 10
+DEMO_ROIC: dict[str, list[float] | str] = {
+    "2330": [27, 26, 24, 21, 27, 28, 35, 25, 29, 31, 31],  # 報酬高且穩
+    "2317": [9, 8.5, 9, 8, 9.5, 9, 8.5, 9, 8, 8.5, 9],  # 接近門檻
+    "2454": [10, 18, 22, 12, 9, 16, 24, 13, 10, 17, 20],  # 跟著景氣走
+    "2412": [12, 11.5, 12, 11, 12, 11.5, 12, 11, 11.5, 12, 11.5],  # 高於門檻
+    "1101": [10, 9.5, 9, 9.5, 9, 8.5, 9, 8, 6.5, 5, 3.5],  # 營收增報酬降
+    "2882": "fin",
+    "6488": [6, 14, 20, 11, 5, 12, 21, 15, 7, 13, 19],  # 跟著景氣走
+    "5347": [4, 5, 4.5, 5, 4, 4.5, 5, 4, 4.5, 4, 4.5],  # 低於門檻（營收衰退）
+    "8069": [18, 19, 20, 19, 21, 22, 21, 23, 22, 24, 24],  # 報酬高且穩
+    "3105": [14, 13, 12, 12.5, 11, 10, 10.5, 9, 7.5, 6, 5],  # 營收增報酬降
+    "6182": [0, 0, 0, 0, 0, 0, 0, 0, 9, 10, 11],  # 資料累積中（只有近 3 年）
+}
+DEMO_SHORT_HISTORY = {"6182": 2}
+DEMO_REV_GROWTH = {"5347": 0.97}
+
+
+def _demo_quality_cols(code: str, k: int, q: int, base: float) -> dict[str, float | None]:
+    """k＝年度 − 最新年度（≤ 0）。年底 ROIC 剛好等於 DEMO_ROIC 的值（投入資本每年成長 5%、稅率 20%）。"""
+    empty: dict[str, float | None] = dict.fromkeys(
+        (
+            "op_income",
+            "pretax",
+            "tax",
+            "total_assets",
+            "cur_liab",
+            "noncur_liab",
+            "total_liab",
+            "equity_total",
+            "treasury",
+        )
+    )
+    prof = DEMO_ROIC.get(code)
+    if prof is None or k < -DEMO_SHORT_HISTORY.get(code, DEMO_FIN_YEARS):
+        return empty
+    if prof == "fin":
+        return {**empty, "total_assets": base * 4e6, "total_liab": base * 3.7e6, "equity_total": base * 3e5}
+    assert isinstance(prof, list)
+
+    def capital(kk: float) -> float:
+        return base * 6e4 * 1.05**kk
+
+    ic = capital(k - 1 + q / 4)
+    nopat_year = prof[k - 1] / 100 * (capital(k) + capital(k - 1)) / 2
+    op = nopat_year / 0.8 * q / 4
+    return {
+        "op_income": op,
+        "pretax": op,
+        "tax": op * 0.2,
+        "total_assets": ic / 0.7,
+        "cur_liab": ic / 0.7 - ic,
+        "noncur_liab": ic * 0.25,
+        "total_liab": ic / 0.7 - ic * 0.75,
+        "equity_total": ic * 0.75,
+        "treasury": 0.0,
+    }
+
+
 def build_store(root: Path, *, days: int = 320, end: date | None = None, seed: int = 7) -> DataStore:
     rng = np.random.default_rng(seed)
     end = end or date(2026, 9, 24)
@@ -515,16 +576,20 @@ def _advanced(store: DataStore, dates: list[date], rng: np.random.Generator, pat
         for key, part in df.groupby(pd.to_datetime(df["date"]).dt.to_period("M")):
             store.upsert(name, key.to_timestamp().date(), part.reset_index(drop=True), keys)
     store.write("ust_10y", date(dates[-1].year, 1, 1), pd.DataFrame(ust))
-    # 季財報（YTD 累計）
+    # 季財報（YTD 累計）。2026-11：往前補到 10 年前，並加上生意體質需要的欄位（營業利益、所得稅、資產、負債）；
+    # 近兩年的原有欄位與亂數順序不變（rng），較早年度用另一個亂數源（rq），不影響其他示範資料
     last = dates[-1]
-    for y in (last.year - 1, last.year):
+    rq = np.random.default_rng(108)
+    for y in range(last.year - DEMO_FIN_YEARS, last.year + 1):
+        recent = y >= last.year - 1
         for q in (1, 2, 3, 4):
             if (y, q) > (last.year, 2):
                 break
             rows = []
             for c, n, m, _, base in DEMO_STOCKS:
-                rev_q = base * 3e4
-                gm = 0.3 + 0.02 * (y - last.year) + rng.normal(0, 0.01)
+                k = y - last.year
+                rev_q = base * 3e4 * (1 if recent else DEMO_REV_GROWTH.get(c, 1.06) ** (k + 1))
+                gm = 0.3 + 0.02 * k + (rng if recent else rq).normal(0, 0.01)
                 rows.append(
                     {
                         "code": c,
@@ -537,6 +602,7 @@ def _advanced(store: DataStore, dates: list[date], rng: np.random.Generator, pat
                         "ni_parent": rev_q * 0.1 * q,
                         "eps": 2.0 * q,
                         "equity_parent": base * 2e5,
+                        **_demo_quality_cols(c, k, q, base),
                     }
                 )
             store.write("financials", date(y, q * 3, 1), pd.DataFrame(rows))

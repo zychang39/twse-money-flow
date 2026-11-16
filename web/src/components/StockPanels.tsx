@@ -16,6 +16,7 @@ import { Conclusion, Interp, Term } from './kit';
 import { SeriesChart } from './SeriesChart';
 import { NetBars } from './Viz';
 import { markOnboard } from '../lib/flowTrack';
+import { QualitySection } from './stock/Quality';
 
 type N = number | null;
 const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -101,6 +102,8 @@ export function FundamentalPanel({ h, asof }: { h: StockHistory; asof: (d: strin
     : null;
   return (
     <>
+      {/* 2026-11：生意體質（新增在最上面；以下營收、季財報、估值不動） */}
+      <QualitySection h={h} />
       <Section title="營收" aside={rev.latest ? `${Number(rev.latest.ym.slice(5, 7))} 月` : undefined} testid="sec-revenue" info={
         <><p>月營收年增率＝當月營收 ÷ 去年同月 − 1。創 12 個月新高＝最新一個月營收 ≥ 前 11 個月最大值；連續年增月數＝由最新一個月往回數年增率 &gt; 0 的月數；近 3 月平均年增＝最近 3 個月年增率的平均。月營收法定公布期限為次月 10 日。</p></>
       }>

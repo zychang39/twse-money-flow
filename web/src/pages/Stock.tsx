@@ -342,6 +342,7 @@ export default function Stock({ code }: { code: string }) {
           <List chev>
             <Row label="分數明細" sub="四個分項分數的因子" href={`#/stock/${code}/scores`} testid="to-scores" />
             <Row label="多空條件" sub="規則式條件計數" value={bb} href={`#/stock/${code}/bullbear`} testid="to-bullbear" />
+            <Row label="研究筆記" sub="判斷・驗證事件・推翻條件" href={`#/discipline/thesis/${code}`} testid="to-thesis" />
             <Row label="設定" href="#/me/settings" testid="menu-settings" />
           </List>
           <div class="ui-prose">

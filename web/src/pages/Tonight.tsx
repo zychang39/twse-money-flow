@@ -8,6 +8,7 @@ import { BriefStatus, BriefWarn, IndexHero, MarketPane, MoneyPane, Overview, ind
 import { List, Num, PageTitle, Row, Section, Seg, Signed, Tag } from '../components/ui';
 import { Conclusion, DataState, Term } from '../components/kit';
 import { IconChevronDown } from '../components/Icons';
+import { ThesisReminders } from '../components/ThesisReminders';
 import { useAsync, useHistories, useRestoredState, useSegParam } from '../hooks';
 import { useScoredSummary } from '../data/useSummary';
 import { useUser } from '../data/useUser';
@@ -166,6 +167,8 @@ export default function Tonight() {
       {seg === 'money' ? <MoneyPane market={market.data ?? null} /> : null}
       {seg === 'mine' ? (
         <div class="seg-pane" data-testid="pane-mine">
+          {/* 研究筆記的提醒：只有在有事時才出現（碰到推翻條件、驗證事件快到了） */}
+          <ThesisReminders byCode={byCode} />
           {holdings}
           <Section title="自選異動" testid="watch-changes"
             aside={watchRows.length && snap !== undefined ? watchSum.basis.replace(/^自上次查看（(.+)）以來$/, '較 $1') : undefined}>

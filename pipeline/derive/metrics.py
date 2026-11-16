@@ -186,6 +186,13 @@ def build_metrics(p: Panels, revenue: pd.DataFrame, extra: dict[str, pd.DataFram
         "eps_ttm",
         "bvps",
         "fair_value_position",
+        # 2026-11 生意體質（pipeline/derive/quality.py）
+        "roic",
+        "roic_min5",
+        "roic_chg3",
+        "op_margin",
+        "roe_roic_gap",
+        "revenue_chg_3y",
     ):
         if extra and name in extra:
             P[name] = extra[name].reindex(index=p.dates, columns=p.codes)

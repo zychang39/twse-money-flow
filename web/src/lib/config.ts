@@ -69,8 +69,8 @@ export interface UiConfig {
     min_group_sample: number;
     recent_trades: number;
     stop_respected_tolerance_pct: number;
-    xp: Record<'brief' | 'screener' | 'term' | 'onboard' | 'entry' | 'review' | 'plan_exit' | 'weekly_review' | 'backup' | 'backtest_own', number>;
-    caps: { entry_per_day: number; review_per_day: number; plan_exit_per_day: number; term_per_day: number };
+    xp: Record<'brief' | 'screener' | 'term' | 'onboard' | 'entry' | 'review' | 'plan_exit' | 'weekly_review' | 'backup' | 'backtest_own' | 'thesis' | 'thesis_review', number>;
+    caps: { entry_per_day: number; review_per_day: number; plan_exit_per_day: number; term_per_day: number; thesis_per_day: number; thesis_review_per_day: number };
     level_base: number;
     level_max: number;
     badges: BadgeConfig[];
@@ -112,3 +112,22 @@ export const swingConfig = swingYml as { version: number; strategies: SwingDef[]
 export const LAB_PREFIX = 'lab:';
 export const labStrategy = (presetId: string | null | undefined): StrategyDef | undefined =>
   presetId?.startsWith(LAB_PREFIX) ? strategiesConfig.strategies.find((s) => s.id === presetId.slice(LAB_PREFIX.length)) : undefined;
+
+// ---------- 生意體質（config/quality.yml；2026-11） ----------
+import qualityYml from '../../../config/quality.yml';
+/** 類型（steady｜cyclical｜fading）或高低（above｜near｜below）或 fin；名稱直接寫條件（產品原則 9），course＝課程裡的對應名稱 */
+export type BizKind = 'steady' | 'cyclical' | 'fading' | 'above' | 'near' | 'below' | 'fin';
+export interface QualityLabel { name: string; rule: string; course?: string }
+export interface EvidenceTag { id: string; name: string; ask?: string }
+export interface QualityConfig {
+  hurdle_pct: number;
+  near_band: number;
+  history: { min_years: number; max_years: number; start_year: number };
+  change_years: number;
+  types: { steady: { years: number; margin: number }; cyclical: { swing: number; legs: number }; fading: { down_years: number } };
+  labels: Record<BizKind, QualityLabel>;
+  flags: { low_percentile: number; peak_margin_percentile: number };
+  evidence: { source: EvidenceTag[]; directness: EvidenceTag[]; timing: EvidenceTag[]; same_kind_ask: string };
+  moat: { id: string; name: string; questions: string[] }[];
+}
+export const qualityConfig = qualityYml as QualityConfig;

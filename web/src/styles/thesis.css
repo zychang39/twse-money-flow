@@ -1,0 +1,39 @@
+/*
+ * 研究筆記（2026-11）：編輯頁的行內展開、證據的三個標籤選單、簡報的論點提醒。
+ * 只用 tokens.css 的尺寸與顏色；列、卡片、標籤、按鈕、輸入框沿用 ui.css／global.css。
+ * 由 pages/Thesis.tsx 匯入（隨研究筆記的 JS 分塊載入）。
+ */
+
+/* 列與行內展開（同檢查表的 .ck-item／.ck-inline）：展開的內容接在列的下方、同一張卡片裡 */
+.th-item + .th-item, .th-item + .ui-row { box-shadow: inset 0 0.5px 0 var(--line); }
+.th-inline { padding: 0 0 var(--s-3); }
+.th-inline .btn.small { min-height: var(--tap); }
+.th-inline .field:first-child { margin-top: 0; }
+.th-inline .input, .th-inline .select, .th-ev .input, .th-ev .select { background: var(--surface-2); }
+
+/* 推翻條件的編輯：欄位一列；比較｜數值｜單位一列 */
+.th-brk { display: grid; gap: var(--s-2); }
+.th-brk-v { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) auto; gap: var(--s-2); align-items: center; }
+.th-brk-v .input { font-variant-numeric: tabular-nums; }
+
+/* 加入用的膠囊（從近期事件挑、帶入事實）：可換行；點擊區域 44 */
+.th-chips { flex-wrap: wrap; overflow: visible; margin-top: var(--s-3); }
+.th-chips .chip { min-height: var(--tap); color: var(--brand); font-variant-numeric: tabular-nums; }
+.th-chips .chip[aria-pressed='true'] { color: var(--on-brand); }
+
+/* 卡片裡的表單：第一個欄位不留上邊距、最後一個不留下邊距 */
+.th-form .field:first-child { margin-top: 0; }
+.th-form .field:last-of-type { margin-bottom: 0; }
+.th-form + .ui-btn, .th-chips + .th-form { margin-top: var(--s-3); }
+
+/* 一條證據：文字＋三個標籤選單（等寬三欄）＋一句提問 */
+.th-ev { display: grid; gap: var(--s-2); }
+.th-ev + .th-ev, .concl + .th-ev { margin-top: var(--s-3); }
+.th-picks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); }
+.th-pick { padding: var(--s-2); font-size: var(--fs-foot); line-height: var(--lh-foot); text-overflow: ellipsis; }
+.th-ask { margin: 0; }
+.th-ev .btn.th-remove { justify-self: end; min-height: var(--tap); }
+.th-ev + .interp { margin-top: var(--s-3); }
+
+.th-delete { margin-top: var(--s-3); }
+.th-page .ui-sec > .ui-list + .ui-list, .th-page .ui-sec > .ui-list + .ui-card { margin-top: var(--s-3); }

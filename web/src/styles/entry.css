@@ -32,6 +32,8 @@
 .ck-lead { margin: var(--s-4) 0 var(--s-2); }
 .ck .ui-sec { margin-top: var(--s-5); }
 .ck-item + .ck-item { box-shadow: inset 0 0.5px 0 var(--line); }
+/* 2026-11：1–5 下方的「生意類型、論點」兩列（只記錄，不算進檢查表完成）另成一張卡片 */
+.ck .ui-list + .ck-extra { margin-top: var(--s-3); }
 .ck-inline { padding: 0 0 var(--s-3); margin: 0; }
 .ck-inline.field > label { margin-bottom: var(--s-1); }
 .ck .ck-inline .select { background: var(--surface-3); }

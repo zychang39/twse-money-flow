@@ -174,7 +174,24 @@ describe('經驗值（§8.5）與等級（§8.6）', () => {
     expect(xpLedger(input({ trades: [other] })).some((e) => e.kind === 'plan_exit')).toBe(false);
     expect(xpLedger(input({ trades: [blown] })).some((e) => e.kind === 'plan_exit')).toBe(false);
     expect(xpLedger(input({ trades: [late] })).some((e) => e.kind === 'review')).toBe(false);
-    expect(xpTable().map((r) => r.xp)).toEqual([10, 5, 20, 30, 20, 30, 10, 10, 2, 10]);
+    expect(xpTable().map((r) => r.xp)).toEqual([10, 5, 20, 30, 20, 30, 10, 10, 2, 10, 15, 10]);
+  });
+
+  it('研究筆記（2026-11）：寫完第一版每檔一次、每日 1 份；回頭看每檔每日一次、每日 2 份', () => {
+    const acts = [
+      act('thesis_done', '2026-10-05', '2026-10-05T07:00:00Z', { code: '2330' }),
+      act('thesis_done', '2026-10-05', '2026-10-05T07:10:00Z', { code: '2454' }), // 同一天第 2 份 → 超過每日上限
+      act('thesis_done', '2026-10-06', '2026-10-06T07:00:00Z', { code: '2330' }), // 同一檔第二次 → 不計
+      act('thesis_done', '2026-10-06', '2026-10-06T07:05:00Z', { code: '2603' }),
+      act('thesis_review', '2026-10-06', '2026-10-06T08:00:00Z', { code: '2330' }),
+      act('thesis_review', '2026-10-06', '2026-10-06T08:01:00Z', { code: '2330' }), // 同一檔同一天 → 不計
+      act('thesis_review', '2026-10-06', '2026-10-06T08:02:00Z', { code: '2454' }),
+      act('thesis_review', '2026-10-06', '2026-10-06T08:03:00Z', { code: '2603' }), // 第 3 份 → 超過每日上限
+    ];
+    const led = xpLedger(input({ activities: acts }));
+    expect(led.filter((e) => e.kind === 'thesis').map((e) => e.ref)).toEqual(['2330', '2603']);
+    expect(led.filter((e) => e.kind === 'thesis_review').map((e) => e.ref)).toEqual(['2330', '2454']);
+    expect(led.filter((e) => e.kind === 'thesis' || e.kind === 'thesis_review').reduce((s2, e) => s2 + e.xp, 0)).toBe(15 * 2 + 10 * 2);
   });
 
   it('等級：100 × (2^(n−1) − 1)，上限 10，不下降', () => {

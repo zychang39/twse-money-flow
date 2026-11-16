@@ -16,7 +16,25 @@ from pipeline.core.normalize import clean_code, clean_name, strip_tags, to_num
 from pipeline.sources.base import ParseError
 
 MOPS = "https://mopsov.twse.com.tw/mops/web/ajax_{sb}?encodeURIComponent=1&step=1&firstin=1&off=1&isQuery=Y&TYPEK={typek}&year={roc}&season={season:02d}"
-FIN_COLS = ["code", "name", "market", "year", "quarter", "revenue", "gross_profit", "ni_parent", "eps", "equity_parent"]
+# 2026-11（生意體質）：損益多留營業利益、稅前淨利、所得稅；資產負債多留資產總計、流動／非流動負債、負債總計、權益總計、庫藏股票。
+# 這些欄位原本就在同一份彙總表裡（不增加請求）。金融業格式沒有營業利益或流動負債 → 空值（前端顯示「金融業改看 ROE」）。
+BASE_COLS = [
+    "code",
+    "name",
+    "market",
+    "year",
+    "quarter",
+    "revenue",
+    "gross_profit",
+    "ni_parent",
+    "eps",
+    "equity_parent",
+]
+INCOME_EXTRA = ["op_income", "pretax", "tax"]
+BALANCE_EXTRA = ["total_assets", "cur_liab", "noncur_liab", "total_liab", "equity_total", "treasury"]
+FIN_COLS = [*BASE_COLS, *INCOME_EXTRA, *BALANCE_EXTRA]
+# 舊檔（2026-11 以前寫入）沒有這個欄位 → run_history／upgrade_stale 會重抓
+UPGRADE_MARK = "total_assets"
 _TABLE = re.compile(r"<table class='hasBorder'.*?</table>", re.S)
 _HEAD = re.compile(r"<tr class='tblHead'>(.*?)</tr>", re.S)
 _ROW = re.compile(r"<tr class='(?:even|odd)'>(.*?)</tr>", re.S)
@@ -50,8 +68,19 @@ def parse_statement(html: bytes | str, kind: str) -> pd.DataFrame:
             i_gp = _find(cols, lambda c: c == "營業毛利（毛損）淨額", lambda c: c == "營業毛利（毛損）")
             i_ni = _find(cols, lambda c: c.startswith("淨利") and "歸屬於母公司業主" in c)
             i_eps = _find(cols, lambda c: c.startswith("基本每股盈餘"))
+            i_op = _find(cols, lambda c: c in ("營業利益（損失）", "營業利益"))
+            i_pre = _find(cols, lambda c: c.startswith("稅前淨利"), lambda c: c.startswith("繼續營業單位稅前"))
+            i_tax = _find(cols, lambda c: c.startswith("所得稅"))
         else:
             i_eq = _find(cols, lambda c: "歸屬於母公司業主" in c and "權益" in c and "合計" in c)
+            i_bal = {
+                "total_assets": _find(cols, lambda c: c in ("資產總計", "資產總額")),
+                "cur_liab": _find(cols, lambda c: c == "流動負債"),
+                "noncur_liab": _find(cols, lambda c: c == "非流動負債"),
+                "total_liab": _find(cols, lambda c: c in ("負債總計", "負債總額")),
+                "equity_total": _find(cols, lambda c: c in ("權益總計", "權益總額")),
+                "treasury": _find(cols, lambda c: c == "庫藏股票"),
+            }
         for r in _ROW.findall(tb):
             cells = [strip_tags(c) for c in _CELL.findall(r)]
             if len(cells) < 3:
@@ -62,8 +91,13 @@ def parse_statement(html: bytes | str, kind: str) -> pd.DataFrame:
                 rec["gross_profit"] = to_num(cells[i_gp]) if i_gp is not None else None
                 rec["ni_parent"] = to_num(cells[i_ni]) if i_ni is not None else None
                 rec["eps"] = to_num(cells[i_eps]) if i_eps is not None else None
+                rec["op_income"] = to_num(cells[i_op]) if i_op is not None else None
+                rec["pretax"] = to_num(cells[i_pre]) if i_pre is not None else None
+                rec["tax"] = to_num(cells[i_tax]) if i_tax is not None else None
             else:
                 rec["equity_parent"] = to_num(cells[i_eq]) if i_eq is not None else None
+                for name, i in i_bal.items():
+                    rec[name] = to_num(cells[i]) if i is not None and i < len(cells) else None
             rows.append(rec)
     return pd.DataFrame(rows).drop_duplicates("code") if rows else pd.DataFrame()
 
@@ -85,10 +119,11 @@ def fetch_quarter(ctx: Any, year: int, quarter: int) -> pd.DataFrame:
         )
         if inc.empty:
             continue
+        bal_cols = ["equity_parent", *BALANCE_EXTRA]
         df = (
-            inc.merge(bal[["code", "equity_parent"]], on="code", how="left")
+            inc.merge(bal[["code", *bal_cols]], on="code", how="left")
             if not bal.empty
-            else inc.assign(equity_parent=None)
+            else inc.assign(**dict.fromkeys(bal_cols))
         )
         df["market"] = market
         df["year"] = year
@@ -126,9 +161,28 @@ def latest_due_quarter(today: date) -> tuple[int, int]:
     return max(due)
 
 
+def is_stale(ctx: Any, year: int, quarter: int) -> bool:
+    """已存在、但缺 2026-11 新增欄位（營業利益、資產總計…）的舊檔。"""
+    df = ctx.store.read("financials", quarter_key(year, quarter))
+    return df is not None and UPGRADE_MARK not in df.columns
+
+
+def upgrade_stale(ctx: Any, limit: int = 4) -> int:
+    """把缺新欄位的舊季別重抓（由近到遠，每次最多 limit 季；時間預算用完就停）。回傳重抓成功的季數。"""
+    done = 0
+    for key in sorted(ctx.store.dates("financials"), reverse=True):
+        if done >= limit or ctx.out_of_time():
+            break
+        y, q = key.year, (key.month - 1) // 3 + 1
+        if is_stale(ctx, y, q) and run_quarter(ctx, y, q):
+            done += 1
+    return done
+
+
 def run_latest(ctx: Any) -> None:
     y, q = latest_due_quarter(ctx.today)
     run_quarter(ctx, y, q)
+    upgrade_stale(ctx)
 
 
 def run_history(ctx: Any, start: date, end: date) -> None:
@@ -136,6 +190,6 @@ def run_history(ctx: Any, start: date, end: date) -> None:
     while (y, q) >= (start.year, (start.month - 1) // 3 + 1):
         if ctx.out_of_time():
             break
-        if not ctx.store.exists("financials", quarter_key(y, q)):
+        if not ctx.store.exists("financials", quarter_key(y, q)) or is_stale(ctx, y, q):
             run_quarter(ctx, y, q)
         y, q = (y, q - 1) if q > 1 else (y - 1, 4)

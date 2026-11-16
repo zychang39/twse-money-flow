@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { MarketData, MarketLight, StockHistory, StockRow } from '../data/types';
 import {
   AUTO_KEYS, autoItems, autoMarket, autoReason, autoRevenue, autoTrend, autoValuation, buildSnapshot, effectiveOf, itemDoc,
-  presetReason, reasonDraft, shortOf, snapshotDone, stopRefs, topSummary,
+  presetReason, reasonDraft, shortOf, snapshotDone, stopRefs, topSummary, REASONS,
 } from './checklistAuto';
 import { screenerConfig, thresholds, uiConfig } from './config';
 
@@ -109,6 +109,10 @@ describe('2026-10-06 檢查表 1–5 自動帶出', () => {
   it('5. 理由類型：符合的內建條件（依條件欄位分組）→ 否則四環最高', () => {
     const byId = Object.fromEntries(screenerConfig.presets.map((p) => [p.id, presetReason(p.conditions)]));
     expect(byId).toMatchObject({ chip_concentration: '籌碼', revenue_acceleration: '營收', strong_breakout: '動能', value_income: '估值' });
+    // 2026-11：ROIC 類內建條件（欄位分組「生意體質」）→ 理由類型「生意體質」；選項多一個，原有選項不變
+    const roicPresets = screenerConfig.presets.filter((p) => p.conditions.some((c) => screenerConfig.fields[c.field]?.group === '生意體質'));
+    for (const p of roicPresets) expect(presetReason(p.conditions)).toBe('生意體質');
+    expect(REASONS).toEqual(['籌碼', '動能', '營收', '估值', '生意體質', '事件', '其他']);
     const three = { ...ROW, trust_streak: 3, foreign_net_5d: 100, whale_change: 0.2, value_million: 30 } as StockRow;
     const a = autoReason(three, LATEST);
     expect(a.value).toBe('籌碼');
