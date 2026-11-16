@@ -990,21 +990,10 @@
  "digest_date": "2026-10-02",
  "esb_history_progress": {},
  "freshness": {
-  "at": "2026-11-16T18:02+08:00",
-  "attempt": 3,
+  "at": "2026-11-16T20:38+08:00",
+  "attempt": 1,
   "fixed": [],
   "missing": [
-   {
-    "dates": [
-     "2026-11-16"
-    ],
-    "due": "2026-11-16",
-    "key": "valuation",
-    "label": "本益比、淨值比",
-    "sources": [
-     "tpex_valuation"
-    ]
-   },
    {
     "dates": [
      "2026-11-16"
@@ -1018,8 +1007,8 @@
    }
   ],
   "next_poll": null,
-  "next_retry": "2026-11-16T19:02+08:00",
-  "next_run": "2026-11-16T19:02+08:00"
+  "next_retry": "2026-11-16T21:38+08:00",
+  "next_run": "2026-11-16T20:52+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2079,23 +2068,6 @@
  },
  "runs": [
   {
-   "at": "2026-11-13T05:57:05+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [],
-   "missing_after": [],
-   "missing_before": [],
-   "ok": 0,
-   "pending": [],
-   "poll_at": null,
-   "progressed": false,
-   "quick": false,
-   "relay": "2026-11-13T10:57+08:00",
-   "requests": 0,
-   "retry": false,
-   "task": "catchup"
-  },
-  {
    "at": "2026-11-13T11:02:07+08:00",
    "attempt": 1,
    "failed": [],
@@ -2905,6 +2877,31 @@
    "pending": [],
    "requests": 33,
    "task": "periodic"
+  },
+  {
+   "at": "2026-11-16T20:38:16+08:00",
+   "attempt": 1,
+   "failed": [
+    "twse_qfii 2026-11-16 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
+   ],
+   "fixed": [],
+   "missing_after": [
+    "qfii"
+   ],
+   "missing_before": [
+    "qfii"
+   ],
+   "ok": 0,
+   "pending": [
+    "twse_qfii"
+   ],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "relay": "skip:2026-11-16T20:52+08:00",
+   "requests": 1,
+   "retry": true,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3530,10 +3527,10 @@
    "validation": "ok"
   },
   "twse_qfii": {
-   "consecutive_failures": 1,
-   "last_attempt": "2026-11-16T19:02:09+08:00",
-   "last_message": "外資持股比：預期時間已過仍未取得（第 4 次補抓）",
-   "last_status": "failed",
+   "consecutive_failures": 2,
+   "last_attempt": "2026-11-16T20:38:14+08:00",
+   "last_message": "外資持股比：預期時間已過仍未取得（第 1 次補抓）",
+   "last_status": "pending",
    "last_success": "2026-11-13",
    "last_success_at": "2026-11-13T21:52:03+08:00",
    "rows": 1366,
@@ -3623,6 +3620,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-16T19:32:32+08:00",
+ "updated_at": "2026-11-16T20:38:16+08:00",
  "version": 1
 }
