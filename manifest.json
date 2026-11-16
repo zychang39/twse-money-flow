@@ -990,9 +990,11 @@
  "digest_date": "2026-10-02",
  "esb_history_progress": {},
  "freshness": {
-  "at": "2026-11-16T20:38+08:00",
+  "at": "2026-11-16T20:52+08:00",
   "attempt": 1,
-  "fixed": [],
+  "fixed": [
+   "margin_flash"
+  ],
   "missing": [
    {
     "dates": [
@@ -1007,8 +1009,8 @@
    }
   ],
   "next_poll": null,
-  "next_retry": "2026-11-16T21:38+08:00",
-  "next_run": "2026-11-16T20:52+08:00"
+  "next_retry": "2026-11-16T21:52+08:00",
+  "next_run": "2026-11-16T21:52+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2068,26 +2070,6 @@
  },
  "runs": [
   {
-   "at": "2026-11-13T11:02:07+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [],
-   "format_warnings": [
-    "twse_fulldelivery"
-   ],
-   "missing_after": [],
-   "missing_before": [],
-   "ok": 30,
-   "pending": [],
-   "poll_at": null,
-   "progressed": true,
-   "quick": false,
-   "relay": "2026-11-13T15:02+08:00",
-   "requests": 59,
-   "retry": false,
-   "task": "catchup"
-  },
-  {
    "at": "2026-11-13T14:25:08+08:00",
    "attempt": 1,
    "failed": [],
@@ -2902,6 +2884,34 @@
    "requests": 1,
    "retry": true,
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-16T20:52:14+08:00",
+   "attempt": 1,
+   "failed": [
+    "twse_qfii 2026-11-16 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
+   ],
+   "fixed": [
+    "margin_flash"
+   ],
+   "missing_after": [
+    "qfii"
+   ],
+   "missing_before": [
+    "qfii",
+    "margin_flash"
+   ],
+   "ok": 4,
+   "pending": [
+    "twse_qfii"
+   ],
+   "poll_at": null,
+   "progressed": true,
+   "quick": true,
+   "relay": "2026-11-16T21:52+08:00",
+   "requests": 3,
+   "retry": true,
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3213,21 +3223,21 @@
   },
   "tpex_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-11-13T20:52:03+08:00",
+   "last_attempt": "2026-11-16T20:52:03+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-11-13",
-   "last_success_at": "2026-11-13T20:52:03+08:00",
-   "rows": 922,
+   "last_success": "2026-11-16",
+   "last_success_at": "2026-11-16T20:52:03+08:00",
+   "rows": 923,
    "validation": "ok"
   },
   "tpex_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-11-13T20:52:03+08:00",
+   "last_attempt": "2026-11-16T20:52:03+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-11-13",
-   "last_success_at": "2026-11-13T20:52:03+08:00",
+   "last_success": "2026-11-16",
+   "last_success_at": "2026-11-16T20:52:03+08:00",
    "rows": 2,
    "validation": "ok"
   },
@@ -3498,21 +3508,21 @@
   },
   "twse_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-11-13T20:52:08+08:00",
+   "last_attempt": "2026-11-16T20:52:07+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-11-13",
-   "last_success_at": "2026-11-13T20:52:08+08:00",
+   "last_success": "2026-11-16",
+   "last_success_at": "2026-11-16T20:52:07+08:00",
    "rows": 1305,
    "validation": "ok"
   },
   "twse_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-11-13T20:52:08+08:00",
+   "last_attempt": "2026-11-16T20:52:07+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-11-13",
-   "last_success_at": "2026-11-13T20:52:08+08:00",
+   "last_success": "2026-11-16",
+   "last_success_at": "2026-11-16T20:52:07+08:00",
    "rows": 3,
    "validation": "ok"
   },
@@ -3527,8 +3537,8 @@
    "validation": "ok"
   },
   "twse_qfii": {
-   "consecutive_failures": 2,
-   "last_attempt": "2026-11-16T20:38:14+08:00",
+   "consecutive_failures": 3,
+   "last_attempt": "2026-11-16T20:52:10+08:00",
    "last_message": "外資持股比：預期時間已過仍未取得（第 1 次補抓）",
    "last_status": "pending",
    "last_success": "2026-11-13",
@@ -3613,6 +3623,11 @@
    "status": "done",
    "waited": 0
   },
+  "credit": {
+   "at": "20:52",
+   "status": "done",
+   "waited": 0
+  },
   "date": "2026-11-16",
   "insti": {
    "at": "17:02",
@@ -3620,6 +3635,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-16T20:38:16+08:00",
+ "updated_at": "2026-11-16T20:52:14+08:00",
  "version": 1
 }
