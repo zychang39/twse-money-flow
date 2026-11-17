@@ -1,21 +1,38 @@
 {
  "task": "catchup",
- "at": "2026-11-17T15:58:00+08:00",
- "requests": 87,
- "ok": 31,
+ "at": "2026-11-17T16:13:19+08:00",
+ "requests": 94,
+ "ok": 38,
  "failed": [],
- "pending": [],
+ "pending": [
+  "tpex_valuation",
+  "twse_insti",
+  "twse_valuation",
+  "twse_insti",
+  "twse_valuation"
+ ],
  "format_warnings": [
   "twse_fulldelivery"
  ],
  "revised": [],
- "missing_before": [],
- "missing_after": [],
- "fixed": [],
+ "missing_before": [
+  "insti",
+  "insti_amount",
+  "taifex",
+  "valuation"
+ ],
+ "missing_after": [
+  "insti",
+  "valuation"
+ ],
+ "fixed": [
+  "insti_amount",
+  "taifex"
+ ],
  "attempt": 1,
- "retry": false,
+ "retry": true,
  "poll_at": null,
  "progressed": true,
  "quick": false,
- "relay": "skip:2026-11-17T16:02+08:00"
+ "relay": "2026-11-17T17:02+08:00"
 }
