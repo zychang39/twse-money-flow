@@ -1,21 +1,9 @@
 {
- "task": "catchup",
- "at": "2026-11-17T11:03:41+08:00",
- "requests": 60,
- "ok": 31,
+ "task": "backfill",
+ "at": "2026-11-17T13:44:57+08:00",
+ "requests": 0,
+ "ok": 0,
  "failed": [],
  "pending": [],
- "format_warnings": [
-  "twse_fulldelivery"
- ],
- "revised": [],
- "missing_before": [],
- "missing_after": [],
- "fixed": [],
- "attempt": 1,
- "retry": false,
- "poll_at": null,
- "progressed": true,
- "quick": false,
- "relay": "2026-11-17T15:02+08:00"
+ "deferred": true
 }
