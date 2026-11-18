@@ -1,11 +1,21 @@
 {
- "task": "backfill",
- "at": "2026-11-18T06:38:35+08:00",
- "requests": 5,
- "ok": 0,
+ "task": "catchup",
+ "at": "2026-11-18T10:56:58+08:00",
+ "requests": 60,
+ "ok": 31,
  "failed": [],
  "pending": [],
- "remaining": 0,
- "by_source": {},
- "progressed": false
+ "format_warnings": [
+  "twse_fulldelivery"
+ ],
+ "revised": [],
+ "missing_before": [],
+ "missing_after": [],
+ "fixed": [],
+ "attempt": 1,
+ "retry": false,
+ "poll_at": null,
+ "progressed": true,
+ "quick": false,
+ "relay": "2026-11-18T15:02+08:00"
 }
