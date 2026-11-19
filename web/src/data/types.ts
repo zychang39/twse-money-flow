@@ -497,7 +497,7 @@ export interface WindStyle extends WindThermo {
   listed: string | null;
   start: string | null;
   /** 未滿 12 個月：有資料以來的同一段期間（暫定） */
-  since?: { start: string; r: number | null; rm: number | null; state: WindState | null };
+  since?: { start: string; r: number | null; rm: number | null; state: WindState | null; /** 已有幾個月的資料 */ months?: number; /** 哪一天滿 12 個月 */ full?: string };
   alt?: { code: string; name: string; r: PeriodR };
   /** 類股權重（投信公布的持股）：w＝ETF、wm＝大盤、d＝超配（百分點）；alloc＝類股配置效果（小數） */
   weights?: { date: string | null; rows: { s: string; w: number; wm: number; d: number }[]; alloc: number | null };
@@ -525,5 +525,9 @@ export interface Tailwind {
   styles: WindStyle[];
   sectors: WindSector[];
 }
-/** 每檔的主要風格與類股（自選的兩個狀態）：列＝[代號, 風格, 類股] */
-export interface AttrTags { date: string; columns: string[]; rows: [string, StyleKey | null, string | null][] }
+/**
+ * 每檔的風格與類股（順風選股 › 找股票）：列＝[代號, 主要風格, 類股, 屬於的風格, 在風格 ETF 的權重 %, 市值（億元）, 近 12 個月報酬]。
+ * 2026-11-19 以前的資料只有前三欄。
+ */
+export type AttrTagRow = [string, StyleKey | null, string | null, StyleKey[]?, (Partial<Record<StyleKey, number>> | null)?, (number | null)?, (number | null)?];
+export interface AttrTags { date: string; columns: string[]; rows: AttrTagRow[] }

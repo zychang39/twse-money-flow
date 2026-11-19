@@ -53,7 +53,7 @@ export default function Backtest() {
   const showCustom = custom && (sel === 'custom' || sel === '');
   return (
     <div class="page">
-      <TopBar back="/explore" />
+      <TopBar back="/explore/screener" />
       <PageTitle title="回測" sub="T+1 開盤進場・扣成本・依規則產生，非推薦" />
       {index.error ? <ErrorState error={index.error} /> : null}
       <Section title="回測對象" info={<p>T 日收盤後訊號、T+1 開盤進場、持有 N 日開盤出場；已扣手續費、證交稅與滑價。內建組合為預先計算的全市場結果；自訂條件在瀏覽器內計算（成交值前 600 檔、最近約 2 年；首次需下載數 MB 資料）。</p>}>

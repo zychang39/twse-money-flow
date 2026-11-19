@@ -1,5 +1,5 @@
 /**
- * 報酬拆解（2026-10-27；探索 › 報酬拆解；定義見 METHODOLOGY §4.12；資料 pipeline/derive/attribution.py）。純函式，可測。
+ * 報酬拆解（2026-10-27；探索 › 順風選股 › 個股；定義見 METHODOLOGY §4.12；資料 pipeline/derive/attribution.py）。純函式，可測。
  *
  * 三層：市場 Beta（CAPM 的 β ×（大盤 − 無風險））→ 因子與產業（2026-11-13 起：同業籃子與風格 ETF，各自扣掉自己的市場 Beta）
  * → Alpha（剩下的）。期間拆解用各月報酬加總（各層可以相加），另附複利的實際報酬。
