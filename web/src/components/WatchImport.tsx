@@ -1,9 +1,10 @@
 /**
- * 加入自選股 ›「從截圖加入」（2026-11-14；DECISIONS #464）：選券商庫存的截圖（可多張）或貼上文字 → 找出股票 → 勾選確認 → 加進群組。
+ * 加入自選股的「加入股票」區（2026-11-14；DECISIONS #464、#473）：選券商庫存的截圖（可多張）、貼上文字或輸入代號 → 找出股票 → 勾選確認 → 加進群組。
  * 截圖只在這支裝置上辨識（lib/ocr），不上傳、不儲存；比對邏輯在 lib/watchImport（不靠版面，任何券商都一樣）。
  * 先用英數模型找代號就先列出來，中文名稱核對完再更新標記。只加進自選清單，不讀股數與成本。
  */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { StockSearch } from './StockSearch';
 import type { StockRow } from '../data/types';
 import { putWatchInGroup } from '../db/db';
 import { extractStocks, importSummary, type ImportCandidate, type ImportSource } from '../lib/watchImport';
@@ -11,13 +12,16 @@ import { extractStocks, importSummary, type ImportCandidate, type ImportSource }
 const NOTE: Record<string, string> = { code: '名稱沒對到，請確認', name: '只對到名稱', off: '可能是金額，不是代號' };
 
 /**
- * watchGroup：已在自選的股票 → 所在群組。move＝使用者有指定群組：已在別的群組的可以勾選移過來；
- * 沒指定時（還沒有任何群組或正在看系統清單，也沒打群組名稱）已在自選的一律略過。
+ * 加入股票的三種方式放在一起（2026-11-19；DECISIONS #473）：選截圖（主要）、貼上文字、輸入代號或名稱（單檔直接加入；
+ * 一次好幾檔——貼上或打了多個代號——與截圖一樣列出來勾選）。
+ * watchGroups：已在自選的股票 → 所在的群組。一檔可以在多個群組：已在別的群組的照樣可以勾選加進來，原本的群組不動；
+ * 只有已在目標群組的不能勾。files＝頁面上「從截圖加入」選好的截圖，面板打開就開始辨識。
  */
-export function WatchImport({ rows, watchGroup, group, move, open }: { rows: StockRow[]; watchGroup: Map<string, string>; group: string; move: boolean; open: boolean }) {
-  /** 這一檔不能動：已在目標群組，或已在自選而沒有指定群組 */
-  const locked = (code: string) => watchGroup.has(code) && (!move || watchGroup.get(code) === group);
-  const watched = new Set([...watchGroup.keys()].filter(locked));
+export function WatchImport({ rows, watchGroups, group, open, files, onFilesTaken }: {
+  rows: StockRow[]; watchGroups: Map<string, string[]>; group: string; open: boolean; files?: File[] | null; onFilesTaken?: () => void;
+}) {
+  /** 已在目標群組：不用再加 */
+  const watched = new Set([...watchGroups].filter(([, gs]) => gs.includes(group)).map(([code]) => code));
   const [items, setItems] = useState<ImportCandidate[]>([]);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
@@ -47,10 +51,20 @@ export function WatchImport({ rows, watchGroup, group, move, open }: { rows: Sto
     return found;
   };
 
-  async function onFiles(e: Event) {
+  // 頁面上先選好的截圖：面板一打開就辨識
+  useEffect(() => {
+    if (!open || !files?.length) return;
+    onFilesTaken?.();
+    void recognize(files);
+  }, [open, files]);
+
+  function onFiles(e: Event) {
     const input = e.target as HTMLInputElement;
-    const files = [...(input.files ?? [])];
+    const picked = [...(input.files ?? [])];
     input.value = '';
+    void recognize(picked);
+  }
+  async function recognize(files: File[]) {
     if (!files.length) return;
     setMsg('');
     try {
@@ -85,6 +99,17 @@ export function WatchImport({ rows, watchGroup, group, move, open }: { rows: Sto
     }
   }
 
+  /** 輸入框貼上或打了好幾檔：與截圖一樣列出來勾選 */
+  function addText(text: string) {
+    setMsg('');
+    sources.current.push({ text });
+    if (!refresh().length) setMsg('這段文字裡沒有找到股票代號或名稱。');
+  }
+  async function pick(r: StockRow) {
+    const res = await putWatchInGroup([r.code], group);
+    setMsg(res.same ? `${r.name} 已在「${group}」` : `已加入 ${r.name} 到「${group}」`);
+  }
+
   const toggle = (code: string) => {
     setItems((cur) => cur.map((c) => {
       if (c.code !== code) return c;
@@ -101,37 +126,34 @@ export function WatchImport({ rows, watchGroup, group, move, open }: { rows: Sto
     setItems([]);
     setRaw('');
     setUnknown([]);
-    setMsg(`${[res.added ? `已加入 ${res.added} 檔` : '', res.moved ? `移動 ${res.moved} 檔` : ''].filter(Boolean).join('、')}到「${group}」`);
+    setMsg(`已加入 ${res.added + res.joined} 檔到「${group}」`);
   }
 
   const sum = importSummary(items, watched);
-  const chosen = items.filter((c) => c.checked && !watched.has(c.code));
-  const count = chosen.length;
-  const moving = chosen.filter((c) => watchGroup.has(c.code)).length;
-  const movable = items.filter((c) => watchGroup.has(c.code) && !watched.has(c.code)).length;
+  const count = items.filter((c) => c.checked && !watched.has(c.code)).length;
   return (
-    <section class="watch-import" data-testid="watch-import" aria-label="從截圖加入">
-      <p class="caption muted">從券商庫存的截圖加入（任何券商都可以；可一次選多張）。截圖只在這支裝置上辨識，不會上傳。</p>
-      <div class="row wrap" style={{ gap: 'var(--s-2)' }}>
-        <button type="button" class="btn" disabled={!!busy} onClick={() => fileRef.current?.click()} data-testid="import-pick">選截圖</button>
+    <section class="watch-import" data-testid="watch-import" aria-label="加入股票">
+      <div class="watch-import-actions">
+        <button type="button" class="btn primary" disabled={!!busy} onClick={() => fileRef.current?.click()} data-testid="import-pick">選截圖</button>
         <button type="button" class="btn" disabled={!!busy} onClick={onPaste} data-testid="import-paste">貼上文字</button>
         <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onFiles} data-testid="import-file" />
       </div>
+      <StockSearch rows={rows} onPick={pick} onMulti={addText} placeholder="或輸入代號、名稱（可貼上多檔）" />
+      <p class="caption muted">截圖可一次選多張、任何券商都可以；只在這支裝置上辨識，不會上傳。</p>
       {busy ? <p class="caption muted" role="status" data-testid="import-busy">{busy}</p> : null}
       {msg ? <p class="caption muted" role="status" data-testid="import-msg">{msg}</p> : null}
       {items.length ? (
         <>
           <p class="caption muted" role="status" data-testid="import-summary">
-            找到 {sum.found} 檔{sum.found - sum.fresh ? `，其中 ${sum.found - sum.fresh} 檔${move ? `已在「${group}」` : '已在自選'}` : ''}
-            {movable ? `；${movable} 檔在其他群組，勾選的會移到「${group}」（一檔股票只在一個群組）` : ''}{sum.review ? `；${sum.review} 檔請再看一眼` : ''}
+            找到 {sum.found} 檔{sum.found - sum.fresh ? `，其中 ${sum.found - sum.fresh} 檔已在「${group}」` : ''}{sum.review ? `；${sum.review} 檔請再看一眼` : ''}
           </p>
           {unknown.length ? <p class="caption muted" role="status" data-testid="import-unknown">不在上市、上櫃、興櫃的清單裡，沒有列入：{unknown.join('、')}（可能已下市、近期沒有成交，或辨識有誤）</p> : null}
           <div class="list" data-testid="import-list">
             {items.map((c) => {
               const done = watched.has(c.code);
-              const from = watchGroup.get(c.code);
-              const note = done ? (move ? `已在「${group}」` : `已在自選（${from}）`)
-                : [from ? `在「${from}」，移過來` : '', c.offColumn && c.match === 'code' ? NOTE.off : c.match === 'both' ? '' : NOTE[c.match]].filter(Boolean).join('・');
+              const others = (watchGroups.get(c.code) ?? []).filter((g) => g !== group);
+              const note = done ? `已在「${group}」`
+                : [others.length ? `也在「${others.join('」「')}」` : '', c.offColumn && c.match === 'code' ? NOTE.off : c.match === 'both' ? '' : NOTE[c.match]].filter(Boolean).join('・');
               return (
                 <label key={c.code} class="list-item check-row" data-testid={`import-${c.code}`}>
                   <input type="checkbox" checked={done || c.checked} disabled={done} onChange={() => toggle(c.code)} />
@@ -142,9 +164,11 @@ export function WatchImport({ rows, watchGroup, group, move, open }: { rows: Sto
               );
             })}
           </div>
-          <button type="button" class="btn primary block" disabled={!count || !!busy} onClick={add} data-testid="import-add">
-            {count ? `${[count - moving ? `加入 ${count - moving} 檔` : '', moving ? `移動 ${moving} 檔` : ''].filter(Boolean).join('、')}到「${group}」` : '勾選要加入的股票'}
-          </button>
+          <div class="sheet-sticky">
+            <button type="button" class="btn primary block" disabled={!count || !!busy} onClick={add} data-testid="import-add">
+              {count ? `加入 ${count} 檔到「${group}」` : '勾選要加入的股票'}
+            </button>
+          </div>
         </>
       ) : null}
       {raw ? (

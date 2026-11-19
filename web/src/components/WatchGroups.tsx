@@ -416,7 +416,7 @@ export function GroupEditor({ focusNew, onClose, groups, counts, prefs, hot, onC
 }
 
 /** 刪除群組後的「復原」提示（浮在底部導覽上方；幾秒後自動消失） */
-export function UndoToast({ text, onUndo, onDone, ms = 8000 }: { text: string; onUndo: () => void; onDone: () => void; ms?: number }) {
+export function UndoToast({ text, onUndo, onDone, ms = 8000 }: { text: string; onUndo?: () => void; onDone: () => void; ms?: number }) {
   useEffect(() => {
     const t = window.setTimeout(onDone, ms);
     return () => clearTimeout(t);
@@ -424,7 +424,7 @@ export function UndoToast({ text, onUndo, onDone, ms = 8000 }: { text: string; o
   return (
     <div class="update-toast undo-toast glass" role="status" data-testid="undo-toast">
       <span class="ellipsis">{text}</span>
-      <button class="update-toast-main" onClick={onUndo}>復原</button>
+      {onUndo ? <button class="update-toast-main" onClick={onUndo}>復原</button> : null}
     </div>
   );
 }

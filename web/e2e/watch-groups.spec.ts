@@ -49,7 +49,7 @@ test.describe('自選群組', () => {
     await expect(page.locator('.sort-select option').first()).toHaveText('加入順序');
     await chip(page, 'Latest').click();
     await expect.poll(() => rowNames(page)).toEqual(['聯發科', '元大台灣50']);
-    await expect(page.locator('.page').first()).toContainText('2 檔・左滑可移除或移到其他群組');
+    await expect(page.locator('.page').first()).toContainText('2 檔・左滑可移除');
     // 重新整理後還在 Latest
     await page.reload();
     await expect(chip(page, 'Latest')).toHaveAttribute('aria-pressed', 'true');
