@@ -265,6 +265,21 @@ def main_style(pct: dict[str, float | None], held: dict[str, float], order: list
     return max(cand, key=lambda k: (pct.get(k) if pct.get(k) is not None else cut, -order.index(k)))
 
 
+def belongs(pct: dict[str, float | None], held: dict[str, float], order: list[str], cut: float) -> list[str]:
+    """屬於哪幾種風格（依 order 的順序）：特徵百分位 ≥ cut，或出現在那一檔風格 ETF 的持股裡。"""
+    return [k for k in order if (pct.get(k) is not None and (pct[k] or 0) >= cut) or k in held]
+
+
+def full_date(start: str, months: int) -> str:
+    """資料起點往後 months 個月的那一天（那天起才有完整的 months 個月；未滿 12 個月的 ETF 何時補滿）。"""
+    return str((pd.Timestamp(start) + pd.DateOffset(months=months)).date())
+
+
+def months_between(start: str, end: str) -> float:
+    """兩個日期相隔幾個月（小數一位；每月以 30.44 天計）。"""
+    return round((pd.Timestamp(end) - pd.Timestamp(start)).days / 30.44, 1)
+
+
 # ------------------------------------------------------------------ 輸出
 def build(
     *,
@@ -376,7 +391,15 @@ def build(
         if s is not None and item["r"].get("12") is None and st.get("start"):
             # 未滿 12 個月：改用有資料以來的同一段期間跟大盤比（暫定；資料滿 12 個月後自動換回）
             a, b = _since(s, str(st["start"])), (None if mk is None else _since(mk, str(st["start"])))
-            item["since"] = {"start": st["start"], "r": _r(a), "rm": _r(b), "state": state_of(a, b, near)}
+            item["since"] = {
+                "start": st["start"],
+                "r": _r(a),
+                "rm": _r(b),
+                "state": state_of(a, b, near),
+                # 已有幾個月的資料、哪一天滿 12 個月（畫面寫「11.6 個月・12/1 滿 12 個月」，不只寫「資料累積中」）
+                "months": months_between(str(st["start"]), dates[-1]),
+                "full": full_date(str(st["start"]), 12),
+            }
         alt = str(st.get("alt") or "")
         if alt and th.col(f"etf:{alt}") is not None:
             item["alt"] = {

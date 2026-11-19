@@ -160,5 +160,13 @@ def test_layer2_uses_peer_basket_and_style_etfs(tmp_path):
     assert by["momentum"]["r"]["12"] is None and by["momentum"]["since"]["state"] in ("tail", "neutral", "head")
     assert [x["key"] for x in tw["sectors"]] == ["產業0"] and tw["sectors"][0]["n"] == 30
     tags = json.loads((tmp_path / "attribution" / "tags.json").read_text(encoding="utf-8"))
-    assert tags["columns"] == ["code", "style", "sector"] and ["1101", s["main"], "產業0"] in tags["rows"]
+    assert tags["columns"] == ["code", "style", "sector", "styles", "held", "cap", "r12"]
+    row = next(r for r in tags["rows"] if r[0] == "1101")
+    # 前三欄不變（舊版前端只讀前三欄）；之後是屬於的風格、ETF 權重、市值（億元）、近 12 個月報酬
+    assert row[:3] == ["1101", s["main"], "產業0"]
+    assert (s["main"] is None) == (row[3] == []) and (s["main"] in row[3] if s["main"] else True)
+    assert row[4] is None and row[5] > 0 and isinstance(row[6], float)
+    # 未滿 12 個月的風格：寫出已有幾個月、哪一天滿 12 個月
+    since = by["momentum"]["since"]
+    assert 0 < since["months"] < 12 and since["full"] > tw["date"]
     assert set(s["styles"]) == {"value", "quality", "momentum", "size", "lowvol"}
