@@ -1,7 +1,7 @@
 /**
  * 個股頁 › 動能 ›「報酬來源」摘要卡（2026-10-27）：近 1 年報酬拆成市場 Beta、因子與產業、Alpha 三層；
  * 2026-11-13：解讀行加上兩個狀態（所屬風格 × 所屬類股是順風、中性還是逆風）；
- * 點開到 #/stock/{code}/m/attribution（完整拆解，同探索 › 報酬拆解）。定義見 METHODOLOGY §4.12。
+ * 點開到 #/stock/{code}/m/attribution（完整拆解，同探索 › 順風選股 › 個股）。定義見 METHODOLOGY §4.12。
  */
 import { loadAttrFactors, loadAttrStock, loadAttrTailwind } from '../../data/api';
 import { useAsync } from '../../hooks';
@@ -43,7 +43,7 @@ export function AttrCard({ code, href }: { code: string; href: string }) {
   return (
     <SummaryCard title="報酬來源" href={href} testid="mom-attr" vt="mom-attr"
       conclusion={<>Alpha {fmt(d.alpha)}<span class="key-unit">（近 1 年）</span></>}
-      interp={<>{wind ? <span data-testid="mom-attr-wind">{wind}・</span> : null}β {fmtNum(d.beta, 2)} {exposureText('mkt', d.beta, null)}・{range} 各月報酬加總 {fmt(d.total)}</>}>
+      interp={<>{wind ? <span data-testid="mom-attr-wind">{wind}・</span> : null}β {fmtNum(d.beta, 2)} {exposureText('mkt', d.beta, null)}・<span class="nowrap">{range}</span> 各月報酬加總 {fmt(d.total)}</>}>
       <span class="attr-mini" role="table" aria-label="近 1 年報酬的三層拆解">
         {layers.map((x) => (
           <span key={x.k} class="attr-mini-row" role="row">

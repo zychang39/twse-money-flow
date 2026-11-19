@@ -357,7 +357,7 @@ export default function Evidence() {
   );
   return (
     <div class="page">
-      <TopBar back="/explore" />
+      <TopBar back="/explore/strategies" />
       <PageTitle title="指標效度" sub={meta ? `${c.total} 項指標・資料至 ${md(meta.data_end)}・僅供研究參考，非投資建議` : '僅供研究參考，非投資建議'} />
       <PageStale />
       {d.loading ? <Loading /> : null}

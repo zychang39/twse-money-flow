@@ -132,10 +132,24 @@ test('選股：策略膠囊（含全部）→ 新觸發｜篩出 → 第一個�
   await expect(page.locator('.scr-row').first()).not.toContainText(/買進|賣出|推薦/);
 });
 
-test('探索：不捲動就看得到 12 個功能格（2026-10-20 融資增減、10-27 報酬拆解）；格內數值來自資料', async ({ page }) => {
+test('探索：不捲動就看得到 10 個功能格（2026-11-19：順風選股排第一；回測、指標效度表移到選股與策略庫）；格內數值來自資料', async ({ page }) => {
   await page.goto('#/explore');
-  await expect(page.locator('.ex-tile')).toHaveCount(12);
+  await expect(page.locator('.ex-tile')).toHaveCount(10);
+  await expect(page.locator('.ex-tile').first()).toContainText('順風選股');
   await expect(page.getByTestId('ex-sectors')).toContainText(/第 1 名|—/);
   await page.getByTestId('ex-sectors').click();
   await expect(page).toHaveURL(/#\/explore\/sectors/);
+});
+
+test('回測在選股 › 更多、指標效度表在策略庫 › 依據；網址不變，返回鍵回到上一層', async ({ page }) => {
+  await page.goto('#/explore/screener');
+  await page.getByTestId('to-backtest').click();
+  await expect(page).toHaveURL(/#\/explore\/backtest/);
+  await expect(page.locator('h1.ui-large')).toContainText('回測');
+  // 直接開啟的網址沒有上一筆紀錄：返回鍵回到選股（不是探索首頁）
+  await page.goto('#/explore/strategies');
+  await expect(page.getByTestId('st-sec-evidence')).toContainText('指標效度表');
+  await page.getByTestId('to-evidence').click();
+  await expect(page).toHaveURL(/#\/explore\/evidence/);
+  await expect(page.locator('h1.ui-large')).toContainText('指標效度');
 });

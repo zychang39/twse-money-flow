@@ -92,3 +92,15 @@ def test_weights_allocation_and_styles():
     assert T.main_style({"value": 82, "quality": 91, "momentum": 40}, {}, order, 70) == "quality"
     assert T.main_style({"value": 30, "quality": 50}, {}, order, 70) is None  # 五種特徵都不突出
     assert T.main_style({"value": 30, "size": 5}, {"size": 1.4}, order, 70) == "size"  # 在風格 ETF 的持股裡
+
+
+def test_belongs_and_full_date() -> None:
+    """屬於哪幾種風格（百分位過門檻或在 ETF 持股裡）；未滿 12 個月的 ETF 哪一天補滿。"""
+    order = ["value", "quality", "momentum"]
+    assert T.belongs({"value": 80, "quality": 69, "momentum": None}, {"momentum": 1.2}, order, 70) == [
+        "value",
+        "momentum",
+    ]
+    assert T.belongs({}, {}, order, 70) == []
+    assert T.full_date("2025-12-01", 12) == "2026-12-01"
+    assert T.months_between("2025-12-01", "2026-11-19") == 11.6

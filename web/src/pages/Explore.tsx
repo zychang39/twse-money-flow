@@ -1,12 +1,13 @@
 /**
- * 探索（M4）：主版面不捲動就能看到全部入口。指數三格並排；功能格兩欄，每格＝圖示＋標題＋一行即時數值：
- * 選股、策略庫、指標效度表、回測、市場溫度、族群輪動、主動式 ETF、行事曆、處置與注意。
- * 數值一律來自同一個來源（策略數＝strategies.json 的分級、指標數＝指標判定、ETF 涵蓋＝market.json、族群＝sectors.json）。
+ * 探索（M4）：主版面不捲動就能看到全部入口。指數三格並排；功能格兩欄，每格＝圖示＋標題＋一行即時數值。
+ * 2026-11-19：12 格 → 10 格。第一格是最常用的「順風選股」（原「報酬拆解」）；
+ * 「回測」移到選股 › 更多、「指標效度表」移到策略庫 › 依據（網址不變；DECISIONS #475）。
+ * 數值一律來自同一個來源（策略數＝strategies.json 的分級、ETF 涵蓋＝market.json、族群＝sectors.json）。
  */
 import type { ComponentChildren } from 'preact';
 import { TopBar } from '../components/Chrome';
 import { PageTitle, Signed } from '../components/ui';
-import { IconAlert, IconBooks, IconBriefcase, IconCalendar, IconFilter, IconFlask, IconHistory, IconLayers, IconMargin, IconThermo, IconAttribution } from '../components/Icons';
+import { IconAlert, IconBooks, IconBriefcase, IconCalendar, IconFilter, IconLayers, IconMargin, IconThermo, IconAttribution } from '../components/Icons';
 import { useAsync } from '../hooks';
 import { loadAttrTailwind, loadIndex, loadJson, loadMarginIndex, loadMarket, loadSectors } from '../data/api';
 import type { MarginIndex } from '../data/types';
@@ -14,7 +15,6 @@ import { TAIEX, TAIEX_TR, TPEX } from '../data/types';
 import { envCounts, envInfo } from '../lib/envState';
 import type { EvidenceFile } from '../lib/evidence';
 import { labStatus } from '../lib/labStatus';
-import { verdictCounts } from '../lib/status';
 import type { StrategiesFile } from '../lib/strategies';
 import { fmtNum } from '../lib/format';
 import { styleNow } from '../lib/tailwind';
@@ -50,9 +50,9 @@ function Tile({ icon, title, value, href, testid }: { icon: ComponentChildren; t
   );
 }
 
-/** 報酬拆解卡片：目前順風的風格（風格 ETF 過去 12 個月自己賺錢且贏大盤） */
+/** 順風選股卡片：目前順風的風格（風格 ETF 過去 12 個月自己賺錢且贏大盤） */
 function attrTile(a: { data: import('../data/types').Tailwind | null; loading: boolean }): string {
-  if (!a.data) return a.loading ? '載入中' : 'Beta・因子・Alpha';
+  if (!a.data) return a.loading ? '載入中' : '風向・找股票・個股';
   const up = a.data.styles.filter((s) => styleNow(s, a.data!).state === 'tail').map((s) => s.label);
   return up.length ? `順風：${up.join('、')}` : '沒有順風的風格';
 }
@@ -76,7 +76,6 @@ export default function Explore() {
   const margin = useAsync(loadMarginIndex, []);
   const attr = useAsync(loadAttrTailwind, []);
   const lab = labStatus(ev.data ?? null, st.data?.strategies ?? null);
-  const vc = verdictCounts(ev.data?.rows);
   const env = envInfo(market.data?.env?.lights);
   const rk = market.data?.etf_ranking;
   const lead = (sectors.data?.groups ?? []).filter((g) => g.layer === 'fine' && g.rank === 1)[0];
@@ -98,16 +97,14 @@ export default function Explore() {
         <IndexTile name="加權報酬指數" short="報酬指數" values={index.data?.series[TAIEX_TR]} pending={index.data ? undefined : pending(index)} />
       </div>
       <nav class="ex-grid" aria-label="功能">
+        <Tile icon={<IconAttribution />} title="順風選股" href="#/explore/attribution" testid="ex-attribution" value={attrTile(attr)} />
         <Tile icon={<IconFilter />} title="選股" href="#/explore/screener" testid="ex-screener" value={lab ? `今日新觸發 ${lab.today} 檔` : pending(st)} />
         <Tile icon={<IconBooks />} title="策略庫" href="#/explore/strategies" testid="ex-strategies" value={lab ? `有效 ${lab.grades.valid}・觀察 ${lab.grades.watch}` : pending(st)} />
-        <Tile icon={<IconFlask />} title="指標效度表" href="#/explore/evidence" testid="ex-evidence" value={ev.data ? `有效 ${vc['有效']}・共 ${vc.total} 項` : pending(ev)} />
-        <Tile icon={<IconHistory />} title="回測" href="#/explore/backtest" testid="ex-backtest" value={lab?.updated ? `更新 ${lab.updated.split(' ')[0]}` : '訊號的歷史統計'} />
         <Tile icon={<IconThermo />} title="市場溫度" href="#/explore/market" testid="ex-market" value={market.data ? envCounts(env) : pending(market)} />
         <Tile icon={<IconLayers />} title="族群輪動" href="#/explore/sectors" testid="ex-sectors" value={lead ? `第 1 名 ${lead.name}` : pending(sectors)} />
         <Tile icon={<IconBriefcase />} title="主動式 ETF" href="#/explore/etf" testid="ex-etf" value={rk?.total !== undefined ? `${rk.covered ?? 0}/${rk.total} 檔有持股` : market.data?.active_etfs ? `${market.data.active_etfs.length} 檔` : pending(market)} />
         <Tile icon={<IconCalendar />} title="行事曆" href="#/explore/calendar" testid="ex-calendar" value={cal.data ? `即將 ${upcoming} 件` : '除權息・營收・法說'} />
         <Tile icon={<IconAlert />} title="處置與注意" href="#/explore/disposition" testid="ex-disposition" value={disp.data ? `處置 ${disp.data.disposition.length}・注意 ${disp.data.watch.filter((w) => w.in10 > 0).length}` : pending(disp)} />
-        <Tile icon={<IconAttribution />} title="報酬拆解" href="#/explore/attribution" testid="ex-attribution" value={attrTile(attr)} />
         <Tile icon={<IconMargin />} title="融資增減" href="#/explore/margin" testid="ex-margin" value={marginTile(margin)} />
         <Tile icon={<IconMomentum />} title="動能流程" href="#/explore/momentum" testid="ex-momentum" value={mf.loading ? pending(mf) : mf.data ?? '—'} />
       </nav>

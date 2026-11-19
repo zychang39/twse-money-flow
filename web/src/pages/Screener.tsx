@@ -60,6 +60,8 @@ export default function Screener() {
       <Section title="更多">
         <Conclusion>{ok(strategies.length) ? `${strategies.length} 個上架策略` : '策略'}</Conclusion>
         <List chev>
+          {/* 2026-11-19：回測從探索首頁移到這裡——回測的對象就是選股條件（內建組合與自訂條件） */}
+          <NavRow title="回測" sub="內建組合與自訂條件的歷史統計" href="#/explore/backtest" testid="to-backtest" />
           <NavRow title="策略庫" sub="分級、判定卡、各期間績效" href="#/explore/strategies" />
           <NavRow title="自訂條件" sub="自己組條件篩選、一鍵回測、設為追蹤" href="#/explore/screener/custom" testid="to-custom" />
           {/* 2026-11：全市場的簡式 ROIC（DECISIONS #470） */}

@@ -10,7 +10,7 @@ import type { ComponentChildren } from 'preact';
 import { useMemo, useState } from 'preact/hooks';
 import { TopBar } from '../components/Chrome';
 import { DataState, Interp, MiniLine, Term } from '../components/kit';
-import { EmptyRow, List, Num, PageTitle, Row, Section, Seg, Tag, Warn } from '../components/ui';
+import { EmptyRow, List, NavRow, Num, PageTitle, Row, Section, Seg, Tag, Warn } from '../components/ui';
 import { Sheet } from '../components/Sheet';
 import { SwingCard } from '../components/SwingCard';
 import { GradeTag, JudgeInfo, keepNum } from '../components/StrategyBits';
@@ -25,7 +25,8 @@ import type { CardBench } from '../data/types';
 import { addWatchMany, listStrategies, saveStrategy, uid } from '../db/db';
 import { LAB_PREFIX } from '../lib/config';
 import { fmtCount, md, pctPlain, pctSigned, tText } from '../lib/format';
-import { isListed } from '../lib/status';
+import { isListed, verdictCounts } from '../lib/status';
+import type { EvidenceFile } from '../lib/evidence';
 import { type ScreenFile, screenItems } from '../lib/screen';
 import { type StrategiesFile, type StrategyItem, GRADE_ORDER, gradeOf, groupName, paramRows } from '../lib/strategies';
 import '../styles/strategy.css';
@@ -70,6 +71,8 @@ function ListRow({ s, fresh }: { s: StrategyItem; fresh: number | null }) {
 function StrategyList({ data }: { data: StrategiesFile }) {
   const [openOff, setOpenOff] = useState(false);
   const screen = useAsync(loadScreen, []);
+  const ev = useAsync(() => loadJson<EvidenceFile>('evidence.json').catch(() => null), []);
+  const vc = verdictCounts(ev.data?.rows);
   const { listed, off } = useMemo(() => {
     const all = [...data.strategies].sort(byGrade);
     return { listed: all.filter((s) => isListed(s)), off: all.filter((s) => !isListed(s)) };
@@ -88,6 +91,12 @@ function StrategyList({ data }: { data: StrategiesFile }) {
         <div class="ui-list stl-list" data-testid="st-sec-listed-list">
           {listed.length ? listed.map((s) => <ListRow key={s.id} s={s} fresh={fresh(s)} />) : <EmptyRow>無上架策略</EmptyRow>}
         </div>
+      </Section>
+      {/* 2026-11-19：指標效度表從探索首頁移到這裡——策略由指標組成，兩頁共用同一套判定 */}
+      <Section title="依據" testid="st-sec-evidence">
+        <List chev>
+          <NavRow title="指標效度表" sub="每個指標的歷史超額與判定" value={ev.data ? `有效 ${vc['有效']}・共 ${vc.total} 項` : undefined} href="#/explore/evidence" testid="to-evidence" />
+        </List>
       </Section>
       <Section title="無效" aside={`${off.length} 套`} testid="st-sec-off">
         <List chev class="st-list">

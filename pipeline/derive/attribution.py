@@ -583,6 +583,11 @@ def equal_weight_monthly(ret: pd.DataFrame, members: list[str], exclude: str) ->
     return ret[cols].mean(axis=1, skipna=True)
 
 
+# tags.json 的欄位（順風選股 › 找股票）：代號、主要風格、類股、屬於的風格、在風格 ETF 的權重 %、市值（億元）、近 12 個月報酬（小數）。
+# 前三欄的順序不變（舊版前端只讀前三欄）。
+TAG_COLUMNS = ("code", "style", "sector", "styles", "held", "cap", "r12")
+
+
 def build(
     *,
     adj: pd.DataFrame,
@@ -667,6 +672,8 @@ def build(
     held = tailwind.holdings_by_code(holdings, th.styles)
     cut = float(tw_cfg["style_pct"])
     tags: list[list[Any]] = []
+    # 市值（億元）：找股票的清單排序用；沒有股數的不列
+    cap_yi = {str(c): float(v) / 1e8 for c, v in fs.mcap_now.items() if np.isfinite(v)}
     n = 0
     for c in codes:
         sec = tailwind.sector_key(industries.get(c))
@@ -689,10 +696,20 @@ def build(
         rep["styles"] = p
         rep["held"] = held.get(c, {})
         rep["main"] = tailwind.main_style(p, rep["held"], style_keys, cut)
-        tags.append([c, rep["main"], sec])
+        tags.append(
+            [
+                c,
+                rep["main"],
+                sec,
+                tailwind.belongs(p, rep["held"], style_keys, cut),
+                rep["held"] or None,
+                _r(cap_yi.get(c), 1),
+                _r(tailwind.trailing(adj[c], 12)) if c in adj.columns else None,
+            ]
+        )
         write_json(base / f"{c}.json", rep)
         n += 1
-    write_json(base / "tags.json", {"date": dates[-1], "columns": ["code", "style", "sector"], "rows": tags})
+    write_json(base / "tags.json", {"date": dates[-1], "columns": list(TAG_COLUMNS), "rows": tags})
     log.info("報酬拆解：%d 檔、%d 個月（%s～%s）", n, len(fs.labels), fs.labels[0], fs.labels[-1])
     return {
         "stocks": n,

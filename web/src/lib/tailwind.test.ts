@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { Tailwind, WindSector, WindStyle } from '../data/types';
+import { readFileSync } from 'node:fs';
+import type { AttrTags, Tailwind, WindSector, WindStyle } from '../data/types';
 import {
-  allocSplit, biggestUnderweight, byState, changed, dominated, excessCorr, matrixCell, overweights, sameWindPairs, stockStyles, stockWind,
-  styleNow, windState,
+  EMPTY_CIRCLE, allocSplit, barScale, biggestUnderweight, byState, cellKey, changed, circleOf, dominated, excessCorr, listCandidates, matrixCell,
+  matrixCounts, normCircle, overweights, poolCheck, sameWindLabel, sameWindPairs, sectorCandidates, sinceInfo, stockStyles, stockWind, styleCandidates,
+  styleNow, tagRows, toggleCircle, windLabel, windState,
 } from './tailwind';
 
 const m12 = (v: number[]) => v;
@@ -99,5 +101,121 @@ describe('順風檢查', () => {
     expect(list.filter((x) => x.belongs).map((x) => x.key)).toEqual(['quality', 'size', 'lowvol']);
     expect(dominated(tw.sectors[0], tw)).toBe(true);
     expect(dominated(tw.sectors[1], tw)).toBe(false);
+  });
+});
+
+// 2026-11-19（DECISIONS #475）：用詞統一、兩條線的橫條、找股票
+describe('順風選股：用詞、刻度、找股票', () => {
+  const tags: AttrTags = {
+    date: '2026-11-13', columns: ['code', 'style', 'sector', 'styles', 'held', 'cap', 'r12'],
+    rows: [
+      ['A', 'quality', '資訊科技', ['quality'], { quality: 9.5 }, 900, 0.5], // 兩邊都順風、ETF 超配資訊科技 → 同一陣風
+      ['B', 'quality', '金融', ['quality', 'value'], { quality: 4.2 }, 300, 0.2], // 風格順風、類股中性
+      ['C', 'quality', '能源', ['quality'], null, 500, -0.1], // 不在 ETF 裡；類股逆風
+      ['D', 'lowvol', '資訊科技', ['lowvol'], null, 100, 0.1], // 風格逆風 × 類股順風
+      ['E', null, '工業', [], null, 50, 0.3], // 風格不突出
+      ['F', 'value', null, ['value'], null, 20, 0.05], // 沒有類股指數
+    ],
+  };
+  const rows = tagRows(tags);
+
+  it('狀態只有一種寫法：順風／中性／逆風，未滿 12 個月的在後面加（暫定）', () => {
+    expect(windLabel('tail')).toBe('順風');
+    expect(windLabel('tail', true)).toBe('順風（暫定）');
+    expect(windLabel('head')).toBe('逆風');
+    expect(windLabel(null)).toBe('資料不足');
+    expect([sameWindLabel(true), sameWindLabel(false)]).toEqual(['同一陣風', '不同陣風']);
+    // 矩陣每一格的說明只用這三個詞
+    for (const a of ['tail', 'neutral', 'head', null] as const) {
+      for (const b of ['tail', 'neutral', 'head', null] as const) {
+        const c = matrixCell(a, b);
+        if (!c) continue;
+        expect(`${c.short}${c.text}`).not.toMatch(/逆著風|兩陣風|風幫忙|暫定順風/);
+      }
+    }
+    expect(matrixCell('tail', 'tail')?.short).toBe('兩邊都順風');
+    expect(matrixCell('neutral', 'head')?.short).toBe('類股逆風');
+  });
+
+  it('畫面的原始碼不再出現舊的變體用詞', () => {
+    for (const f of ['../pages/AttributionWind.tsx', '../pages/AttributionPick.tsx', '../pages/Attribution.tsx', '../components/stock/AttrCard.tsx', './tailwind.ts']) {
+      const text = readFileSync(new URL(f, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[ \t])\/\/.*$/gm, '$1');
+      expect(text, f).not.toMatch(/逆著風|比較像兩陣風|暫定順風|趨勢為正|趨勢為負/);
+    }
+  });
+
+  it('橫條的刻度：包含 0 與大盤；極端值截在大盤的 2.2 倍', () => {
+    const sc = barScale([0.57, 0.33, 0.31, 1.7, -0.01], 0.47);
+    expect(sc.lo).toBeCloseTo(-0.01);
+    expect(sc.hi).toBeCloseTo(0.47 * 2.2);
+    expect(sc.over(1.7)).toBe(true);
+    expect(sc.over(0.57)).toBe(false);
+    expect(sc.x(1.7)).toBe(1); // 夾在最右邊
+    expect(sc.x(0)).toBeGreaterThan(0); // 有負值時 0 不在最左邊
+    expect(sc.x(0.47)).toBeGreaterThan(sc.x(0.33)); // 大盤那條線在中性的右邊
+    const flat = barScale([null, null], null); // 沒有資料也不會除以 0
+    expect(Number.isFinite(flat.x(0))).toBe(true);
+  });
+
+  it('tags.json：新版 7 欄；舊版只有前三欄時補空值', () => {
+    expect(rows[0]).toEqual({ code: 'A', main: 'quality', sector: '資訊科技', styles: ['quality'], held: { quality: 9.5 }, cap: 900, r12: 0.5 });
+    const old = tagRows({ date: '', columns: ['code', 'style', 'sector'], rows: [['A', 'quality', '資訊科技'], ['E', null, '工業']] });
+    expect(old[0]).toEqual({ code: 'A', main: 'quality', sector: '資訊科技', styles: ['quality'], held: {}, cap: null, r12: null });
+    expect(old[1].styles).toEqual([]);
+    expect(tagRows(null)).toEqual([]);
+  });
+
+  it('從風格找：預設只列 ETF 的持股（依權重）；wide 加上特徵也屬於這一類的（依市值）', () => {
+    const held = styleCandidates(tw, rows, 'quality');
+    expect(held.map((c) => c.code)).toEqual(['A', 'B']);
+    expect(held[0]).toMatchObject({ via: 'quality', weight: 9.5 });
+    expect(held[0].wind.sameWind).toMatchObject({ same: true }); // 00938 超配資訊科技 8 個百分點
+    expect(held[0].wind.cell?.tone).toBe('prior');
+    expect(held[1].wind.cell?.short).toBe('風格順風');
+    const wide = styleCandidates(tw, rows, 'quality', true);
+    expect(wide.map((c) => c.code)).toEqual(['A', 'B', 'C']);
+    expect(wide[2].weight).toBeNull();
+    // B 也屬於價值：從價值找時用價值的狀態（不是它的主要風格）
+    expect(styleCandidates(tw, rows, 'value', true).map((c) => [c.code, c.via, c.wind.styleState])).toEqual([['B', 'value', 'neutral'], ['F', 'value', 'neutral']]);
+  });
+
+  it('從類股找：同產業依市值；風格看各自的主要風格', () => {
+    const cs = sectorCandidates(tw, rows, '資訊科技');
+    expect(cs.map((c) => [c.code, c.wind.styleState, c.wind.sectorState])).toEqual([['A', 'tail', 'tail'], ['D', 'head', 'tail']]);
+    expect(cs[1].wind.cell?.tone).toBe('mixed');
+    expect(sectorCandidates(tw, rows, '沒有這個類股')).toEqual([]);
+  });
+
+  it('我的名單：矩陣各格的檔數、名單檢查', () => {
+    const cs = listCandidates(tw, rows, ['A', 'D', 'B', 'E', 'ZZZ']);
+    expect(cs.map((c) => c.code)).toEqual(['A', 'D', 'B', 'E']); // 沒有資料的代號不列
+    expect(matrixCounts(cs)).toEqual({ cells: { 'tail-tail': 1, 'head-tail': 1, 'tail-neutral': 1 }, one: 1 });
+    expect(cellKey(cs[0])).toBe('tail-tail');
+    expect(cellKey(cs[3])).toBeNull();
+    const chk = poolCheck(cs);
+    expect(chk).toMatchObject({ n: 4, sizeOk: false, top: ['資訊科技', 2], crowded: false, both: 1, same: 1, head: 1 });
+    // 超過一半在同一個類股（至少 4 檔）→ 集中
+    const crowd = poolCheck(listCandidates(tw, [...rows, { ...rows[0], code: 'A2' }, { ...rows[0], code: 'A3' }], ['A', 'A2', 'A3', 'D', 'B']));
+    expect(crowd).toMatchObject({ n: 5, sizeOk: true, crowded: true, top: ['資訊科技', 4] });
+    expect(poolCheck([])).toMatchObject({ n: 0, sizeOk: false, top: null, crowded: false });
+  });
+
+  it('能力圈：一個類股只會在熟悉或不碰其中一邊；再點一次取消', () => {
+    let c = toggleCircle(EMPTY_CIRCLE, 'know', '金融');
+    expect(c).toEqual({ know: ['金融'], skip: [] });
+    c = toggleCircle(c, 'skip', '金融');
+    expect(c).toEqual({ know: [], skip: ['金融'] });
+    expect(circleOf(c, '金融')).toBe('skip');
+    c = toggleCircle(c, 'skip', '金融');
+    expect(c).toEqual(EMPTY_CIRCLE);
+    expect(circleOf(c, null)).toBeNull();
+    expect(normCircle({ know: ['a', 1 as unknown as string] })).toEqual({ know: ['a'], skip: [] });
+    expect(normCircle(null)).toEqual(EMPTY_CIRCLE);
+  });
+
+  it('未滿 12 個月：已有幾個月、哪一天滿（舊版資料由起點推算）', () => {
+    expect(sinceInfo(tw.styles[2], '2026-11-19')).toEqual({ months: 11.6, full: '2026-12-01' });
+    expect(sinceInfo({ since: { start: '2025-12-01', r: 0, rm: 0, state: 'tail', months: 11.9, full: '2026-12-02' } }, '2026-11-19')).toEqual({ months: 11.9, full: '2026-12-02' });
+    expect(sinceInfo(tw.styles[0], '2026-11-19')).toBeNull();
   });
 });

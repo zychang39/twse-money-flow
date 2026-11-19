@@ -37,8 +37,58 @@
 .wind-try { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
 .wind-try .field { margin: 0; }
 .wind-try input { width: 100%; }
-/* 順風檢查的橫條列：名稱欄放得下「電腦及週邊設備」「009816・暫定順風」，數值欄只放「排除後 +65.2%」 */
-.attr-bars.wind-bars .ui-row.br-row { grid-template-columns: 7.5em minmax(2.5rem, 1fr) 7em; }
+/* 順風選股的橫條列（2026-11-19）：橫條是主角，名稱與數值兩欄收窄（393 寬時橫條約 105px，原本 58px）；名稱用 15px 放得下「電腦及週邊設備」 */
+.attr-bars.wind-bars .ui-row.br-row { grid-template-columns: 6.75rem minmax(3rem, 1fr) 5.75rem; }
+.wind-bars .br-label { font-size: var(--fs-sub); line-height: var(--lh-body); }
+.wind-bars .br-bar { align-self: stretch; display: flex; align-items: center; }
+/* 兩條線的橫條（components/BarRows WindTrack）：0 與大盤的線超出列高，上下列接成兩條直線 */
+.wtrack { position: relative; display: block; width: 100%; height: 1.5rem; }
+.wtrack-fill { position: absolute; top: 50%; height: 0.75rem; margin-top: -0.375rem; min-width: 2px; border-radius: 0.125rem; }
+.wtrack-fill.pos { background: var(--up); }
+.wtrack-fill.neg { background: var(--down); }
+/* 超出刻度的極端值：右端削成箭頭，表示「還沒畫完」 */
+.wtrack-fill.pos.over { clip-path: polygon(0 0, calc(100% - 0.375rem) 0, 100% 50%, calc(100% - 0.375rem) 100%, 0 100%); }
+.wtrack-zero, .wtrack-mkt { position: absolute; top: -1rem; bottom: -1rem; width: 0; }
+.wtrack-zero { border-left: 1px solid var(--d-3); }
+.wtrack-mkt { border-left: 1.5px dashed var(--d-2); margin-left: -0.75px; }
+.wtrack-dot { position: absolute; top: 50%; width: 0.5rem; height: 0.5rem; margin: -0.25rem 0 0 -0.25rem; border-radius: 50%; background: var(--d-1); box-shadow: 0 0 0 1.5px var(--surface-1); }
+.wtrack-dot.over { opacity: 0.6; }
+/* 圖例：線與圓點的意思 */
+.wind-legend { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); margin: var(--s-2) 0 0; font-variant-numeric: tabular-nums; }
+.wind-legend > span { display: inline-flex; align-items: center; gap: var(--s-2); white-space: nowrap; }
+.wk { display: inline-block; flex: none; }
+.wk-zero { width: 0; height: 0.875rem; border-left: 1px solid var(--d-3); }
+.wk-mkt { width: 0; height: 0.875rem; border-left: 1.5px dashed var(--d-2); }
+.wk-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--d-1); }
+/* 一堆的小標（順風 7・研究時間優先放這裡）：風格、類股、找股票的清單共用 */
+.wind-pile-h { margin: var(--s-4) 0 var(--s-2); color: var(--text-1); }
+.wind-pile-h strong { font-weight: var(--fw-semibold); }
+.wind-pile .text-btn { padding-left: 0; }
+.ui-prose + .wind-pile-h, .sheet-body .wind-pile:first-child .wind-pile-h { margin-top: var(--s-2); }
+/* 找股票：能力圈列、來源分段、風格膠囊（膠囊裡的狀態用次要字） */
+[data-testid='pick-pane'] > .ui-list { margin-top: var(--s-2); }
+[data-testid='pick-pane'] > .ui-seg { margin-top: var(--s-3); }
+[data-testid='pick-pane'] .chips.wrap { flex-wrap: wrap; overflow: visible; }
+[data-testid='pick-pane'] .chips + .concl, [data-testid='pick-pane'] .ui-list + .concl { margin-top: var(--s-4); }
+[data-testid='pick-pane'] .chip, .sheet-body .chips.wrap .chip { min-height: var(--tap); padding: 0 var(--s-4); }
+.chip .chip-sub { margin-left: var(--s-2); font-weight: var(--fw-regular); opacity: 0.72; }
+.sheet-body .chips.wrap { flex-wrap: wrap; overflow: visible; }
+.sheet-body .chips.wrap .chip { min-height: var(--tap); }
+/* 3×3 矩陣（我的名單）：直＝風格、橫＝類股；格子是按鈕（至少 44pt） */
+.wind-matrix { display: grid; grid-template-columns: 4.5rem repeat(3, minmax(0, 1fr)); gap: var(--s-1); margin-top: var(--s-3); align-items: center; }
+.wm-col { text-align: center; }
+.wm-corner, .wm-row { white-space: nowrap; }
+.wm-cell {
+  min-height: 3rem; border: 0; border-radius: var(--r-sm); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--card-edge);
+  color: var(--brand); font: inherit; font-size: var(--fs-concl); line-height: var(--lh-concl); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.wm-cell.prior { background: var(--surface-2); }
+.wm-cell.zero { color: var(--text-3); font-weight: var(--fw-regular); cursor: default; }
+.wm-cell[aria-pressed='true'] { background: var(--brand-fill); color: var(--on-brand); }
 .wind-lines > span { display: block; }
 .wind-try-out { margin: var(--s-3) 0 0; font-size: var(--fs-sub); line-height: var(--lh-sub); color: var(--text-2); }
 .wind-try-out strong { color: var(--text-1); }
+.pick-wide { padding-left: 0; }
+.wind-after { margin-top: var(--s-3); }
+/* 面板裡的膠囊：面板底色與膠囊相同，未選取的改用次層底色才看得出是可點的 */
+.sheet-body .chips.wrap .chip:not([aria-pressed='true']) { background: var(--surface-2); }

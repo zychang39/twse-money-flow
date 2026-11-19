@@ -1,7 +1,8 @@
 /**
- * 探索 › 報酬拆解（2026-10-27；#/explore/attribution?seg=&code=&p=）：一筆報酬有多少來自市場、多少來自你買的那一類股票、
- * 多少才跟選股判斷有關（市場 Beta → 因子與產業 → Alpha）。定義見 METHODOLOGY §4.12；計算 lib/attribution、pipeline/derive/attribution.py。
- * 2026-11-13：新增「順風檢查」分段（風格 ETF 與類股當溫度計；pages/AttributionWind）；第二層改用同業籃子與風格 ETF。
+ * 探索 › 順風選股（2026-10-27 報酬拆解；2026-11-19 改名並改成三步，DECISIONS #475；#/explore/attribution?seg=&code=&p=）。
+ * 依 Freddy〈法人級選股實戰〉單元 1–3 的順序：① 風向（哪一類股票正被市場獎勵）→ ② 找股票（從順風的類型到名單）→
+ * ③ 個股（這一檔的報酬有多少來自市場、多少來自它那一類、多少才跟這家公司有關：市場 Beta → 因子與產業 → Alpha）。
+ * 定義見 METHODOLOGY §4.12；計算 lib/attribution、lib/tailwind、pipeline/derive/attribution.py。
  * 分析方法，不是買賣建議；不使用買進／賣出字眼。
  */
 import { useMemo, useState } from 'preact/hooks';
@@ -21,36 +22,38 @@ import {
   periodRange, rulerFit, rulers, yearsToTell,
 } from '../lib/attribution';
 import { fmtNum } from '../lib/format';
+import { barScale } from '../lib/tailwind';
 import { navigate, useRoute } from '../router';
+import { PickPane } from './AttributionPick';
 import { StockWindSection, WindPane } from './AttributionWind';
 import '../styles/etf.css';
 import '../styles/explore.css';
 
-const SEGS = [['wind', '順風檢查'], ['stock', '個股拆解']] as const;
+const SEGS = [['wind', '① 風向'], ['pick', '② 找股票'], ['stock', '③ 個股']] as const;
 type AttrSeg = (typeof SEGS)[number][0];
 const pct = (v: number | null | undefined, d = 1) => <Signed v={v === null || v === undefined ? null : v * 100} digits={d} unit="%" />;
-const pp = (v: number | null | undefined) => (v === null || v === undefined || !Number.isFinite(v) ? '—' : `${v >= 0 ? '+' : '−'}${fmtNum(Math.abs(v * 100), 1)} 個百分點`);
 const DISCLAIMER = '分析方法與研究流程，不提供個股買賣建議。ETF 與指數只是觀察與比較的溫度計；歷史統計不代表未來報酬。';
 
 export default function Attribution() {
   const route = useRoute();
-  // 先看風向、再看公司：預設「順風檢查」；網址帶了 code（從個股頁或舊連結過來）而沒有指定分段 → 個股拆解
+  // 先看風向、再找公司、最後看個股：預設「風向」；網址帶了 code（從個股頁或舊連結過來）而沒有指定分段 → 個股
   const legacy = route.query.get('seg') === 'factor';
-  const [seg0, setSeg] = useSegParam<AttrSeg>(SEGS.map(([v]) => v), route.query.get('code') ? 'stock' : 'wind', 'seg', 'attr-seg2');
+  const [seg0, setSeg] = useSegParam<AttrSeg>(SEGS.map(([v]) => v), route.query.get('code') ? 'stock' : 'wind', 'seg', 'attr-seg3');
   const seg: AttrSeg = legacy ? 'wind' : seg0;
   const factors = useAsync(loadAttrFactors, []);
   const wind = useAsync(loadAttrTailwind, []);
   const f = factors.data ?? null;
   const tw = wind.data ?? null;
+  const noWind = wind.loading ? null : <p class="ds-line" data-testid="wind-empty">風向的資料累積中（下一次資料更新後出現）</p>;
   return (
     <div class="page" data-testid="attr-page">
       <TopBar back="/explore" />
-      <PageTitle title="報酬拆解" sub="市場 Beta・因子與產業・Alpha" />
-      <Seg options={SEGS} value={seg} onChange={setSeg} label="報酬拆解分段" sticky testid="attr-seg" />
+      <PageTitle title="順風選股" sub="先看風向・再找股票・最後看個股" />
+      <Seg options={SEGS} value={seg} onChange={setSeg} label="順風選股的三步" sticky testid="attr-seg" />
       {factors.error ? <ErrorState error={factors.error} /> : !f && !factors.loading ? <p class="ds-line">資料累積中</p> : f ? (
         seg === 'stock' ? <StockPane f={f} tw={tw} />
-          : tw ? <WindPane f={f} tw={tw} />
-            : wind.loading ? null : <p class="ds-line" data-testid="wind-empty">順風檢查的資料累積中（下一次資料更新後出現）</p>
+          : !tw ? noWind
+            : seg === 'pick' ? <PickPane tw={tw} /> : <WindPane f={f} tw={tw} />
       ) : null}
       <p class="ds-line">{DISCLAIMER}</p>
     </div>
@@ -88,7 +91,7 @@ function StockPane({ f, tw }: { f: AttrFactors; tw: Tailwind | null }) {
 
 /**
  * 個股頁 › 動能 › 報酬來源（#/stock/{code}/m/attribution；2026-10-27）：同一套個股拆解，不含換股；
- * 因子順逆風與換股留在探索頁。
+ * 風向、找股票與換股留在探索 › 順風選股。
  */
 export function StockAttribution({ code }: { code: string }) {
   const factors = useAsync(loadAttrFactors, []);
@@ -129,8 +132,11 @@ function AttrStockView({ f, tw, code, nameOf }: { f: AttrFactors; tw: Tailwind |
 function StockBody({ f, tw, s, idx, nameOf, code }: { f: AttrFactors; tw: Tailwind | null; s: AttrStock; idx: number[]; nameOf: (c: string) => string; code: string }) {
   const r = rulers(f, s, tw, idx);
   const d = decompose(f, s, tw, idx);
-  const maxR = Math.max(0.01, ...[r.stock, r.market, r.sector, r.peer, r.style].map((v) => Math.abs(v ?? 0)));
   const lead = (b: number | null) => (r.stock !== null && b !== null ? r.stock - b : null);
+  // 跟順風檢查同一種畫法：橫條從 0 畫到那把尺的報酬，虛線是這一檔的報酬（誰超過這一檔一眼看得出來）
+  const scale = barScale([r.stock, r.market, r.sector, r.peer, r.style], r.stock);
+  const rb = (v: number | null) => ({ kind: 'wind' as const, value: v, market: r.stock, x: scale.x, over: scale.over });
+  const diff = (b: number | null) => { const d = lead(b); return d === null ? undefined : `差 ${d >= 0 ? '+' : '−'}${fmtNum(Math.abs(d * 100), 1)}`; };
   return (
     <>
       <Section title="三把尺" testid="attr-rulers"
@@ -141,13 +147,18 @@ function StockBody({ f, tw, s, idx, nameOf, code }: { f: AttrFactors; tw: Tailwi
           <p>先選好尺再量，之後固定用同一把；期間用實際持有的期間，至少幾個季度。台股的類股指數常被單一權值股主導，解讀要打折。</p>
         </>}>
         <Conclusion>{r.peer !== null ? leadText('同業籃子', lead(r.peer)) : r.market !== null ? leadText('大盤', lead(r.market)) : '資料不足'}</Conclusion>
-        <List class="attr-bars" testid="attr-ruler-rows">
-          <BarRow name="這一檔" bar={{ kind: 'diverging', value: r.stock, max: maxR }} value={pct(r.stock)} label={`這一檔 ${fmtPct(r.stock)}`} />
-          <BarRow name="大盤" sub="報酬指數" bar={{ kind: 'diverging', value: r.market, max: maxR }} value={pct(r.market)} valueSub={`差 ${pp(lead(r.market))}`} label={`大盤 ${fmtPct(r.market)}`} />
-          {r.sectorLabel ? <BarRow name="類股" sub={r.sectorLabel} bar={{ kind: 'diverging', value: r.sector, max: maxR }} value={pct(r.sector)} valueSub={`差 ${pp(lead(r.sector))}`} label={`類股 ${r.sectorLabel} ${fmtPct(r.sector)}`} testid="attr-ruler-sector" /> : null}
-          <BarRow name="同業籃子" sub={s.peers ? `${s.peers.codes.length} 家` : '不足'} bar={{ kind: 'diverging', value: r.peer, max: maxR }} value={pct(r.peer)} valueSub={`差 ${pp(lead(r.peer))}`} label={`同業籃子 ${fmtPct(r.peer)}`} />
-          {r.styleKey ? <BarRow name="風格 ETF" sub={`${STYLE_LABEL[r.styleKey]} ${r.styleEtf}`} bar={{ kind: 'diverging', value: r.style, max: maxR }} value={pct(r.style)} valueSub={`差 ${pp(lead(r.style))}`} label={`風格 ETF ${STYLE_LABEL[r.styleKey]} ${fmtPct(r.style)}`} testid="attr-ruler-style" /> : null}
+        <p class="wind-legend ui-foot ui-muted" data-testid="attr-ruler-legend">
+          <span><i class="wk wk-zero" aria-hidden="true" />0%</span>
+          <span><i class="wk wk-mkt" aria-hidden="true" />這一檔 {fmtPct(r.stock)}</span>
+        </p>
+        <List class="attr-bars wind-bars" testid="attr-ruler-rows">
+          <BarRow name="這一檔" bar={rb(r.stock)} value={pct(r.stock)} label={`這一檔 ${fmtPct(r.stock)}`} />
+          <BarRow name="大盤" sub="報酬指數" bar={rb(r.market)} value={pct(r.market)} valueSub={diff(r.market)} label={`大盤 ${fmtPct(r.market)}`} />
+          {r.sectorLabel ? <BarRow name="類股" sub={r.sectorLabel} bar={rb(r.sector)} value={pct(r.sector)} valueSub={diff(r.sector)} label={`類股 ${r.sectorLabel} ${fmtPct(r.sector)}`} testid="attr-ruler-sector" /> : null}
+          <BarRow name="同業籃子" sub={s.peers ? `${s.peers.codes.length} 家` : '不足'} bar={rb(r.peer)} value={pct(r.peer)} valueSub={diff(r.peer)} label={`同業籃子 ${fmtPct(r.peer)}`} />
+          {r.styleKey ? <BarRow name="風格 ETF" sub={`${STYLE_LABEL[r.styleKey]} ${r.styleEtf}`} bar={rb(r.style)} value={pct(r.style)} valueSub={diff(r.style)} label={`風格 ETF ${STYLE_LABEL[r.styleKey]} ${fmtPct(r.style)}`} testid="attr-ruler-style" /> : null}
         </List>
+        <p class="ds-line">虛線＝這一檔。橫條超過虛線的尺，這一檔落後它；第二行是差幾個百分點。</p>
       </Section>
 
       {tw ? <StockWindSection tw={tw} s={s} code={code} /> : null}
@@ -197,19 +208,19 @@ function Layers({ f, tw, s, d }: { f: AttrFactors; tw: Tailwind | null; s: AttrS
       </>}>
       <Conclusion>{layerSummary(d)}</Conclusion>
       <p class="ds-line attr-layer">第一層：市場 Beta（買指數就拿得到）</p>
-      <List class="attr-bars" testid="attr-layer1">
+      <List class="attr-bars wind-bars" testid="attr-layer1">
         <BarRow name="無風險利率" sub="固定假設" bar={bar(d.rf)} value={pct(d.rf)} label={`無風險利率 ${fmtPct(d.rf)}`} />
         <BarRow name="市場" sub={`β ${fmtNum(d.beta, 2)}`} bar={bar(d.market)} value={pct(d.market)} label={`市場 ${fmtPct(d.market)}`} />
       </List>
       <p class="ds-line attr-layer">第二層：因子與產業（用規則買得到一整籃）</p>
-      <List class="attr-bars" testid="attr-layer2">
+      <List class="attr-bars wind-bars" testid="attr-layer2">
         <BarRow name="產業" sub="同業籃子" bar={bar(d.ind)} value={pct(d.ind)} valueSub={`曝險 ${fmtB(s.full?.b.ind)}`} label={`產業 ${fmtPct(d.ind)}`} />
         {fk.map((k) => (
           <BarRow key={k} name={STYLE_LABEL[k]} sub={etf(k)} bar={bar(d.factors[k] ?? null)} value={pct(d.factors[k])} valueSub={`曝險 ${fmtB(s.full?.b[k])}`} label={`${STYLE_LABEL[k]} ${fmtPct(d.factors[k] ?? null)}`} testid={`attr-layer2-${k}`} />
         ))}
       </List>
       <p class="ds-line attr-layer">第三層：Alpha（剩下的）</p>
-      <List class="attr-bars" testid="attr-layer3">
+      <List class="attr-bars wind-bars" testid="attr-layer3">
         <BarRow name="Alpha" sub={s.full ? '多因子' : '只扣市場'} bar={bar(d.alpha)} value={pct(d.alpha)} label={`Alpha ${fmtPct(d.alpha)}`} />
         <BarRow name="合計" sub="各月加總" bar={bar(d.total)} value={pct(d.total)} valueSub={d.compound !== null ? <>複利 {pct(d.compound)}</> : undefined} label={`合計 ${fmtPct(d.total)}`} />
       </List>
