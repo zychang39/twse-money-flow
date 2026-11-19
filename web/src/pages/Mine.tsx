@@ -163,18 +163,17 @@ function BulkGroupSheet({ codes, from, groups, onClose, onDone }: { codes: strin
 }
 
 /**
- * 選取模式的底部動作列（2026-11-19；DECISIONS #473）：取代底部導覽列的位置（選取期間導覽列收起來），
- * 動作就在拇指旁邊：全選｜加到群組｜移除。移除不跳確認，改用「復原」。
+ * 選取模式的底部動作列（2026-11-19；DECISIONS #473、#474）：取代底部導覽列的位置（選取期間導覽列收起來）。
+ * 只放「對選取的股票做什麼」兩個動作，各佔一半、好按：加到群組｜移除 N 檔（移除在最右邊，與另一個動作隔一條線）。
+ * 「全選」「完成」是選取本身的操作，放在清單上方那一列（與 iOS 郵件、照片相同：上方管選取，下方管動作）。移除不跳確認，改用「復原」。
  */
-function SelectBar({ count, total, onAll, onGroup, onRemove }: { count: number; total: number; onAll: () => void; onGroup: () => void; onRemove: () => void }) {
+function SelectBar({ count, onGroup, onRemove }: { count: number; onGroup: () => void; onRemove: () => void }) {
   useEffect(() => {
     document.documentElement.dataset.selecting = '1';
     return () => { delete document.documentElement.dataset.selecting; };
   }, []);
   return createPortal((
     <div class="select-bar glass" role="toolbar" aria-label="已選取股票的動作" data-testid="select-bar">
-      <button type="button" class="select-bar-btn" onClick={onAll}>{count === total && total ? '取消全選' : '全選'}</button>
-      <span class="grow" />
       <button type="button" class="select-bar-btn" disabled={!count} onClick={onGroup}>加到群組</button>
       <button type="button" class="select-bar-btn danger" disabled={!count} onClick={onRemove} data-testid="select-remove">移除{count ? ` ${count} 檔` : ''}</button>
     </div>
@@ -552,22 +551,22 @@ export default function Mine() {
         <HotHeader lists={lists.data} onCopy={copyHot} onPick={() => setPicking(true)} copied={copied} />
       ) : null}
 
-      {sortable ? (
-        <div class="row between" style={{ marginTop: 'var(--s-4)', alignItems: 'flex-start' }}>
-          {selecting ? (
-            <>
-              <p class="caption muted grow" role="status" data-testid="select-count">已選 {sel.size} 檔・按住圓圈上下滑可連續選取</p>
-              <button type="button" class="text-btn w6" onClick={endSelect} data-testid="select-done">完成</button>
-            </>
-          ) : (
-            <>
-              <p class="caption muted grow">{rows.length} 檔・左滑可{seg === 'hold' ? '平倉' : '移除'}・長按快速預覽</p>
-              {userGroup ? <button type="button" class="text-btn" onClick={() => setSelecting(true)} data-testid="select-start">選取</button> : null}
-              <select class="select sort-select" aria-label="排序" value={sortKey} onChange={(e) => setSort((e.target as HTMLSelectElement).value as SortKey)}>
-                {SORTS.filter(([k]) => seg === 'watch' || k !== 'custom').map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-              </select>
-            </>
-          )}
+      {sortable && selecting ? (
+        <>
+          <div class="select-head" data-testid="select-head">
+            <button type="button" class="text-btn" onClick={() => setSel(sel.size === selectable.length ? new Set() : new Set(selectable))} data-testid="select-all">{sel.size === selectable.length ? '取消全選' : '全選'}</button>
+            <p class="body w6" role="status" data-testid="select-count">已選 {sel.size} 檔</p>
+            <button type="button" class="text-btn w6" onClick={endSelect} data-testid="select-done">完成</button>
+          </div>
+          {sel.size ? null : <p class="caption muted select-hint">點一列勾選；按住圓圈上下滑可以連續選取</p>}
+        </>
+      ) : sortable ? (
+        <div class="row between list-head" style={{ marginTop: 'var(--s-4)' }}>
+          <p class="caption muted grow">{rows.length} 檔・左滑可{seg === 'hold' ? '平倉' : '移除'}・長按快速預覽</p>
+          {userGroup ? <button type="button" class="text-btn" onClick={() => setSelecting(true)} data-testid="select-start">選取</button> : null}
+          <select class="select sort-select" aria-label="排序" value={sortKey} onChange={(e) => setSort((e.target as HTMLSelectElement).value as SortKey)}>
+            {SORTS.filter(([k]) => seg === 'watch' || k !== 'custom').map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
         </div>
       ) : group === HOT && rows.length ? (
         <div class="row between" style={{ marginTop: 'var(--s-4)', alignItems: 'flex-start' }}>
@@ -639,8 +638,7 @@ export default function Mine() {
           if (files.length) { setShots(files); setAdding(true); }
         }} />
       {selecting ? (
-        <SelectBar count={sel.size} total={selectable.length}
-          onAll={() => setSel(sel.size === selectable.length ? new Set() : new Set(selectable))}
+        <SelectBar count={sel.size}
           onGroup={() => setBulk([...sel])}
           onRemove={() => { void removeFrom([...sel]); endSelect(); }} />
       ) : null}

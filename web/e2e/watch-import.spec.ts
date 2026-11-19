@@ -139,6 +139,9 @@ test.describe('從截圖加入自選', () => {
     await chips.getByRole('button', { name: '預設' }).click();
     const row = (code: string) => page.locator(`.srow-wrap[data-code="${code}"] .srow`);
 
+    // 「選取」與排序在同一列、垂直置中對齊
+    const mids = await page.locator('.list-head > *').evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; }));
+    expect(Math.max(...mids) - Math.min(...mids)).toBeLessThan(2);
     await page.getByTestId('select-start').click();
     await expect(page.getByTestId('select-bar')).toBeVisible();
     await expect(page.locator('.dock')).toHaveCSS('opacity', '0'); // 選取期間導覽列收起來，動作列在同一個位置
@@ -153,10 +156,15 @@ test.describe('從截圖加入自選', () => {
     await page.mouse.move(from!.x + from!.width / 2, (from!.y + to!.y) / 2 + to!.height / 2, { steps: 6 });
     await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2, { steps: 6 });
     await page.mouse.up();
-    await expect(page.getByTestId('select-count')).toContainText('已選 4 檔');
+    await expect(page.getByTestId('select-count')).toHaveText('已選 4 檔');
+    // 上方管選取（全選｜已選 N 檔｜完成，同一列對齊），下方只有兩個動作
+    const heads = await page.getByTestId('select-head').locator('> *').evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; }));
+    expect(Math.max(...heads) - Math.min(...heads)).toBeLessThan(2);
+    await expect(page.getByTestId('select-bar').getByRole('button')).toHaveText(['加到群組', '移除 4 檔']);
+    await expect(page.getByTestId('select-all')).toHaveText('取消全選');
     await page.waitForTimeout(350);
     await row('2412').click(); // 取消一檔
-    await expect(page.getByTestId('select-count')).toContainText('已選 3 檔');
+    await expect(page.getByTestId('select-count')).toHaveText('已選 3 檔');
     await expect(page.getByTestId('select-remove')).toHaveText('移除 3 檔');
     await page.getByTestId('select-remove').click();
     await expect(page.getByTestId('select-bar')).toHaveCount(0);
@@ -168,5 +176,31 @@ test.describe('從截圖加入自選', () => {
     // 清單最後：繼續加進這個群組
     await page.getByTestId('add-more').getByRole('button', { name: '加入股票' }).click();
     await expect(page.getByTestId('add-group-name')).toHaveAttribute('placeholder', '預設');
+  });
+
+  test('新增持倉前檢查表：不用打字，從股票池（自選群組、最近搜尋）點一檔；環境、個股、計畫在同一頁', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await openAdd(page);
+    await page.getByPlaceholder('預設').fill('觀察');
+    await page.evaluate(() => navigator.clipboard.writeText('2330 台積電\n2317 鴻海'));
+    await page.getByTestId('import-paste').click();
+    await page.getByTestId('import-add').click();
+    await expect(page.getByTestId('import-msg')).toHaveText('已加入 2 檔到「觀察」');
+    await page.getByRole('button', { name: '關閉' }).click();
+    await expect(page.locator('.sheet-backdrop')).toHaveCount(0);
+    await page.goto('#/mine?seg=hold');
+    await page.getByTestId('holdings-empty-row').click();
+    const pick = page.getByTestId('ck-pick');
+    await expect(pick.getByRole('group', { name: '股票池' }).getByRole('button', { name: '觀察' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('searchbox', { name: '搜尋股票' })).not.toBeFocused(); // 不自動叫出鍵盤
+    // 輸入框不貼在螢幕最上面
+    const box = await page.getByRole('searchbox', { name: '搜尋股票' }).boundingBox();
+    expect(box!.y).toBeGreaterThan(page.viewportSize()!.height * 0.2);
+    await page.getByTestId('ck-pool-list').getByRole('button', { name: /鴻海/ }).click();
+    const form = page.getByTestId('checklist-form');
+    await expect(form).toBeVisible();
+    const tops = await form.evaluate((el) => ['[data-testid="ck-env"]', '[data-testid="ck-items"]', '#ck-entry'].map((q) => el.querySelector(q)!.getBoundingClientRect().top));
+    expect(tops[0]).toBeLessThan(tops[1]); // 環境 → 個股 → 計畫
+    expect(tops[1]).toBeLessThan(tops[2]);
   });
 });
