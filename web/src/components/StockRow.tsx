@@ -11,6 +11,7 @@ import { direction, fmtPrice, glueNumbers } from '../lib/format';
 import { tradeStatusLabel } from '../lib/tradeStatus';
 import { ChangePill } from './Change';
 import { Sparkline } from './Viz';
+import { IconCheck } from './Icons';
 
 /** 副資訊文字：數字黏住單位；括號前允許換行、括號內第一個詞黏住後面（不出現行尾「（佔」） */
 const rowText = (t: string) => glueNumbers(t).replace(/（(\S+) /g, '\u200b（$1\u00a0');
@@ -30,7 +31,7 @@ export interface RowAction { id: string; label: string; kind?: 'move' | 'remove'
 
 const ACTION_W = 76;
 
-export function StockListRow({ code, row, hist, sub, onOpen, onPreview, actions = [], ariaExtra }: {
+export function StockListRow({ code, row, hist, sub, onOpen, onPreview, actions = [], ariaExtra, select }: {
   code: string;
   row: StockRow | undefined;
   hist?: StockHistory | null;
@@ -39,6 +40,8 @@ export function StockListRow({ code, row, hist, sub, onOpen, onPreview, actions 
   onPreview?: () => void;
   actions?: RowAction[];
   ariaExtra?: string;
+  /** 選取模式（2026-11-19）：列首出現圓圈，點一下＝勾選或取消；這時不左滑、不預覽、不開個股頁 */
+  select?: { checked: boolean; onToggle: () => void };
 }) {
   const [dx, setDx] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -48,7 +51,7 @@ export function StockListRow({ code, row, hist, sub, onOpen, onPreview, actions 
   const open = dx < -4;
 
   function down(e: PointerEvent) {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || select) return;
     const timer = window.setTimeout(() => {
       if (g.current && !g.current.lock) {
         g.current.long = true;
@@ -89,6 +92,7 @@ export function StockListRow({ code, row, hist, sub, onOpen, onPreview, actions 
     }
   }
   function click(e: MouseEvent) {
+    if (select) { select.onToggle(); return; }
     if (suppressClick.current) { suppressClick.current = false; e.preventDefault(); return; }
     if (open) { setDx(0); return; }
     onOpen();
@@ -98,18 +102,20 @@ export function StockListRow({ code, row, hist, sub, onOpen, onPreview, actions 
   const spark = hist ? adjClose(hist).slice(-21) : null;
   const label = row ? `${row.name} ${code}，收盤 ${fmtPrice(row.close)}${ariaExtra ? `，${ariaExtra}` : ''}` : `${code}（無資料）`;
   return (
-    <div class={`srow-wrap ${dx !== 0 || dragging ? 'swiping' : ''}`}>
-      {actions.length ? (
+    <div class={`srow-wrap ${!select && (dx !== 0 || dragging) ? 'swiping' : ''}`} data-code={code}>
+      {actions.length && !select ? (
         <div class="srow-actions" aria-hidden={!open}>
           {actions.map((a) => (
             <button key={a.id} class={a.kind ?? 'move'} tabIndex={open ? 0 : -1} onClick={() => { setDx(0); a.onClick(); }}>{a.label}</button>
           ))}
         </div>
       ) : null}
-      <button class={`srow srow-l ${dragging ? 'dragging' : ''}`} style={{ transform: dx ? `translateX(${dx}px)` : undefined }}
+      <button class={`srow srow-l ${dragging ? 'dragging' : ''} ${select ? 'selecting' : ''}`} style={{ transform: dx && !select ? `translateX(${dx}px)` : undefined }}
+        {...(select ? { role: 'checkbox', 'aria-checked': select.checked } : {})}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
-        onClick={click} onContextMenu={(e) => { e.preventDefault(); onPreview?.(); }}
-        aria-haspopup={onPreview ? 'dialog' : undefined} aria-description={label}>
+        onClick={click} onContextMenu={(e) => { e.preventDefault(); if (!select) onPreview?.(); }}
+        aria-haspopup={onPreview && !select ? 'dialog' : undefined} aria-description={label}>
+        {select ? <span class={`srow-check ${select.checked ? 'on' : ''}`} aria-hidden="true"><i><IconCheck /></i></span> : null}
         <span class="name body srow-n">{row?.name ?? code}</span>
         <span class="sub srow-s">{code}{sub ? <>・{typeof sub === 'string' ? rowText(sub) : sub}</> : null}</span>
         <span class="srow-k"><Sparkline values={spark} dir={d} /></span>

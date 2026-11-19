@@ -1,7 +1,8 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { addWatch, addWatchMany, clearSampleWatch, createWatchGroup, deleteGroup, deleteWatchGroup, getWatchPrefs, renameWatchGroup, restoreWatchGroup, setWatchGroupOrder, setWatchListHidden, getSetting, listActivity, listGroups, listRecentSearches, listTrades, listWatch, pushRecentSearch, putWatchInGroup, resetDbConnection, saveGroup, saveTrade, setSetting, deleteThesis, getThesis, listTheses, saveThesis, DB_VERSION, RECENT_MAX } from './db';
+import { addWatch, addWatchMany, clearSampleWatch, createWatchGroup, deleteGroup, deleteWatchGroup, getWatchPrefs, renameWatchGroup, restoreWatchGroup, setWatchGroupOrder, setWatchListHidden, getSetting, listActivity, listGroups, listRecentSearches, listTrades, listWatch, pushRecentSearch, putWatchInGroup, removeWatchFromGroup, restoreWatchItems, setWatchGroups, resetDbConnection, saveGroup, saveTrade, setSetting, deleteThesis, getThesis, listTheses, saveThesis, DB_VERSION, RECENT_MAX } from './db';
 import { flowLevel, flowXp } from '../lib/ritual';
+import { groupCounts, groupsOf, orderIn } from '../lib/watchGroups';
 import { makeCalendar } from '../lib/tradingCalendar';
 import { EXPORT_MIGRATIONS, exportAll, importAll, migrateBackup, previewImport, validateBackup, type BackupFile } from './backup';
 
@@ -261,15 +262,54 @@ describe('IndexedDB 與備份', () => {
     expect(up.stores.activity).toHaveLength(2);
   });
 
-  it('放進群組：不在自選的加入、在別的群組的移過來、已在這個群組的不動；群組不用另外建立', async () => {
+  it('放進群組：一檔可以在多個群組；從群組移除與復原；勾選群組；改名與刪除群組', async () => {
     await addWatchMany(['2330', '2317'], '預設');
     await addWatchMany(['2603'], '範例', 'sample');
-    expect(await putWatchInGroup(['2330', ' 2454 ', '2603', '2454'], 'Latest')).toEqual({ added: 1, moved: 2, same: 0 });
-    const by = new Map((await listWatch()).map((w) => [w.code, w] as const));
-    expect([by.get('2330')?.group, by.get('2454')?.group, by.get('2317')?.group]).toEqual(['Latest', 'Latest', '預設']);
-    expect(by.get('2603')).toMatchObject({ group: 'Latest', origin: 'user' }); // 範例移過來後算自己的
-    expect(by.get('2330')?.order).toBe(0); // 移動不改順序與加入時間
-    expect(await putWatchInGroup(['2330', '2454'], 'Latest')).toEqual({ added: 0, moved: 0, same: 2 });
+    // 一檔可以在多個群組（2026-11-19）：已在別的群組的也加進來，原本的群組不動
+    expect(await putWatchInGroup(['2330', ' 2454 ', '2603', '2454'], 'Latest')).toEqual({ added: 1, joined: 2, same: 0 });
+    const by = async () => new Map((await listWatch()).map((w) => [w.code, w] as const));
+    expect([groupsOf((await by()).get('2330')!), groupsOf((await by()).get('2454')!), groupsOf((await by()).get('2317')!)]).toEqual([['預設', 'Latest'], ['Latest'], ['預設']]);
+    expect((await by()).get('2603')).toMatchObject({ group: '範例', groups: ['範例', 'Latest'], origin: 'user' }); // 範例加到別的群組後算自己的
+    expect((await by()).get('2330')?.order).toBe(0); // 原本群組裡的順序與加入時間不變
+    expect(orderIn((await by()).get('2330')!, 'Latest')).toBeLessThan(orderIn((await by()).get('2454')!, 'Latest')); // 新群組裡依加入的先後
+    expect(await putWatchInGroup(['2330', '2454'], 'Latest')).toEqual({ added: 0, joined: 0, same: 2 });
+    expect(groupCounts(await listWatch())).toEqual(new Map([['預設', 2], ['Latest', 3], ['範例', 1]]));
+
+    // 從一個群組移除：還在別的群組的只離開這個群組；只在這個群組的整檔移除；可以復原
+    const before = await listWatch();
+    const removed = await removeWatchFromGroup(['2330', '2454', '9999'], 'Latest');
+    expect(removed.map((w) => w.code)).toEqual(['2330', '2454']);
+    expect((await by()).get('2330')).toMatchObject({ group: '預設', groups: ['預設'] });
+    expect((await by()).has('2454')).toBe(false);
+    await restoreWatchItems(removed);
+    expect(await listWatch()).toEqual(before);
+    // 離開第一個群組：group 跟著換成剩下的第一個，那個群組裡的順序不變
+    const inLatest = orderIn((await by()).get('2330')!, 'Latest');
+    await removeWatchFromGroup(['2330'], '預設');
+    expect((await by()).get('2330')).toMatchObject({ group: 'Latest', groups: ['Latest'] });
+    expect(orderIn((await by()).get('2330')!, 'Latest')).toBe(inLatest);
+
+    // 勾選群組：加進新的、離開舊的；清單是空的不動
+    await setWatchGroups('2317', ['預設', '觀察', 'Latest']);
+    expect(groupsOf((await by()).get('2317')!)).toEqual(['預設', '觀察', 'Latest']);
+    await setWatchGroups('2317', ['觀察']);
+    expect((await by()).get('2317')).toMatchObject({ group: '觀察', groups: ['觀察'] });
+    await setWatchGroups('2317', []);
+    expect(groupsOf((await by()).get('2317')!)).toEqual(['觀察']);
+
+    // 改名與刪除群組：同時在兩個群組的股票，合併不重複、刪除只離開那個群組
+    await putWatchInGroup(['2317'], 'Latest');
+    expect(await renameWatchGroup('觀察', 'Latest')).toBe(1);
+    expect(groupsOf((await by()).get('2317')!)).toEqual(['Latest']);
+    await putWatchInGroup(['2317', '1101'], '水泥');
+    const del = await deleteWatchGroup('水泥', null);
+    expect(groupsOf((await by()).get('2317')!)).toEqual(['Latest']);
+    expect((await by()).has('1101')).toBe(false);
+    await restoreWatchGroup(del);
+    expect(groupsOf((await by()).get('2317')!)).toEqual(['Latest', '水泥']);
+    await deleteWatchGroup('水泥', 'Latest'); // 移到已經在的群組＝只離開
+    expect(groupsOf((await by()).get('2317')!)).toEqual(['Latest']);
+    expect(groupsOf((await by()).get('1101')!)).toEqual(['Latest']);
   });
   it('自選群組管理：建立空群組、改名（含合併）、刪除（移走或一起移除）、復原、隱藏系統清單', async () => {
     await addWatchMany(['2330', '2317'], '預設');

@@ -19,16 +19,16 @@ import { ChangePill } from '../components/Change';
 import { QuickPreview } from '../components/QuickPreview';
 import { Sheet } from '../components/Sheet';
 import { WatchImport } from '../components/WatchImport';
-import { StockSearch } from '../components/StockSearch';
 import { ChecklistSheet, CloseSheet } from '../components/Trades';
 import { IconChevron, IconPlus } from '../components/Icons';
+import { createPortal } from 'preact/compat';
 import { useAsync, useDb, useHistories, useRestoredState } from '../hooks';
 import { loadInactive, loadLists, loadMeta } from '../data/api';
 import { useScoredSummary } from '../data/useSummary';
 import { useUser } from '../data/useUser';
-import { addWatch, addWatchMany, clearSampleWatch, getSetting, putWatchInGroup, removeWatch, restoreWatchGroup, updateWatch, type Trade, type WatchGroupUndo, type WatchItem } from '../db/db';
+import { addWatch, addWatchMany, clearSampleWatch, getSetting, putWatchInGroup, removeWatchFromGroup, restoreWatchGroup, restoreWatchItems, setWatchGroups, type Trade, type WatchGroupUndo, type WatchItem } from '../db/db';
 import { GroupBar, GroupEditor, UndoToast, undoText } from '../components/WatchGroups';
-import { DEFAULT_GROUP, DEFAULT_WATCH_PREFS, HOT_LIST, currentGroup, effectiveGroups, groupCounts, lastGroup, rememberGroup } from '../lib/watchGroups';
+import { DEFAULT_GROUP, DEFAULT_WATCH_PREFS, HOT_LIST, cleanGroupName, currentGroup, effectiveGroups, groupCounts, groupsOf, inGroup, lastGroup, orderIn, rememberGroup } from '../lib/watchGroups';
 import type { StockRow } from '../data/types';
 import { DEFAULT_PORTFOLIO, type PortfolioSettings } from '../lib/settings';
 import { DEFAULT_COSTS, type CostSettings } from '../lib/costs';
@@ -39,7 +39,6 @@ import { diffAll, makeSnapshot, type Snapshot } from '../lib/changes';
 import { WATCH_SCOPE, snapshotRows, watchRows as watchRowsOf, watchSummary } from '../lib/watchChanges';
 import { holdingAlerts } from '../lib/holdings';
 import { inactiveText } from '../lib/tradeStatus';
-import { parseImport } from '../lib/importer';
 import { baseline, commit, commitHero, heroSeen } from '../lib/seen';
 import { setListContext } from '../lib/listContext';
 import { fmtInt, fmtNum, pctSigned } from '../lib/format';
@@ -70,85 +69,116 @@ export function hotSub(h: HotItem): string {
 const SORTS: [SortKey, string][] = [['custom', '加入順序'], ['change', '變化在前'], ['pct', '漲跌幅'], ['rs', 'RS 百分位'], ['foreign', '外資'], ['trust', '投信']];
 
 /**
- * 加入自選股。群組：輸入框裡打的名稱（沒有這個群組就建立——有股票放進去就存在），沒打就用目前所在的群組。
- * 2026-11-15：有指定群組時（打了名稱，或正在看某個群組），已在別的群組的股票可以移過來；
- * 沒有群組可指定時（還沒有任何群組、或正在看系統清單）不動已在自選的股票。
+ * 加入自選股（2026-11-19 重排；DECISIONS #473）。
+ * - 第一欄是群組：大輸入框（好點、好打字），下面一排現有群組可以直接點；沒打就是目前正在看的群組，打新名稱就建立。
+ * - 面板高度依內容（不撐滿整頁），欄位落在畫面下半部、拇指碰得到的地方；列出股票後才往上長。
+ * - 加入股票的方式合在一起（components/WatchImport）：選截圖、貼上文字、輸入代號或名稱（一次好幾檔也用同一個輸入框）。
+ * - 一檔可以在多個群組：已在別的群組的股票照樣加進來，原本的群組不動。
  */
-function AddWatchSheet({ open, onClose, rows, group, explicit, groups, watchGroup }: {
-  open: boolean; onClose: () => void; rows: StockRow[]; group: string; explicit: boolean; groups: string[]; watchGroup: Map<string, string>;
+function AddWatchSheet({ open, onClose, rows, group, groups, watchGroups, files, onFilesTaken }: {
+  open: boolean; onClose: () => void; rows: StockRow[]; group: string; groups: string[]; watchGroups: Map<string, string[]>; files: File[] | null; onFilesTaken: () => void;
 }) {
-  const [importText, setImportText] = useState('');
-  const [newGroup, setNewGroup] = useState('');
-  const [msg, setMsg] = useState('');
-  const target = newGroup.trim() || group;
-  const move = explicit || !!newGroup.trim();
-  /** 放進群組：沒指定群組時，已在自選的不動 */
-  async function put(codes: string[], g: string, canMove: boolean) {
-    const todo = canMove ? codes : codes.filter((c) => !watchGroup.has(c));
-    const res = await putWatchInGroup(todo, g);
-    return { ...res, same: res.same + (codes.length - todo.length) };
-  }
-  const report = (r: { added: number; moved: number; same: number }, g: string) =>
-    [r.added ? `已加入 ${r.added} 檔` : '', r.moved ? `移動 ${r.moved} 檔` : ''].filter(Boolean).join('、') + (r.added || r.moved ? `到「${g}」` : '') + (r.same ? `${r.added || r.moved ? '；' : ''}${r.same} 檔已在自選` : '');
-  async function pick(r: StockRow) {
-    const res = await put([r.code], target, move);
-    setMsg(res.added ? `已加入 ${r.name} 到「${target}」` : res.moved ? `已把 ${r.name} 移到「${target}」` : `${r.name} 已在自選（${watchGroup.get(r.code) ?? target}）`);
-  }
-  async function doImport() {
-    const known = new Set(rows.map((r) => r.code));
-    const byName = new Map(rows.map((r) => [r.name, r.code]));
-    const parsed = parseImport(importText, known, byName);
-    const total = { added: 0, moved: 0, same: 0 };
-    // CSV 的「代號,群組」是明確指定；其餘照上方的群組
-    const byGroup = new Map<string, string[]>();
-    for (const c of parsed.codes) byGroup.set(c.group ?? '', [...(byGroup.get(c.group ?? '') ?? []), c.code]);
-    for (const [g, codes] of byGroup) {
-      const res = await put(codes, g || target, g ? true : move);
-      total.added += res.added; total.moved += res.moved; total.same += res.same;
-    }
-    setImportText('');
-    setMsg(`${report(total, byGroup.size === 1 && !byGroup.has('') ? [...byGroup.keys()][0] : target) || '沒有可加入的股票'}${parsed.unknown.length ? `；無法辨識：${parsed.unknown.join('、')}` : ''}`);
-  }
+  const [name, setName] = useState('');
+  useEffect(() => { if (!open) setName(''); }, [open]);
+  const target = cleanGroupName(name) || group;
   return (
-    <Sheet open={open} onClose={onClose} title="加入自選股" detent="full">
-      <StockSearch rows={rows} autoFocus onPick={pick} />
-      {msg ? <p class="caption muted" role="status" style={{ marginTop: 'var(--s-2)' }} data-testid="add-watch-msg">{msg}</p> : null}
-      <label class="field">
-        <span>加入到群組（目前：{target}；可輸入新群組，沒有就會建立）</span>
-        <input class="input" value={newGroup} list="watch-groups" placeholder={group} onInput={(e) => setNewGroup((e.target as HTMLInputElement).value)} />
-        <datalist id="watch-groups">{groups.map((g) => <option key={g} value={g} />)}</datalist>
-      </label>
-      <WatchImport rows={rows} watchGroup={watchGroup} group={target} move={move} open={open} />
-      <label class="field">
-        <span>或貼上文字、代號清單或 CSV（每行或以逗號分隔；CSV 可含「代號,群組」）</span>
-        <textarea class="input" rows={4} value={importText} onInput={(e) => setImportText((e.target as HTMLTextAreaElement).value)} placeholder={'2330 台積電\n2317, 0050\n代號,群組\n2454,半導體'} />
-      </label>
-      <button class="btn primary block" disabled={!importText.trim()} onClick={doImport}>匯入</button>
+    <Sheet open={open} onClose={onClose} title="加入自選股">
+      <div class="add-group">
+        <label class="field">
+          <span>加入到群組</span>
+          <input class="input input-lg" value={name} placeholder={group} enterkeyhint="done" autocomplete="off" data-testid="add-group-name"
+            onInput={(e) => setName((e.target as HTMLInputElement).value)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+        </label>
+        <div class="add-group-chips" role="group" aria-label="加入到哪裡">
+          {groups.map((g) => <button key={g} type="button" class="chip" aria-pressed={g === target} onClick={() => setName(g === group ? '' : g)}>{g}</button>)}
+        </div>
+        {groups.includes(target) ? null : <p class="caption muted" role="status" data-testid="add-group-new">「{target}」是新群組，加入股票時建立。</p>}
+      </div>
+      <WatchImport rows={rows} watchGroups={watchGroups} group={target} open={open} files={files} onFilesTaken={onFilesTaken} />
     </Sheet>
   );
 }
 
+/**
+ * 單檔的群組（左滑「群組」）：勾選＝也放進那個群組，取消＝離開那個群組；至少留在一個群組（要整檔拿掉用「移除」）。
+ */
 function GroupSheet({ item, groups, onClose }: { item: WatchItem | null; groups: string[]; onClose: () => void }) {
   const [name, setName] = useState('');
-  async function move(g: string) {
-    if (!item || !g.trim()) return;
-    // 範例自選被移到其他群組＝使用者決定留下，改為自己的自選（清除範例時不會被刪）
-    await updateWatch({ ...item, group: g.trim(), origin: item.origin === 'sample' ? 'user' : item.origin });
-    onClose();
+  useEffect(() => { if (!item) setName(''); }, [!item]);
+  const mine = item ? groupsOf(item) : [];
+  const all = [...groups, ...mine.filter((g) => !groups.includes(g))];
+  const toggle = (g: string) => { if (item) void setWatchGroups(item.code, mine.includes(g) ? mine.filter((x) => x !== g) : [...mine, g]); };
+  async function create() {
+    const g = cleanGroupName(name);
+    if (!item || !g) return;
+    await setWatchGroups(item.code, [...mine, g]);
+    setName('');
   }
   return (
-    <Sheet open={!!item} onClose={onClose} title="移到群組">
-      <div class="menu-list">
-        {groups.map((g) => (
-          <button key={g} class="menu-item" onClick={() => move(g)} aria-pressed={item?.group === g}>
-            <span class="grow body">{g}</span>{item?.group === g ? <span class="caption muted">目前</span> : null}
-          </button>
-        ))}
+    <Sheet open={!!item} onClose={onClose} title="放在哪些群組">
+      <p class="caption muted">一檔股票可以同時在多個群組。</p>
+      <div class="list" data-testid="group-sheet-list">
+        {all.map((g) => {
+          const on = mine.includes(g);
+          return (
+            <label key={g} class="list-item check-row">
+              <input type="checkbox" checked={on} disabled={on && mine.length === 1} onChange={() => toggle(g)} />
+              <span class="grow body">{g}</span>
+              {on && mine.length === 1 ? <span class="caption muted">至少一個</span> : null}
+            </label>
+          );
+        })}
       </div>
       <label class="field"><span>新群組</span><input class="input" value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)} /></label>
-      <button class="btn block" disabled={!name.trim()} onClick={() => move(name)}>建立並移入</button>
+      <button class="btn block" disabled={!cleanGroupName(name)} onClick={create}>建立並加入</button>
     </Sheet>
   );
+}
+
+/** 選取多檔後「加到群組」：點一個群組就把選取的都加進去；可以勾「同時從目前的群組移除」（＝移過去）。 */
+function BulkGroupSheet({ codes, from, groups, onClose, onDone }: { codes: string[] | null; from: string; groups: string[]; onClose: () => void; onDone: (text: string, removed: WatchItem[]) => void }) {
+  const [name, setName] = useState('');
+  const [leave, setLeave] = useState(false);
+  useEffect(() => { if (!codes) { setName(''); setLeave(false); } }, [!codes]);
+  async function put(raw: string) {
+    const g = cleanGroupName(raw);
+    if (!codes || !g) return;
+    await putWatchInGroup(codes, g);
+    const removed = leave ? await removeWatchFromGroup(codes, from) : [];
+    onDone(`已把 ${codes.length} 檔${leave ? '移到' : '加到'}「${g}」`, removed);
+  }
+  return (
+    <Sheet open={!!codes} onClose={onClose} title={`把 ${codes?.length ?? 0} 檔加到群組`}>
+      <div class="menu-list" data-testid="bulk-group-list">
+        {groups.filter((g) => g !== from).map((g) => <button key={g} class="menu-item" onClick={() => put(g)}><span class="grow body">{g}</span></button>)}
+      </div>
+      <label class="field"><span>新群組</span><input class="input" value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)} /></label>
+      <button class="btn block" disabled={!cleanGroupName(name)} onClick={() => put(name)}>建立並加入</button>
+      <label class="list-item check-row" style={{ marginTop: 'var(--s-3)' }}>
+        <input type="checkbox" checked={leave} onChange={() => setLeave(!leave)} />
+        <span class="grow body">同時從「{from}」移除</span>
+      </label>
+    </Sheet>
+  );
+}
+
+/**
+ * 選取模式的底部動作列（2026-11-19；DECISIONS #473）：取代底部導覽列的位置（選取期間導覽列收起來），
+ * 動作就在拇指旁邊：全選｜加到群組｜移除。移除不跳確認，改用「復原」。
+ */
+function SelectBar({ count, total, onAll, onGroup, onRemove }: { count: number; total: number; onAll: () => void; onGroup: () => void; onRemove: () => void }) {
+  useEffect(() => {
+    document.documentElement.dataset.selecting = '1';
+    return () => { delete document.documentElement.dataset.selecting; };
+  }, []);
+  return createPortal((
+    <div class="select-bar glass" role="toolbar" aria-label="已選取股票的動作" data-testid="select-bar">
+      <button type="button" class="select-bar-btn" onClick={onAll}>{count === total && total ? '取消全選' : '全選'}</button>
+      <span class="grow" />
+      <button type="button" class="select-bar-btn" disabled={!count} onClick={onGroup}>加到群組</button>
+      <button type="button" class="select-bar-btn danger" disabled={!count} onClick={onRemove} data-testid="select-remove">移除{count ? ` ${count} 檔` : ''}</button>
+    </div>
+  ), document.body);
 }
 
 function mdLabel(iso: string | undefined): string {
@@ -257,7 +287,16 @@ export default function Mine() {
   const [adding, setAdding] = useState(route.query.get('add') === '1');
   const [preview, setPreview] = useState<string | null>(null);
   const [closing, setClosing] = useState<Trade | null>(null);
-  const [moving, setMoving] = useState<WatchItem | null>(null);
+  const [moving, setMoving] = useState<string | null>(null);
+  // 選取模式（一次移除或加到群組）；shots＝頁面上「從截圖加入」選好的截圖
+  const [selecting, setSelecting] = useState(false);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [bulk, setBulk] = useState<string[] | null>(null);
+  const [removed, setRemoved] = useState<{ text: string; items: WatchItem[] } | null>(null);
+  const [shots, setShots] = useState<File[] | null>(null);
+  const shotRef = useRef<HTMLInputElement>(null);
+  const dragSel = useRef<{ start: string; to: boolean; active: boolean } | null>(null);
+  const dragEndAt = useRef(0);
   const [sort, setSort] = useRestoredState<SortKey>('mine.sort2', 'custom');
   const [hotSort, setHotSort] = useRestoredState<HotSortKey>('mine.hotSort', 'rs');
   const [snap, setSnap] = useState<Snapshot | null | undefined>(undefined);
@@ -289,9 +328,11 @@ export default function Mine() {
   const pickNewGroup = (g: string) => { pendingGroup.current = g; setGroup(g); };
   // 目前看的群組被刪除、改名或隱藏 → 換到第一個群組（都沒有就是系統清單）
   const group = currentGroup(groupRaw, groups, hotShown ? HOT : null, pendingGroup.current);
-  const watchShown = group === HOT ? [] : watch.filter((w) => w.group === group);
+  const watchShown = group === HOT ? [] : watch.filter((w) => inGroup(w, group));
   const watchedSet = useMemo(() => new Set(watch.map((w) => w.code)), [watch]);
-  const watchGroupOf = useMemo(() => new Map(watch.map((w) => [w.code, w.group] as const)), [watch]);
+  const watchGroupsOf = useMemo(() => new Map(watch.map((w) => [w.code, groupsOf(w)] as const)), [watch]);
+  // 換群組或換分段：離開選取模式
+  useEffect(() => { setSelecting(false); setSel(new Set()); }, [group, seg]);
   const samples = watch.filter((w) => w.origin === 'sample');
   const hist = useHistories(useMemo(() => [...holdCodes, ...watch.map((w) => w.code)].filter((c, i, a) => a.indexOf(c) === i), [holdCodes, watch]));
 
@@ -330,7 +371,7 @@ export default function Mine() {
       case 'rs': return (r.rs_percentile as number | null) ?? -Infinity;
       case 'foreign': return r.foreign_net_lots ?? -Infinity;
       case 'trust': return r.trust_net_lots ?? -Infinity;
-      case 'custom': return -(watch.find((w) => w.code === c.code)?.order ?? 0);
+      case 'custom': { const w = watch.find((x) => x.code === c.code); return -(w ? orderIn(w, group) : 0); }
       default: return 0;
     }
   };
@@ -356,9 +397,8 @@ export default function Mine() {
   }
   async function copyHot() {
     const name = `熱門動能 ${mdLabel(lists.data?.date)}`;
-    const n = await addWatchMany(hotItems.map((h) => h.code), name, 'hot');
-    const skipped = hotItems.length - n;
-    setCopied(`已建立群組「${name}」：加入 ${n} 檔${skipped ? `（${skipped} 檔原本就在自選，維持原群組）` : ''}`);
+    const res = await putWatchInGroup(hotItems.map((h) => h.code), name);
+    setCopied(`已建立群組「${name}」：${res.added + res.joined + res.same} 檔${res.joined ? `（${res.joined} 檔原本就在自選，原本的群組不動）` : ''}`);
   }
   // 個股頁分頁器的清單＝列表上顯示的順序與檔數（顯著 → 未達門檻 → 沒有最新資料的股票），兩邊的數量一致
   const listCodes = [...(group === HOT ? rows.map((r) => r.code) : main.map((c) => c.code)), ...(group === HOT ? [] : missing)];
@@ -375,11 +415,52 @@ export default function Mine() {
     if (group === HOT) {
       return watchedSet.has(code) ? [] : [{ id: 'add', label: '加入自選', kind: 'move', onClick: () => addWatch(code, '熱門動能', 'hot') }];
     }
-    const w = watch.find((x) => x.code === code);
-    return w ? [
-      { id: 'move', label: '移到群組', kind: 'move', onClick: () => setMoving(w) },
-      { id: 'remove', label: '移除', kind: 'remove', onClick: () => removeWatch(code) },
+    return watchedSet.has(code) ? [
+      { id: 'move', label: '群組', kind: 'move', onClick: () => setMoving(code) },
+      { id: 'remove', label: '移除', kind: 'remove', onClick: () => removeFrom([code]) },
     ] : [];
+  }
+  const nameOf = (code: string) => byCode?.get(code)?.name ?? code;
+  /** 從目前的群組移除（還在別的群組的只離開這個群組）；不跳確認，底部出現「復原」 */
+  async function removeFrom(codes: string[]) {
+    const items = await removeWatchFromGroup(codes, group);
+    if (!items.length) return;
+    setUndo(null);
+    setRemoved({ text: `已從「${group}」移除 ${items.length === 1 ? nameOf(items[0].code) : `${items.length} 檔`}`, items });
+  }
+  const endSelect = () => { setSelecting(false); setSel(new Set()); };
+  const toggleSel = (code: string) => {
+    if (performance.now() - dragEndAt.current < 250) return; // 剛滑完放開：起點那一列的點擊不再反轉一次
+    setSel((cur) => { const n = new Set(cur); if (n.has(code)) n.delete(code); else n.add(code); return n; });
+  };
+  // 按住圓圈往上下滑：經過的每一檔都變成同一個狀態（與 iOS 清單的連續選取相同）
+  const codeAt = (el: Element | null) => (el?.closest('.srow-wrap') as HTMLElement | null)?.dataset.code ?? null;
+  function selDown(e: PointerEvent) {
+    if (!selecting || !(e.target as Element).closest('.srow-check')) return;
+    const code = codeAt(e.target as Element);
+    if (!code) return;
+    dragSel.current = { start: code, to: !sel.has(code), active: false };
+    // 放開不一定在清單上（也可能被瀏覽器取消）：在 window 上收
+    window.addEventListener('pointerup', selUp, { once: true });
+    window.addEventListener('pointercancel', selUp, { once: true });
+  }
+  function selMove(e: PointerEvent) {
+    const d = dragSel.current;
+    if (!d) return;
+    if (e.pointerType === 'mouse' && !e.buttons) { selUp(); return; }
+    const code = codeAt(document.elementFromPoint(e.clientX, e.clientY));
+    if (!code || (!d.active && code === d.start)) return;
+    d.active = true;
+    setSel((cur) => {
+      if (cur.has(code) === d.to && cur.has(d.start) === d.to) return cur;
+      const n = new Set(cur);
+      for (const c of [d.start, code]) { if (d.to) n.add(c); else n.delete(c); }
+      return n;
+    });
+  }
+  function selUp() {
+    if (dragSel.current?.active) dragEndAt.current = performance.now();
+    dragSel.current = null;
   }
   const sub = (code: string, reasons: { text: string; risk?: boolean }[]) => {
     const base = subBase(code, reasons);
@@ -414,6 +495,8 @@ export default function Mine() {
   const hotLabel = lists.data?.hot_momentum.label ?? '熱門動能';
   const emptyGroup = seg === 'watch' && !!user && group !== HOT && groups.includes(group) && !(counts.get(group) ?? 0);
   const sortable = rows.length > 0 && group !== HOT;
+  const userGroup = seg === 'watch' && !!group && group !== HOT;
+  const selectable = [...main.map((c) => c.code), ...missing];
   return (
     <div class="page">
       <Ambient mood={seg === 'hold' && holdCodes.length && win ? dir : 'neutral'} />
@@ -453,7 +536,7 @@ export default function Mine() {
               groups={groups} counts={counts} prefs={watchPrefs} hot={hotItems.length ? { label: hotLabel, count: hotItems.length } : null}
               onCreated={(g) => { if (groupEdit.focusNew) { pickNewGroup(g); setGroupEdit(null); } }}
               onRenamed={(from, to) => { if (group === from) pickNewGroup(to); }}
-              onDeleted={setUndo} />
+              onDeleted={(u) => { setRemoved(null); setUndo(u); }} />
           ) : null}
         </>
       ) : null}
@@ -471,10 +554,20 @@ export default function Mine() {
 
       {sortable ? (
         <div class="row between" style={{ marginTop: 'var(--s-4)', alignItems: 'flex-start' }}>
-          <p class="caption muted grow">{rows.length} 檔・左滑可{seg === 'hold' ? '平倉' : '移除或移到其他群組'}・長按快速預覽</p>
-          <select class="select sort-select" aria-label="排序" value={sortKey} onChange={(e) => setSort((e.target as HTMLSelectElement).value as SortKey)}>
-            {SORTS.filter(([k]) => seg === 'watch' || k !== 'custom').map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-          </select>
+          {selecting ? (
+            <>
+              <p class="caption muted grow" role="status" data-testid="select-count">已選 {sel.size} 檔・按住圓圈上下滑可連續選取</p>
+              <button type="button" class="text-btn w6" onClick={endSelect} data-testid="select-done">完成</button>
+            </>
+          ) : (
+            <>
+              <p class="caption muted grow">{rows.length} 檔・左滑可{seg === 'hold' ? '平倉' : '移除'}・長按快速預覽</p>
+              {userGroup ? <button type="button" class="text-btn" onClick={() => setSelecting(true)} data-testid="select-start">選取</button> : null}
+              <select class="select sort-select" aria-label="排序" value={sortKey} onChange={(e) => setSort((e.target as HTMLSelectElement).value as SortKey)}>
+                {SORTS.filter(([k]) => seg === 'watch' || k !== 'custom').map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </>
+          )}
         </div>
       ) : group === HOT && rows.length ? (
         <div class="row between" style={{ marginTop: 'var(--s-4)', alignItems: 'flex-start' }}>
@@ -485,7 +578,7 @@ export default function Mine() {
         </div>
       ) : null}
 
-      <div class="stock-list">
+      <div class="stock-list" onPointerDown={selDown} onPointerMove={selMove} onDragStart={(e) => { if (selecting) e.preventDefault(); }}>
         {user && seg === 'hold' && !holdCodes.length ? (
           // M1-10：沒有持倉時只佔一列（主要動作就在列上），不用整塊高的空狀態
           <div class="list">
@@ -501,19 +594,21 @@ export default function Mine() {
         )) : null}
         {group !== HOT ? main.map((c) => (
           <StockListRow key={c.code} code={c.code} row={c.row} hist={hist.get(c.code)} sub={sub(c.code, c.reasons)}
-            onOpen={() => openStock(c.code)} onPreview={() => setPreview(c.code)} actions={actionsFor(c.code)} ariaExtra={c.reasons.map((r) => r.text).join('、')} />
+            onOpen={() => openStock(c.code)} onPreview={() => setPreview(c.code)} actions={actionsFor(c.code)} ariaExtra={c.reasons.map((r) => r.text).join('、')}
+            select={selecting ? { checked: sel.has(c.code), onToggle: () => toggleSel(c.code) } : undefined} />
         )) : null}
         {missing.map((code) => {
           const info = inactive.data?.get(code);
           const t = seg === 'hold' ? open.find((x) => x.code === code) : undefined;
           return (
             <div key={code} class="card row between missing-card" data-testid="missing-card">
+              {selecting ? <input type="checkbox" class="missing-check" aria-label={`選取 ${code}`} checked={sel.has(code)} onChange={() => toggleSel(code)} /> : null}
               <span class="grow" style={{ minWidth: 0 }}>
                 <span class="body" style={{ display: 'block' }}>{info?.name ?? t?.name ?? code} <span class="caption muted">{code}</span></span>
                 <span class="caption muted">{inactiveText(info)}{t ? `・持有 ${fmtInt(open.filter((x) => x.code === code).reduce((n, x) => n + x.shares, 0))} 股` : ''}</span>
               </span>
               {t ? <button class="btn small" onClick={() => setClosing(t)}>平倉</button>
-                : <button class="btn small danger" onClick={() => removeWatch(code)}>移除</button>}
+                : selecting ? null : <button class="btn small danger" onClick={() => removeFrom([code])}>移除</button>}
             </div>
           );
         })}
@@ -523,20 +618,47 @@ export default function Mine() {
         <div class="card group-empty" data-testid="group-empty">
           <p class="body">「{group}」還沒有股票</p>
           <p class="caption muted">可以搜尋、貼上代號，或從券商庫存截圖加入。</p>
-          <button class="btn primary" onClick={() => setAdding(true)}>加入股票</button>
+          <div class="add-more">
+            <button class="btn primary" onClick={() => setAdding(true)}>加入股票</button>
+            <button class="btn" onClick={() => shotRef.current?.click()}>從截圖加入</button>
+          </div>
         </div>
+      ) : null}
+      {/* 清單最後：繼續加進這個群組（截圖直接開相簿，選好就辨識） */}
+      {userGroup && !emptyGroup && !selecting && user && watchShown.length ? (
+        <div class="add-more" data-testid="add-more">
+          <button class="btn" onClick={() => setAdding(true)}><IconPlus />加入股票</button>
+          <button class="btn" onClick={() => shotRef.current?.click()}>從截圖加入</button>
+        </div>
+      ) : null}
+      <input ref={shotRef} type="file" accept="image/*" multiple hidden data-testid="page-shot-file"
+        onChange={(e) => {
+          const input = e.target as HTMLInputElement;
+          const files = [...(input.files ?? [])];
+          input.value = '';
+          if (files.length) { setShots(files); setAdding(true); }
+        }} />
+      {selecting ? (
+        <SelectBar count={sel.size} total={selectable.length}
+          onAll={() => setSel(sel.size === selectable.length ? new Set() : new Set(selectable))}
+          onGroup={() => setBulk([...sel])}
+          onRemove={() => { void removeFrom([...sel]); endSelect(); }} />
       ) : null}
       <QuickPreview code={preview} row={previewRow} onClose={() => setPreview(null)} onOpen={() => { const c = preview!; setPreview(null); openStock(c); }}
         actions={previewTrade ? <button class="btn" onClick={() => { setPreview(null); setClosing(previewTrade); }}>平倉</button>
-          : previewWatch ? <button class="btn danger" onClick={() => { removeWatch(previewWatch.code); setPreview(null); }}>移除自選</button>
+          : previewWatch ? <button class="btn danger" onClick={() => { void removeFrom([previewWatch.code]); setPreview(null); }}>{userGroup ? `從「${group}」移除` : '移除自選'}</button>
           : preview ? <button class="btn" onClick={() => addWatch(preview)}>加入自選</button> : null} />
       {summary.data && prefs ? (
         seg === 'hold'
           ? <ChecklistSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.rows} portfolio={prefs.portfolio} day={summary.data.date} />
-          : <AddWatchSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.all} group={!group || group === HOT ? DEFAULT_GROUP : group} explicit={!!group && group !== HOT} groups={moveGroups} watchGroup={watchGroupOf} />
+          : <AddWatchSheet open={adding} onClose={() => setAdding(false)} rows={summary.data.all} group={!group || group === HOT ? DEFAULT_GROUP : group} groups={moveGroups} watchGroups={watchGroupsOf}
+              files={shots} onFilesTaken={() => setShots(null)} />
       ) : null}
       <CloseSheet trade={closing} onClose={() => setClosing(null)} costs={prefs?.costs ?? DEFAULT_COSTS} price={closing ? byCode?.get(closing.code)?.close ?? null : null} day={summary.data?.date ?? ''} />
-      <GroupSheet item={moving} groups={moveGroups} onClose={() => setMoving(null)} />
+      <GroupSheet item={moving ? watch.find((w) => w.code === moving) ?? null : null} groups={moveGroups} onClose={() => setMoving(null)} />
+      <BulkGroupSheet codes={bulk} from={group} groups={moveGroups} onClose={() => setBulk(null)}
+        onDone={(text, items) => { setBulk(null); endSelect(); setUndo(null); setRemoved({ text, items }); }} />
+      {removed ? <UndoToast text={removed.text} onDone={() => setRemoved(null)} onUndo={removed.items.length ? () => { void restoreWatchItems(removed.items); setRemoved(null); } : undefined} /> : null}
       {undo ? <UndoToast text={undoText(undo)} onDone={() => setUndo(null)} onUndo={() => { void restoreWatchGroup(undo); setUndo(null); }} /> : null}
       <HotPickSheet open={picking} onClose={() => setPicking(false)} items={hotItems} byCode={byCode} watched={watchedSet} />
     </div>

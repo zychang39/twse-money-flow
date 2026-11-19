@@ -6,7 +6,7 @@
 import { normCode } from '../lib/code';
 import { prepareTrade } from '../lib/ritual';
 import { DEFAULT_PORTFOLIO, riskLimitOf, type PortfolioSettings } from '../lib/settings';
-import { DEFAULT_WATCH_PREFS, cleanGroupName, normWatchPrefs, type WatchPrefs } from '../lib/watchGroups';
+import { DEFAULT_WATCH_PREFS, cleanGroupName, groupsOf, inGroup, normWatchPrefs, withGroups, type WatchPrefs } from '../lib/watchGroups';
 import { migrateV5 } from './migrations';
 import type { Strategy, TrackedSignal } from '../lib/tracking';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
@@ -19,9 +19,14 @@ export type WatchOrigin = 'user' | 'sample' | 'hot';
 
 export interface WatchItem {
   code: string;
+  /** 第一個群組（舊資料與舊備份只有這一欄） */
   group: string;
+  /** 全部的群組（2026-11-19：一檔可以在多個群組）；沒有這一欄＝只在 group */
+  groups?: string[];
   addedAt: string;
   order: number;
+  /** 在各群組裡的排序值（後來才加進去的群組）；沒有的用 order */
+  orders?: Record<string, number>;
   note?: string;
   /** v3 起；舊資料在升級時補為 'user' */
   origin?: WatchOrigin;
@@ -446,31 +451,81 @@ export async function deleteStrategy(id: string): Promise<void> {
 export async function listTracked(): Promise<TrackedSignal[]> {
   return (await getDb()).getAll('tracked');
 }
+/** 下一個排序值：比現有的都大 */
+const nextOrder = (items: WatchItem[]): number => items.reduce((m, w) => Math.max(m, w.order, ...Object.values(w.orders ?? {})), -1) + 1;
+const asUser = (w: WatchItem): WatchItem => (w.origin === 'sample' ? { ...w, origin: 'user' } : w);
+
 /**
- * 把股票放進指定的群組（2026-11-15；一檔股票只在一個群組）：不在自選的加入；已在別的群組的移過來
- * （範例自選移過來後算使用者自己的）；已在這個群組的不動。群組不用另外建立——有股票在裡面就存在。
+ * 把股票放進指定的群組（2026-11-19；DECISIONS #473：一檔可以在多個群組）：不在自選的加入（added）；
+ * 已在別的群組的**也**加進這個群組、原本的群組不動（joined；範例自選算使用者自己的）；已在這個群組的不動（same）。
+ * 群組不用另外建立——有股票在裡面就存在。
  */
-export async function putWatchInGroup(codes: string[], group: string): Promise<{ added: number; moved: number; same: number }> {
+export async function putWatchInGroup(codes: string[], group: string): Promise<{ added: number; joined: number; same: number }> {
   const db = await getDb();
   const tx = db.transaction('watchlist', 'readwrite');
-  let order = await tx.store.count();
-  const res = { added: 0, moved: 0, same: 0 };
+  let order = nextOrder(await tx.store.getAll());
+  const res = { added: 0, joined: 0, same: 0 };
   const now = new Date().toISOString();
   for (const code of [...new Set(codes.map(normCode))]) {
     const cur = await tx.store.get(code);
     if (!cur) {
-      await tx.store.put({ code, group, addedAt: now, order: order++, origin: 'user' });
+      await tx.store.put({ code, group, groups: [group], addedAt: now, order: order++, origin: 'user' });
       res.added++;
-    } else if (cur.group !== group) {
-      await tx.store.put({ ...cur, group, origin: cur.origin === 'sample' ? 'user' : cur.origin });
-      res.moved++;
+    } else if (!inGroup(cur, group)) {
+      await tx.store.put(asUser({ ...cur, groups: [...groupsOf(cur), group], orders: { ...cur.orders, [group]: order++ } }));
+      res.joined++;
     } else {
       res.same++;
     }
   }
   await tx.done;
-  if (res.added || res.moved) notify();
+  if (res.added || res.joined) notify();
   return res;
+}
+
+/**
+ * 從一個群組移除（可一次多檔）：還在別的群組的只離開這個群組；只在這個群組的從自選移除。
+ * 回傳移除前的項目，交給 restoreWatchItems 可以復原。
+ */
+export async function removeWatchFromGroup(codes: string[], group: string): Promise<WatchItem[]> {
+  const db = await getDb();
+  const tx = db.transaction('watchlist', 'readwrite');
+  const before: WatchItem[] = [];
+  for (const code of [...new Set(codes.map(normCode))]) {
+    const cur = await tx.store.get(code);
+    if (!cur || !inGroup(cur, group)) continue;
+    before.push(cur);
+    const next = withGroups(cur, groupsOf(cur).filter((g) => g !== group));
+    if (next) await tx.store.put(next);
+    else await tx.store.delete(code);
+  }
+  await tx.done;
+  if (before.length) notify();
+  return before;
+}
+
+/** 復原剛移除的自選：照移除前的樣子放回去（群組、順序、加入日期都照舊）。 */
+export async function restoreWatchItems(items: WatchItem[]): Promise<void> {
+  const db = await getDb();
+  const tx = db.transaction('watchlist', 'readwrite');
+  for (const w of items) await tx.store.put(w);
+  await tx.done;
+  notify();
+}
+
+/** 設定一檔股票在哪些群組（勾選群組用）；新加入的群組排在那個群組的最後。清單不能是空的（要移除請用 removeWatch）。 */
+export async function setWatchGroups(rawCode: string, groups: string[]): Promise<void> {
+  const db = await getDb();
+  const tx = db.transaction('watchlist', 'readwrite');
+  const cur = await tx.store.get(normCode(rawCode));
+  const next = cur ? withGroups(cur, groups.map(cleanGroupName)) : null;
+  if (cur && next) {
+    let order = nextOrder(await tx.store.getAll());
+    for (const g of next.groups ?? []) if (!inGroup(cur, g)) next.orders = { ...next.orders, [g]: order++ };
+    await tx.store.put(asUser(next));
+  }
+  await tx.done;
+  if (next) notify();
 }
 
 // ------------------------------------------------------------------ 自選群組的管理（2026-11-15；DECISIONS #466）
@@ -494,14 +549,21 @@ export async function setWatchGroupOrder(order: string[]): Promise<void> {
   await setSetting(WATCH_PREFS_KEY, { ...prefs, order: order.filter((g, i, a) => a.indexOf(g) === i) });
 }
 
+/** 把一檔的群組 from 換成 to（已經在 to 的話只是離開 from）；排序值跟著走 */
+function swapGroup(w: WatchItem, from: string, to: string): WatchItem {
+  const orders = { ...w.orders };
+  if (from in orders && !(to in orders) && !inGroup(w, to)) orders[to] = orders[from];
+  return withGroups({ ...w, orders }, groupsOf(w).map((g) => (g === from ? to : g)))!;
+}
+
 /** 群組改名；新名稱已經有群組時＝合併（股票都移過去）。回傳移動的檔數。 */
 export async function renameWatchGroup(from: string, rawTo: string): Promise<number> {
   const to = cleanGroupName(rawTo);
   if (!to || to === from) return 0;
   const db = await getDb();
   const tx = db.transaction(['watchlist', 'settings'], 'readwrite');
-  const items = await tx.objectStore('watchlist').index('group').getAll(from);
-  for (const w of items) await tx.objectStore('watchlist').put({ ...w, group: to, origin: w.origin === 'sample' ? 'user' : w.origin });
+  const items = (await tx.objectStore('watchlist').getAll()).filter((w) => inGroup(w, from));
+  for (const w of items) await tx.objectStore('watchlist').put(asUser(swapGroup(w, from, to)));
   const prefs = normWatchPrefs((await tx.objectStore('settings').get(WATCH_PREFS_KEY))?.value as Partial<WatchPrefs> | undefined);
   const swap = (list: string[]) => list.map((g) => (g === from ? to : g)).filter((g, i, a) => a.indexOf(g) === i);
   const groups = swap(prefs.groups);
@@ -526,10 +588,12 @@ export async function deleteWatchGroup(name: string, moveTo: string | null): Pro
   const db = await getDb();
   const tx = db.transaction(['watchlist', 'settings'], 'readwrite');
   const store = tx.objectStore('watchlist');
-  const items = (await store.index('group').getAll(name)).sort((a, b) => a.order - b.order);
+  const items = (await store.getAll()).filter((w) => inGroup(w, name)).sort((a, b) => a.order - b.order);
   const prefs = normWatchPrefs((await tx.objectStore('settings').get(WATCH_PREFS_KEY))?.value as Partial<WatchPrefs> | undefined);
   for (const w of items) {
-    if (moveTo && moveTo !== name) await store.put({ ...w, group: moveTo, origin: w.origin === 'sample' ? 'user' : w.origin });
+    // 還在別的群組的股票只離開這個群組；只在這個群組的才整檔移除
+    const next = moveTo && moveTo !== name ? asUser(swapGroup(w, name, moveTo)) : withGroups(w, groupsOf(w).filter((g) => g !== name));
+    if (next) await store.put(next);
     else await store.delete(w.code);
   }
   await tx.objectStore('settings').put({
