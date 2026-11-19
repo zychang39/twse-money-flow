@@ -13,8 +13,10 @@ export const isMultiStockText = (text: string): boolean => (/\n/.test(text.trim(
  * 以代號或名稱搜尋（從全市場摘要；排序規則與搜尋頁相同，見 lib/search）。
  * onMulti（2026-11-19）：同一個輸入框也收「一次好幾檔」——貼上多行文字或代號清單、或打了兩個以上的代號時交給呼叫端（列出來勾選），不用另一個大文字框。
  */
-export function StockSearch({ rows, onPick, placeholder = '輸入代號或名稱', autoFocus, onMulti }: { rows: StockRow[]; onPick: (row: StockRow) => void; placeholder?: string; autoFocus?: boolean; onMulti?: (text: string) => void }) {
-  const [q, setQ] = useState('');
+export function StockSearch({ rows, onPick, placeholder = '輸入代號或名稱', autoFocus, onMulti, onQuery }: { rows: StockRow[]; onPick: (row: StockRow) => void; placeholder?: string; autoFocus?: boolean; onMulti?: (text: string) => void; onQuery?: (q: string) => void }) {
+  const [q, setQraw] = useState('');
+  /** onQuery：讓呼叫端知道現在有沒有在打字（例：打字時收起下面的股票池） */
+  const setQ = (v: string) => { setQraw(v); onQuery?.(v); };
   const multi = !!onMulti && codeCount(q) >= 2;
   const hits = useMemo(() => (multi ? [] : searchStocks(rows, q, 12)), [q, rows, multi]);
   const sendMulti = (text: string) => { onMulti?.(text); setQ(''); };

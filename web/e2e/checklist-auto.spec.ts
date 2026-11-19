@@ -16,7 +16,7 @@ const cfgNum = (key: string) => Number(thresholds.match(new RegExp(`${key}:\\s*(
 async function openChecklist(page: Page, code = '2330') {
   await page.goto(`#/discipline/checklist?code=${code}`);
   await page.waitForLoadState('networkidle');
-  await expect(page.getByTestId('calm-card').or(page.getByTestId('checklist-form'))).toBeVisible();
+  await expect(page.getByTestId('checklist-form')).toBeVisible();
 }
 async function toForm(page: Page) {
   const cont = page.getByRole('button', { name: '繼續填寫檢查表' });
@@ -72,7 +72,9 @@ test('a. 資料完整的股票：1–5 已帶出，不選任何項目即可填�
 
 test('b. 事實頁與檢查表每一列都能點進說明頁，四段齊全；門檻與設定檔一致；手動調整可一鍵還原', async ({ page }) => {
   await openChecklist(page);
-  // 示範資料的資金環境為保守 → 事實頁；沒有勾選框
+  // 環境、個股、計畫在同一頁（2026-11-19）：不用按「繼續」，沒有勾選框
+  await expect(page.getByRole('button', { name: '繼續填寫檢查表' })).toHaveCount(0);
+  await expect(page.getByTestId('ck-env')).toBeVisible();
   await expect(page.getByRole('checkbox')).toHaveCount(0);
   const factRows = page.getByTestId('fact-env').locator('.ui-row');
   const n = await factRows.count();

@@ -1,7 +1,7 @@
 /**
  * 新增持倉前檢查表的畫面（2026-10-06）：
  * - NavStack：面板內的推入／返回（說明頁不用 half sheet，而是在同一個面板裡由右推入；左緣右滑或「‹」返回）。
- * - FactsView：「繼續之前，先看一下目前的事實」——資金環境總結一列＋每項指標一列（inset grouped list）。
+ * - EnvFacts／StockFacts：檢查表同一頁最上面的「1 環境」與「2 個股」的事實列（2026-11-19 起不再是另一頁）。
  * - FactDetail：事實列的說明頁（這是什麼／為什麼進場前要看／目前數值與判定門檻／近期走勢與資料來源）。
  * - ItemRows：檢查表 1–5 的唯讀資料列（自動判定；資料不足時退回手動選單；手動調整的列標「手動」並可一鍵還原）。
  * - ItemDetail：1–5 的說明頁（是什麼／為什麼看／判定規則與現值／資料來源）＋最下方「手動調整」。
@@ -138,41 +138,32 @@ function FactListRow({ r, onOpen }: { r: FactRow; onOpen: () => void }) {
   );
 }
 
-/** 事實頁：資金環境總結＋每項指標一列；「繼續填寫檢查表」直接可按 */
-export function FactsView({ summary, envRows, stockRows, stockName, onOpen, onContinue, onCancel }: {
-  summary: EnvSummary;
-  envRows: FactRow[];
-  stockRows: FactRow[];
-  stockName: string;
-  onOpen: (id: string) => void;
-  onContinue: () => void;
-  onCancel: () => void;
-}) {
+/**
+ * 檢查表最上面的「1 環境」（2026-11-19；DECISIONS #474）：資金環境總結＋每項指標一列，與個股、計畫放在同一頁由上往下看。
+ * 原本是填表前的另一頁（要按「繼續填寫檢查表」才進表單），少一層。
+ */
+export function EnvFacts({ summary, envRows, onOpen }: { summary: EnvSummary; envRows: FactRow[]; onOpen: (id: string) => void }) {
   return (
-    <div class="ck" role="group" aria-label="繼續之前的事實整理" data-testid="calm-card">
-      <p class="ck-lead ui-foot ui-muted">繼續之前，先看一下目前的事實</p>
+    <Section title="1 環境" aside="資金指標・點列看依據" testid="ck-env">
       <List tags testid="env-summary" class="ck-tags-sm">
         <Row label="資金環境" strong value={summary.state === 'unknown' ? <span class="ui-muted" data-testid="env-summary-state">資料不足</span> : undefined}
           tag={summary.state === 'unknown' ? null : <span data-testid="env-summary-state"><Tag tone={summary.state === 'conservative' ? 'risk' : 'neutral'}>{summary.label}</Tag></span>}
           sub={summary.basis} subWide />
       </List>
-      <Section title="資金指標">
-        <List tags chev testid="fact-env" class="ck-tags-sm">
-          {envRows.map((r) => <FactListRow key={r.id} r={r} onOpen={() => onOpen(r.id)} />)}
-        </List>
-      </Section>
-      {stockRows.length ? (
-        <Section title={stockName}>
-          <List chev testid="fact-stock">
-            {stockRows.map((r) => <FactListRow key={r.id} r={r} onOpen={() => onOpen(r.id)} />)}
-          </List>
-        </Section>
-      ) : null}
-      <div class="ck-actions">
-        <button class="btn primary block" onClick={onContinue}>繼續填寫檢查表</button>
-        <button class="btn block" onClick={onCancel}>先不要</button>
-      </div>
-    </div>
+      <List tags chev testid="fact-env" class="ck-tags-sm">
+        {envRows.map((r) => <FactListRow key={r.id} r={r} onOpen={() => onOpen(r.id)} />)}
+      </List>
+    </Section>
+  );
+}
+
+/** 「2 個股」最前面：這檔股票目前值得先知道的事實（處置、乖離…；沒有就不顯示） */
+export function StockFacts({ stockRows, onOpen }: { stockRows: FactRow[]; onOpen: (id: string) => void }) {
+  if (!stockRows.length) return null;
+  return (
+    <List chev testid="fact-stock">
+      {stockRows.map((r) => <FactListRow key={r.id} r={r} onOpen={() => onOpen(r.id)} />)}
+    </List>
   );
 }
 

@@ -136,17 +136,14 @@ test('回測：預設組合顯示統計與可信度；自訂條件在 Web Worker
   await expect(page.getByTestId('bt-main').getByRole('cell', { name: '絕對勝率' })).toBeVisible();
 });
 
-test('日誌：事實頁 → 新增持倉前檢查表（1–5 自動帶出）→ 新增持倉 → 平倉 → 統計出現錯誤標籤', async ({ page }) => {
+test('日誌：新增持倉前檢查表（環境＋個股同一頁（1–5 自動帶出）→ 新增持倉 → 平倉 → 統計出現錯誤標籤', async ({ page }) => {
   await page.goto('#/discipline/journal');
   await page.getByRole('button', { name: '新增持倉' }).click();
   await page.getByRole('searchbox', { name: '搜尋股票' }).fill('2330');
   await page.getByRole('option', { name: /2330/ }).click();
-  // 示範資料的資金環境為「保守」→ 先出現事實頁；2026-10-06 起不需勾選確認，「繼續填寫檢查表」直接可按
-  await expect(page.getByText('繼續之前，先看一下目前的事實')).toBeVisible();
-  await expect(page.getByText('我已看過以上事實')).toHaveCount(0);
-  const cont = page.getByRole('button', { name: '繼續填寫檢查表' });
-  await expect(cont).toBeEnabled();
-  await cont.click();
+  // 2026-11-19：環境、個股、計畫同一頁，由上往下看；不用按「繼續」
+  await expect(page.getByTestId('ck-env')).toBeVisible();
+  await expect(page.getByRole('button', { name: '繼續填寫檢查表' })).toHaveCount(0);
   // 1–5 已自動帶出，不需要選擇
   for (const k of ['market', 'trend', 'revenue', 'valuation', 'reasonType']) await expect(page.getByTestId(`ck-row-${k}`)).toBeVisible();
   const entry = Number(await page.getByLabel('進場價').inputValue());

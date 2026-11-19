@@ -9,9 +9,11 @@ import { Sheet } from './Sheet';
 import { StockSearch } from './StockSearch';
 import { Signed } from './Change';
 import { useAsync, useDb } from '../hooks';
-import { loadMarket, loadStock } from '../data/api';
+import { loadLists, loadMarket, loadStock } from '../data/api';
+import { ChangePill } from './Change';
+import { effectiveGroups, inGroup, lastGroup, orderIn } from '../lib/watchGroups';
 import { adjustTrade, eventsFor } from '../lib/corpActions';
-import { getThesis, logActivity, saveTrade, uid, type ExitReason, type ThesisVerdict, type Trade } from '../db/db';
+import { getThesis, getWatchPrefs, listRecentSearches, listWatch, logActivity, saveTrade, uid, type ExitReason, type ThesisVerdict, type Trade } from '../db/db';
 import { EXIT_REASON_LABEL } from '../lib/ritual';
 import type { StockHistory, StockRow } from '../data/types';
 import type { PortfolioSettings } from '../lib/settings';
@@ -19,12 +21,10 @@ import { roundTrip, type CostSettings } from '../lib/costs';
 import { checklistCalc, FIELD_LABEL, priceOf, type ChecklistPrefill } from '../lib/checklist';
 import { AUTO_LABEL, autoItems, buildSnapshot, effectiveOf, itemDoc, reasonDraft, snapshotDone, stopRefs, topSummary, type AutoKey, type Overrides } from '../lib/checklistAuto';
 import { envSummary, lightDoc, lightRow, stockFactDoc, stockFactRows } from '../lib/entryFacts';
-import { ExtraRows, FactDetail, FactsView, ItemDetail, ItemRows, NavStack, ThesisDetail } from './EntryCheck';
+import { EnvFacts, ExtraRows, FactDetail, ItemDetail, ItemRows, NavStack, StockFacts, ThesisDetail } from './EntryCheck';
 import { VERDICTS, bizItem, bizSnapshot, completeness, normThesis } from '../lib/thesis';
 import { Section } from './ui';
 import { Skeleton } from './kit';
-import { envInfo } from '../lib/envState';
-import { impulseFacts } from '../lib/impulse';
 import { thresholds } from '../lib/config';
 import { todayTpe } from '../lib/dates';
 import { fmtMoney, fmtNum, fmtPrice } from '../lib/format';
@@ -37,8 +37,59 @@ const EMPTY = { reason: '', entry: '', stop: '', target: '', shares: '' };
 type Detail = { kind: 'fact'; id: string } | { kind: 'item'; key: AutoKey } | { kind: 'thesis' } | null;
 
 /**
- * 新增持倉前檢查表（2026-10-06 重做）：檢查表是「進場前看懂現況」，不是關卡。
- * - 符合冷靜卡條件（lib/impulse）時先顯示事實頁：資金環境總結＋每項指標一列，「繼續填寫檢查表」直接可按。
+ * 檢查表第一步：挑股票（2026-11-19；DECISIONS #474）。不用先打字：下面直接列出股票池——最近搜尋、自己的每個自選群組、
+ * 系統清單「熱門動能」（依規則產生，非推薦）——點一下就選。輸入框不自動叫出鍵盤；打字時收起股票池、只看搜尋結果。
+ * 股票池清單有高度上限、自己捲動，面板維持在畫面下半部（輸入框不會被推到螢幕最上面）。
+ */
+function StockPicker({ rows, onPick }: { rows: StockRow[]; onPick: (r: StockRow) => void }) {
+  const [typing, setTyping] = useState(false);
+  const [poolId, setPoolId] = useState<string | null>(null);
+  const lists = useAsync(loadLists, []);
+  const mine = useDb(async () => ({ watch: await listWatch(), prefs: await getWatchPrefs(), recent: await listRecentSearches() }));
+  const byCode = useMemo(() => new Map(rows.map((r) => [r.code, r] as const)), [rows]);
+  const pools = useMemo(() => {
+    const pick = (codes: string[]) => codes.map((c) => byCode.get(c)).filter((r): r is StockRow => !!r);
+    const out: { id: string; label: string; rows: StockRow[]; system?: boolean }[] = [];
+    if (mine) {
+      for (const g of effectiveGroups(mine.watch, mine.prefs)) {
+        const items = mine.watch.filter((w) => inGroup(w, g)).sort((a, b) => orderIn(a, g) - orderIn(b, g));
+        out.push({ id: `g:${g}`, label: g, rows: pick(items.map((w) => w.code)) });
+      }
+      out.unshift({ id: 'recent', label: '最近搜尋', rows: pick(mine.recent) });
+    }
+    const hot = lists.data?.hot_momentum;
+    if (hot) out.push({ id: 'hot', label: hot.label ?? '熱門動能', rows: pick(hot.items.map((h) => h.code)), system: true });
+    return out.filter((p) => p.rows.length);
+  }, [mine, lists.data, byCode]);
+  // 預設：上次在「我的股票」看的群組；沒有就第一個有股票的
+  const pool = pools.find((p) => p.id === poolId) ?? pools.find((p) => p.id === `g:${lastGroup()}`) ?? pools[0];
+  return (
+    <div class="ck-pick" data-testid="ck-pick">
+      <StockSearch rows={rows} onPick={onPick} onQuery={(q) => setTyping(!!q.trim())} placeholder="輸入代號或名稱，或從下面挑" />
+      {typing || !pool ? null : (
+        <>
+          <div class="chips ck-pools" role="group" aria-label="股票池">
+            {pools.map((p) => <button key={p.id} type="button" class="chip" aria-pressed={p.id === pool.id} onClick={() => setPoolId(p.id)}>{p.label}</button>)}
+          </div>
+          {pool.system ? <p class="caption muted">依規則產生，非推薦。</p> : null}
+          <div class="list ck-pool-list" data-testid="ck-pool-list">
+            {pool.rows.map((r) => (
+              <button key={r.code} type="button" class="list-item" onClick={() => onPick(r)}>
+                <span class="grow"><span class="body">{r.name}</span><span class="caption muted" style={{ display: 'block' }}>{r.code}</span></span>
+                <span class="right"><span class="body" style={{ display: 'block' }}>{fmtPrice(r.close)}</span><ChangePill change={r.change} pct={r.change_pct} /></span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 新增持倉前檢查表（2026-10-06 重做；2026-11-19 改成一頁）：檢查表是「進場前看懂現況」，不是關卡。
+ * - 一頁由上往下：1 環境（資金環境總結＋每項指標）→ 2 個股（這檔的事實＋自動帶出的 1–5）→ 3 計畫（理由、價位、股數）。
+ *   原本符合冷靜卡條件時先顯示另一頁事實、按「繼續」才進表單；現在同一頁，少一層。
  * - 1–5 由系統自動帶出（lib/checklistAuto），資料不足時退回手動選單；理由、停損、目標選填。
  * - 只有缺進場價或股數時「加入持倉」停用，按鈕寫出缺哪一欄。每一列都能推入說明頁（面板內 push）。
  */
@@ -54,7 +105,6 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
 }) {
   const market = useAsync(loadMarket, []);
   const [row, setRow] = useState<StockRow | undefined>(preset);
-  const [factsDone, setFactsDone] = useState(false);
   const [f, setF] = useState(EMPTY);
   const [overrides, setOverrides] = useState<Overrides>({});
   /** 使用者改過理由（之後資料再載入也不覆蓋草稿） */
@@ -67,7 +117,7 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
   const wasOpen = useRef(false);
   useEffect(() => {
     // 重新開啟同一檔（preset 不變）時 row 不會改變，進場價在這裡一併帶入
-    if (open && !wasOpen.current) { setRow(preset); setFactsDone(false); setF({ ...EMPTY, ...carried, entry: entryFor(preset) }); setOverrides({}); setReasonEdited(false); setDetail(null); }
+    if (open && !wasOpen.current) { setRow(preset); setF({ ...EMPTY, ...carried, entry: entryFor(preset) }); setOverrides({}); setReasonEdited(false); setDetail(null); }
     wasOpen.current = open;
   }, [open]);
   useEffect(() => { if (open && preset && !row) setRow(preset); }, [preset?.code]);
@@ -92,11 +142,8 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
   const note = noteQ ? normThesis(noteQ) : null;
   useEffect(() => { if (!reasonEdited) setF((x) => ({ ...x, reason: draft })); }, [draft, reasonEdited]);
 
-  const env = market.data ? envInfo(market.data.env?.lights) : null;
-  const facts = row ? impulseFacts(row, env) : [];
-  const showFacts = !!row && facts.length > 0 && !factsDone;
-  // 資金燈號還沒載入時不先畫表單（載入後才知道要不要先顯示事實頁，避免畫面跳換）
-  const waiting = !!row && market.loading && !factsDone;
+  // 資金燈號還沒載入時不先畫表單（最上面的「環境」要先有，避免畫面跳動）
+  const waiting = !!row && market.loading;
   const lights = market.data?.env?.lights ?? [];
   const calc = checklistCalc({ hasStock: !!row, ...f }, portfolio, fmtMoney);
   const { entry, stop, target, rr, shares } = calc;
@@ -165,19 +212,19 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
 
   const root = (
     <>
-      {!row ? <StockSearch rows={rows} onPick={setRow} autoFocus /> : (
+      {!row ? <StockPicker rows={rows} onPick={setRow} /> : (
         <div class="row between"><span class="body w6">{row.name} <span class="caption muted">{row.code}</span></span>{!preset ? <button class="btn small" onClick={() => setRow(undefined)}>更換</button> : null}</div>
       )}
-      {waiting ? <div class="ck" style={{ marginTop: 'var(--s-4)' }}><Skeleton lines={5} testid="checklist-loading" /></div> : row && showFacts ? (
-        <FactsView summary={envSummary(lights)} envRows={lights.map((l) => lightRow(l, latest))} stockRows={stockFactRows(row, latest)} stockName={row.name}
-          onOpen={(id) => setDetail({ kind: 'fact', id })} onContinue={() => setFactsDone(true)} onCancel={onClose} />
-      ) : row ? (
+      {waiting ? <div class="ck" style={{ marginTop: 'var(--s-4)' }}><Skeleton lines={5} testid="checklist-loading" /></div> : row ? (
         <div class="ck" data-testid="checklist-form">
           {summaryLine ? <p class="ck-summary ui-foot" role="note" data-testid="ck-summary">{summaryLine}</p> : null}
-          <Section title="進場前現況" aside="自動帶出・點列看依據">
+          <EnvFacts summary={envSummary(lights)} envRows={lights.map((l) => lightRow(l, latest))} onOpen={(id) => setDetail({ kind: 'fact', id })} />
+          <Section title={`2 個股：${row.name}`} aside="自動帶出・點列看依據">
+            <StockFacts stockRows={stockFactRows(row, latest)} onOpen={(id) => setDetail({ kind: 'fact', id })} />
             <ItemRows items={items} overrides={overrides} onOpen={(key) => setDetail({ kind: 'item', key })} onSet={setOverride} />
             <ExtraRows biz={biz} thesis={note} onOpenThesis={() => setDetail({ kind: 'thesis' })} />
           </Section>
+          <Section title="3 計畫" aside="理由・價位・股數">
           <div class="field">
             <label for="ck-reason">{FIELD_LABEL.reason}</label>
             <textarea id="ck-reason" class="input" rows={3} value={f.reason} aria-describedby="ck-reason-note"
@@ -203,6 +250,7 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
             {calc.size && calc.size.shares === 0 ? <div class="risk">風險上限換算的股數小於 1 張：可改用零股、放寬停損或自行輸入股數</div> : null}
           </div>
           {num('shares', FIELD_LABEL.shares, f.shares || String(calc.size?.shares ?? ''), 'numeric', calc.size ? '預設為建議部位，可自行修改' : '未填停損時沒有建議部位，請自行輸入')}
+          </Section>
           <button class="btn primary block" disabled={!valid} onClick={save} data-testid="checklist-submit">{valid ? '加入持倉' : calc.blocker}</button>
           <button class="btn block" style={{ marginTop: 'var(--s-2)' }} disabled={!calc.qualitative} onClick={skip} data-testid="checklist-skip">檢查完，決定先不進場</button>
         </div>
@@ -211,8 +259,8 @@ export function ChecklistSheet({ open, onClose, rows, portfolio, day, preset, pr
   );
 
   return (
-    <Sheet open={open} onClose={onClose} title={detailNode ? detailTitle : '新增持倉前檢查表'} detent="full"
-      back={detailNode ? { label: showFacts ? '事實' : '檢查表', onBack: () => setDetail(null) } : undefined}>
+    <Sheet open={open} onClose={onClose} title={detailNode ? detailTitle : '新增持倉前檢查表'}
+      back={detailNode ? { label: '檢查表', onBack: () => setDetail(null) } : undefined}>
       <NavStack root={root} detail={detailNode} onPop={() => setDetail(null)} />
     </Sheet>
   );
