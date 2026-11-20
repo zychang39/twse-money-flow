@@ -981,7 +981,7 @@
  "digest_date": "2026-10-02",
  "esb_history_progress": {},
  "freshness": {
-  "at": "2026-11-20T20:44+08:00",
+  "at": "2026-11-20T20:52+08:00",
   "attempt": 1,
   "fixed": [],
   "missing": [
@@ -995,11 +995,22 @@
     "sources": [
      "twse_qfii"
     ]
+   },
+   {
+    "dates": [
+     "2026-11-20"
+    ],
+    "due": "2026-11-20",
+    "key": "margin_flash",
+    "label": "融資增減",
+    "sources": [
+     "twse_margin"
+    ]
    }
   ],
-  "next_poll": null,
-  "next_retry": "2026-11-20T21:44+08:00",
-  "next_run": "2026-11-20T20:52+08:00"
+  "next_poll": "2026-11-20T20:57+08:00",
+  "next_retry": "2026-11-20T21:52+08:00",
+  "next_run": "2026-11-20T20:57+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2069,32 +2080,6 @@
  },
  "runs": [
   {
-   "at": "2026-11-18T19:02:05+08:00",
-   "attempt": 4,
-   "failed": [
-    "twse_qfii 2026-11-18 外資持股比：預期時間已過仍未取得（第 4 次補抓）"
-   ],
-   "fixed": [],
-   "missing_after": [
-    "qfii"
-   ],
-   "missing_before": [
-    "qfii"
-   ],
-   "ok": 0,
-   "pending": [
-    "twse_qfii"
-   ],
-   "poll_at": null,
-   "progressed": false,
-   "quick": false,
-   "relay": "2026-11-18T20:52+08:00",
-   "requests": 1,
-   "retry": false,
-   "revised": [],
-   "task": "catchup"
-  },
-  {
    "at": "2026-11-18T20:52:31+08:00",
    "attempt": 1,
    "failed": [
@@ -3076,6 +3061,36 @@
    "retry": true,
    "revised": [],
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-20T20:52:20+08:00",
+   "attempt": 1,
+   "failed": [
+    "twse_margin 2026-11-20 尚未公布或無資料：很抱歉，沒有符合條件的資料",
+    "twse_qfii 2026-11-20 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
+   ],
+   "fixed": [],
+   "missing_after": [
+    "qfii",
+    "margin_flash"
+   ],
+   "missing_before": [
+    "qfii",
+    "margin_flash"
+   ],
+   "ok": 2,
+   "pending": [
+    "twse_qfii",
+    "twse_margin"
+   ],
+   "poll_at": "2026-11-20T20:57+08:00",
+   "progressed": true,
+   "quick": false,
+   "relay": "2026-11-20T20:57+08:00",
+   "requests": 3,
+   "retry": true,
+   "revised": [],
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3387,21 +3402,21 @@
   },
   "tpex_margin": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-11-19T20:52:02+08:00",
+   "last_attempt": "2026-11-20T20:52:05+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-11-19",
-   "last_success_at": "2026-11-19T20:52:02+08:00",
+   "last_success": "2026-11-20",
+   "last_success_at": "2026-11-20T20:52:05+08:00",
    "rows": 923,
    "validation": "ok"
   },
   "tpex_margin_total": {
    "consecutive_failures": 0,
-   "last_attempt": "2026-11-19T20:52:02+08:00",
+   "last_attempt": "2026-11-20T20:52:05+08:00",
    "last_message": null,
    "last_status": "ok",
-   "last_success": "2026-11-19",
-   "last_success_at": "2026-11-19T20:52:02+08:00",
+   "last_success": "2026-11-20",
+   "last_success_at": "2026-11-20T20:52:05+08:00",
    "rows": 2,
    "validation": "ok"
   },
@@ -3671,14 +3686,14 @@
    "validation": "ok"
   },
   "twse_margin": {
-   "consecutive_failures": 0,
-   "last_attempt": "2026-11-19T20:57:02+08:00",
-   "last_message": null,
-   "last_status": "ok",
+   "consecutive_failures": 1,
+   "last_attempt": "2026-11-20T20:52:16+08:00",
+   "last_message": "融資增減：預期時間已過仍未取得（輪詢中）",
+   "last_status": "pending",
    "last_success": "2026-11-19",
    "last_success_at": "2026-11-19T20:57:02+08:00",
    "rows": 1307,
-   "validation": "ok"
+   "validation": "failed"
   },
   "twse_margin_total": {
    "consecutive_failures": 0,
@@ -3701,8 +3716,8 @@
    "validation": "ok"
   },
   "twse_qfii": {
-   "consecutive_failures": 2,
-   "last_attempt": "2026-11-20T20:44:03+08:00",
+   "consecutive_failures": 3,
+   "last_attempt": "2026-11-20T20:52:16+08:00",
    "last_message": "外資持股比：預期時間已過仍未取得（第 1 次補抓）",
    "last_status": "pending",
    "last_success": "2026-11-19",
@@ -3794,6 +3809,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-20T20:44:05+08:00",
+ "updated_at": "2026-11-20T20:52:20+08:00",
  "version": 1
 }
