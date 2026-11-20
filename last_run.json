@@ -1,31 +1,22 @@
 {
- "task": "catchup",
- "at": "2026-11-20T22:07:38+08:00",
- "requests": 69,
- "ok": 41,
+ "task": "kbar",
+ "at": "2026-11-20T23:47:05+08:00",
+ "requests": 0,
+ "ok": 1,
  "failed": [],
  "pending": [],
- "format_warnings": [
-  "twse_fulldelivery"
- ],
- "revised": [
-  "twse_insti 2026-11-20",
-  "tpex_insti 2026-11-20",
-  "twse_insti_amount 2026-11-20",
-  "tpex_insti_amount 2026-11-20"
- ],
- "missing_before": [
-  "sbl",
-  "daytrade"
- ],
- "missing_after": [],
- "fixed": [
-  "daytrade",
-  "sbl"
- ],
- "attempt": 1,
- "retry": false,
- "poll_at": null,
- "progressed": true,
- "quick": false
+ "kbar_target": "2026-11-20",
+ "fetched": 0,
+ "rows": 0,
+ "covered": 2359,
+ "total": 2383,
+ "remaining": 0,
+ "unfinished": 0,
+ "progressed": false,
+ "pruned": 0,
+ "by_tier": {
+  "1": 0,
+  "2": 0,
+  "3": 0
+ }
 }
