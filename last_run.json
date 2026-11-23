@@ -1,22 +1,22 @@
 {
  "task": "kbar",
- "at": "2026-11-23T16:04:26+08:00",
+ "at": "2026-11-23T16:12:23+08:00",
  "requests": 0,
  "ok": 1,
  "failed": [],
  "pending": [],
  "kbar_target": "2026-11-23",
- "fetched": 2383,
- "rows": 417318,
+ "fetched": 0,
+ "rows": 0,
  "covered": 2351,
  "total": 2383,
  "remaining": 0,
  "unfinished": 0,
- "progressed": true,
- "pruned": 1,
+ "progressed": false,
+ "pruned": 0,
  "by_tier": {
-  "1": 500,
-  "2": 528,
-  "3": 1355
+  "1": 0,
+  "2": 0,
+  "3": 0
  }
 }
