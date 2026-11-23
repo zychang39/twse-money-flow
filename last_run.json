@@ -1,34 +1,17 @@
 {
  "task": "catchup",
- "at": "2026-11-23T22:11:34+08:00",
- "requests": 76,
- "ok": 36,
- "failed": [
-  "twse_parchange 2026-11-23 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/change/TWTB8U?startDate=20261113&endDate=20261123&response=json",
-  "twse_etfsplit 2026-11-23 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/split/TWTCAU?startDate=20261113&endDate=20261123&response=json",
-  "twse_capreduce 2026-11-23 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/reducation/TWTAUU?startDate=20261113&endDate=20261123&response=json",
-  "twse_attention 2026-11-23 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/announcement/notice?querytype=1&startDate=20261113&endDate=20261123&response=json",
-  "twse_fulldelivery 2026-11-23 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/fullDelivery/BFIHBU?startDate=20261113&endDate=20261123&response=json"
- ],
+ "at": "2026-11-23T22:24:29+08:00",
+ "requests": 0,
+ "ok": 0,
+ "failed": [],
  "pending": [],
- "revised": [
-  "twse_insti 2026-11-23",
-  "tpex_insti 2026-11-23",
-  "twse_insti_amount 2026-11-23",
-  "tpex_insti_amount 2026-11-23"
- ],
- "missing_before": [
-  "sbl",
-  "daytrade"
- ],
+ "revised": [],
+ "missing_before": [],
  "missing_after": [],
- "fixed": [
-  "daytrade",
-  "sbl"
- ],
+ "fixed": [],
  "attempt": 1,
  "retry": false,
  "poll_at": null,
- "progressed": true,
+ "progressed": false,
  "quick": false
 }

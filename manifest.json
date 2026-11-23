@@ -981,12 +981,9 @@
  "digest_date": "2026-10-02",
  "esb_history_progress": {},
  "freshness": {
-  "at": "2026-11-23T22:02+08:00",
+  "at": "2026-11-23T22:24+08:00",
   "attempt": 1,
-  "fixed": [
-   "daytrade",
-   "sbl"
-  ],
+  "fixed": [],
   "missing": [],
   "next_poll": null,
   "next_retry": null
@@ -2098,32 +2095,6 @@
  },
  "runs": [
   {
-   "at": "2026-11-19T20:49:49+08:00",
-   "attempt": 1,
-   "failed": [
-    "twse_qfii 2026-11-19 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
-   ],
-   "fixed": [],
-   "missing_after": [
-    "qfii"
-   ],
-   "missing_before": [
-    "qfii"
-   ],
-   "ok": 0,
-   "pending": [
-    "twse_qfii"
-   ],
-   "poll_at": null,
-   "progressed": false,
-   "quick": false,
-   "relay": "skip:2026-11-19T20:52+08:00",
-   "requests": 1,
-   "retry": true,
-   "revised": [],
-   "task": "catchup"
-  },
-  {
    "at": "2026-11-19T20:52:16+08:00",
    "attempt": 1,
    "failed": [
@@ -3106,6 +3077,23 @@
     "tpex_insti_amount 2026-11-23"
    ],
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-23T22:24:29+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "requests": 0,
+   "retry": false,
+   "revised": [],
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3829,6 +3817,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-23T22:11:34+08:00",
+ "updated_at": "2026-11-23T22:24:29+08:00",
  "version": 1
 }
