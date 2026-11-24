@@ -981,7 +981,7 @@
  "digest_date": "2026-10-02",
  "esb_history_progress": {},
  "freshness": {
-  "at": "2026-11-24T08:12+08:00",
+  "at": "2026-11-24T09:46+08:00",
   "attempt": 1,
   "fixed": [],
   "missing": [],
@@ -2092,28 +2092,6 @@
  },
  "runs": [
   {
-   "at": "2026-11-20T00:06:06+08:00",
-   "by_tier": {
-    "1": 0,
-    "2": 0,
-    "3": 0
-   },
-   "covered": 2353,
-   "failed": [],
-   "fetched": 0,
-   "kbar_target": "2026-11-19",
-   "ok": 1,
-   "pending": [],
-   "progressed": false,
-   "pruned": 0,
-   "remaining": 0,
-   "requests": 0,
-   "rows": 0,
-   "task": "kbar",
-   "total": 2383,
-   "unfinished": 0
-  },
-  {
    "at": "2026-11-20T00:30:47+08:00",
    "attempt": 1,
    "failed": [],
@@ -3058,6 +3036,24 @@
    "retry": false,
    "revised": [],
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-24T09:46:38+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "relay": "skip:2026-11-24T13:17+08:00",
+   "requests": 0,
+   "retry": false,
+   "revised": [],
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3781,6 +3777,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-24T08:17:13+08:00",
+ "updated_at": "2026-11-24T09:46:38+08:00",
  "version": 1
 }
