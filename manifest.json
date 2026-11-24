@@ -981,8 +981,8 @@
  "digest_date": "2026-10-02",
  "esb_history_progress": {},
  "freshness": {
-  "at": "2026-11-24T18:02+08:00",
-  "attempt": 3,
+  "at": "2026-11-24T19:02+08:00",
+  "attempt": 4,
   "fixed": [],
   "missing": [
    {
@@ -998,8 +998,8 @@
    }
   ],
   "next_poll": null,
-  "next_retry": "2026-11-24T19:02+08:00",
-  "next_run": "2026-11-24T19:02+08:00"
+  "next_retry": null,
+  "next_run": "2026-11-24T20:52+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2062,28 +2062,6 @@
  },
  "runs": [
   {
-   "at": "2026-11-20T15:45:36+08:00",
-   "by_tier": {
-    "1": 500,
-    "2": 515,
-    "3": 1368
-   },
-   "covered": 2359,
-   "failed": [],
-   "fetched": 2383,
-   "kbar_target": "2026-11-20",
-   "ok": 1,
-   "pending": [],
-   "progressed": true,
-   "pruned": 1,
-   "remaining": 0,
-   "requests": 0,
-   "rows": 414452,
-   "task": "kbar",
-   "total": 2383,
-   "unfinished": 0
-  },
-  {
    "at": "2026-11-20T16:10:52+08:00",
    "attempt": 1,
    "failed": [],
@@ -3081,6 +3059,32 @@
    "retry": true,
    "revised": [],
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-24T19:02:06+08:00",
+   "attempt": 4,
+   "failed": [
+    "twse_qfii 2026-11-24 外資持股比：預期時間已過仍未取得（第 4 次補抓）"
+   ],
+   "fixed": [],
+   "missing_after": [
+    "qfii"
+   ],
+   "missing_before": [
+    "qfii"
+   ],
+   "ok": 0,
+   "pending": [
+    "twse_qfii"
+   ],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "relay": "2026-11-24T20:52+08:00",
+   "requests": 1,
+   "retry": false,
+   "revised": [],
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3706,14 +3710,14 @@
    "validation": "ok"
   },
   "twse_qfii": {
-   "consecutive_failures": 0,
-   "last_attempt": "2026-11-24T18:02:02+08:00",
-   "last_message": "外資持股比：預期時間已過仍未取得（第 3 次補抓）",
-   "last_status": "pending",
+   "consecutive_failures": 1,
+   "last_attempt": "2026-11-24T19:02:02+08:00",
+   "last_message": "外資持股比：預期時間已過仍未取得（第 4 次補抓）",
+   "last_status": "failed",
    "last_success": "2026-11-23",
    "last_success_at": "2026-11-23T21:52:03+08:00",
    "rows": 1367,
-   "validation": "ok"
+   "validation": "failed"
   },
   "twse_quotes": {
    "consecutive_failures": 0,
@@ -3799,6 +3803,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-24T18:02:07+08:00",
+ "updated_at": "2026-11-24T19:02:06+08:00",
  "version": 1
 }
