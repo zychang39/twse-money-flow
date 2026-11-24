@@ -1,17 +1,22 @@
 {
- "task": "catchup",
- "at": "2026-11-24T22:44:43+08:00",
+ "task": "kbar",
+ "at": "2026-11-25T02:22:13+08:00",
  "requests": 0,
- "ok": 0,
+ "ok": 1,
  "failed": [],
  "pending": [],
- "revised": [],
- "missing_before": [],
- "missing_after": [],
- "fixed": [],
- "attempt": 1,
- "retry": false,
- "poll_at": null,
+ "kbar_target": "2026-11-24",
+ "fetched": 0,
+ "rows": 0,
+ "covered": 2366,
+ "total": 2383,
+ "remaining": 0,
+ "unfinished": 0,
  "progressed": false,
- "quick": false
+ "pruned": 0,
+ "by_tier": {
+  "1": 0,
+  "2": 0,
+  "3": 0
+ }
 }
