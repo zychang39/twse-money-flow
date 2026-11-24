@@ -981,12 +981,13 @@
  "digest_date": "2026-10-02",
  "esb_history_progress": {},
  "freshness": {
-  "at": "2026-11-24T22:44+08:00",
+  "at": "2026-11-25T02:51+08:00",
   "attempt": 1,
   "fixed": [],
   "missing": [],
   "next_poll": null,
-  "next_retry": null
+  "next_retry": null,
+  "next_run": "2026-11-25T07:51+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2046,53 +2047,19 @@
  },
  "recheck": {
   "tpex_insti": {
-   "2026-11-23": "22:00",
    "2026-11-24": "22:00"
   },
   "tpex_insti_amount": {
-   "2026-11-23": "22:00",
    "2026-11-24": "22:00"
   },
   "twse_insti": {
-   "2026-11-23": "22:00",
    "2026-11-24": "22:00"
   },
   "twse_insti_amount": {
-   "2026-11-23": "22:00",
    "2026-11-24": "22:00"
   }
  },
  "runs": [
-  {
-   "at": "2026-11-20T20:52:20+08:00",
-   "attempt": 1,
-   "failed": [
-    "twse_margin 2026-11-20 尚未公布或無資料：很抱歉，沒有符合條件的資料",
-    "twse_qfii 2026-11-20 尚未公布或無資料：查詢日期大於可查詢最大日期，請重新查詢!"
-   ],
-   "fixed": [],
-   "missing_after": [
-    "qfii",
-    "margin_flash"
-   ],
-   "missing_before": [
-    "qfii",
-    "margin_flash"
-   ],
-   "ok": 2,
-   "pending": [
-    "twse_qfii",
-    "twse_margin"
-   ],
-   "poll_at": "2026-11-20T20:57+08:00",
-   "progressed": true,
-   "quick": false,
-   "relay": "2026-11-20T20:57+08:00",
-   "requests": 3,
-   "retry": true,
-   "revised": [],
-   "task": "catchup"
-  },
   {
    "at": "2026-11-20T20:57:12+08:00",
    "attempt": 2,
@@ -3053,6 +3020,24 @@
    "task": "kbar",
    "total": 2383,
    "unfinished": 0
+  },
+  {
+   "at": "2026-11-25T02:51:22+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "relay": "2026-11-25T07:51+08:00",
+   "requests": 0,
+   "retry": false,
+   "revised": [],
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3776,6 +3761,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-25T02:22:13+08:00",
+ "updated_at": "2026-11-25T02:51:22+08:00",
  "version": 1
 }
