@@ -981,13 +981,13 @@
  "digest_date": "2026-10-02",
  "esb_history_progress": {},
  "freshness": {
-  "at": "2026-11-25T07:34+08:00",
+  "at": "2026-11-25T07:51+08:00",
   "attempt": 1,
   "fixed": [],
   "missing": [],
   "next_poll": null,
   "next_retry": null,
-  "next_run": "2026-11-25T07:51+08:00"
+  "next_run": "2026-11-25T12:51+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2061,37 +2061,6 @@
  },
  "runs": [
   {
-   "at": "2026-11-20T22:07:38+08:00",
-   "attempt": 1,
-   "failed": [],
-   "fixed": [
-    "daytrade",
-    "sbl"
-   ],
-   "format_warnings": [
-    "twse_fulldelivery"
-   ],
-   "missing_after": [],
-   "missing_before": [
-    "sbl",
-    "daytrade"
-   ],
-   "ok": 41,
-   "pending": [],
-   "poll_at": null,
-   "progressed": true,
-   "quick": false,
-   "requests": 69,
-   "retry": false,
-   "revised": [
-    "twse_insti 2026-11-20",
-    "tpex_insti 2026-11-20",
-    "twse_insti_amount 2026-11-20",
-    "tpex_insti_amount 2026-11-20"
-   ],
-   "task": "catchup"
-  },
-  {
    "at": "2026-11-20T23:47:05+08:00",
    "by_tier": {
     "1": 0,
@@ -3023,6 +2992,24 @@
    "retry": false,
    "revised": [],
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-25T07:51:05+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "missing_after": [],
+   "missing_before": [],
+   "ok": 0,
+   "pending": [],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "relay": "2026-11-25T12:51+08:00",
+   "requests": 0,
+   "retry": false,
+   "revised": [],
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3746,6 +3733,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-25T07:34:51+08:00",
+ "updated_at": "2026-11-25T07:51:05+08:00",
  "version": 1
 }
