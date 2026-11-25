@@ -1,6 +1,6 @@
 {
  "task": "catchup",
- "at": "2026-11-26T02:44:29+08:00",
+ "at": "2026-11-26T06:56:05+08:00",
  "requests": 0,
  "ok": 0,
  "failed": [],
@@ -14,5 +14,5 @@
  "poll_at": null,
  "progressed": false,
  "quick": false,
- "relay": "skip:2026-11-26T06:56+08:00"
+ "relay": "2026-11-26T11:56+08:00"
 }
