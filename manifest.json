@@ -981,8 +981,8 @@
  "digest_date": "2026-10-02",
  "esb_history_progress": {},
  "freshness": {
-  "at": "2026-11-25T19:02+08:00",
-  "attempt": 4,
+  "at": "2026-11-25T19:08+08:00",
+  "attempt": 1,
   "fixed": [],
   "missing": [
    {
@@ -998,8 +998,8 @@
    }
   ],
   "next_poll": null,
-  "next_retry": null,
-  "next_run": "2026-11-25T20:52+08:00"
+  "next_retry": "2026-11-25T20:08+08:00",
+  "next_run": "2026-11-25T20:08+08:00"
  },
  "holders_backfill": {
   "codes": 1991,
@@ -2085,28 +2085,6 @@
  },
  "runs": [
   {
-   "at": "2026-11-23T16:12:23+08:00",
-   "by_tier": {
-    "1": 0,
-    "2": 0,
-    "3": 0
-   },
-   "covered": 2351,
-   "failed": [],
-   "fetched": 0,
-   "kbar_target": "2026-11-23",
-   "ok": 1,
-   "pending": [],
-   "progressed": false,
-   "pruned": 0,
-   "remaining": 0,
-   "requests": 0,
-   "rows": 0,
-   "task": "kbar",
-   "total": 2383,
-   "unfinished": 0
-  },
-  {
    "at": "2026-11-23T17:09:18+08:00",
    "attempt": 2,
    "failed": [],
@@ -3101,6 +3079,31 @@
    "retry": false,
    "revised": [],
    "task": "catchup"
+  },
+  {
+   "at": "2026-11-25T19:08:11+08:00",
+   "attempt": 1,
+   "failed": [],
+   "fixed": [],
+   "missing_after": [
+    "qfii"
+   ],
+   "missing_before": [
+    "qfii"
+   ],
+   "ok": 0,
+   "pending": [
+    "twse_qfii",
+    "twse_qfii"
+   ],
+   "poll_at": null,
+   "progressed": false,
+   "quick": false,
+   "relay": "2026-11-25T20:08+08:00",
+   "requests": 1,
+   "retry": true,
+   "revised": [],
+   "task": "catchup"
   }
  ],
  "sources": {
@@ -3727,9 +3730,9 @@
   },
   "twse_qfii": {
    "consecutive_failures": 1,
-   "last_attempt": "2026-11-25T19:02:02+08:00",
-   "last_message": "外資持股比：預期時間已過仍未取得（第 4 次補抓）",
-   "last_status": "failed",
+   "last_attempt": "2026-11-25T19:08:07+08:00",
+   "last_message": "外資持股比：預期時間已過仍未取得（第 1 次補抓）",
+   "last_status": "pending",
    "last_success": "2026-11-24",
    "last_success_at": "2026-11-24T21:52:02+08:00",
    "rows": 1367,
@@ -3819,6 +3822,6 @@
    "waited": 0
   }
  },
- "updated_at": "2026-11-25T19:02:07+08:00",
+ "updated_at": "2026-11-25T19:08:11+08:00",
  "version": 1
 }
