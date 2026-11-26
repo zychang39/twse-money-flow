@@ -1,21 +1,29 @@
 {
  "task": "catchup",
- "at": "2026-11-26T12:01:48+08:00",
- "requests": 61,
- "ok": 31,
- "failed": [],
- "pending": [],
- "format_warnings": [
-  "twse_fulldelivery"
+ "at": "2026-11-26T15:10:43+08:00",
+ "requests": 96,
+ "ok": 36,
+ "failed": [
+  "twse_fulldelivery 2026-11-26 被網站安全機制阻擋（WAF，HTTP 307／FOR SECURITY REASONS）：https://www.twse.com.tw/rwd/zh/fullDelivery/BFIHBU?startDate=20261116&endDate=20261126&response=json"
  ],
+ "pending": [],
  "revised": [],
- "missing_before": [],
+ "missing_before": [
+  "quotes",
+  "index",
+  "intraday"
+ ],
  "missing_after": [],
- "fixed": [],
+ "fixed": [
+  "index",
+  "intraday",
+  "quotes"
+ ],
  "attempt": 1,
  "retry": false,
  "poll_at": null,
  "progressed": true,
  "quick": false,
- "relay": "2026-11-26T15:02+08:00"
+ "relay": "2026-11-26T16:02+08:00",
+ "kbar_dispatched": true
 }
