@@ -1,21 +1,33 @@
 {
  "task": "catchup",
- "at": "2026-11-27T11:46:29+08:00",
- "requests": 61,
- "ok": 31,
+ "at": "2026-11-27T15:12:53+08:00",
+ "requests": 91,
+ "ok": 35,
  "failed": [],
- "pending": [],
+ "pending": [
+  "tpex_index"
+ ],
  "format_warnings": [
   "twse_fulldelivery"
  ],
  "revised": [],
- "missing_before": [],
- "missing_after": [],
- "fixed": [],
+ "missing_before": [
+  "quotes",
+  "index",
+  "intraday"
+ ],
+ "missing_after": [
+  "index"
+ ],
+ "fixed": [
+  "intraday",
+  "quotes"
+ ],
  "attempt": 1,
- "retry": false,
+ "retry": true,
  "poll_at": null,
  "progressed": true,
  "quick": false,
- "relay": "2026-11-27T15:02+08:00"
+ "relay": "2026-11-27T16:02+08:00",
+ "kbar_dispatched": true
 }
